@@ -1,0 +1,47 @@
+rules:
+  first_name:
+    type: string
+    required: true
+    min_length: 2
+    max_length: 50
+    regex: ^[A-Za-z\s-]+$
+    error_message: First name must be 2-50 letters, spaces, or hyphens.
+  last_name:
+    type: string
+    required: true
+    min_length: 2
+    max_length: 50
+    regex: ^[A-Za-z\s-]+$
+    error_message: Last name must be 2-50 letters, spaces, or hyphens.
+  email:
+    type: string
+    required: true
+    regex: ^[\w\.-]+@[\w\.-]+\.\w+$
+    error_message: Invalid email format.
+  date_of_birth:
+    type: date
+    required: true
+    format: YYYY-MM-DD
+    min: '1900-01-01'
+    max: today
+    error_message: Date of birth must be a valid past date.
+contexts:
+  kids_app:
+    date_of_birth:
+      min_age: 5
+      max_age: 17
+      error_message: For kids app, age must be 5-17.
+  salesforce:
+    date_of_birth:
+      min_age: 18
+      max_age: 150
+      error_message: For Salesforce, age must be 18+.
+  uk_region:
+    address:
+      required: true
+      type: not_empty
+      error_message: UK address is required.
+metadata:
+  version: '1.0'
+  author: Sunny Sharma
+  description: Customer onboarding validation with context-aware overrides

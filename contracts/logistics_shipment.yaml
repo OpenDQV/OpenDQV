@@ -1,0 +1,76 @@
+contract:
+  name: logistics_shipment
+  version: "1.0"
+  description: "Logistics shipment record validation"
+  owner: "Supply Chain Data Team"
+  status: active
+
+  rules:
+    - name: shipment_id_required
+      field: shipment_id
+      type: not_empty
+      severity: error
+      error_message: "shipment_id is required"
+
+    - name: origin_country_required
+      field: origin_country
+      type: not_empty
+      severity: error
+      error_message: "origin_country is required"
+
+    - name: origin_country_min_length
+      field: origin_country
+      type: min_length
+      min: 2
+      severity: error
+      error_message: "origin_country must be at least 2 characters"
+
+    - name: destination_country_required
+      field: destination_country
+      type: not_empty
+      severity: error
+      error_message: "destination_country is required"
+
+    - name: destination_country_min_length
+      field: destination_country
+      type: min_length
+      min: 2
+      severity: error
+      error_message: "destination_country must be at least 2 characters"
+
+    - name: dispatch_date_format
+      field: dispatch_date
+      type: date_format
+      severity: error
+      error_message: "dispatch_date must be a valid date (YYYY-MM-DD)"
+
+    - name: estimated_delivery_format
+      field: estimated_delivery
+      type: date_format
+      severity: error
+      error_message: "estimated_delivery must be a valid date (YYYY-MM-DD)"
+
+    - name: weight_kg_min
+      field: weight_kg
+      type: min
+      min: 0
+      severity: error
+      error_message: "weight_kg must be >= 0"
+
+    - name: carrier_required
+      field: carrier
+      type: not_empty
+      severity: error
+      error_message: "carrier is required"
+
+    - name: tracking_number_required
+      field: tracking_number
+      type: not_empty
+      severity: error
+      error_message: "tracking_number is required"
+
+    - name: status_required
+      field: status
+      type: not_empty
+      severity: error
+      error_message: "status is required"

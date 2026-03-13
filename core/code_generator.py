@@ -1,0 +1,174 @@
+"""
+Code generator — generates validation code for target platforms.
+
+Supports: Snowflake (JS UDF), Salesforce (Apex), JavaScript.
+Covers all rule types: regex, min, max, range, not_empty, min_length, max_length, date_format, unique.
+
+This is a "push-down" feature: deploy OpenDQV rules directly into source systems
+as a complement to the centralized API validation.
+"""
+
+from typing import List, Union
+from .rule_parser import Rule
+
+
+def generate_code(rules: Union[List[Rule], List[dict]], target: str) -> str:
+    """Generate platform-specific validation code from rules."""
+    rule_dicts = []
+    for r in rules:
+        if isinstance(r, Rule):
+            rule_dicts.append(r.model_dump(by_alias=False))
+        else:
+            rule_dicts.append(r)
+
+    if target == "snowflake":
+        return _generate_snowflake(rule_dicts)
+    elif target == "salesforce":
+        return _generate_salesforce(rule_dicts)
+    elif target == "js":
+        return _generate_js(rule_dicts)
+    else:
+        raise ValueError(f"Unsupported target: {target}")
+
+
+def _generate_snowflake(rules: list) -> str:
+    code = (
+        "CREATE OR REPLACE FUNCTION check_dq_rules(data ARRAY)\n"
+        "RETURNS ARRAY\n"
+        "LANGUAGE JAVASCRIPT\n"
+        "AS $$\n"
+        "let results = [];\n"
+        "for (let row of data) {\n"
+        "    let errors = [];\n"
+    )
+    age_checked = set()
+    for rule in rules:
+        code += _js_rule_check(rule, indent="    ", age_checked=age_checked)
+    code += (
+        "    results.push({valid: errors.length === 0, errors: errors});\n"
+        "}\n"
+        "return results;\n"
+        "$$;\n"
+    )
+    return code
+
+
+def _escape_single(s: str) -> str:
+    """Escape single quotes for JS/Apex string literals."""
+    return s.replace("\\", "\\\\").replace("'", "\\'")
+
+
+def _generate_salesforce(rules: list) -> str:
+    code = (
+        "public class DQRValidator {\n"
+        "    public static List<Map<String, Object>> validate(List<Map<String, Object>> data) {\n"
+        "        List<Map<String, Object>> results = new List<Map<String, Object>>();\n"
+        "        for (Map<String, Object> row : data) {\n"
+        "            List<String> errors = new List<String>();\n"
+    )
+    age_checked_fields = set()
+    for rule in rules:
+        field = rule["field"]
+        error = _escape_single(rule.get("error_message", f"Failed rule {rule['name']}"))
+        rtype = rule["type"]
+
+        if rtype == "regex" and rule.get("pattern"):
+            code += f"            if (!Pattern.matches('{rule['pattern']}', (String)row.get('{field}'))) errors.add('{error}');\n"
+        elif rtype == "min" and rule.get("min_value") is not None:
+            code += f"            if ((Decimal)row.get('{field}') < {rule['min_value']}) errors.add('{error}');\n"
+        elif rtype == "range" and rule.get("min_value") is not None and rule.get("max_value") is not None:
+            code += f"            Decimal val_{field} = (Decimal)row.get('{field}');\n"
+            code += f"            if (val_{field} < {rule['min_value']} || val_{field} > {rule['max_value']}) errors.add('{error}');\n"
+        elif rtype == "not_empty":
+            code += f"            if (row.get('{field}') == null || String.valueOf(row.get('{field}')).trim() == '') errors.add('{error}');\n"
+        elif rtype == "min_length" and rule.get("min_length") is not None:
+            code += f"            if (((String)row.get('{field}')).length() < {rule['min_length']}) errors.add('{error}');\n"
+        elif rtype == "date_format":
+            code += f"            try {{ Date.valueOf((String)row.get('{field}')); }} catch (Exception e) {{ errors.add('{error}'); }}\n"
+        elif rtype == "unique":
+            code += f"            // Unique check for '{field}' requires full dataset\n"
+
+        if (rule.get("min_age") is not None or rule.get("max_age") is not None) and field not in age_checked_fields:
+            age_checked_fields.add(field)
+            code += f"            if (row.get('{field}') != null) {{\n"
+            code += f"                Date dob_{field} = Date.valueOf((String)row.get('{field}'));\n"
+            code += f"                Integer age_{field} = dob_{field}.daysBetween(Date.today()) / 365;\n"
+            if rule.get("min_age") is not None:
+                code += f"                if (age_{field} < {rule['min_age']}) errors.add('{error}');\n"
+            if rule.get("max_age") is not None:
+                code += f"                if (age_{field} > {rule['max_age']}) errors.add('{error}');\n"
+            code += "            }\n"
+
+    code += (
+        "            results.add(new Map<String, Object>{ 'valid' => errors.isEmpty(), 'errors' => errors });\n"
+        "        }\n"
+        "        return results;\n"
+        "    }\n"
+        "}\n"
+    )
+    return code
+
+
+def _generate_js(rules: list) -> str:
+    code = (
+        "function checkDQRules(data) {\n"
+        "    let results = [];\n"
+        "    for (let row of data) {\n"
+        "        let errors = [];\n"
+    )
+    age_checked = set()
+    for rule in rules:
+        code += _js_rule_check(rule, indent="        ", age_checked=age_checked)
+    code += (
+        "        results.push({valid: errors.length === 0, errors: errors});\n"
+        "    }\n"
+        "    return results;\n"
+        "}\n"
+    )
+    return code
+
+
+def _js_rule_check(rule: dict, indent: str = "    ", age_checked: set = None) -> str:
+    """Generate a JS rule check snippet (shared by Snowflake and plain JS)."""
+    if age_checked is None:
+        age_checked = set()
+    field = rule["field"]
+    error = _escape_single(rule.get("error_message", f"Failed rule {rule['name']}"))
+    rtype = rule["type"]
+    snippet = ""
+
+    if rtype == "regex" and rule.get("pattern"):
+        snippet += f"{indent}if (!new RegExp('{rule['pattern']}').test(row['{field}'])) errors.push('{error}');\n"
+    elif rtype == "min" and rule.get("min_value") is not None:
+        snippet += f"{indent}if (parseFloat(row['{field}']) < {rule['min_value']}) errors.push('{error}');\n"
+    elif rtype == "max" and rule.get("max_value") is not None:
+        snippet += f"{indent}if (parseFloat(row['{field}']) > {rule['max_value']}) errors.push('{error}');\n"
+    elif rtype == "range" and rule.get("min_value") is not None and rule.get("max_value") is not None:
+        snippet += (
+            f"{indent}if (parseFloat(row['{field}']) < {rule['min_value']} || "
+            f"parseFloat(row['{field}']) > {rule['max_value']}) errors.push('{error}');\n"
+        )
+    elif rtype == "not_empty":
+        snippet += f"{indent}if (!row['{field}'] || row['{field}'].toString().trim() === '') errors.push('{error}');\n"
+    elif rtype == "min_length" and rule.get("min_length") is not None:
+        snippet += f"{indent}if (!row['{field}'] || row['{field}'].toString().length < {rule['min_length']}) errors.push('{error}');\n"
+    elif rtype == "max_length" and rule.get("max_length") is not None:
+        snippet += f"{indent}if (row['{field}'] && row['{field}'].toString().length > {rule['max_length']}) errors.push('{error}');\n"
+    elif rtype == "date_format":
+        snippet += f"{indent}if (isNaN(Date.parse(row['{field}']))) errors.push('{error}');\n"
+    elif rtype == "unique":
+        snippet += f"{indent}// Unique check for '{field}' requires full dataset — implement via pre-scan\n"
+
+    # Age check — appended after type check for rules with min_age/max_age (once per field)
+    if (rule.get("min_age") is not None or rule.get("max_age") is not None) and field not in age_checked:
+        age_checked.add(field)
+        snippet += f"{indent}if (row['{field}']) {{\n"
+        snippet += f"{indent}    let dob = new Date(row['{field}']);\n"
+        snippet += f"{indent}    let age = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));\n"
+        if rule.get("min_age") is not None:
+            snippet += f"{indent}    if (age < {rule['min_age']}) errors.push('{error}');\n"
+        if rule.get("max_age") is not None:
+            snippet += f"{indent}    if (age > {rule['max_age']}) errors.push('{error}');\n"
+        snippet += f"{indent}}}\n"
+
+    return snippet

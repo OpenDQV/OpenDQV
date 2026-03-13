@@ -1,0 +1,72 @@
+[
+  {
+    "_comment": "Record 1 — VALID: standard UK-to-Nigeria voice call",
+    "calling_number": "+447911123456",
+    "called_number": "+2348012345678",
+    "call_start_time": "2026-03-09T10:14:32Z",
+    "duration_seconds": 183,
+    "call_type": "INTERNATIONAL",
+    "record_type": "ORIGINATING",
+    "network_code": "234-20",
+    "serving_cell_id": "234200001234567",
+    "charge_amount": 1.47,
+    "charge_currency": "GBP",
+    "data_completeness_flag": "COMPLETE"
+  },
+  {
+    "_comment": "Record 2 — VALID: domestic UK mobile data session",
+    "calling_number": "+447700900123",
+    "called_number": "+447700900123",
+    "call_start_time": "2026-03-09T08:02:00+00:00",
+    "duration_seconds": 3600,
+    "call_type": "DATA",
+    "record_type": "ORIGINATING",
+    "network_code": "234-30",
+    "serving_cell_id": "234300009876543",
+    "charge_amount": 0.00,
+    "charge_currency": "GBP",
+    "data_completeness_flag": "COMPLETE"
+  },
+  {
+    "_comment": "Record 3 — VALID: roaming voice call, partial CDR (network issue)",
+    "calling_number": "+353861234567",
+    "called_number": "+44207 1234567",
+    "call_start_time": "2026-03-08T22:45:11+01:00",
+    "duration_seconds": 47,
+    "call_type": "ROAMING_VOICE",
+    "record_type": "ROAMING_VISITOR",
+    "network_code": "272-01",
+    "serving_cell_id": "272010005432198",
+    "charge_amount": 0.82,
+    "charge_currency": "EUR",
+    "data_completeness_flag": "PARTIAL"
+  },
+  {
+    "_comment": "Record 4 — INVALID: called_number not E.164 format (has spaces and no country code)",
+    "calling_number": "+447911555999",
+    "called_number": "0800 123 4567",
+    "call_start_time": "2026-03-09T11:30:00Z",
+    "duration_seconds": 240,
+    "call_type": "VOICE",
+    "record_type": "ORIGINATING",
+    "network_code": "234-20",
+    "serving_cell_id": "234200007654321",
+    "charge_amount": 0.00,
+    "charge_currency": "GBP",
+    "data_completeness_flag": "COMPLETE"
+  },
+  {
+    "_comment": "Record 5 — INVALID: call_type 'PREMIUM' not in lookup (correct value: PREMIUM_RATE), duration_seconds 90000 exceeds max (86400)",
+    "calling_number": "+447850000001",
+    "called_number": "+448001234567",
+    "call_start_time": "2026-03-07T03:00:00Z",
+    "duration_seconds": 90000,
+    "call_type": "PREMIUM",
+    "record_type": "TERMINATING",
+    "network_code": "234-30",
+    "serving_cell_id": "234300001111111",
+    "charge_amount": 25.00,
+    "charge_currency": "GBP",
+    "data_completeness_flag": "COMPLETE"
+  }
+]

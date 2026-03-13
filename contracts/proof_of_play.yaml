@@ -1,0 +1,151 @@
+contract:
+  name: proof_of_play
+  version: "1.0"
+  description: >
+    OOH panel impression validation — out-of-home advertising proof-of-play feed.
+    Validates impression records before billing reconciliation and regulatory reporting.
+    Authored with reference to Landmark Global Media requirements (Roundtable 6, 2026-03-08).
+  owner: Data Governance Team
+  status: active
+
+  rules:
+    - name: panel_id_format
+      type: regex
+      field: panel_id
+      pattern: "^[A-Z]{2,6}-[A-Z]{2}-[0-9]{4,6}$"
+      description: "Panel ID must follow the operator-market-number format"
+      error_message: "panel_id must match format e.g. LGM-UK-00001"
+
+    - name: market_required
+      type: not_empty
+      field: market
+      error_message: "market is required"
+
+    - name: market_allowed
+      type: regex
+      field: market
+      pattern: "^(UK|DE|FR|ES|IT|NL|BE|PL|SE|NO|DK|CH|AT|PT|IE|FI|AU|NZ|SG|HK|AE|CA|US)$"
+      description: "Market must be a supported country code"
+      error_message: "market must be one of: UK, DE, FR, ES, IT, NL, BE, PL, SE, NO, DK, CH, AT, PT, IE, FI, AU, NZ, SG, HK, AE, CA, US"
+
+    - name: panel_type_required
+      type: not_empty
+      field: panel_type
+      error_message: "panel_type is required"
+
+    - name: panel_type_allowed
+      type: regex
+      field: panel_type
+      pattern: "^(CLASSIC|DIGITAL|LED|PROJECTOR|AIRPORT|TRANSIT)$"
+      error_message: "panel_type must be one of: CLASSIC, DIGITAL, LED, PROJECTOR, AIRPORT, TRANSIT"
+
+    - name: impression_start_format
+      type: regex
+      field: impression_start
+      pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
+      description: "Impression start must be ISO 8601 datetime"
+      error_message: "impression_start must be ISO 8601 e.g. 2024-06-01T09:00:00Z"
+
+    - name: impression_end_format
+      type: regex
+      field: impression_end
+      pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
+      description: "Impression end must be ISO 8601 datetime"
+      error_message: "impression_end must be ISO 8601 e.g. 2024-06-01T09:30:00Z"
+
+    - name: impression_end_after_start
+      type: compare
+      field: impression_end
+      compare_to: impression_start
+      compare_op: gt
+      description: "Impression end must be strictly after impression start"
+      error_message: "impression_end must be later than impression_start (inverted timestamps cause phantom billing)"
+      severity: error
+
+    - name: transaction_type_allowed
+      type: regex
+      field: transaction_type
+      pattern: "^(CHARGE|CREDIT|ADJUSTMENT)$"
+      description: "Transaction type must be CHARGE, CREDIT, or ADJUSTMENT"
+      error_message: "transaction_type must be CHARGE, CREDIT, or ADJUSTMENT"
+
+    - name: revenue_required
+      type: not_empty
+      field: revenue_gbp
+      error_message: "revenue_gbp is required"
+
+    - name: revenue_non_negative_for_charges
+      type: min
+      field: revenue_gbp
+      min: 0
+      condition:
+        field: transaction_type
+        not_value: CREDIT
+      description: "Revenue must be >= 0 for CHARGE and ADJUSTMENT records. Credits may be negative."
+      error_message: "revenue_gbp must be >= 0 for CHARGE records (credits are exempt)"
+
+    - name: revenue_ceiling
+      type: max
+      field: revenue_gbp
+      max: 500000
+      severity: warning
+      condition:
+        field: transaction_type
+        value: CHARGE
+      error_message: "revenue_gbp > 500000 is unusually high — verify before processing"
+
+    - name: advertiser_id_format
+      type: regex
+      field: advertiser_id
+      pattern: "^ADV-[0-9]{6,10}$"
+      error_message: "advertiser_id must match format ADV-XXXXXXXX"
+
+    - name: creative_id_required
+      type: not_empty
+      field: creative_id
+      error_message: "creative_id is required"
+
+    - name: campaign_ref_required
+      type: not_empty
+      field: campaign_ref
+      error_message: "campaign_ref is required"
+
+    - name: dwell_seconds_min
+      type: min
+      field: dwell_seconds
+      min: 1
+      error_message: "dwell_seconds must be >= 1"
+
+    - name: dwell_seconds_max
+      type: max
+      field: dwell_seconds
+      max: 3600
+      severity: warning
+      error_message: "dwell_seconds > 3600 is unusual — verify display duration"
+
+    - name: refresh_rate_required_for_digital
+      type: required_if
+      field: refresh_rate_hz
+      required_if:
+        field: panel_type
+        value: DIGITAL
+      description: "Digital panels must specify their content refresh rate"
+      error_message: "refresh_rate_hz is required when panel_type is DIGITAL"
+      severity: error
+
+  contexts:
+    billing:
+      # Billing context: all warnings become errors — no leniency during revenue reconciliation
+      revenue_ceiling:
+        severity: error
+        error_message: "revenue_gbp > 500000 — billing reconciliation blocked pending manual review"
+      dwell_seconds_max:
+        severity: error
+        error_message: "dwell_seconds > 3600 — billing reconciliation blocked pending manual review"
+
+    operations:
+      # Operations context: loosened for real-time monitoring dashboards
+      revenue_ceiling:
+        severity: warning
+      dwell_seconds_max:
+        severity: warning

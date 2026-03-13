@@ -1,0 +1,62 @@
+contract:
+  name: insurance_claim
+  version: "1.0"
+  description: "Insurance claim record validation"
+  owner: "Claims Data Team"
+  status: active
+
+  rules:
+    - name: claim_id_required
+      field: claim_id
+      type: not_empty
+      severity: error
+      error_message: "claim_id is required"
+
+    - name: policy_number_required
+      field: policy_number
+      type: not_empty
+      severity: error
+      error_message: "policy_number is required"
+
+    - name: incident_date_format
+      field: incident_date
+      type: date_format
+      severity: error
+      error_message: "incident_date must be a valid date (YYYY-MM-DD)"
+
+    - name: claim_date_format
+      field: claim_date
+      type: date_format
+      severity: error
+      error_message: "claim_date must be a valid date (YYYY-MM-DD)"
+
+    - name: claimant_id_required
+      field: claimant_id
+      type: not_empty
+      severity: error
+      error_message: "claimant_id is required"
+
+    - name: claim_type_required
+      field: claim_type
+      type: not_empty
+      severity: error
+      error_message: "claim_type is required"
+
+    - name: claimed_amount_min
+      field: claimed_amount
+      type: min
+      min: 0
+      severity: error
+      error_message: "claimed_amount must be >= 0"
+
+    - name: status_required
+      field: status
+      type: not_empty
+      severity: error
+      error_message: "status is required"
+
+    - name: assessor_id_required
+      field: assessor_id
+      type: not_empty
+      severity: warning
+      error_message: "assessor_id should be assigned to the claim"

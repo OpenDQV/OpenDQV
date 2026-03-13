@@ -1,0 +1,62 @@
+contract:
+  name: public_sector_service
+  version: "1.0"
+  description: "Public sector service case record validation"
+  owner: "Digital Services Data Team"
+  status: active
+
+  rules:
+    - name: case_id_required
+      field: case_id
+      type: not_empty
+      severity: error
+      error_message: "case_id is required"
+
+    - name: citizen_id_required
+      field: citizen_id
+      type: not_empty
+      severity: error
+      error_message: "citizen_id is required"
+
+    - name: service_type_required
+      field: service_type
+      type: not_empty
+      severity: error
+      error_message: "service_type is required"
+
+    - name: submission_date_format
+      field: submission_date
+      type: date_format
+      severity: error
+      error_message: "submission_date must be a valid date (YYYY-MM-DD)"
+
+    - name: department_required
+      field: department
+      type: not_empty
+      severity: error
+      error_message: "department is required"
+
+    - name: status_required
+      field: status
+      type: not_empty
+      severity: error
+      error_message: "status is required"
+
+    - name: region_required
+      field: region
+      type: not_empty
+      severity: error
+      error_message: "region is required"
+
+    - name: postcode_format
+      field: postcode
+      type: regex
+      pattern: '^[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}$'
+      severity: error
+      error_message: "postcode must be a valid UK postcode"
+
+    - name: officer_id_required
+      field: officer_id
+      type: not_empty
+      severity: error
+      error_message: "officer_id is required"

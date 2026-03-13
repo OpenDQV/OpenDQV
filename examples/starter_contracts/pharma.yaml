@@ -1,0 +1,177 @@
+# =============================================================================
+# OpenDQV Pharmaceuticals & Life Sciences Starter Contract
+# =============================================================================
+# Purpose   : Clinical trial observation validation. CDISC SDTM-aligned.
+#             Suitable for CROs, pharmaceutical sponsors, and biotech firms
+#             preparing data for FDA/EMA submission.
+# Frameworks: CDISC SDTM v3.3, 21 CFR Part 11, ICH E6(R2) GCP,
+#             FDA 21 CFR Part 11 electronic records and signatures
+# Deployment: Cloud with TLS + full audit trail (see docs/core/deployment.md)
+# Version   : 1.0.0
+# =============================================================================
+#
+# REGULATORY STAKES: FDA 21 CFR Part 11 requires that electronic records
+# used in regulatory submissions be accurate, reliable, and audit-trailed.
+# Data quality failures in clinical trial data can result in:
+#   - Clinical hold (FDA halts the trial)
+#   - Rejection of NDA/BLA submission
+#   - Warning letter or consent decree
+#
+# AUDIT TRAIL REQUIREMENT: This contract should be governed under the
+# REVIEW lifecycle (DRAFT → REVIEW → ACTIVE). Every validation run
+# should reference the contract version and approved_by from ContractHistory.
+# See: docs/core/governance.md
+#
+# GXP NOTE: For IQ/OQ/PQ validation documentation of OpenDQV as a
+# computerised system, refer to the GxP Validation Support Package
+# (available from BGMS Consultants Limited).
+#
+# HOW TO USE:
+#   1. Ensure this contract is in ACTIVE status with an approved_by entry.
+#   2. Load: POST /api/v1/contracts (name: "clinical_trial_observation")
+#   3. Validate: POST /api/v1/validate/clinical_trial_observation
+#   4. Store the validation response alongside the source data for audit.
+#   5. Sample records: examples/starter_contracts/sample_records/pharma.json
+
+name: clinical_trial_observation
+version: "1.0.0"
+description: "Clinical trial observation validation — CDISC SDTM-aligned, GCP-compliant"
+asset_id: "urn:opendqv:example:pharma:clinical_trial_observation"
+
+rules:
+
+  # ── SUBJECT IDENTIFICATION ───────────────────────────────────────────────────
+  # CDISC SDTM USUBJID: typically [Study ID]-[Site]-[Subject number]
+  # Format: 3 uppercase alphanumerics + hyphen + 3 digits + hyphen + 4 digits
+  # Example: ABC-001-0042, XYZ-003-1001
+  # Adapt the regex to match your study's USUBJID convention.
+  - field: subject_id
+    rule: not_empty
+    severity: error
+    description: "Subject ID (USUBJID) is mandatory for all observations."
+
+  - field: subject_id
+    rule: regex
+    # Format: STUDY-SITE-SUBJECT (e.g., "XYZ-003-1001")
+    pattern: "^[A-Z0-9]{2,6}-[0-9]{3}-[0-9]{4}$"
+    severity: error
+    description: "Subject ID must follow STUDY-SITE-SUBJECT format (e.g., XYZ-003-1001)."
+
+  # ── VISIT ────────────────────────────────────────────────────────────────────
+  # CDISC SDTM VISIT: planned visit name from the protocol schedule.
+  # Extend this list to match your study's visit schedule.
+  - field: visit_name
+    rule: lookup
+    lookup_values: [SCREENING, BASELINE, WEEK2, WEEK4, WEEK8, WEEK12,
+                    WEEK16, WEEK24, WEEK48, MONTH6, MONTH12, EOS,
+                    EOT, FOLLOWUP, UNSCHEDULED, TELEPHONE]
+    severity: error
+    description: "Visit name must be a protocol-defined visit. UNSCHEDULED is permitted; must be documented in source data."
+
+  # ── DATES ────────────────────────────────────────────────────────────────────
+  - field: observation_date
+    rule: not_empty
+    severity: error
+    description: "Observation date is mandatory — ICH E6(R2) §5.18.4 requires contemporaneous records."
+
+  - field: observation_date
+    rule: regex
+    pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    severity: error
+    description: "Observation date must be in YYYY-MM-DD format."
+
+  - field: observation_date
+    rule: compare
+    compare_op: lte
+    compare_to: today
+    severity: error
+    description: "Observation date cannot be in the future (21 CFR Part 11 data integrity)."
+
+  # ── LABORATORY TEST ──────────────────────────────────────────────────────────
+  # LOINC code: numeric part, hyphen, check digit. Range: 5–7 digits.
+  # For production, replace with a lookup_file pointing to the LOINC code list
+  # relevant to your study's laboratory panel:
+  #   lookup_file: "reference_data/loinc_study_panel.csv"
+  - field: test_code
+    rule: not_empty
+    severity: error
+    description: "LOINC test code is mandatory for laboratory observations."
+
+  - field: test_code
+    rule: regex
+    # LOINC format: 5–7 digits, hyphen, 1 check digit
+    pattern: "^[0-9]{5,7}-[0-9]$"
+    severity: error
+    description: "Test code must be a valid LOINC format (e.g., 2160-0 for serum creatinine)."
+
+  # ── RESULT ───────────────────────────────────────────────────────────────────
+  - field: result_value
+    rule: not_empty
+    severity: error
+    description: "Result value is mandatory. Use 'BLQ' for below limit of quantification, not empty."
+
+  - field: result_unit
+    rule: lookup
+    # Common clinical laboratory units (SI and conventional).
+    # Extend with units specific to your study's endpoints.
+    lookup_values: [mg_dL, mmol_L, g_dL, g_L, U_L, IU_L, mIU_mL,
+                    pg_mL, ng_mL, ug_mL, nmol_L, umol_L, pmol_L,
+                    10e9_L, 10e12_L, pct, sec, INR, ratio,
+                    mmHg, bpm, kg, kg_m2, cm, mm]
+    severity: error
+    description: "Result unit must be a recognised clinical laboratory unit."
+
+  # Plausibility check: catches extreme values that are almost certainly
+  # data entry errors (e.g., entered in wrong unit, decimal point shift).
+  # Adjust the range to the plausible range for your primary endpoint.
+  - field: result_numeric
+    rule: range
+    min: 0.0
+    max: 100000.0
+    severity: warning
+    description: "Numeric result value should be within a physiologically plausible range. Review values at the extremes."
+
+  - field: result_numeric
+    rule: cross_field_range
+    min_field: normal_range_low
+    max_field: normal_range_high
+    severity: warning
+    description: "Result is outside the reference range for this test. Requires clinical review."
+
+  - field: normal_range_low
+    rule: not_empty
+    severity: error
+    description: "Normal range low is required — needed for clinically significant abnormality (CSA) flagging."
+
+  - field: normal_range_high
+    rule: not_empty
+    severity: error
+    description: "Normal range high is required."
+
+  # ── CDISC FLAGS ──────────────────────────────────────────────────────────────
+  # CDISC SDTM VSBLFL: Baseline flag. "Y" for the baseline observation,
+  # absent or "N" for all others. Only one observation per subject per test
+  # may be flagged as baseline.
+  # NOTE: The grouped uniqueness constraint (only one Y per USUBJID+TESTCD)
+  # will be available via the grouped_unique rule type (roadmap — P1).
+  - field: baseline_flag
+    rule: lookup
+    lookup_values: ["Y", "N"]
+    severity: error
+    description: "Baseline flag must be Y or N (CDISC VSBLFL). Only one observation per subject per test may be Y."
+
+  # CDISC SDTM DTYPE: Derivation type for derived/imputed records.
+  - field: derivation_type
+    rule: lookup
+    lookup_values: [ORIGINAL, LOCF, BOCF, WOCF, AVERAGE, MEDIAN,
+                    MINIMUM, MAXIMUM, INTERPOLATED]
+    severity: warning
+    description: "Derivation type must indicate whether the record is original or derived (CDISC DTYPE)."
+
+  # ── INVESTIGATOR SIGN-OFF ────────────────────────────────────────────────────
+  # 21 CFR Part 11: electronic records require an electronic signature attribute.
+  # The signed_by field stores the investigator ID who reviewed the record.
+  - field: signed_by
+    rule: not_empty
+    severity: warning
+    description: "Investigator ID is required for 21 CFR Part 11 electronic signature compliance."

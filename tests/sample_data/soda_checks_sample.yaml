@@ -1,0 +1,16 @@
+checks for customers:
+  - missing_count(email) = 0
+  - duplicate_count(customer_id) = 0
+  - invalid_count(email) = 0:
+      valid regex: "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$"
+  - min(age) >= 0
+  - max(age) <= 120
+  - min_length(name) >= 2
+  - max_length(name) <= 100
+  - freshness(created_at) < 24h
+
+checks for orders:
+  - missing_count(order_id) = 0
+  - duplicate_count(order_id) = 0
+  - min(amount) >= 0
+  - max(amount) <= 1000000

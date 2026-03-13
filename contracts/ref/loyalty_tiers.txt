@@ -1,0 +1,4 @@
+gold
+silver
+bronze
+standard

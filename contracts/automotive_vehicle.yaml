@@ -1,0 +1,91 @@
+contract:
+  name: automotive_vehicle
+  version: '1.0'
+  description: Automotive vehicle record validation
+  owner: Automotive Data Team
+  status: active
+  rules:
+  - name: vin_required
+    description: ''
+    type: not_empty
+    field: vin
+    severity: error
+    error_message: vin is required
+    inherited: false
+    negate: false
+    all_of: false
+  - name: make_required
+    description: ''
+    type: not_empty
+    field: make
+    severity: error
+    error_message: make is required
+    inherited: false
+    negate: false
+    all_of: false
+  - name: model_required
+    description: ''
+    type: not_empty
+    field: model
+    severity: error
+    error_message: model is required
+    inherited: false
+    negate: false
+    all_of: false
+  - name: year_range
+    description: ''
+    type: range
+    field: year
+    min: 1900.0
+    max: 2100.0
+    severity: error
+    error_message: year must be between 1900 and 2100
+    inherited: false
+    negate: false
+    all_of: false
+  - name: mileage_km_min
+    description: ''
+    type: min
+    field: mileage_km
+    min: 0.0
+    severity: error
+    error_message: mileage_km must be >= 0
+    inherited: false
+    negate: false
+    all_of: false
+  - name: fuel_type_required
+    description: ''
+    type: not_empty
+    field: fuel_type
+    severity: error
+    error_message: fuel_type is required
+    inherited: false
+    negate: false
+    all_of: false
+  - name: registration_required
+    description: ''
+    type: not_empty
+    field: registration
+    severity: error
+    error_message: registration is required
+    inherited: false
+    negate: false
+    all_of: false
+  - name: last_service_date_format
+    description: ''
+    type: date_format
+    field: last_service_date
+    severity: warning
+    error_message: last_service_date must be a valid date (YYYY-MM-DD)
+    inherited: false
+    negate: false
+    all_of: false
+  - name: colour_required
+    description: ''
+    type: not_empty
+    field: colour
+    severity: warning
+    error_message: colour should be provided
+    inherited: false
+    negate: false
+    all_of: false

@@ -1,0 +1,71 @@
+contract:
+  name: telecoms_cdr
+  version: "1.0"
+  description: "Telecoms call detail record validation"
+  owner: "Network Data Team"
+  status: active
+
+  rules:
+    - name: record_id_required
+      field: record_id
+      type: not_empty
+      severity: error
+      error_message: "record_id is required"
+
+    - name: msisdn_required
+      field: msisdn
+      type: not_empty
+      severity: error
+      error_message: "msisdn is required"
+
+    - name: msisdn_format
+      field: msisdn
+      type: regex
+      pattern: '^\+?[\d\s\-\(\)]{7,20}$'
+      severity: error
+      error_message: "msisdn must be a valid phone number"
+
+    - name: call_start_format
+      field: call_start
+      type: date_format
+      severity: error
+      error_message: "call_start must be a valid date (YYYY-MM-DD)"
+
+    - name: call_end_format
+      field: call_end
+      type: date_format
+      severity: error
+      error_message: "call_end must be a valid date (YYYY-MM-DD)"
+
+    - name: duration_seconds_min
+      field: duration_seconds
+      type: min
+      min: 0
+      severity: error
+      error_message: "duration_seconds must be >= 0"
+
+    - name: call_type_required
+      field: call_type
+      type: not_empty
+      severity: error
+      error_message: "call_type is required"
+
+    - name: network_code_required
+      field: network_code
+      type: not_empty
+      severity: error
+      error_message: "network_code is required"
+
+    - name: charge_amount_min
+      field: charge_amount
+      type: min
+      min: 0
+      severity: error
+      error_message: "charge_amount must be >= 0"
+
+    - name: data_volume_mb_min
+      field: data_volume_mb
+      type: min
+      min: 0
+      severity: error
+      error_message: "data_volume_mb must be >= 0"

@@ -1,0 +1,57 @@
+contract:
+  name: retail_product
+  version: "1.0"
+  description: "Retail product catalogue record validation"
+  owner: "Merchandising Data Team"
+  status: active
+
+  rules:
+    - name: sku_required
+      field: sku
+      type: not_empty
+      severity: error
+      error_message: "sku is required"
+
+    - name: product_name_required
+      field: product_name
+      type: not_empty
+      severity: error
+      error_message: "product_name is required"
+
+    - name: category_required
+      field: category
+      type: not_empty
+      severity: error
+      error_message: "category is required"
+
+    - name: price_min
+      field: price
+      type: min
+      min: 0
+      severity: error
+      error_message: "price must be >= 0"
+
+    - name: stock_quantity_min
+      field: stock_quantity
+      type: min
+      min: 0
+      severity: error
+      error_message: "stock_quantity must be >= 0"
+
+    - name: barcode_required
+      field: barcode
+      type: not_empty
+      severity: error
+      error_message: "barcode is required"
+
+    - name: supplier_id_required
+      field: supplier_id
+      type: not_empty
+      severity: error
+      error_message: "supplier_id is required"
+
+    - name: last_updated_format
+      field: last_updated
+      type: date_format
+      severity: error
+      error_message: "last_updated must be a valid date (YYYY-MM-DD)"

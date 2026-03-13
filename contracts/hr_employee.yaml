@@ -1,0 +1,69 @@
+contract:
+  name: hr_employee
+  version: "1.0"
+  description: "HR employee record validation"
+  owner: "People Data Team"
+  status: active
+
+  rules:
+    - name: employee_id_required
+      field: employee_id
+      type: not_empty
+      severity: error
+      error_message: "employee_id is required"
+
+    - name: first_name_required
+      field: first_name
+      type: not_empty
+      severity: error
+      error_message: "first_name is required"
+
+    - name: last_name_required
+      field: last_name
+      type: not_empty
+      severity: error
+      error_message: "last_name is required"
+
+    - name: email_required
+      field: email
+      type: not_empty
+      severity: error
+      error_message: "email is required"
+
+    - name: email_format
+      field: email
+      type: regex
+      pattern: '^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+      severity: error
+      error_message: "email must be a valid email address"
+
+    - name: department_required
+      field: department
+      type: not_empty
+      severity: error
+      error_message: "department is required"
+
+    - name: job_title_required
+      field: job_title
+      type: not_empty
+      severity: error
+      error_message: "job_title is required"
+
+    - name: start_date_format
+      field: start_date
+      type: date_format
+      severity: error
+      error_message: "start_date must be a valid date (YYYY-MM-DD)"
+
+    - name: salary_min
+      field: salary
+      type: min
+      min: 0
+      severity: error
+      error_message: "salary must be >= 0"
+
+    - name: contract_type_required
+      field: contract_type
+      type: not_empty
+      severity: error
+      error_message: "contract_type is required"

@@ -1,0 +1,57 @@
+contract:
+  name: water_utility_reading
+  version: "1.0"
+  description: "Water utility meter reading validation"
+  owner: "Water Utility Data Team"
+  status: active
+
+  rules:
+    - name: meter_id_required
+      field: meter_id
+      type: not_empty
+      severity: error
+      error_message: "meter_id is required"
+
+    - name: reading_date_format
+      field: reading_date
+      type: date_format
+      severity: error
+      error_message: "reading_date must be a valid date (YYYY-MM-DD)"
+
+    - name: consumption_m3_min
+      field: consumption_m3
+      type: min
+      min: 0
+      severity: error
+      error_message: "consumption_m3 must be >= 0"
+
+    - name: customer_id_required
+      field: customer_id
+      type: not_empty
+      severity: error
+      error_message: "customer_id is required"
+
+    - name: site_id_required
+      field: site_id
+      type: not_empty
+      severity: error
+      error_message: "site_id is required"
+
+    - name: meter_status_required
+      field: meter_status
+      type: not_empty
+      severity: error
+      error_message: "meter_status is required"
+
+    - name: tariff_zone_required
+      field: tariff_zone
+      type: not_empty
+      severity: error
+      error_message: "tariff_zone is required"
+
+    - name: previous_reading_m3_min
+      field: previous_reading_m3
+      type: min
+      min: 0
+      severity: error
+      error_message: "previous_reading_m3 must be >= 0"

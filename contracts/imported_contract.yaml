@@ -1,0 +1,7 @@
+contract:
+  name: imported_contract
+  version: '1.0'
+  status: deprecated
+  description: ''
+  owner: ''
+  rules: []

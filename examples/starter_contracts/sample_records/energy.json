@@ -1,0 +1,62 @@
+[
+  {
+    "_comment": "Record 1 — VALID: actual half-hourly read, residential meter, SP14",
+    "mprn": "10123456789",
+    "meter_serial": "G4P08700001",
+    "read_timestamp": "2026-03-09T07:00:00Z",
+    "read_type": "A",
+    "consumption_kwh": 0.42,
+    "settlement_period": 14,
+    "data_source": "SMETS2",
+    "supply_type": "ELECTRICITY",
+    "dno_code": "10"
+  },
+  {
+    "_comment": "Record 2 — VALID: estimated read, SP30 (3pm), slightly higher consumption",
+    "mprn": "10987654321",
+    "meter_serial": "G4P08700088",
+    "read_timestamp": "2026-03-09T15:00:00Z",
+    "read_type": "E",
+    "consumption_kwh": 0.78,
+    "settlement_period": 30,
+    "data_source": "SMETS2",
+    "supply_type": "ELECTRICITY",
+    "dno_code": "14"
+  },
+  {
+    "_comment": "Record 3 — VALID: gas meter, actual read",
+    "mprn": "54321098765",
+    "meter_serial": "G4H00012345",
+    "read_timestamp": "2026-03-09T06:30:00Z",
+    "read_type": "A",
+    "consumption_kwh": 3.21,
+    "settlement_period": 13,
+    "data_source": "AMR",
+    "supply_type": "GAS",
+    "dno_code": "22"
+  },
+  {
+    "_comment": "Record 4 — INVALID: mprn only 10 digits (needs exactly 11)",
+    "mprn": "1012345678",
+    "meter_serial": "G4P08700222",
+    "read_timestamp": "2026-03-09T14:30:00Z",
+    "read_type": "A",
+    "consumption_kwh": 0.55,
+    "settlement_period": 29,
+    "data_source": "SMETS2",
+    "supply_type": "ELECTRICITY",
+    "dno_code": "10"
+  },
+  {
+    "_comment": "Record 5 — INVALID: read_type 'R' not in lookup (valid codes: A, E, D, N), settlement_period 52 out of range (max 50)",
+    "mprn": "20000099988",
+    "meter_serial": "G4P08799999",
+    "read_timestamp": "2026-03-09T18:00:00Z",
+    "read_type": "R",
+    "consumption_kwh": 1.12,
+    "settlement_period": 52,
+    "data_source": "SMETS1",
+    "supply_type": "ELECTRICITY",
+    "dno_code": "11"
+  }
+]

@@ -1,0 +1,70 @@
+contract:
+  name: financial_trade
+  version: "1.0"
+  description: "Financial trade record validation"
+  owner: "Trading Data Team"
+  status: active
+
+  rules:
+    - name: trade_id_required
+      field: trade_id
+      type: not_empty
+      severity: error
+      error_message: "trade_id is required"
+
+    - name: trade_date_format
+      field: trade_date
+      type: date_format
+      severity: error
+      error_message: "trade_date must be a valid date (YYYY-MM-DD)"
+
+    - name: settlement_date_format
+      field: settlement_date
+      type: date_format
+      severity: error
+      error_message: "settlement_date must be a valid date (YYYY-MM-DD)"
+
+    - name: instrument_id_required
+      field: instrument_id
+      type: not_empty
+      severity: error
+      error_message: "instrument_id is required"
+
+    - name: quantity_min
+      field: quantity
+      type: min
+      min: 0
+      severity: error
+      error_message: "quantity must be >= 0"
+
+    - name: price_min
+      field: price
+      type: min
+      min: 0
+      severity: error
+      error_message: "price must be >= 0"
+
+    - name: trader_id_required
+      field: trader_id
+      type: not_empty
+      severity: error
+      error_message: "trader_id is required"
+
+    - name: counterparty_id_required
+      field: counterparty_id
+      type: not_empty
+      severity: error
+      error_message: "counterparty_id is required"
+
+    - name: currency_required
+      field: currency
+      type: not_empty
+      severity: error
+      error_message: "currency is required"
+
+    - name: currency_format
+      field: currency
+      type: regex
+      pattern: '^[A-Z]{3}$'
+      severity: error
+      error_message: "currency must be a 3-letter ISO 4217 code (e.g. GBP, USD)"

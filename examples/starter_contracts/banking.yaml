@@ -1,0 +1,281 @@
+# =============================================================================
+# OpenDQV Banking Starter Contract
+# =============================================================================
+# Purpose   : Bank account transaction validation for retail banking.
+#             Suitable for core banking systems, payment processors, and
+#             anti-fraud platforms processing inbound/outbound transactions.
+# Domain    : Core banking, payment processing, anti-fraud
+# Frameworks: PSD2 (EU Directive 2015/2366), FCA regulations (UK PS14/16),
+#             SWIFT ISO 20022, AML (FATF Recommendations), Basel III reporting
+# Deployment: On-premise or private cloud
+#             (see docs/core/deployment.md — private-cloud pattern)
+# Version   : 1.0.0
+# =============================================================================
+#
+# FINANCIAL & REGULATORY STAKES:
+#   PSD2 Strong Customer Authentication (SCA): Under PSD2 Article 97,
+#   electronic payments above EUR 30 require two-factor authentication.
+#   Malformed transaction data can prevent SCA checks from firing correctly,
+#   creating regulatory liability.
+#
+#   FATF AML obligations: FATF Recommendation 10 requires financial
+#   institutions to conduct customer due diligence on all transactions.
+#   The aml_flag field carries the screening result. A missing or invalid
+#   AML flag must block the transaction — it is not a data quality warning,
+#   it is a regulatory compliance failure.
+#
+#   Basel III reporting: Capital adequacy calculations depend on accurately
+#   classified transaction types and amounts. Errors in transaction_type or
+#   amount flow through to regulatory capital reports.
+#
+# HOW TO USE:
+#   1. Load this contract: POST /api/v1/contracts (name: "bank_transaction")
+#   2. Validate a record:  POST /api/v1/validate/bank_transaction
+#   3. Batch validate:     POST /api/v1/validate/bank_transaction/batch
+#   4. Sample records:     examples/starter_contracts/sample_records/banking.json
+#
+# ADAPTING FOR YOUR SYSTEM:
+#   - Swap account_number regex between UK sort-code and IBAN patterns as needed
+#   - Extend currency lookup to cover your markets
+#   - Adjust amount range max for wholesale/corporate banking (default: retail)
+#   - Replace aml_flag lookup_values with your screening provider's codes
+
+name: bank_transaction
+version: "1.0.0"
+description: "Retail bank transaction validation — identifiers, amounts, AML screening, payment channel, PSD2/FCA/FATF compliance"
+asset_id: "urn:opendqv:example:banking:bank_transaction"
+
+rules:
+
+  # ── TRANSACTION IDENTIFICATION ───────────────────────────────────────────────
+  # transaction_id is the primary idempotency key.  Duplicate IDs indicate
+  # replay attacks or upstream system errors — catch them at ingestion.
+  - field: transaction_id
+    rule: not_empty
+    severity: error
+    description: "Transaction ID is mandatory. A missing ID prevents deduplication and idempotency checks."
+
+  - field: transaction_id
+    rule: regex
+    # Alphanumeric, 8–20 characters. Covers most core banking ID schemes.
+    pattern: "^[A-Z0-9]{8,20}$"
+    severity: error
+    description: "Transaction ID must be 8–20 uppercase alphanumeric characters."
+
+  # ── ACCOUNT NUMBER ───────────────────────────────────────────────────────────
+  # Two formats are provided — comment out the one that does not apply.
+  #
+  # UK sort-code + account number: 6 digits, hyphen, 8 digits (e.g., 20-00-00-12345678)
+  # IBAN: ISO 13616 — 2-letter country, 2 check digits, 4 BBAN chars, 7–19 digits
+  #
+  # Current default: UK sort-code format.
+  # To switch to IBAN, comment out the UK rule and uncomment the IBAN rule below.
+  - field: account_number
+    rule: not_empty
+    severity: error
+    description: "Account number is mandatory."
+
+  - field: account_number
+    rule: regex
+    # UK: 6-digit sort code + hyphen + 8-digit account number
+    pattern: "^[0-9]{6}-[0-9]{8}$"
+    severity: error
+    description: "Account number must be UK sort-code format: XXXXXX-XXXXXXXX (e.g., 200000-12345678)."
+
+  # IBAN alternative (ISO 13616). Uncomment to use instead of UK sort-code:
+  #
+  # - field: account_number
+  #   rule: regex
+  #   pattern: "^[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7,19}$"
+  #   severity: error
+  #   description: "Account number must be a valid IBAN (ISO 13616): 2-letter country code, 2 check digits, up to 30 alphanumeric BBAN characters."
+
+  # ── TRANSACTION TYPE ─────────────────────────────────────────────────────────
+  # These codes align with SWIFT ISO 20022 camt.053 (bank-to-customer statement)
+  # and are required for Basel III transaction classification.
+  - field: transaction_type
+    rule: lookup
+    lookup_values:
+      - CREDIT
+      - DEBIT
+      - TRANSFER
+      - DIRECT_DEBIT
+      - STANDING_ORDER
+      - FASTER_PAYMENT
+      - CHAPS
+      - SEPA
+      - SWIFT
+      - ATM_WITHDRAWAL
+      - POS
+      - REFUND
+      - INTEREST
+      - FEE
+      - REVERSAL
+    severity: error
+    description: "Transaction type must be a recognised payment instrument code (ISO 20022 / Basel III classification)."
+
+  # ── AMOUNT ──────────────────────────────────────────────────────────────────
+  # Retail banking ceiling: GBP/EUR 10,000,000 per transaction.
+  # For wholesale/corporate banking, raise max to 1,000,000,000.
+  # A zero-amount transaction is valid (e.g., a fee reversal to zero).
+  - field: amount
+    rule: not_empty
+    severity: error
+    description: "Amount is mandatory."
+
+  - field: amount
+    rule: range
+    min: 0
+    max: 10000000
+    severity: error
+    description: "Transaction amount must be between 0 and 10,000,000 (retail ceiling). Adjust max for wholesale banking."
+
+  # ── CURRENCY ─────────────────────────────────────────────────────────────────
+  # ISO 4217 currency codes for supported markets.
+  # Extend this list to add emerging market currencies relevant to your operations.
+  - field: currency
+    rule: lookup
+    lookup_values:
+      - USD
+      - EUR
+      - GBP
+      - JPY
+      - CHF
+      - SEK
+      - NOK
+      - DKK
+      - CAD
+      - AUD
+      - NZD
+      - SGD
+      - HKD
+      - CNY
+      - INR
+      - BRL
+      - MXN
+      - ZAR
+      - NGN
+      - KES
+      - GHS
+    severity: error
+    description: "Currency must be a supported ISO 4217 code."
+
+  # ── TRANSACTION DATETIME ─────────────────────────────────────────────────────
+  # ISO 8601 with timezone offset is required for cross-border payment
+  # reconciliation and PSD2 audit trail obligations.
+  - field: transaction_datetime
+    rule: not_empty
+    severity: error
+    description: "Transaction datetime is mandatory for audit trail and settlement."
+
+  - field: transaction_datetime
+    rule: regex
+    # ISO 8601 datetime with mandatory timezone (Z or ±HH:MM)
+    pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
+    severity: error
+    description: "Transaction datetime must be ISO 8601 with timezone (e.g., 2026-03-09T14:30:00Z or 2026-03-09T14:30:00+00:00)."
+
+  - field: transaction_datetime
+    rule: compare
+    compare_op: lte
+    compare_to: now
+    severity: error
+    description: "Transaction datetime cannot be in the future. Required for PSD2 audit trail integrity."
+
+  # ── BENEFICIARY ACCOUNT ───────────────────────────────────────────────────────
+  # PSD2 Article 45 requires beneficiary account details for credit transfers.
+  # FATF Recommendation 16 (Wire Transfer Rule) requires originator and
+  # beneficiary information for all cross-border wire transfers.
+  - field: beneficiary_account
+    rule: required_if
+    when_field: transaction_type
+    when_value: TRANSFER
+    severity: error
+    description: "Beneficiary account is required for TRANSFER transactions (PSD2 Article 45 / FATF Recommendation 16)."
+
+  - field: beneficiary_account
+    rule: required_if
+    when_field: transaction_type
+    when_value: SWIFT
+    severity: error
+    description: "Beneficiary account is required for SWIFT transactions (FATF Recommendation 16 — Wire Transfer Rule)."
+
+  # ── CHANNEL ──────────────────────────────────────────────────────────────────
+  # Payment channel drives PSD2 SCA exemption logic:
+  # BRANCH and TELEPHONE may be exempt from SCA; ONLINE/MOBILE/API require it
+  # for transactions above EUR 30.
+  - field: channel
+    rule: lookup
+    lookup_values:
+      - ONLINE
+      - MOBILE
+      - BRANCH
+      - ATM
+      - TELEPHONE
+      - API
+      - BATCH
+    severity: error
+    description: "Channel is required for PSD2 Strong Customer Authentication (SCA) exemption logic."
+
+  # ── STATUS ───────────────────────────────────────────────────────────────────
+  - field: status
+    rule: lookup
+    lookup_values:
+      - PENDING
+      - AUTHORISED
+      - CLEARED
+      - SETTLED
+      - DECLINED
+      - REVERSED
+      - CANCELLED
+      - FRAUD_HOLD
+    severity: error
+    description: "Transaction status must be a recognised lifecycle state."
+
+  # ── AML SCREENING ─────────────────────────────────────────────────────────────
+  # FATF Recommendation 10 — Customer Due Diligence.
+  # Every transaction must carry an AML screening result before settlement.
+  # SUSPICIOUS and BLOCKED transactions must be escalated to the MLRO
+  # (Money Laundering Reporting Officer) before funds are released.
+  - field: aml_flag
+    rule: lookup
+    lookup_values:
+      - CLEAR
+      - REVIEW
+      - SUSPICIOUS
+      - BLOCKED
+    severity: error
+    description: "AML flag is mandatory. SUSPICIOUS/BLOCKED transactions must be escalated to the MLRO before settlement (FATF Recommendation 10)."
+
+  # ── TRANSACTION REFERENCE ────────────────────────────────────────────────────
+  # SWIFT field 70 (Remittance Information): maximum 35 characters.
+  # Used on camt.054 credit notifications and MT103 payment messages.
+  - field: transaction_reference
+    rule: not_empty
+    severity: error
+    description: "Transaction reference is required for payment reconciliation."
+
+  - field: transaction_reference
+    rule: max_length
+    max: 35
+    severity: error
+    description: "Transaction reference must not exceed 35 characters (SWIFT field 70 — MT103 / camt.054 limit)."
+
+  # ── MERCHANT CATEGORY CODE ───────────────────────────────────────────────────
+  # ISO 18245 MCC: 4-digit numeric code assigned by card scheme.
+  # Required for POS transactions for interchange fee determination
+  # and Basel III retail exposure classification.
+  # Only required when channel is POS (card-present transaction).
+  - field: merchant_category_code
+    rule: required_if
+    when_field: channel
+    when_value: POS
+    severity: error
+    description: "Merchant Category Code (ISO 18245) is required for POS transactions — used for interchange and Basel III retail exposure classification."
+
+  - field: merchant_category_code
+    rule: regex
+    # ISO 18245: exactly 4 decimal digits
+    pattern: "^[0-9]{4}$"
+    severity: error
+    description: "Merchant Category Code must be exactly 4 digits (ISO 18245, e.g., 5411 for grocery stores)."

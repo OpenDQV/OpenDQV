@@ -1,0 +1,148 @@
+contract:
+  name: sf_lead
+  version: "1.0"
+  description: "Salesforce Lead — data quality validation for inbound lead records"
+  owner: "Sunny Sharma"
+  status: active
+
+  rules:
+    - name: first_name_required
+      field: FirstName
+      type: not_empty
+      severity: error
+      error_message: "FirstName is required for leads."
+
+    - name: last_name_required
+      field: LastName
+      type: not_empty
+      severity: error
+      error_message: "LastName is required for leads."
+
+    - name: company_required
+      field: Company
+      type: not_empty
+      severity: error
+      error_message: "Company is required — Salesforce won't accept a lead without it."
+
+    - name: email_required
+      field: Email
+      type: not_empty
+      severity: error
+      error_message: "Email is required for lead routing and dedup."
+
+    - name: email_format
+      field: Email
+      type: regex
+      pattern: "^[\\w\\.\\+\\-]+@[\\w\\.-]+\\.[a-zA-Z]{2,}$"
+      severity: error
+      error_message: "Email must be a valid format."
+
+    - name: email_not_personal
+      field: Email
+      type: regex
+      pattern: "^(?!.*@(gmail|yahoo|hotmail|outlook|aol|icloud)\\.com$).*$"
+      severity: warning
+      error_message: "Personal email detected — business email preferred for B2B leads."
+
+    - name: phone_format
+      field: Phone
+      type: regex
+      pattern: "^[\\+]?[\\d\\s\\-\\(\\)\\.]{7,20}$"
+      severity: warning
+      error_message: "Phone should be 7-20 digits."
+
+    - name: lead_source_required
+      field: LeadSource
+      type: not_empty
+      severity: error
+      error_message: "LeadSource is required for attribution tracking."
+
+    - name: status_required
+      field: Status
+      type: not_empty
+      severity: error
+      error_message: "Status is required (e.g. New, Working, Qualified)."
+
+    - name: title_length
+      field: Title
+      type: max_length
+      max_length: 128
+      severity: warning
+      error_message: "Title should be under 128 characters."
+
+    - name: company_length
+      field: Company
+      type: max_length
+      max_length: 255
+      severity: error
+      error_message: "Company must be under 255 characters (Salesforce limit)."
+
+    - name: website_format
+      field: Website
+      type: regex
+      pattern: "^https?://[\\w\\.-]+(\\.[a-zA-Z]{2,})(/.*)?$"
+      severity: warning
+      error_message: "Website should be a valid URL (e.g. https://company.com)."
+
+    - name: annual_revenue_min
+      field: AnnualRevenue
+      type: min
+      min: 0
+      severity: warning
+      error_message: "AnnualRevenue should be non-negative."
+
+    - name: number_of_employees_min
+      field: NumberOfEmployees
+      type: min
+      min: 1
+      severity: warning
+      error_message: "NumberOfEmployees should be at least 1."
+
+    - name: number_of_employees_max
+      field: NumberOfEmployees
+      type: max
+      max: 10000000
+      severity: warning
+      error_message: "NumberOfEmployees seems unrealistically high."
+
+    - name: duplicate_email
+      field: Email
+      type: unique
+      severity: error
+      error_message: "Duplicate Email — possible duplicate lead."
+
+  contexts:
+    web_form:
+      LeadSource:
+        type: not_empty
+        error_message: "LeadSource must be set for web form leads (e.g. 'Web', 'Landing Page')."
+      Email:
+        type: regex
+        pattern: "^(?!.*@(mailinator|guerrillamail|tempmail|throwaway)\\.com$).*$"
+        error_message: "Disposable email addresses are not allowed from web forms."
+
+    trade_show:
+      Company:
+        type: not_empty
+        severity: error
+        error_message: "Company is required for trade show leads — badge scan should provide it."
+      Phone:
+        type: not_empty
+        severity: error
+        error_message: "Phone is required for trade show leads — needed for follow-up."
+
+    partner_referral:
+      Company:
+        type: not_empty
+        severity: error
+        error_message: "Company is required for partner referrals."
+      AnnualRevenue:
+        type: min
+        min: 100000
+        severity: warning
+        error_message: "Partner referrals typically target companies with $100K+ revenue."
+      NumberOfEmployees:
+        type: min
+        min: 10
+        severity: warning
+        error_message: "Partner referrals typically target companies with 10+ employees."

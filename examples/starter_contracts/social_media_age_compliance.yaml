@@ -1,0 +1,185 @@
+# =============================================================================
+# OpenDQV Social Media Age Compliance Starter Contract
+# =============================================================================
+# Purpose   : Age-gating and identity verification validation for social media
+#             and online platform user registrations. Ensures platforms meet
+#             minimum-age requirements and record verification status for
+#             regulatory audit trails.
+# Frameworks: UK Online Safety Act 2023 (Ofcom enforcement), ICO Age Appropriate
+#             Design Code (Children's Code), GDPR Article 8 (child consent),
+#             DSIT statutory guidance on age assurance (2024 draft)
+# Deployment: Cloud with TLS (see docs/core/deployment.md — cloud pattern)
+# Version   : 1.0.0
+# =============================================================================
+#
+# REGULATORY STAKES: Ofcom can fine platforms up to £18m or 10% of global
+# turnover for failing to protect children. ICO enforcement under the Children's
+# Code has already resulted in multi-million pound penalties. Age assurance
+# records must demonstrate that the platform took proportionate steps to
+# verify user age at the point of registration.
+#
+# AGE ASSURANCE REALITY (UK, 2026):
+#   Under-13 detection is harder than it appears:
+#   - UK children frequently hold passports (valid from birth, 5-year validity) —
+#     GOVERNMENT_ID is a realistic and legitimate method for children who have
+#     travelled; the age gate fires regardless of how strong the verification is
+#   - MNO contracts are in the parent's name — the operator sees an adult account
+#     even when a child is using the handset on a family plan; MNO-based assurance
+#     is more reliable where the child holds their own Pay As You Go SIM
+#   - Most children use smartphones under a parent's Apple/Google account or with
+#     a false age; neither MNO nor credit bureau reliably catches this
+#   - FACIAL_AGE_ESTIMATION is the most practical frictionless method for social
+#     media registration, though it is probabilistic not definitive
+#   - DEVICE_PLATFORM (Apple Family Sharing, Google Family Link) provides the
+#     most reliable signal where a supervised child account exists, but requires
+#     Apple/Google cooperation — Ofcom is actively pushing for OS-level assurance
+#     under the Online Safety Act
+#   - Self-declaration is increasingly unacceptable for under-13 detection;
+#     Ofcom's Children's Safety Codes treat it as insufficient on its own
+#   Under-13: platform access must be technically prevented (parental consent req'd)
+#   13-17:    access permitted under UK GDPR (age of digital consent = 13) but
+#             platforms must apply ICO Children's Code age-appropriate defaults
+#
+# HOW TO USE:
+#   1. Load this contract: POST /api/v1/contracts (name: "age_compliance_record")
+#   2. Validate a record:  POST /api/v1/validate/age_compliance_record
+#   3. Batch validate:     POST /api/v1/validate/age_compliance_record/batch
+#   4. See sample records: examples/starter_contracts/sample_records/social_media_age_compliance.json
+#
+# ADAPTING FOR YOUR PLATFORM:
+#   - Adjust min age (currently 13, COPPA/GDPR Article 8 baseline) to your
+#     jurisdiction: UK=13, EU member states vary 13–16, US COPPA=13
+#   - Replace ref/verification_methods.txt with your approved provider list
+#   - Add a `lookup_file` on verification_method if the approved method list
+#     grows beyond a handful of values
+#   - For under-18 users you may require severity:error on verified_identity=FALSE
+#     rather than severity:warning — adjust the advisory lookup below accordingly
+
+name: age_compliance_record
+version: "1.0.0"
+description: "Social media user age compliance — age gate, DOB format, and identity verification audit trail"
+asset_id: "urn:opendqv:example:social_media:age_compliance_record"
+
+rules:
+
+  # ── USER IDENTIFICATION ──────────────────────────────────────────────────────
+  - field: user_id
+    rule: not_empty
+    severity: error
+    description: "user_id is mandatory — every registration record must be traceable."
+
+  # ── AGE GATE ──────────────────────────────────────────────────────────────────
+  # Declared age provides a quick first-pass gate and cross-field consistency
+  # check. DOB remains the authoritative age signal (see dob_age_gate below).
+  - field: age
+    rule: not_empty
+    severity: error
+    description: "Declared age is required."
+
+  - field: age
+    rule: range
+    min: 13
+    max: 150
+    severity: error
+    description: "Declared age must be 13 or above for platform access."
+
+  # Cross-field consistency: declared age must match computed age from DOB
+  # within ±1 year (birthday timing edge cases). A large mismatch — e.g.
+  # age=36 with dob=1980-01-01 (computed 46) — indicates falsified data.
+  - field: age
+    rule: age_match
+    dob_field: dob
+    severity: error
+    description: "Declared age is inconsistent with date of birth — possible falsified age declaration (Ofcom due diligence)."
+
+  # ── DATE OF BIRTH ─────────────────────────────────────────────────────────────
+  # DOB is the tamper-resistant age signal. The dob_age_gate rule derives actual
+  # age from DOB and enforces min_age: 13 directly.
+  # ISO 8601 date format: YYYY-MM-DD.
+  - field: dob
+    rule: not_empty
+    severity: error
+    description: "Date of birth is required for age assurance audit records."
+
+  - field: dob
+    rule: regex
+    # Accepts YYYY-MM-DD: e.g. 2001-07-14
+    pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    severity: error
+    description: "Date of birth must be in ISO 8601 format: YYYY-MM-DD."
+
+  # Cross-field age gate: derives actual age from dob and enforces minimum 13.
+  # This catches cases where the age field is correct but dob is inconsistent
+  # (e.g. age=36, dob=2020-01-01). Verification status does not override this.
+  - field: dob
+    rule: date_format
+    format: "YYYY-MM-DD"
+    min_age: 13
+    severity: error
+    description: "Date of birth indicates user is under 13. Platform access denied regardless of declared age (UK Online Safety Act minimum age)."
+
+  # ── IDENTITY VERIFICATION STATUS ─────────────────────────────────────────────
+  # Ofcom's draft age assurance guidance requires platforms to record whether
+  # age has been verified (TRUE) or is self-declared (FALSE).
+  # Self-declared age is permitted for low-risk features but must be flagged
+  # so that downstream systems can apply appropriate content restrictions.
+  - field: verified_identity
+    rule: not_empty
+    severity: error
+    description: "verified_identity must be recorded for every registration (TRUE or FALSE)."
+
+  - field: verified_identity
+    rule: lookup
+    lookup_values: [TRUE, FALSE]
+    severity: error
+    description: "verified_identity must be TRUE (identity verified) or FALSE (self-declared)."
+
+  # Advisory warning: self-declared age records should be reviewed or subject
+  # to additional content restrictions under the platform's age assurance policy.
+  # This rule fires when verified_identity is not TRUE (i.e., is self-declared).
+  - field: verified_identity
+    rule: lookup
+    lookup_values: [TRUE]
+    severity: warning
+    description: "Identity is self-declared (verified_identity=FALSE). Under Ofcom age assurance guidance, self-declared records should trigger enhanced content restrictions or be escalated for verification."
+
+  # ── VERIFICATION METHOD ───────────────────────────────────────────────────────
+  # Required only when verified_identity=TRUE.
+  # Must be one of the platform's approved age verification methods.
+  # See: ref/verification_methods.txt
+  - field: verification_method
+    rule: required_if
+    when_field: verified_identity
+    when_value: TRUE
+    severity: error
+    description: "verification_method is required when verified_identity is TRUE. Record the method used to comply with Ofcom audit trail requirements."
+
+  - field: verification_method
+    rule: lookup
+    lookup_file: "ref/verification_methods.txt"
+    severity: error
+    description: "verification_method must be an approved method (DOCUMENT_CHECK, BIOMETRIC, CREDIT_BUREAU, MOBILE_NETWORK_OPERATOR, BANK_VERIFICATION, GOVERNMENT_ID)."
+
+  # ── VERIFICATION TIMESTAMP ────────────────────────────────────────────────────
+  # Required only when verified_identity=TRUE.
+  # ISO 8601 datetime with timezone: YYYY-MM-DDTHH:MM:SSZ or ±HH:MM offset.
+  # Timestamp is needed for audit trails — Ofcom may require evidence of when
+  # verification occurred, especially for under-18 users.
+  - field: verification_timestamp
+    rule: required_if
+    when_field: verified_identity
+    when_value: TRUE
+    severity: error
+    description: "verification_timestamp is required when verified_identity is TRUE. Ofcom audit trails must record when age verification occurred."
+
+  # Condition ensures this regex only fires when verified_identity=TRUE,
+  # preventing false errors when the timestamp is absent for unverified records.
+  - field: verification_timestamp
+    rule: regex
+    # ISO 8601 datetime: YYYY-MM-DDTHH:MM:SS followed by Z or ±HH:MM timezone offset
+    # Examples: 2026-03-10T14:23:00Z, 2026-03-10T14:23:00+00:00
+    pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](Z|[+-][0-9]{2}:[0-9]{2})$"
+    when_field: verified_identity
+    when_value: TRUE
+    severity: error
+    description: "verification_timestamp must be a valid ISO 8601 datetime with timezone (e.g., 2026-03-10T14:23:00Z)."

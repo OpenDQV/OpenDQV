@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+opendqv.db
+*.db
+.pytest_cache/
+.mypy_cache/
+dist/
+*.egg-info/
