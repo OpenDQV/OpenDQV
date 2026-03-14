@@ -37,7 +37,7 @@ fastapi = "^0.115"
 uvicorn = {version = "^0.34", extras = ["standard"]}
 pydantic = "^2.10"
 pyyaml = "^6.0"
-pandas = "^2.2"
+pandas = "^3.0"
 duckdb = "^1.0"
 python-jose = {version = "^3.3", extras = ["cryptography"]}
 passlib = {version = "^1.7", extras = ["bcrypt"]}
