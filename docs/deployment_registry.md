@@ -132,5 +132,5 @@ Next scheduled review: **2027-03-09**
 ## Contact
 
 - Deployment registry registration: `opendqv@bgmsconsultants.com` (subject: `[DEPLOYMENT-REGISTRY]`)
-- General contact: `https://github.com/opendqv/OpenDQV/issues`
+- General contact: `https://github.com/OpenDQV/OpenDQV/issues`
 - Vulnerability response: `docs/security/vulnerability_response_playbook.md`

@@ -58,3 +58,65 @@ class TestGeospatialBounds:
         result = validate_batch(records, [rule])
         assert result["summary"]["passed"] == 2
         assert result["results"][1]["valid"] is False
+
+    # ── Boundary values ────────────────────────────────────────────────────────
+
+    def test_exact_boundary_lat_min_passes(self):
+        """Exactly at geo_min_lat=49.0 should be within bounds (inclusive)."""
+        result = validate_record({"lat": 49.0, "lon": 0.0}, [self._uk_rule()])
+        assert result["valid"] is True
+
+    def test_exact_boundary_lat_max_passes(self):
+        """Exactly at geo_max_lat=61.0 should be within bounds (inclusive)."""
+        result = validate_record({"lat": 61.0, "lon": 0.0}, [self._uk_rule()])
+        assert result["valid"] is True
+
+    def test_just_outside_lat_max_fails(self):
+        result = validate_record({"lat": 61.01, "lon": 0.0}, [self._uk_rule()])
+        assert result["valid"] is False
+
+    def test_exact_boundary_lon_min_passes(self):
+        result = validate_record({"lat": 55.0, "lon": -8.5}, [self._uk_rule()])
+        assert result["valid"] is True
+
+    def test_exact_boundary_lon_max_passes(self):
+        result = validate_record({"lat": 55.0, "lon": 2.0}, [self._uk_rule()])
+        assert result["valid"] is True
+
+    # ── Invalid / edge-case values ─────────────────────────────────────────────
+
+    def test_string_lat_fails(self):
+        """Non-numeric string in lat field should fail."""
+        result = validate_record({"lat": "not_a_number", "lon": 0.0}, [self._uk_rule()])
+        assert result["valid"] is False
+
+    def test_none_lon_fails(self):
+        """None in the lon field should fail when a lon rule is configured."""
+        result = validate_record({"lat": 51.5, "lon": None}, [self._uk_rule()])
+        assert result["valid"] is False
+
+    def test_missing_lon_field_fails(self):
+        """Missing lon key entirely should fail."""
+        result = validate_record({"lat": 51.5}, [self._uk_rule()])
+        assert result["valid"] is False
+
+    def test_absolute_lat_out_of_range_fails(self):
+        """lat=91 is outside the physically possible range, should fail."""
+        rule = Rule(
+            name="r", type="geospatial_bounds", field="lat",
+            geo_min_lat=-90.0, geo_max_lat=90.0,
+            error_message="lat must be valid"
+        )
+        result = validate_record({"lat": 91.0}, [rule])
+        assert result["valid"] is False
+
+    def test_absolute_lon_out_of_range_fails(self):
+        """lon=181 is outside the physically possible range, should fail."""
+        rule = Rule(
+            name="r", type="geospatial_bounds", field="lat",
+            geo_lon_field="lon",
+            geo_min_lon=-180.0, geo_max_lon=180.0,
+            error_message="lon must be valid"
+        )
+        result = validate_record({"lat": 0.0, "lon": 181.0}, [rule])
+        assert result["valid"] is False

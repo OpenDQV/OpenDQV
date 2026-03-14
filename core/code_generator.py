@@ -13,7 +13,19 @@ from .rule_parser import Rule
 
 
 def generate_code(rules: Union[List[Rule], List[dict]], target: str) -> str:
-    """Generate platform-specific validation code from rules."""
+    """Generate platform-specific validation code from a list of rules.
+
+    Args:
+        rules: List of Rule objects or raw rule dicts.
+        target: Output platform. Supported values: "snowflake" (JS UDF),
+                "salesforce" (Apex trigger), "js" (plain JavaScript).
+
+    Returns:
+        A string containing the generated source code ready to deploy.
+
+    Raises:
+        ValueError: If target is not one of the supported platform strings.
+    """
     rule_dicts = []
     for r in rules:
         if isinstance(r, Rule):

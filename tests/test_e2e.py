@@ -55,6 +55,13 @@ def api_server():
         check=True,
     )
 
+    # Release host ports that docker compose needs (8000, 8501).
+    # A previous wizard run or dev session may have left host processes
+    # bound to these ports, causing "address already in use" on docker up.
+    for _port in (8000, 8501):
+        subprocess.run(["fuser", "-k", f"{_port}/tcp"], capture_output=True)
+    time.sleep(0.5)  # allow kernel to release the sockets
+
     # Rebuild images from current source
     subprocess.run(
         ["docker", "compose", "build"],

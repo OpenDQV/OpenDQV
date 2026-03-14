@@ -24,7 +24,7 @@ Corporate contributors (contributing on behalf of an employer) should contact **
 
 ```bash
 # Clone the repo
-git clone https://github.com/opendqv/OpenDQV.git
+git clone https://github.com/OpenDQV/OpenDQV.git
 cd OpenDQV
 
 # Create virtual environment
@@ -98,7 +98,7 @@ All 42 checks must pass before the `ALL SMOKE TESTS PASSED` line appears.
 
 ### Before You Start
 
-1. Check existing [issues](https://github.com/opendqv/OpenDQV/issues) for related work
+1. Check existing [issues](https://github.com/OpenDQV/OpenDQV/issues) for related work
 2. For large changes, open an issue first to discuss the approach
 3. Create a feature branch from `main`
 

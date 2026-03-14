@@ -4,7 +4,7 @@ We are building this list with the community. If you are using OpenDQV, we would
 
 ## Share Your Use Case
 
-Open a [GitHub Discussion](https://github.com/opendqv/OpenDQV/discussions) with the label **use-case** and tell us:
+Open a [GitHub Discussion](https://github.com/OpenDQV/OpenDQV/discussions) with the label **use-case** and tell us:
 
 - **Industry / domain** — what sector are you in?
 - **What you're validating** — customer records, transactions, sensor data, forms, API payloads?
@@ -25,7 +25,7 @@ Real use cases from real deployments help us:
 
 ## What We Have Heard So Far
 
-This list will grow as the community shares their experiences. Check the [Discussions tab](https://github.com/opendqv/OpenDQV/discussions) for the latest.
+This list will grow as the community shares their experiences. Check the [Discussions tab](https://github.com/OpenDQV/OpenDQV/discussions) for the latest.
 
 ---
 

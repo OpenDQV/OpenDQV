@@ -8,3 +8,6 @@ opendqv.db
 .mypy_cache/
 dist/
 *.egg-info/
+
+# Runtime PID lock files (machine-specific, never commit)
+.opendqv_*.lock

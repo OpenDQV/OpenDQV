@@ -1,10 +1,15 @@
 # OpenDQV -- Open Data Quality Validation Service
 
-![CI](https://github.com/opendqv/OpenDQV/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/OpenDQV/OpenDQV/actions/workflows/ci.yml/badge.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
+![PyPI](https://img.shields.io/pypi/v/opendqv)
 
 **Bad data blocked at the door. Not discovered three weeks later.**
 
 *[Trust is cheaper to build than to repair.](docs/ethos.md)*
+
+![OpenDQV demo — invalid record rejected, valid record accepted](docs/demo.gif)
 
 | [Docs](docs/) | [Quickstart](docs/quickstart.md) | [Benchmark](docs/benchmark_throughput.md) | [Rules Reference](docs/rules/) | [Ethos](docs/ethos.md) |
 |---|---|---|---|---|
@@ -93,7 +98,7 @@ These are validation *libraries*. OpenDQV is a validation *service*:
 ### New here? Run the onboarding wizard
 
 ```bash
-git clone https://github.com/opendqv/OpenDQV.git
+git clone https://github.com/OpenDQV/OpenDQV.git
 cd OpenDQV
 cp .env.example .env
 ```
@@ -115,7 +120,7 @@ The script creates an isolated virtual environment, installs dependencies, and l
 ### Option 1: Docker (recommended)
 
 ```bash
-git clone https://github.com/opendqv/OpenDQV.git
+git clone https://github.com/OpenDQV/OpenDQV.git
 cd OpenDQV
 cp .env.example .env
 
@@ -1210,7 +1215,7 @@ Potential areas for contribution and future development:
 - **Validation result persistence** -- Pluggable sinks (Postgres, S3) for long-term audit trails
 - **Multi-parent federation** -- A node publishing to more than one parent simultaneously
 
-Have an idea? [Open a discussion](https://github.com/opendqv/OpenDQV/discussions) — we'd love to hear what you're building.
+Have an idea? [Open a discussion](https://github.com/OpenDQV/OpenDQV/discussions) — we'd love to hear what you're building.
 
 ---
 

@@ -9,6 +9,7 @@ Usage:
 """
 
 import json
+import os
 import subprocess
 import sys
 import time
@@ -51,6 +52,44 @@ except ImportError:
 # Sentinel value for "Build my own" in questionary template picker
 _BUILD_OWN = "__build_own__"
 
+# ── Workbench PID lock file ────────────────────────────────────────────────────
+_WORKBENCH_LOCK = Path(".opendqv_workbench.lock")
+
+
+def _read_workbench_lock() -> "tuple[int, int] | None":
+    """Return (pid, port) if lock file exists and the process is still alive."""
+    try:
+        data = json.loads(_WORKBENCH_LOCK.read_text())
+        pid, port = int(data["pid"]), int(data["port"])
+        os.kill(pid, 0)   # raises OSError if process is dead
+        return pid, port
+    except Exception:
+        return None
+
+
+def _write_workbench_lock(pid: int, port: int) -> None:
+    """Write lock file recording the live Streamlit PID and port."""
+    _WORKBENCH_LOCK.write_text(json.dumps({"pid": pid, "port": port}))
+
+# ── API PID lock file ─────────────────────────────────────────────────────────
+_API_LOCK = Path(".opendqv_api.lock")
+
+
+def _read_api_lock() -> "tuple[int, int] | None":
+    """Return (pid, port) if lock file exists and the process is still alive."""
+    try:
+        data = json.loads(_API_LOCK.read_text())
+        pid, port = int(data["pid"]), int(data["port"])
+        os.kill(pid, 0)   # raises OSError if process is dead
+        return pid, port
+    except Exception:
+        return None
+
+
+def _write_api_lock(pid: int, port: int) -> None:
+    """Write lock file recording the live API PID and port."""
+    _API_LOCK.write_text(json.dumps({"pid": pid, "port": port}))
+
 # ── Logo ──────────────────────────────────────────────────────────────────────
 
 LOGO = """\
@@ -62,7 +101,6 @@ LOGO = """\
  ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝╚═════╝  ╚══▀▀═╝   ╚═══╝ """
 
 TAGLINE = "Open Data Quality Validation  ·  v1.0.0"
-BASE_URL = "http://localhost:8000"
 
 # ── Field name → rule inference ───────────────────────────────────────────────
 
@@ -469,6 +507,7 @@ class OnboardingWizard:
         self.start = time.time()
         self.result = WizardResult()
         self.console = Console() if HAS_RICH else None
+        self._base_url = "http://localhost:8000"
 
     # ── Output helpers ────────────────────────────────────────────────────────
 
@@ -597,26 +636,37 @@ class OnboardingWizard:
             return False
 
     def _start_uvicorn(self) -> bool:
-        port = 8000
-        # Case 1 / 2: probe — is something already on 8000?
+        # 1. Check lock — if our API is still alive, reuse it.
+        lock = _read_api_lock()
+        if lock is not None:
+            _pid, port = lock
+            self._base_url = f"http://localhost:{port}"
+            return True
+
+        # 2. Probe localhost:8000 for a legacy running instance (no lock file).
         try:
-            with urllib.request.urlopen(f"http://localhost:{port}/health", timeout=2) as r:
+            with urllib.request.urlopen("http://localhost:8000/health", timeout=2) as r:
                 body = r.read(4096).decode("utf-8", errors="ignore")
                 if "opendqv_node_state" in body:
-                    return True   # our API is already running — reuse it
-                # Case 2: foreign process — can't use a different port
-                self._info(f"Port {port} is in use by another application; cannot start API.")
-                return False
+                    self._base_url = "http://localhost:8000"
+                    return True
+                # Foreign process on 8000 — fall through to find a free port.
         except Exception:
-            pass   # Case 3: nothing there — fall through to spawn
+            pass   # nothing there — fall through to spawn
 
+        # 3. Find a free port and spawn.
+        port = self._find_free_port(8000)
+        if port != 8000:
+            self._info(f"Port 8000 unavailable; starting API on port {port} instead.")
         try:
-            subprocess.Popen(
+            proc = subprocess.Popen(
                 [sys.executable, "-m", "uvicorn", "main:app",
                  "--port", str(port), "--log-level", "error"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
+            _write_api_lock(proc.pid, port)
+            self._base_url = f"http://localhost:{port}"
             return True
         except Exception:
             return False
@@ -632,31 +682,32 @@ class OnboardingWizard:
                     continue
         return preferred
 
-    def _start_streamlit(self) -> int | None:
-        preferred = 8501
-        # Case 1: probe preferred port — is it already ours?
-        try:
-            with urllib.request.urlopen(f"http://localhost:{preferred}", timeout=2) as r:
-                body = r.read(2048).decode("utf-8", errors="ignore")
-                if "OpenDQV" in body:
-                    return preferred   # our workbench is already running — reuse it
-                # Case 2: something else is on the preferred port
-                self._info(f"Port {preferred} is in use by another application.")
-        except Exception:
-            pass   # Case 3: nothing on preferred port — fall through to spawn
+    def _start_streamlit(self, api_port: int = 8000) -> int | None:
+        # 1. Check lock — if our Streamlit is still alive, reuse it.
+        lock = _read_workbench_lock()
+        if lock is not None:
+            _pid, port = lock
+            return port
 
+        # 2. Find a free port and spawn a fresh Streamlit process.
+        preferred = 8501
         port = self._find_free_port(preferred)
         if port != preferred:
             self._info(
                 f"Port {preferred} unavailable; starting workbench on port {port} instead."
             )
         try:
-            subprocess.Popen(
+            env = os.environ.copy()
+            if api_port != 8000:
+                env["API_URL"] = f"http://localhost:{api_port}"
+            proc = subprocess.Popen(
                 [sys.executable, "-m", "streamlit", "run", "ui/app.py",
                  "--server.port", str(port), "--server.headless", "true"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                env=env,
             )
+            _write_workbench_lock(proc.pid, port)
             return port
         except Exception:
             return None
@@ -665,7 +716,7 @@ class OnboardingWizard:
 
     def _health_ok(self) -> bool:
         try:
-            with urllib.request.urlopen(f"{BASE_URL}/health", timeout=2) as r:
+            with urllib.request.urlopen(f"{self._base_url}/health", timeout=2) as r:
                 return r.status == 200
         except Exception:
             return False
@@ -696,7 +747,7 @@ class OnboardingWizard:
     def _reload(self) -> None:
         try:
             req = urllib.request.Request(
-                f"{BASE_URL}/api/v1/contracts/reload", data=b"", method="POST"
+                f"{self._base_url}/api/v1/contracts/reload", data=b"", method="POST"
             )
             urllib.request.urlopen(req, timeout=5)
         except Exception:
@@ -705,7 +756,7 @@ class OnboardingWizard:
     def _validate(self, entity: str, record: dict) -> dict:
         payload = json.dumps({"contract": entity, "record": record}).encode()
         req = urllib.request.Request(
-            f"{BASE_URL}/api/v1/validate",
+            f"{self._base_url}/api/v1/validate",
             data=payload,
             headers={"Content-Type": "application/json"},
             method="POST",
@@ -775,9 +826,9 @@ class OnboardingWizard:
             self.console.print(f"  [cyan]→[/cyan]  Edit your contract:  [cyan]{_yaml_rel}[/cyan]")
             if _editor_cmd:
                 self.console.print(f"  [cyan]→[/cyan]  Open in editor:      [dim]{_editor_cmd}[/dim]")
-            self.console.print(f"  [cyan]→[/cyan]  Reload after edits:  [dim]curl -X POST {BASE_URL}/api/v1/contracts/reload[/dim]")
+            self.console.print(f"  [cyan]→[/cyan]  Reload after edits:  [dim]curl -X POST {self._base_url}/api/v1/contracts/reload[/dim]")
             self.console.print(f"  [cyan]→[/cyan]  Visual workbench:    [cyan]http://localhost:{streamlit_port}[/cyan]")
-            self.console.print(f"  [cyan]→[/cyan]  API docs:            [cyan]{BASE_URL}/docs[/cyan]")
+            self.console.print(f"  [cyan]→[/cyan]  API docs:            [cyan]{self._base_url}/docs[/cyan]")
             self.console.print("  [cyan]→[/cyan]  All rule types:      [dim]docs/rules/README.md[/dim]")
             self.console.print()
             self.console.print(f"  [dim]Time from start to first validation: {elapsed_str}[/dim]")
@@ -792,9 +843,9 @@ class OnboardingWizard:
             print(f"  →  Edit your contract: {_yaml_rel}")
             if _editor_cmd:
                 print(f"  →  Open in editor:     {_editor_cmd}")
-            print(f"  →  Reload after edits: curl -X POST {BASE_URL}/api/v1/contracts/reload")
+            print(f"  →  Reload after edits: curl -X POST {self._base_url}/api/v1/contracts/reload")
             print(f"  →  Visual workbench:   http://localhost:{streamlit_port}")
-            print(f"  →  API docs:           {BASE_URL}/docs")
+            print(f"  →  API docs:           {self._base_url}/docs")
             print("  →  All rule types:     docs/rules/README.md")
             print()
             print(f"  Time from start to first validation: {elapsed_str}")
@@ -984,7 +1035,8 @@ class OnboardingWizard:
         else:
             started = self._start_uvicorn()
             if started:
-                streamlit_port = self._start_streamlit() or 8501
+                api_port = int(self._base_url.rsplit(":", 1)[-1])
+                streamlit_port = self._start_streamlit(api_port=api_port) or 8501
         if not started:
             self._fail("Could not start the service.")
             self._info("Try manually: uvicorn main:app --reload")
@@ -995,7 +1047,7 @@ class OnboardingWizard:
         if not healthy:
             secs = health_timeout
             self._fail(f"Service did not become healthy within {secs} seconds.")
-            self._info(f"Check: curl {BASE_URL}/health")
+            self._info(f"Check: curl {self._base_url}/health")
             self._info("Docker may still be building — wait a moment and try again")
             return self.result
 

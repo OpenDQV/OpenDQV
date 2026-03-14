@@ -4,9 +4,9 @@
 
 OpenDQV is a community-supported open-source project. The primary support channel is **GitHub Issues**.
 
-- **Bug reports:** [github.com/opendqv/OpenDQV/issues](https://github.com/opendqv/OpenDQV/issues)
-- **Feature requests:** [github.com/opendqv/OpenDQV/issues](https://github.com/opendqv/OpenDQV/issues)
-- **Questions and discussions:** [github.com/opendqv/OpenDQV/discussions](https://github.com/opendqv/OpenDQV/discussions)
+- **Bug reports:** [github.com/OpenDQV/OpenDQV/issues](https://github.com/OpenDQV/OpenDQV/issues)
+- **Feature requests:** [github.com/OpenDQV/OpenDQV/issues](https://github.com/OpenDQV/OpenDQV/issues)
+- **Questions and discussions:** [github.com/OpenDQV/OpenDQV/discussions](https://github.com/OpenDQV/OpenDQV/discussions)
 
 We aim to respond to issues within a few days, but response times depend on maintainer availability — this is an honest, no-SLA community project.
 
@@ -22,7 +22,7 @@ A good bug report helps us help you faster:
 
 ## Commercial Support
 
-There is currently no paid support offering. If there is community demand for a supported tier — SLA-backed responses, deployment assistance, regulated-industry guidance — we are open to discussing it. Raise it in [Discussions](https://github.com/opendqv/OpenDQV/discussions).
+There is currently no paid support offering. If there is community demand for a supported tier — SLA-backed responses, deployment assistance, regulated-industry guidance — we are open to discussing it. Raise it in [Discussions](https://github.com/OpenDQV/OpenDQV/discussions).
 
 ## Security Issues
 

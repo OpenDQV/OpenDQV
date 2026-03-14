@@ -25,7 +25,7 @@ We follow a **90-day coordinated disclosure** policy (aligned with Google Projec
 - We will aim to release a fix within **90 days** of the report
 - We will credit reporters in the release notes unless anonymity is requested
 
-Security advisories are published as [GitHub Security Advisories](https://github.com/opendqv/OpenDQV/security/advisories) and feed into the GitHub Advisory Database.
+Security advisories are published as [GitHub Security Advisories](https://github.com/OpenDQV/OpenDQV/security/advisories) and feed into the GitHub Advisory Database.
 
 ---
 
@@ -184,5 +184,5 @@ This checklist is required as a deployment sign-off artefact for any regulated f
 ## Contact
 
 - Security reports: opendqv@bgmsconsultants.com
-- General issues: https://github.com/opendqv/OpenDQV/issues
-- Discussions: https://github.com/opendqv/OpenDQV/discussions
+- General issues: https://github.com/OpenDQV/OpenDQV/issues
+- Discussions: https://github.com/OpenDQV/OpenDQV/discussions

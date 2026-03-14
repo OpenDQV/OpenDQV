@@ -1,5 +1,6 @@
 """Tests for core validation engine — single record and batch."""
 
+import pytest
 from unittest.mock import patch
 from core.rule_parser import Rule, Severity, parse_rules
 from core.validator import validate_record, validate_batch
@@ -398,29 +399,17 @@ class TestConditionBlock:
 class TestCompareOpAliases:
     """Tests for compare_op symbol normalisation at parse time."""
 
-    def test_symbol_gt(self):
-        rule = Rule(name="r", type="compare", field="b", compare_to="a", compare_op=">")
-        assert rule.compare_op == "gt"
-
-    def test_symbol_lt(self):
-        rule = Rule(name="r", type="compare", field="b", compare_to="a", compare_op="<")
-        assert rule.compare_op == "lt"
-
-    def test_symbol_gte(self):
-        rule = Rule(name="r", type="compare", field="b", compare_to="a", compare_op=">=")
-        assert rule.compare_op == "gte"
-
-    def test_symbol_lte(self):
-        rule = Rule(name="r", type="compare", field="b", compare_to="a", compare_op="<=")
-        assert rule.compare_op == "lte"
-
-    def test_symbol_eq(self):
-        rule = Rule(name="r", type="compare", field="b", compare_to="a", compare_op="=")
-        assert rule.compare_op == "eq"
-
-    def test_symbol_neq(self):
-        rule = Rule(name="r", type="compare", field="b", compare_to="a", compare_op="!=")
-        assert rule.compare_op == "neq"
+    @pytest.mark.parametrize("symbol,expected", [
+        (">",  "gt"),
+        ("<",  "lt"),
+        (">=", "gte"),
+        ("<=", "lte"),
+        ("=",  "eq"),
+        ("!=", "neq"),
+    ])
+    def test_symbol_aliases(self, symbol, expected):
+        rule = Rule(name="r", type="compare", field="b", compare_to="a", compare_op=symbol)
+        assert rule.compare_op == expected
 
     def test_symbol_gt_validates(self):
         # Symbol form should work end-to-end in validation

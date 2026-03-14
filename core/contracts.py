@@ -598,7 +598,16 @@ class ContractRegistry:
         )
 
     def get(self, name: str, version: str = "latest") -> Optional[DataContract]:
-        """Get a contract by name and version. 'latest' returns highest version."""
+        """Return a contract by name and version.
+
+        Args:
+            name: Contract name as defined in the YAML file.
+            version: Semantic version string (e.g. "1.0.0") or "latest" to
+                     resolve the highest available version automatically.
+
+        Returns:
+            The matching DataContract, or None if the name or version is not found.
+        """
         versions = self._contracts.get(name)
         if not versions:
             return None

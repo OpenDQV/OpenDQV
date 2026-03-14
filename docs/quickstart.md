@@ -15,7 +15,7 @@ By the end, you will have OpenDQV running locally and will have validated a reco
 If you are comfortable with a terminal, clone the repository:
 
 ```bash
-git clone https://github.com/opendqv/OpenDQV.git
+git clone https://github.com/OpenDQV/OpenDQV.git
 cd OpenDQV
 cp .env.example .env
 ```

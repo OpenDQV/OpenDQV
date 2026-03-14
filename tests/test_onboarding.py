@@ -11,10 +11,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
+import os
+
 from core.onboarding import (
     OnboardingWizard,
     WizardResult,
+    _API_LOCK,
     _build_valid_from_regex,
+    _read_api_lock,
     build_sample_records,
     build_sample_records_from_rules,
     generate_contract_yaml,
@@ -570,43 +574,83 @@ class TestOnboardingWizardUnit:
 
     def test_start_uvicorn_starts_process(self, tmp_path):
         wiz = self._make_wizard(tmp_path)
-        with patch("urllib.request.urlopen", side_effect=OSError):
-            with patch("subprocess.Popen") as mock_popen:
-                result = wiz._start_uvicorn()
-                assert result is True
-                mock_popen.assert_called_once()
-                args = mock_popen.call_args[0][0]
-                assert "uvicorn" in args
+        mock_proc = MagicMock()
+        mock_proc.pid = 12345
+        with (
+            patch("core.onboarding._read_api_lock", return_value=None),
+            patch("core.onboarding._write_api_lock") as mock_write,
+            patch("urllib.request.urlopen", side_effect=OSError),
+            patch.object(wiz, "_find_free_port", return_value=8000),
+            patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
+        ):
+            result = wiz._start_uvicorn()
+            assert result is True
+            mock_popen.assert_called_once()
+            args = mock_popen.call_args[0][0]
+            assert "uvicorn" in args
+            mock_write.assert_called_once_with(12345, 8000)
+            assert wiz._base_url == "http://localhost:8000"
 
     def test_start_uvicorn_returns_false_on_error(self, tmp_path):
         wiz = self._make_wizard(tmp_path)
-        with patch("urllib.request.urlopen", side_effect=OSError):
-            with patch("subprocess.Popen", side_effect=FileNotFoundError):
-                assert wiz._start_uvicorn() is False
+        with (
+            patch("core.onboarding._read_api_lock", return_value=None),
+            patch("urllib.request.urlopen", side_effect=OSError),
+            patch.object(wiz, "_find_free_port", return_value=8000),
+            patch("subprocess.Popen", side_effect=FileNotFoundError),
+        ):
+            assert wiz._start_uvicorn() is False
 
     def test_start_uvicorn_reuses_existing_api(self, tmp_path):
         wiz = self._make_wizard(tmp_path)
-        mock_resp = MagicMock()
-        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
-        mock_resp.__exit__ = MagicMock(return_value=False)
-        mock_resp.read.return_value = b'{"opendqv_node_state": "RUNNING", "status": "ok"}'
-        with patch("urllib.request.urlopen", return_value=mock_resp):
-            with patch("subprocess.Popen") as mock_popen:
-                result = wiz._start_uvicorn()
-                assert result is True
-                mock_popen.assert_not_called()
+        with (
+            patch("core.onboarding._read_api_lock", return_value=(99999, 8000)),
+            patch("subprocess.Popen") as mock_popen,
+        ):
+            result = wiz._start_uvicorn()
+            assert result is True
+            mock_popen.assert_not_called()
+            assert wiz._base_url == "http://localhost:8000"
 
     def test_start_uvicorn_foreign_process_on_port(self, tmp_path):
+        """Foreign process on 8000 — wizard finds free port 8001 and spawns there."""
         wiz = self._make_wizard(tmp_path)
         mock_resp = MagicMock()
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
         mock_resp.__exit__ = MagicMock(return_value=False)
         mock_resp.read.return_value = b"<html>Some other app</html>"
-        with patch("urllib.request.urlopen", return_value=mock_resp):
-            with patch("subprocess.Popen") as mock_popen:
-                result = wiz._start_uvicorn()
-                assert result is False
-                mock_popen.assert_not_called()
+        mock_proc = MagicMock()
+        mock_proc.pid = 55555
+        with (
+            patch("core.onboarding._read_api_lock", return_value=None),
+            patch("core.onboarding._write_api_lock") as mock_write,
+            patch("urllib.request.urlopen", return_value=mock_resp),
+            patch.object(wiz, "_find_free_port", return_value=8001),
+            patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
+        ):
+            result = wiz._start_uvicorn()
+            assert result is True
+            mock_popen.assert_called_once()
+            mock_write.assert_called_once_with(55555, 8001)
+            assert wiz._base_url == "http://localhost:8001"
+
+    def test_start_uvicorn_dead_pid_respawns(self, tmp_path):
+        """Lock file has a dead PID (_read_api_lock returns None) — spawn fresh."""
+        wiz = self._make_wizard(tmp_path)
+        mock_proc = MagicMock()
+        mock_proc.pid = 44444
+        with (
+            patch("core.onboarding._read_api_lock", return_value=None),
+            patch("core.onboarding._write_api_lock") as mock_write,
+            patch("urllib.request.urlopen", side_effect=OSError),
+            patch.object(wiz, "_find_free_port", return_value=8000),
+            patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
+        ):
+            result = wiz._start_uvicorn()
+            assert result is True
+            mock_popen.assert_called_once()
+            mock_write.assert_called_once_with(44444, 8000)
+            assert wiz._base_url == "http://localhost:8000"
 
     def test_find_free_port_returns_preferred_when_available(self, tmp_path):
         wiz = self._make_wizard(tmp_path)
@@ -629,36 +673,41 @@ class TestOnboardingWizardUnit:
         assert result != busy_port
 
     def test_start_streamlit_spawns_process(self, tmp_path):
+        """No lock file and port 8501 is free — Streamlit should be spawned on it."""
         wiz = self._make_wizard(tmp_path)
+        mock_proc = MagicMock()
+        mock_proc.pid = 12345
         with (
-            patch("urllib.request.urlopen", side_effect=OSError),
-            patch("subprocess.Popen") as mock_popen,
+            patch("core.onboarding._read_workbench_lock", return_value=None),
+            patch("core.onboarding._write_workbench_lock") as mock_write,
+            patch.object(wiz, "_find_free_port", return_value=8501),
+            patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
         ):
             result = wiz._start_streamlit()
-            assert isinstance(result, int)
+            assert result == 8501
             mock_popen.assert_called_once()
             args = mock_popen.call_args[0][0]
             assert "streamlit" in args
             assert "ui/app.py" in args
-            assert str(result) in args
+            assert "8501" in args
+            mock_write.assert_called_once_with(12345, 8501)
 
     def test_start_streamlit_returns_none_on_error(self, tmp_path):
+        """No lock file, port 8501 is free, but Popen fails — return None."""
         wiz = self._make_wizard(tmp_path)
         with (
-            patch("urllib.request.urlopen", side_effect=OSError),
+            patch("core.onboarding._read_workbench_lock", return_value=None),
+            patch("core.onboarding._write_workbench_lock"),
+            patch.object(wiz, "_find_free_port", return_value=8501),
             patch("subprocess.Popen", side_effect=FileNotFoundError),
         ):
             assert wiz._start_streamlit() is None
 
     def test_start_streamlit_reuses_existing_workbench(self, tmp_path):
-        """Case 1: our workbench already running on 8501 — return port, don't spawn."""
+        """Lock file records a live PID — return stored port, don't spawn."""
         wiz = self._make_wizard(tmp_path)
-        mock_response = MagicMock()
-        mock_response.__enter__ = lambda s: s
-        mock_response.__exit__ = MagicMock(return_value=False)
-        mock_response.read.return_value = b"<title>OpenDQV Workbench</title>"
         with (
-            patch("urllib.request.urlopen", return_value=mock_response),
+            patch("core.onboarding._read_workbench_lock", return_value=(99999, 8501)),
             patch("subprocess.Popen") as mock_popen,
         ):
             result = wiz._start_streamlit()
@@ -666,22 +715,36 @@ class TestOnboardingWizardUnit:
             mock_popen.assert_not_called()
 
     def test_start_streamlit_foreign_process_on_preferred_port(self, tmp_path):
-        """Case 2: something else on 8501 — spawn on next free port, warn."""
+        """No live lock, port 8501 occupied by foreign — spawn on next free port (8502)."""
         wiz = self._make_wizard(tmp_path)
-        mock_response = MagicMock()
-        mock_response.__enter__ = lambda s: s
-        mock_response.__exit__ = MagicMock(return_value=False)
-        mock_response.read.return_value = b"<title>Some Other App</title>"
+        mock_proc = MagicMock()
+        mock_proc.pid = 22222
         with (
-            patch("urllib.request.urlopen", return_value=mock_response),
-            patch.object(OnboardingWizard, "_find_free_port", return_value=8502),
-            patch("subprocess.Popen") as mock_popen,
+            patch("core.onboarding._read_workbench_lock", return_value=None),
+            patch("core.onboarding._write_workbench_lock") as mock_write,
+            patch.object(wiz, "_find_free_port", return_value=8502),
+            patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
         ):
             result = wiz._start_streamlit()
             assert result == 8502
             mock_popen.assert_called_once()
-            args = mock_popen.call_args[0][0]
-            assert "8502" in args
+            mock_write.assert_called_once_with(22222, 8502)
+
+    def test_start_streamlit_dead_pid_respawns(self, tmp_path):
+        """Lock file has a dead PID — spawn fresh process and rewrite lock."""
+        wiz = self._make_wizard(tmp_path)
+        mock_proc = MagicMock()
+        mock_proc.pid = 33333
+        with (
+            patch("core.onboarding._read_workbench_lock", return_value=None),
+            patch("core.onboarding._write_workbench_lock") as mock_write,
+            patch.object(wiz, "_find_free_port", return_value=8501),
+            patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
+        ):
+            result = wiz._start_streamlit()
+            assert result == 8501
+            mock_popen.assert_called_once()
+            mock_write.assert_called_once_with(33333, 8501)
 
     def test_start_streamlit_called_on_python_path(self, tmp_path):
         wiz = self._make_wizard(tmp_path)
@@ -792,6 +855,28 @@ class TestOnboardingWizardUnit:
         output = buf.getvalue()
         assert "8501" in output
         assert "localhost:8501" in output
+
+
+class TestReadApiLock:
+    """_read_api_lock() returns (pid, port) or None."""
+
+    def test_missing_file_returns_none(self, tmp_path):
+        lock_path = tmp_path / ".opendqv_api.lock"
+        with patch("core.onboarding._API_LOCK", lock_path):
+            assert _read_api_lock() is None
+
+    def test_dead_pid_returns_none(self, tmp_path):
+        lock_path = tmp_path / ".opendqv_api.lock"
+        lock_path.write_text(json.dumps({"pid": 99999999, "port": 8000}))
+        with patch("core.onboarding._API_LOCK", lock_path):
+            assert _read_api_lock() is None
+
+    def test_alive_pid_returns_tuple(self, tmp_path):
+        lock_path = tmp_path / ".opendqv_api.lock"
+        lock_path.write_text(json.dumps({"pid": os.getpid(), "port": 8000}))
+        with patch("core.onboarding._API_LOCK", lock_path):
+            result = _read_api_lock()
+            assert result == (os.getpid(), 8000)
 
 
 class TestOnboardingWizardRun:
