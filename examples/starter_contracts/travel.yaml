@@ -1,0 +1,357 @@
+# =============================================================================
+# OpenDQV Travel Starter Contract
+# =============================================================================
+# Purpose   : Travel booking record validation for airlines, hotels, and
+#             OTAs (Online Travel Agencies).
+# Domain    : Air travel, accommodation, car hire, package holidays,
+#             rail, ferry, cruise, transfers, and excursions.
+# Frameworks: IATA Resolution 830d (PNR format), IATA SSIM (airport/airline
+#             codes), GDPR Regulation 2016/679 Article 7 (consent),
+#             PCI DSS v4.0 (payment card data), EU Package Travel Directive
+#             2015/2302/EU
+# Deployment: Cloud with TLS
+#             (see docs/core/deployment.md — cloud pattern)
+# Version   : 1.0.0
+# =============================================================================
+#
+# REGULATORY AND OPERATIONAL STAKES:
+#
+#   PNR Format (IATA Resolution 830d): A Passenger Name Record (PNR) booking
+#   reference is exactly 6 uppercase alphanumeric characters (e.g., X7K2QA).
+#   This is a universal GDS standard used by Amadeus, Sabre, and Travelport.
+#   A malformed PNR will fail airline check-in systems and cannot be retrieved
+#   from global distribution systems, leaving passengers unable to board.
+#
+#   IATA Codes: Airport codes (IATA SSIM Chapter 2) are exactly 3 uppercase
+#   letters assigned by IATA. Airline codes (IATA Airline Designators) are
+#   exactly 2 characters — either 2 letters (e.g., BA = British Airways) or
+#   1 letter + 1 digit (e.g., 2I = Star Peru). A wrong airport or airline
+#   code breaks fare calculation, routing logic, and interline agreements.
+#
+#   EU Package Travel Directive 2015/2302/EU: Packages (flight + hotel, or
+#   any two travel services sold together) trigger mandatory consumer
+#   protection obligations including price protection, repatriation guarantee,
+#   and insolvency protection. Correct booking_type classification is
+#   therefore a legal compliance matter, not just a data quality one.
+#
+#   PCI DSS v4.0: Raw payment card numbers (PANs) must NEVER be stored in
+#   booking records. This contract validates payment_method as a categorical
+#   field. Any booking record that contains a field resembling a PAN (16-digit
+#   number) should be rejected at the API gateway before reaching the database.
+#   PCI DSS Requirement 3.3: Do not retain sensitive authentication data
+#   after authorisation.
+#
+#   GDPR Article 7: Consent for marketing communications must be freely given,
+#   specific, informed, and unambiguous. The gdpr_marketing_consent field
+#   must record one of YES / NO / NOT_ASKED. A missing consent record creates
+#   GDPR Article 7 liability for unsolicited marketing communications.
+#
+# HOW TO USE:
+#   1. Load this contract: POST /api/v1/contracts (name: "travel_booking")
+#   2. Validate a record:  POST /api/v1/validate/travel_booking
+#   3. Batch validate:     POST /api/v1/validate/travel_booking/batch
+#   4. Sample records:     examples/starter_contracts/sample_records/travel.json
+#
+# ADAPTING FOR YOUR SYSTEM:
+#   - Add destination_airport required_if rule once cross_field_range lands
+#     (currently handled by required_if on booking_type=FLIGHT separately)
+#   - Extend currency lookup to cover your additional markets
+#   - Extend booking_type lookup for your product catalogue
+#   - Adjust passenger_count max for your use case (default: 500 covers
+#     full charter aircraft; reduce to 9 for leisure OTAs)
+
+name: travel_booking
+version: "1.0.0"
+description: "Travel booking record validation — PNR, IATA codes, pricing, passenger details, booking status, GDPR consent, PCI DSS compliance"
+asset_id: "urn:opendqv:example:travel:travel_booking"
+
+rules:
+
+  # ── BOOKING REFERENCE (PNR) ──────────────────────────────────────────────────
+  # PNR (Passenger Name Record) format per IATA Resolution 830d:
+  # exactly 6 uppercase alphanumeric characters. This format is universal
+  # across all major GDS platforms (Amadeus: 6 chars, Sabre: 6 chars,
+  # Travelport/Galileo: 6 chars). Examples: X7K2QA, BH34TL, 9GXPQR.
+  # Lower-case letters, spaces, or special characters will fail GDS lookup.
+  - field: booking_reference
+    rule: not_empty
+    severity: error
+    description: "Booking reference (PNR) is mandatory. All booking records must carry a PNR for GDS retrieval and check-in."
+
+  - field: booking_reference
+    rule: regex
+    # IATA PNR: exactly 6 uppercase alphanumeric characters
+    pattern: "^[A-Z0-9]{6}$"
+    severity: error
+    description: "Booking reference must be exactly 6 uppercase alphanumeric characters (IATA PNR format, e.g., X7K2QA). Required by all major GDS platforms."
+
+  # ── BOOKING TYPE ─────────────────────────────────────────────────────────────
+  # PACKAGE triggers EU Package Travel Directive 2015/2302/EU protections.
+  - field: booking_type
+    rule: lookup
+    lookup_values:
+      - FLIGHT
+      - HOTEL
+      - CAR_HIRE
+      - PACKAGE      # EU PTD 2015/2302 protections apply to this type
+      - RAIL
+      - FERRY
+      - CRUISE
+      - TRANSFER     # Airport/hotel transfer
+      - EXCURSION    # Day trip / activity
+    severity: error
+    description: "Booking type must be a recognised travel product. PACKAGE bookings trigger EU Package Travel Directive 2015/2302/EU consumer protection obligations."
+
+  # ── ORIGIN AND DESTINATION AIRPORT ──────────────────────────────────────────
+  # IATA airport codes (IATA SSIM Chapter 2): exactly 3 uppercase letters.
+  # Examples: LHR (London Heathrow), JFK (New York JFK), DXB (Dubai),
+  # SIN (Singapore Changi), CDG (Paris Charles de Gaulle).
+  # A 3-letter code is required for all FLIGHT bookings; it is optional
+  # (or may contain a non-airport identifier) for other booking types.
+  - field: origin_airport
+    rule: regex
+    pattern: "^$|^[A-Z]{3}$"
+    severity: error
+    description: "Origin airport must be a valid 3-letter IATA airport code (e.g., LHR, JFK, DXB). Required for FLIGHT bookings."
+
+  # destination_airport is required when booking_type is FLIGHT.
+  - field: destination_airport
+    rule: required_if
+    when_field: booking_type
+    when_value: FLIGHT
+    severity: error
+    description: "Destination airport is required for FLIGHT bookings."
+
+  - field: destination_airport
+    rule: regex
+    pattern: "^$|^[A-Z]{3}$"
+    severity: error
+    description: "Destination airport must be a valid 3-letter IATA airport code (e.g., LHR, JFK, DXB)."
+
+  # ── DEPARTURE DATETIME ───────────────────────────────────────────────────────
+  # ISO 8601 with mandatory timezone offset — required for cross-border
+  # itinerary construction and DST-safe arrival time calculations.
+  - field: departure_datetime
+    rule: not_empty
+    severity: error
+    description: "Departure datetime is mandatory for all bookings."
+
+  - field: departure_datetime
+    rule: regex
+    # ISO 8601 datetime with mandatory timezone: Z or ±HH:MM
+    pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
+    severity: error
+    description: "Departure datetime must be ISO 8601 with timezone (e.g., 2026-06-15T08:30:00Z or 2026-06-15T09:30:00+01:00)."
+
+  - field: departure_datetime
+    rule: compare
+    compare_op: gte
+    compare_to: now
+    severity: warning
+    description: "Departure datetime is in the past. Expected for historical records only — flag for new booking pipelines."
+
+  # ── RETURN DATETIME ──────────────────────────────────────────────────────────
+  # return_datetime is mandatory for PACKAGE bookings under the EU Package
+  # Travel Directive (the end date of the package must be defined).
+  # It is optional for one-way flights, hotels, and transfers.
+  - field: return_datetime
+    rule: required_if
+    when_field: booking_type
+    when_value: PACKAGE
+    severity: error
+    description: "Return datetime is required for PACKAGE bookings (EU Package Travel Directive 2015/2302/EU — the package end date must be defined)."
+
+  - field: return_datetime
+    rule: cross_field_range
+    compare_op: gte
+    compare_to_field: departure_datetime
+    severity: error
+    description: "Return datetime must be on or after departure datetime."
+
+  # ── PASSENGER COUNT ──────────────────────────────────────────────────────────
+  # Range 1–500: minimum 1 (a booking with zero passengers is invalid).
+  # Maximum 500 covers full charter aircraft (e.g., Airbus A380 max ~853,
+  # but 500 is a conservative ceiling for most OTA/airline systems).
+  # Reduce to 9 for leisure OTA use cases (max group booking).
+  - field: passenger_count
+    rule: range
+    min: 1
+    max: 500
+    severity: error
+    description: "Passenger count must be between 1 and 500. Zero passengers is invalid. Adjust max for your use case (9 for leisure groups, 500 for charters)."
+
+  # ── CABIN CLASS ──────────────────────────────────────────────────────────────
+  # Cabin class is only meaningful for FLIGHT bookings.
+  # IATA fare basis codes map to these 4 cabins in all major GDS systems.
+  - field: cabin_class
+    rule: required_if
+    when_field: booking_type
+    when_value: FLIGHT
+    severity: error
+    description: "Cabin class is required for FLIGHT bookings."
+
+  - field: cabin_class
+    rule: lookup
+    lookup_values:
+      - ECONOMY
+      - PREMIUM_ECONOMY
+      - BUSINESS
+      - FIRST
+    severity: error
+    description: "Cabin class must be one of: ECONOMY, PREMIUM_ECONOMY, BUSINESS, FIRST."
+
+  # ── HOTEL STAR RATING ────────────────────────────────────────────────────────
+  # Hotel star rating is only required for HOTEL bookings.
+  # Ratings 1–5 align with the AA Hotel Star Rating and Hotelstars Union
+  # classification used across Europe.
+  - field: hotel_star_rating
+    rule: required_if
+    when_field: booking_type
+    when_value: HOTEL
+    severity: error
+    description: "Hotel star rating is required for HOTEL bookings."
+
+  - field: hotel_star_rating
+    rule: lookup
+    lookup_values:
+      - "1"
+      - "2"
+      - "3"
+      - "4"
+      - "5"
+      - UNRATED    # Hostels, serviced apartments, boutique properties
+    severity: error
+    description: "Hotel star rating must be 1–5 or UNRATED (AA Hotel Star Rating / Hotelstars Union classification)."
+
+  # ── TOTAL PRICE ──────────────────────────────────────────────────────────────
+  # Range 0–10,000,000: zero is valid for reward-only bookings (fully
+  # redeemed via loyalty points / miles). Upper limit of £10 million
+  # covers ultra-luxury charters and high-end cruise packages.
+  - field: total_price
+    rule: not_empty
+    severity: error
+    description: "Total price is mandatory for revenue recognition and ATOL/ABTA financial protection calculations."
+
+  - field: total_price
+    rule: range
+    min: 0
+    max: 10000000
+    severity: error
+    description: "Total price must be between 0 and 10,000,000. Zero is valid for fully points-redeemed bookings."
+
+  # ── CURRENCY ─────────────────────────────────────────────────────────────────
+  # ISO 4217 currency codes covering major travel markets.
+  - field: currency
+    rule: lookup
+    lookup_values:
+      - USD    # United States
+      - EUR    # Eurozone
+      - GBP    # United Kingdom
+      - AED    # UAE (Dubai)
+      - SGD    # Singapore
+      - AUD    # Australia
+      - CAD    # Canada
+      - JPY    # Japan
+      - CHF    # Switzerland
+      - INR    # India
+      - THB    # Thailand
+      - MXN    # Mexico
+      - BRL    # Brazil
+      - ZAR    # South Africa
+    severity: error
+    description: "Currency must be a supported ISO 4217 code covering major travel markets."
+
+  # ── BOOKING STATUS ───────────────────────────────────────────────────────────
+  # Standard booking lifecycle states used across airlines and OTA platforms.
+  # TICKETED is airline-specific — a confirmed booking becomes ticketed when
+  # the airline issues an e-ticket (13-digit BSP ticket number).
+  - field: booking_status
+    rule: lookup
+    lookup_values:
+      - PENDING      # Booking initiated, payment not yet confirmed
+      - CONFIRMED    # Payment confirmed, not yet ticketed
+      - TICKETED     # E-ticket issued (airlines only)
+      - CANCELLED    # Cancelled by traveller or supplier
+      - REFUNDED     # Refund issued
+      - MODIFIED     # Booking has been changed after initial confirmation
+      - NO_SHOW      # Passenger did not travel
+      - WAITLISTED   # Booking on waitlist — seat/room not yet guaranteed
+    severity: error
+    description: "Booking status must be a recognised lifecycle state."
+
+  # ── PAYMENT METHOD ───────────────────────────────────────────────────────────
+  # PCI DSS v4.0 NOTE: Raw payment card numbers (PANs) must NEVER appear in
+  # booking records. This field carries only the payment method category.
+  # PCI DSS Requirement 3.3: Do not retain sensitive authentication data
+  # (full PAN, CVV, PIN) after authorisation. Any 16-digit number appearing
+  # in a booking record field must be rejected at the API gateway.
+  - field: payment_method
+    rule: lookup
+    lookup_values:
+      - CARD            # Credit/debit card — tokenised reference only, no PAN
+      - BANK_TRANSFER
+      - WALLET          # e.g., PayPal, Apple Pay, Google Pay
+      - POINTS_MILES    # Loyalty programme redemption
+      - VOUCHER         # Travel credit or gift voucher
+      - AGENCY_ACCOUNT  # Trade/B2B account billing
+      - BNPL            # Buy Now Pay Later (e.g., Klarna, Affirm)
+    severity: error
+    description: "Payment method must be a recognised payment instrument. CARD payments must use a tokenised reference — raw PANs are prohibited under PCI DSS v4.0 Requirement 3.3."
+
+  # ── AIRLINE CODE ─────────────────────────────────────────────────────────────
+  # IATA Airline Designator: exactly 2 characters.
+  # Format: 2 letters (e.g., BA = British Airways, EK = Emirates,
+  # SQ = Singapore Airlines) or 1 letter + 1 digit (e.g., 2I = Star Peru).
+  # Required for FLIGHT bookings; optional for other booking types.
+  - field: airline_code
+    rule: required_if
+    when_field: booking_type
+    when_value: FLIGHT
+    severity: error
+    description: "Airline code is required for FLIGHT bookings."
+
+  - field: airline_code
+    rule: regex
+    # IATA 2-char designator: 2 letters or letter+digit
+    pattern: "^$|^[A-Z0-9]{2}$"
+    severity: error
+    description: "Airline code must be a 2-character IATA airline designator (e.g., BA, EK, SQ, 2I)."
+
+  # ── LOYALTY PROGRAMME ID ─────────────────────────────────────────────────────
+  # Loyalty programme membership number — optional field.
+  # Maximum 20 characters covers the longest frequent-flyer/hotel loyalty
+  # membership numbers (e.g., BA Executive Club: 9 digits, Marriott Bonvoy:
+  # 9 digits, Emirates Skywards: 16 digits).
+  - field: loyalty_programme_id
+    rule: max_length
+    max: 20
+    severity: warning
+    description: "Loyalty programme membership ID must not exceed 20 characters. Field is optional but must conform to this length if provided."
+
+  # ── LEAD PASSENGER EMAIL ─────────────────────────────────────────────────────
+  # Lead passenger email is required for booking confirmation delivery and
+  # GDPR Article 14 processing notice requirements.
+  # PII — must be handled under GDPR data minimisation principles.
+  # Basic format validation only — MX record validation out of scope here.
+  - field: lead_passenger_email
+    rule: regex
+    pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+    severity: error
+    description: "Lead passenger email must be in a valid format (e.g., john.smith@example.com). Required for booking confirmation and GDPR Article 14 processing notice."
+
+  # ── GDPR MARKETING CONSENT ────────────────────────────────────────────────────
+  # GDPR Article 7: Conditions for consent.
+  # Consent for marketing must be freely given, specific, informed, and
+  # evidenced by a clear affirmative action. Pre-ticked boxes are not valid
+  # consent (CJEU — Planet49, Case C-673/17).
+  # NOT_ASKED: consent was not solicited at booking (permissible but recorded
+  # so that downstream marketing systems do not incorrectly assume consent).
+  # A missing or null consent field must not be treated as YES.
+  - field: gdpr_marketing_consent
+    rule: lookup
+    lookup_values:
+      - YES       # Explicit opt-in — marketing communications permitted
+      - NO        # Explicit opt-out
+      - NOT_ASKED # Consent not solicited — treat as NO for marketing
+    severity: error
+    description: "GDPR marketing consent status is mandatory. Must be YES (opted in), NO (opted out), or NOT_ASKED. A missing value must not be treated as consent (GDPR Article 7 / CJEU Planet49)."

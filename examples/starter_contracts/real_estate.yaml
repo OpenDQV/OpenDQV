@@ -1,0 +1,316 @@
+# =============================================================================
+# OpenDQV Real Estate Starter Contract
+# =============================================================================
+# Purpose   : Property listing and transaction record validation for real
+#             estate platforms — residential and commercial listings,
+#             transactions, valuations, and lettings.
+# Domain    : Residential and commercial property — listings, transactions,
+#             valuations, lettings
+# Frameworks: RICS Red Book (UK valuations, PS 1 & VPS 4), HM Land Registry,
+#             HM Revenue & Customs SDLT (Stamp Duty Land Tax),
+#             EU Energy Performance of Buildings Directive (EPBD 2010/31/EU,
+#             amended 2018/844/EU), PropTech Data Standards
+# Deployment: Cloud with TLS
+#             (see docs/core/deployment.md — cloud pattern)
+# Version   : 1.0.0
+# =============================================================================
+#
+# REGULATORY AND COMMERCIAL STAKES:
+#
+#   RICS Red Book (Global Standards 2022): RICS PS 1 requires that all
+#   valuations include a unique property identifier. VPS 4 requires the
+#   inspection date and basis of value to be recorded. Missing or malformed
+#   property IDs undermine RICS compliance and valuation audit trails.
+#
+#   SDLT (HM Revenue & Customs): Stamp Duty Land Tax thresholds are applied
+#   at transaction completion. The sdlt_applicable field carries the HMRC
+#   determination. An incorrect or missing SDLT flag can result in
+#   under-reporting of tax liability and HMRC penalties.
+#
+#   EU EPBD: Under the EU Energy Performance of Buildings Directive, an
+#   Energy Performance Certificate (EPC) is legally required before a
+#   property is sold or let. The epc_rating field carries the EPC band
+#   (A–G). Missing EPC data can block a transaction from completing.
+#
+#   Leasehold vs Freehold: The tenure field distinguishes freehold (outright
+#   ownership of land and building) from leasehold (time-limited right to
+#   occupy, typically 99–999 years). Under the Leasehold Reform (Ground Rent)
+#   Act 2022, new residential leases must have a zero peppercorn ground rent.
+#   Accurate tenure data is essential for mortgage lender decisions.
+#
+# HOW TO USE:
+#   1. Load this contract: POST /api/v1/contracts (name: "property_listing")
+#   2. Validate a record:  POST /api/v1/validate/property_listing
+#   3. Batch validate:     POST /api/v1/validate/property_listing/batch
+#   4. Sample records:     examples/starter_contracts/sample_records/real_estate.json
+#
+# ADAPTING FOR YOUR SYSTEM:
+#   - Replace postcode regex for non-UK markets (e.g., US ZIP, EU postal codes)
+#   - Extend currency lookup to cover your markets
+#   - Replace epc_rating lookup with your national energy rating scheme
+#   - Adjust asking_price max for your market (default: up to £1 billion for
+#     ultra-prime London / global trophy assets)
+#   - Adjust year_built min for your market (default: 1000 covers medieval
+#     listed buildings in the UK)
+
+name: property_listing
+version: "1.0.0"
+description: "Property listing and transaction record validation — identifiers, pricing, physical attributes, EPC, tenure, SDLT, RICS/Land Registry/EPBD compliance"
+asset_id: "urn:opendqv:example:real_estate:property_listing"
+
+rules:
+
+  # ── PROPERTY IDENTIFICATION ──────────────────────────────────────────────────
+  # property_id is the platform's primary unique identifier for a listing.
+  # Format: PROP- followed by exactly 8 uppercase alphanumeric characters.
+  # This is a platform-defined ID, distinct from UPRN (see below).
+  - field: property_id
+    rule: not_empty
+    severity: error
+    description: "Property ID is mandatory. All listing and transaction records must carry a unique platform property identifier."
+
+  - field: property_id
+    rule: regex
+    # Platform ID: PROP- prefix + 8 uppercase alphanumeric characters
+    pattern: "^PROP-[A-Z0-9]{8}$"
+    severity: error
+    description: "Property ID must match format PROP-XXXXXXXX (8 uppercase alphanumeric characters, e.g., PROP-A1B2C3D4)."
+
+  # ── UPRN ─────────────────────────────────────────────────────────────────────
+  # UK Unique Property Reference Number (UPRN): assigned by local authorities
+  # and maintained by Ordnance Survey AddressBase.
+  # UPRNs are 1–12 digits. The field is optional — not all listings will have
+  # one — but if present it must be numeric and within the valid length range.
+  - field: uprn
+    rule: regex
+    # Numeric, 1–12 digits. Empty string ("") passes — field is optional.
+    # Enforce at ingestion only when the field is non-empty.
+    pattern: "^$|^[0-9]{1,12}$"
+    severity: warning
+    description: "UPRN (Unique Property Reference Number) must be numeric and up to 12 digits if provided (Ordnance Survey AddressBase standard)."
+
+  # ── LISTING TYPE ─────────────────────────────────────────────────────────────
+  - field: listing_type
+    rule: lookup
+    lookup_values:
+      - FOR_SALE
+      - FOR_RENT
+      - SOLD
+      - LET
+      - UNDER_OFFER
+      - SOLD_STC    # Sold Subject to Contract — common UK estate agency status
+      - WITHDRAWN
+    severity: error
+    description: "Listing type must be a recognised market status."
+
+  # ── PROPERTY TYPE ─────────────────────────────────────────────────────────────
+  # Covers residential (RICS residential classification) and commercial
+  # (RICS commercial classification) property types.
+  - field: property_type
+    rule: lookup
+    lookup_values:
+      - DETACHED
+      - SEMI_DETACHED
+      - TERRACED
+      - FLAT_APARTMENT
+      - BUNGALOW
+      - MAISONETTE
+      - STUDIO
+      - COMMERCIAL_OFFICE
+      - COMMERCIAL_RETAIL
+      - COMMERCIAL_INDUSTRIAL
+      - LAND
+      - PARKING
+    severity: error
+    description: "Property type must be a recognised residential or commercial classification."
+
+  # ── BEDROOMS AND BATHROOMS ───────────────────────────────────────────────────
+  # Range 0–20: zero is valid for studios and commercial properties.
+  # Values above 20 are implausible for standard residential stock and
+  # almost certainly indicate a data entry error.
+  - field: bedrooms
+    rule: range
+    min: 0
+    max: 20
+    severity: error
+    description: "Bedroom count must be between 0 and 20. Studios and commercial units may have 0. Values above 20 are implausible."
+
+  - field: bathrooms
+    rule: range
+    min: 0
+    max: 20
+    severity: error
+    description: "Bathroom count must be between 0 and 20."
+
+  # ── ASKING PRICE ─────────────────────────────────────────────────────────────
+  # Range 0–1,000,000,000 (£1 billion): covers ultra-prime London addresses
+  # (e.g., One Hyde Park penthouse) and global trophy commercial assets.
+  # Zero is valid for cases where the price is not publicly disclosed
+  # (POA — Price On Application).
+  - field: asking_price
+    rule: range
+    min: 0
+    max: 1000000000
+    severity: error
+    description: "Asking price must be between 0 and 1,000,000,000. Zero is valid for POA (Price on Application) listings. Adjust max for your market."
+
+  # ── CURRENCY ─────────────────────────────────────────────────────────────────
+  # ISO 4217 currency codes covering major real estate markets.
+  - field: currency
+    rule: lookup
+    lookup_values:
+      - GBP    # United Kingdom
+      - EUR    # Eurozone
+      - USD    # United States / international trophy assets
+      - AED    # UAE (Dubai)
+      - SGD    # Singapore
+      - HKD    # Hong Kong
+      - AUD    # Australia
+      - CHF    # Switzerland
+    severity: error
+    description: "Currency must be a supported ISO 4217 code covering major real estate markets."
+
+  # ── FLOOR AREA ───────────────────────────────────────────────────────────────
+  # Range 10–100,000 sqm: 10 sqm is the minimum habitable floor area under
+  # most UK housing standards (Housing Act 1985 overcrowding provisions).
+  # 100,000 sqm covers very large commercial warehouses and industrial sites.
+  - field: floor_area_sqm
+    rule: range
+    min: 10
+    max: 100000
+    severity: warning
+    description: "Floor area must be between 10 sqm (minimum habitable space) and 100,000 sqm (large commercial/industrial). Values outside this range warrant review."
+
+  # ── EPC RATING ───────────────────────────────────────────────────────────────
+  # Energy Performance Certificate rating under the EU Energy Performance
+  # of Buildings Directive (EPBD 2010/31/EU, amended 2018/844/EU).
+  # In England and Wales, EPCs are required for all properties sold or let
+  # (Energy Performance of Buildings (England and Wales) Regulations 2012).
+  # Band A is most energy-efficient; Band G is least efficient.
+  # EXEMPT: listed buildings, temporary structures, places of worship.
+  # NOT_REQUIRED: certain commercial premises and new-build edge cases.
+  - field: epc_rating
+    rule: lookup
+    lookup_values:
+      - A          # Most energy-efficient (SAP score 92–100)
+      - B          # SAP score 81–91
+      - C          # SAP score 69–80
+      - D          # SAP score 55–68 — UK average
+      - E          # SAP score 39–54
+      - F          # SAP score 21–38
+      - G          # Least energy-efficient (SAP score 1–20)
+      - EXEMPT     # Listed buildings, places of worship, temporary structures
+      - NOT_REQUIRED
+    severity: error
+    description: "EPC rating must be a valid band (A–G), EXEMPT, or NOT_REQUIRED. EPC is legally required for all sold or let properties in England and Wales under the Energy Performance of Buildings Regulations 2012."
+
+  # ── TENURE ───────────────────────────────────────────────────────────────────
+  # Tenure type is fundamental to mortgage lender decisions and legal due
+  # diligence. The Leasehold Reform (Ground Rent) Act 2022 prohibits ground
+  # rent above a peppercorn on new residential leases.
+  # SHARE_OF_FREEHOLD: a leasehold property where the leaseholders jointly
+  # own the freehold — common in converted period houses.
+  # COMMONHOLD: an alternative to leasehold for flats (Commonhold and
+  # Leasehold Reform Act 2002) — currently rare in England and Wales.
+  - field: tenure
+    rule: lookup
+    lookup_values:
+      - FREEHOLD
+      - LEASEHOLD
+      - SHARE_OF_FREEHOLD
+      - COMMONHOLD
+      - UNKNOWN
+    severity: error
+    description: "Tenure must be a recognised legal form of ownership. LEASEHOLD properties are subject to ground rent rules under the Leasehold Reform (Ground Rent) Act 2022."
+
+  # ── LISTING DATE ─────────────────────────────────────────────────────────────
+  - field: listing_date
+    rule: not_empty
+    severity: error
+    description: "Listing date is required for time-on-market analytics and portal compliance."
+
+  - field: listing_date
+    rule: regex
+    pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    severity: error
+    description: "Listing date must be in YYYY-MM-DD format."
+
+  - field: listing_date
+    rule: compare
+    compare_op: lte
+    compare_to: today
+    severity: error
+    description: "Listing date cannot be in the future."
+
+  # ── POSTCODE ─────────────────────────────────────────────────────────────────
+  # UK postcode format per Royal Mail / Ordnance Survey specification.
+  # Covers all valid formats: SW1A 1AA, EC2A 4BX, W1A 0AX, M1 1AE, B1 1BB.
+  # The space between the outward and inward codes is required.
+  # Replace with your national postal code format for non-UK deployments.
+  - field: postcode
+    rule: regex
+    # UK postcode: 1–2 letters + 1 digit (+ optional digit or letter) + space + digit + 2 letters
+    pattern: "^[A-Z]{1,2}[0-9][0-9A-Z]?\\s[0-9][A-Z]{2}$"
+    severity: error
+    description: "Postcode must be a valid UK postcode format (e.g., SW1A 1AA, EC2A 4BX). Replace with your national format for non-UK deployments."
+
+  # ── AGENT ID ─────────────────────────────────────────────────────────────────
+  # The listing agent's platform identifier. Used for audit trail, agent
+  # performance reporting, and duplicate listing detection.
+  - field: agent_id
+    rule: not_empty
+    severity: error
+    description: "Agent ID is mandatory for audit trail and duplicate listing detection."
+
+  # ── STATUS ───────────────────────────────────────────────────────────────────
+  # Lifecycle status of the transaction — distinct from listing_type.
+  # Reflects the legal/commercial stage of the sale or letting.
+  - field: status
+    rule: lookup
+    lookup_values:
+      - ACTIVE       # Listing is live on the market
+      - UNDER_OFFER  # Offer accepted, not yet exchanged
+      - EXCHANGED    # Contracts exchanged — legally binding
+      - COMPLETED    # Legal completion — title transferred
+      - WITHDRAWN    # Removed from market
+      - EXPIRED      # Listing mandate expired
+    severity: error
+    description: "Status must be a recognised transaction lifecycle stage."
+
+  # ── SDLT ─────────────────────────────────────────────────────────────────────
+  # Stamp Duty Land Tax (SDLT) — HM Revenue & Customs.
+  # SDLT applies to residential property purchases above £250,000 (standard)
+  # or £425,000 (first-time buyers) in England and Northern Ireland.
+  # Land Transaction Tax (LTT) applies in Wales; LBTT applies in Scotland.
+  # This field carries the HMRC determination for English/NI transactions.
+  # EXEMPT: certain transfers between spouses, charities, and corporate groups.
+  - field: sdlt_applicable
+    rule: lookup
+    lookup_values:
+      - YES
+      - NO
+      - EXEMPT    # HMRC-recognised SDLT exemptions (e.g., charity relief)
+    severity: error
+    description: "SDLT applicable status is required for all residential transactions in England and Northern Ireland (HM Revenue & Customs — Stamp Duty Land Tax)."
+
+  # ── YEAR BUILT ───────────────────────────────────────────────────────────────
+  # Range 1000–2030: lower bound of 1000 covers Grade I listed medieval
+  # buildings in the UK. Upper bound of 2030 allows for new-build completions
+  # in the near future. A year before 1000 or after 2030 is almost certainly
+  # a data entry error.
+  - field: year_built
+    rule: range
+    min: 1000
+    max: 2030
+    severity: warning
+    description: "Year built must be between 1000 (medieval listed buildings) and 2030 (near-future new builds). Values outside this range are likely data entry errors."
+
+  # ── PARKING SPACES ───────────────────────────────────────────────────────────
+  # Zero is valid (city-centre flats with no parking allocation).
+  # Upper limit of 1000 covers large commercial car parks listed as assets.
+  - field: parking_spaces
+    rule: range
+    min: 0
+    max: 1000
+    severity: warning
+    description: "Parking spaces must be between 0 and 1000. Zero is valid for properties with no parking allocation."

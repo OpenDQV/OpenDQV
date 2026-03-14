@@ -1,0 +1,64 @@
+contract:
+  name: manufacturing_iot
+  version: "1.0"
+  description: "Manufacturing IoT sensor data validation"
+  owner: "Operations Data Team"
+  status: active
+
+  rules:
+    - name: device_id_required
+      field: device_id
+      type: not_empty
+      severity: error
+      error_message: "device_id is required"
+
+    - name: timestamp_format
+      field: timestamp
+      type: date_format
+      severity: error
+      error_message: "timestamp must be a valid date (YYYY-MM-DD)"
+
+    - name: temperature_range
+      field: temperature
+      type: range
+      min: -50
+      max: 500
+      severity: error
+      error_message: "temperature must be between -50 and 500"
+
+    - name: pressure_min
+      field: pressure
+      type: min
+      min: 0
+      severity: error
+      error_message: "pressure must be >= 0"
+
+    - name: line_id_required
+      field: line_id
+      type: not_empty
+      severity: error
+      error_message: "line_id is required"
+
+    - name: batch_number_required
+      field: batch_number
+      type: not_empty
+      severity: error
+      error_message: "batch_number is required"
+
+    - name: status_required
+      field: status
+      type: not_empty
+      severity: error
+      error_message: "status is required"
+
+    - name: location_required
+      field: location
+      type: not_empty
+      severity: error
+      error_message: "location is required"
+
+    - name: operator_id_required
+      field: operator_id
+      type: not_empty
+      severity: error
+      error_message: "operator_id is required"

@@ -1,0 +1,69 @@
+contract:
+  name: healthcare_patient
+  version: "1.0"
+  description: "Healthcare patient record validation"
+  owner: "Clinical Data Team"
+  status: active
+
+  rules:
+    - name: patient_id_required
+      field: patient_id
+      type: not_empty
+      severity: error
+      error_message: "patient_id is required"
+
+    - name: first_name_required
+      field: first_name
+      type: not_empty
+      severity: error
+      error_message: "first_name is required"
+
+    - name: last_name_required
+      field: last_name
+      type: not_empty
+      severity: error
+      error_message: "last_name is required"
+
+    - name: date_of_birth_format
+      field: date_of_birth
+      type: date_format
+      severity: error
+      error_message: "date_of_birth must be a valid date (YYYY-MM-DD)"
+
+    - name: admission_date_format
+      field: admission_date
+      type: date_format
+      severity: error
+      error_message: "admission_date must be a valid date (YYYY-MM-DD)"
+
+    - name: ward_required
+      field: ward
+      type: not_empty
+      severity: error
+      error_message: "ward is required"
+
+    - name: diagnosis_code_required
+      field: diagnosis_code
+      type: not_empty
+      severity: error
+      error_message: "diagnosis_code is required"
+
+    - name: blood_type_format
+      field: blood_type
+      type: regex
+      pattern: '^(A|B|AB|O)[+-]$'
+      severity: error
+      error_message: "blood_type must be a valid blood group (e.g. A+, O-, AB+)"
+
+    - name: discharge_date_format
+      field: discharge_date
+      type: date_format
+      severity: warning
+      error_message: "discharge_date must be a valid date (YYYY-MM-DD)"
+
+    - name: nhs_number_format
+      field: nhs_number
+      type: regex
+      pattern: '^\d{3}[\s-]?\d{3}[\s-]?\d{4}$'
+      severity: error
+      error_message: "nhs_number must be a valid NHS number (e.g. 123-456-7890)"

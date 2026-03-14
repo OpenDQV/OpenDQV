@@ -1,0 +1,92 @@
+contract:
+  name: agriculture_batch
+  version: 1.0-draft.176
+  description: Agriculture crop batch record validation
+  owner: Agri Supply Chain Data Team
+  status: active
+  rules:
+  - name: batch_id_required
+    description: ''
+    type: not_empty
+    field: batch_id
+    severity: error
+    error_message: batch_id is required
+    inherited: false
+    negate: false
+    all_of: false
+  - name: farm_id_required
+    description: ''
+    type: not_empty
+    field: farm_id
+    severity: error
+    error_message: farm_id is required
+    inherited: false
+    negate: false
+    all_of: false
+  - name: crop_type_required
+    description: ''
+    type: not_empty
+    field: crop_type
+    severity: error
+    error_message: crop_type is required
+    inherited: false
+    negate: false
+    all_of: false
+  - name: harvest_date_format
+    description: ''
+    type: date_format
+    field: harvest_date
+    severity: error
+    error_message: harvest_date must be a valid date (YYYY-MM-DD)
+    inherited: false
+    negate: false
+    all_of: false
+  - name: weight_kg_min
+    description: ''
+    type: min
+    field: weight_kg
+    min: 0.0
+    severity: error
+    error_message: weight_kg must be >= 0
+    inherited: false
+    negate: false
+    all_of: false
+  - name: field_id_required
+    description: ''
+    type: not_empty
+    field: field_id
+    severity: error
+    error_message: field_id is required
+    inherited: false
+    negate: false
+    all_of: false
+  - name: soil_ph_range
+    description: ''
+    type: range
+    field: soil_ph
+    min: 0.0
+    max: 14.0
+    severity: error
+    error_message: soil_ph must be between 0 and 14
+    inherited: false
+    negate: false
+    all_of: false
+  - name: yield_kg_per_hectare_min
+    description: ''
+    type: min
+    field: yield_kg_per_hectare
+    min: 0.0
+    severity: error
+    error_message: yield_kg_per_hectare must be >= 0
+    inherited: false
+    negate: false
+    all_of: false
+  - name: inspector_id_required
+    description: ''
+    type: not_empty
+    field: inspector_id
+    severity: warning
+    error_message: inspector_id should be provided for traceability
+    inherited: false
+    negate: false
+    all_of: false

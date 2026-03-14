@@ -1,0 +1,17 @@
+# Performance testing overlay.
+# Disables in-process rate limiting to measure engine ceiling throughput.
+# Never edit .env for perf runs — use this file instead.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.perf.yml up -d --build api
+#   node tests/load-test-universal.js 60 10    # 1-minute
+#   node tests/load-test-universal.js 300 10   # 5-minute
+#   node tests/load-test-universal.js 600 10   # 10-minute
+#   docker compose up -d api   # restore normal stack when done
+
+services:
+  api:
+    environment:
+      - RATE_LIMIT_VALIDATE=off
+      - RATE_LIMIT_DEFAULT=off
+      - WEB_CONCURRENCY=4

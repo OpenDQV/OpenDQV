@@ -1,0 +1,163 @@
+contract:
+  name: age_compliance_record
+  version: 1.0.0-draft.392
+  description: Social media user age compliance — age gate, DOB format, and identity
+    verification audit trail
+  owner: Data Governance Team
+  status: active
+  asset_id: urn:opendqv:example:social_media:age_compliance_record
+  rules:
+  - name: user_id_required
+    description: ''
+    type: not_empty
+    field: user_id
+    severity: error
+    error_message: user_id is mandatory — every registration record must be traceable
+    inherited: false
+    negate: false
+    all_of: false
+  - name: age_required
+    description: ''
+    type: not_empty
+    field: age
+    severity: error
+    error_message: age is required for age assurance audit records
+    inherited: false
+    negate: false
+    all_of: false
+  - name: age_minimum_13
+    description: ''
+    type: range
+    field: age
+    min: 13.0
+    max: 150.0
+    severity: error
+    error_message: Declared age must be 13 or above for platform access
+    inherited: false
+    negate: false
+    all_of: false
+  - name: age_dob_consistent
+    description: ''
+    type: age_match
+    field: age
+    severity: error
+    error_message: Declared age is inconsistent with date of birth — possible data
+      integrity issue or falsified age declaration
+    inherited: false
+    negate: false
+    dob_field: dob
+    all_of: false
+  - name: dob_required
+    description: ''
+    type: not_empty
+    field: dob
+    severity: error
+    error_message: Date of birth is required for age assurance audit records
+    inherited: false
+    negate: false
+    all_of: false
+  - name: dob_format
+    description: ''
+    type: regex
+    field: dob
+    pattern: ^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$
+    severity: error
+    error_message: 'Date of birth must be in ISO 8601 format: YYYY-MM-DD'
+    inherited: false
+    negate: false
+    all_of: false
+  - name: dob_age_gate
+    description: ''
+    type: date_format
+    field: dob
+    min_age: 13
+    format: YYYY-MM-DD
+    severity: error
+    error_message: Date of birth indicates user is under 13. Platform access denied
+      regardless of declared age (UK Online Safety Act minimum age).
+    inherited: false
+    negate: false
+    all_of: false
+  - name: verified_identity_required
+    description: ''
+    type: not_empty
+    field: verified_identity
+    severity: error
+    error_message: verified_identity must be recorded for every registration (TRUE
+      or FALSE)
+    inherited: false
+    negate: false
+    all_of: false
+  - name: verified_identity_valid_values
+    description: ''
+    type: lookup
+    field: verified_identity
+    severity: error
+    error_message: verified_identity must be TRUE (identity verified) or FALSE (self-declared)
+    lookup_file: ref/verified_identity_values.txt
+    inherited: false
+    negate: false
+    all_of: false
+  - name: verified_identity_advisory
+    description: ''
+    type: lookup
+    field: verified_identity
+    severity: warning
+    error_message: Identity is self-declared (verified_identity=FALSE). Apply enhanced
+      content restrictions per Ofcom age assurance guidance.
+    lookup_file: ref/verified_identity_true.txt
+    inherited: false
+    negate: false
+    all_of: false
+  - name: verification_method_required_if_verified
+    description: ''
+    type: required_if
+    field: verification_method
+    severity: error
+    error_message: verification_method is required when verified_identity is TRUE
+      (Ofcom audit trail)
+    required_if:
+      field: verified_identity
+      value: 'TRUE'
+    inherited: false
+    negate: false
+    all_of: false
+  - name: verification_method_valid
+    description: ''
+    type: lookup
+    field: verification_method
+    severity: error
+    error_message: verification_method must be an approved method (DOCUMENT_CHECK,
+      BIOMETRIC, CREDIT_BUREAU, MOBILE_NETWORK_OPERATOR, BANK_VERIFICATION, GOVERNMENT_ID,
+      PASSPORT, FACIAL_AGE_ESTIMATION, DEVICE_PLATFORM)
+    lookup_file: ref/verification_methods.txt
+    inherited: false
+    negate: false
+    all_of: false
+  - name: verification_timestamp_required_if_verified
+    description: ''
+    type: required_if
+    field: verification_timestamp
+    severity: error
+    error_message: verification_timestamp is required when verified_identity is TRUE
+      (Ofcom audit trail)
+    required_if:
+      field: verified_identity
+      value: 'TRUE'
+    inherited: false
+    negate: false
+    all_of: false
+  - name: verification_timestamp_format
+    description: ''
+    type: regex
+    field: verification_timestamp
+    pattern: ^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](Z|[+-][0-9]{2}:[0-9]{2})$
+    severity: error
+    error_message: verification_timestamp must be a valid ISO 8601 datetime with timezone
+      (e.g., 2026-03-10T14:23:00Z)
+    condition:
+      field: verified_identity
+      value: 'TRUE'
+    inherited: false
+    negate: false
+    all_of: false

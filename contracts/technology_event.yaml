@@ -1,0 +1,61 @@
+contract:
+  name: technology_event
+  version: "1.0"
+  description: "Technology platform event record validation"
+  owner: "Product Analytics Team"
+  status: active
+
+  rules:
+    - name: event_id_required
+      field: event_id
+      type: not_empty
+      severity: error
+      error_message: "event_id is required"
+
+    - name: user_id_required
+      field: user_id
+      type: not_empty
+      severity: error
+      error_message: "user_id is required"
+
+    - name: event_timestamp_format
+      field: event_timestamp
+      type: date_format
+      severity: error
+      error_message: "event_timestamp must be a valid date (YYYY-MM-DD)"
+
+    - name: event_type_required
+      field: event_type
+      type: not_empty
+      severity: error
+      error_message: "event_type is required"
+
+    - name: product_id_required
+      field: product_id
+      type: not_empty
+      severity: error
+      error_message: "product_id is required"
+
+    - name: tenant_id_required
+      field: tenant_id
+      type: not_empty
+      severity: error
+      error_message: "tenant_id is required"
+
+    - name: session_id_required
+      field: session_id
+      type: not_empty
+      severity: error
+      error_message: "session_id is required"
+
+    - name: platform_required
+      field: platform
+      type: not_empty
+      severity: error
+      error_message: "platform is required"
+
+    - name: sdk_version_required
+      field: sdk_version
+      type: not_empty
+      severity: warning
+      error_message: "sdk_version should be provided"

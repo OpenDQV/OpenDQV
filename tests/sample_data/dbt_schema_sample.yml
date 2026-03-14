@@ -1,0 +1,65 @@
+version: 2
+
+models:
+  - name: customers
+    description: Customer dimension table
+    columns:
+      - name: customer_id
+        description: Primary key
+        tests:
+          - unique
+          - not_null
+      - name: email
+        description: Customer email address
+        tests:
+          - not_null
+          - unique
+          - dbt_expectations.expect_column_values_to_match_regex:
+              regex_pattern: "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$"
+          - dbt_expectations.expect_column_value_lengths_to_be_between:
+              min_value: 5
+              max_value: 254
+      - name: first_name
+        description: Customer first name
+        tests:
+          - not_null
+      - name: age
+        description: Customer age in years
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 150
+      - name: status
+        description: Account status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['active', 'inactive', 'pending']
+      - name: referred_by_id
+        description: FK to the referring customer
+        tests:
+          - relationships:
+              to: ref('customers')
+              field: customer_id
+
+sources:
+  - name: raw_payments
+    description: Raw payment events from Stripe
+    tables:
+      - name: transactions
+        description: Individual payment transactions
+        columns:
+          - name: transaction_id
+            tests:
+              - unique
+              - not_null
+          - name: amount_cents
+            tests:
+              - not_null
+              - dbt_utils.accepted_range:
+                  min_value: 0
+          - name: currency
+            tests:
+              - accepted_values:
+                  values: ['USD', 'EUR', 'GBP', 'CAD']

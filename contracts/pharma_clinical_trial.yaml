@@ -1,0 +1,70 @@
+contract:
+  name: pharma_clinical_trial
+  version: "1.0"
+  description: "Pharmaceutical clinical trial subject record validation"
+  owner: "Clinical Research Data Team"
+  status: active
+
+  rules:
+    - name: subject_id_required
+      field: subject_id
+      type: not_empty
+      severity: error
+      error_message: "subject_id is required"
+
+    - name: site_id_required
+      field: site_id
+      type: not_empty
+      severity: error
+      error_message: "site_id is required"
+
+    - name: visit_date_format
+      field: visit_date
+      type: date_format
+      severity: error
+      error_message: "visit_date must be a valid date (YYYY-MM-DD)"
+
+    - name: protocol_id_required
+      field: protocol_id
+      type: not_empty
+      severity: error
+      error_message: "protocol_id is required"
+
+    - name: age_range
+      field: age
+      type: range
+      min: 18
+      max: 100
+      severity: error
+      error_message: "age must be between 18 and 100"
+
+    - name: gender_required
+      field: gender
+      type: not_empty
+      severity: error
+      error_message: "gender is required"
+
+    - name: dose_mg_min
+      field: dose_mg
+      type: min
+      min: 0
+      severity: error
+      error_message: "dose_mg must be >= 0"
+
+    - name: adverse_event_code_required
+      field: adverse_event_code
+      type: not_empty
+      severity: warning
+      error_message: "adverse_event_code should be provided if applicable"
+
+    - name: collection_date_format
+      field: collection_date
+      type: date_format
+      severity: error
+      error_message: "collection_date must be a valid date (YYYY-MM-DD)"
+
+    - name: investigator_id_required
+      field: investigator_id
+      type: not_empty
+      severity: error
+      error_message: "investigator_id is required"

@@ -1,0 +1,182 @@
+# =============================================================================
+# OpenDQV Public Sector & Government Starter Contract
+# =============================================================================
+# Purpose   : Citizen service record validation for government digital services.
+#             Benefit applications, case management, inter-departmental data
+#             sharing. Adaptable to any national context.
+# Frameworks: UK Government Data Quality Framework (5 dimensions),
+#             EU DCAT, GDPR Article 5 (data accuracy), ESCoP Principle 12
+# Deployment: On-premise or sovereign cloud (see docs/core/deployment.md)
+# Version   : 1.0.0
+# =============================================================================
+#
+# PUBLIC TRUST STAKES: In a citizen-facing system, data quality failures
+# directly harm people. A 0.1% error rate on 40 million benefit payments
+# = 40,000 incorrect payments or denials per year (Telangana Government, RT13).
+# Data quality in public services is a public trust obligation.
+#
+# FEDERATION NOTE: This contract is designed to be published by a lead
+# government authority (e.g., a national digital service agency) and inherited
+# by consuming departments. Consuming departments cannot weaken the validation
+# rules defined here. See the federation pattern in docs/patterns/.
+#
+# OPEN SOURCE NOTE: The YAML contract format is intentionally human-readable
+# so that contracts can be published alongside open data releases, submitted
+# to regulators, and reviewed by non-technical policy stakeholders.
+# This is a design principle, not just a convenience.
+#
+# NATIONAL ID ADAPTION: The national_id regex below uses the UK National
+# Insurance Number as an example. Replace with your country's format:
+#   UK NIN:    ^[A-CEGHJ-PR-TW-Z]{2}[0-9]{6}[A-D]$
+#   Ireland PPS: ^[0-9]{7}[A-W]{1,2}$
+#   India Aadhaar: ^[0-9]{4}\\s[0-9]{4}\\s[0-9]{4}$
+#   South Africa ID: ^[0-9]{13}$
+#
+# HOW TO USE:
+#   1. Load: POST /api/v1/contracts (name: "citizen_service_record")
+#   2. Validate: POST /api/v1/validate/citizen_service_record
+#   3. Sample records: examples/starter_contracts/sample_records/public_sector.json
+
+name: citizen_service_record
+version: "1.0.0"
+description: "Citizen service record validation — identity, eligibility, case management"
+asset_id: "urn:opendqv:example:public_sector:citizen_service_record"
+
+rules:
+
+  # ── NATIONAL IDENTITY ────────────────────────────────────────────────────────
+  # UK National Insurance Number (NIN): 2 letters, 6 digits, 1 letter.
+  # The prefix letters exclude D, F, I, Q, U, V (by HMRC rules).
+  # REPLACE THIS with your country's national ID format.
+  - field: national_id
+    rule: not_empty
+    severity: error
+    description: "National identifier is mandatory for citizen service records."
+
+  - field: national_id
+    rule: regex
+    # UK NIN format — replace with your national ID regex
+    pattern: "^[A-CEGHJ-PR-TW-Z]{2}[0-9]{6}[A-D]$"
+    severity: error
+    description: "National ID must match the required format for this jurisdiction."
+
+  # ── PERSONAL DETAILS ─────────────────────────────────────────────────────────
+  - field: date_of_birth
+    rule: not_empty
+    severity: error
+    description: "Date of birth is required for eligibility verification."
+
+  - field: date_of_birth
+    rule: regex
+    pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    severity: error
+    description: "Date of birth must be in YYYY-MM-DD format."
+
+  - field: date_of_birth
+    rule: compare
+    compare_op: lte
+    compare_to: today
+    severity: error
+    description: "Date of birth cannot be in the future."
+
+  - field: first_name
+    rule: not_empty
+    severity: error
+    description: "First name is required."
+
+  - field: last_name
+    rule: not_empty
+    severity: error
+    description: "Last name is required."
+
+  # ── ADDRESS ──────────────────────────────────────────────────────────────────
+  # UK postcode format: outward code (1-2 letters, 1-2 digits) + space +
+  # inward code (1 digit, 2 letters). Examples: SW1A 1AA, M1 1AE, EC2R 8AH
+  # REPLACE with your country's postcode/zip code format.
+  - field: postcode
+    rule: regex
+    pattern: "^[A-Z]{1,2}[0-9][0-9A-Z]?\\s[0-9][A-Z]{2}$"
+    severity: error
+    description: "Postcode must be a valid UK postcode format (e.g., SW1A 1AA). Replace with your local format."
+
+  - field: address_line1
+    rule: not_empty
+    severity: error
+    description: "Address line 1 is required."
+
+  # ── BENEFIT / SERVICE CLASSIFICATION ─────────────────────────────────────────
+  # UK benefit codes — replace with your jurisdiction's scheme codes.
+  # These codes feed downstream payment systems directly.
+  - field: benefit_type
+    rule: lookup
+    # UK benefits: Job Seeker's Allowance, Universal Credit, Personal Independence
+    # Payment, Employment Support Allowance, Child Benefit, Pension Credit,
+    # Housing Benefit
+    lookup_values: [JSA, UC, PIP, ESA, CHB, PC, HB, DLA, AA, CA,
+                    MATERNITY, PATERNITY, BEREAVEMENT, COUNCIL_TAX]
+    severity: error
+    description: "Benefit type must be a recognised scheme code. Invalid codes prevent payment routing."
+
+  - field: household_income_band
+    rule: lookup
+    # Income bands A–E. Define thresholds in your scheme documentation.
+    # Band A = lowest income; Band E = highest income.
+    lookup_values: [A, B, C, D, E, EXEMPT]
+    severity: error
+    description: "Income band is required for means-tested benefit eligibility calculation."
+
+  # ── CASE MANAGEMENT ──────────────────────────────────────────────────────────
+  - field: application_date
+    rule: not_empty
+    severity: error
+    description: "Application date is mandatory for SLA tracking and backdating rules."
+
+  - field: application_date
+    rule: regex
+    pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    severity: error
+    description: "Application date must be in YYYY-MM-DD format."
+
+  - field: case_status
+    rule: lookup
+    lookup_values: [PENDING, APPROVED, REJECTED, APPEAL, WITHDRAWN,
+                    SUSPENDED, UNDER_REVIEW, ESCALATED, CLOSED]
+    severity: error
+    description: "Case status must be a valid workflow state."
+
+  - field: department_code
+    rule: not_empty
+    severity: error
+    description: "Originating department code is required for inter-departmental routing and audit."
+
+  - field: department_code
+    rule: max_length
+    max: 8
+    severity: error
+    description: "Department code must not exceed 8 characters."
+
+  # ── MAKER-CHECKER ────────────────────────────────────────────────────────────
+  # The maker-checker model is standard in civil service approval hierarchies.
+  # The case_worker_id is the "maker"; the approver_id is the "checker".
+  # A case cannot proceed to APPROVED status without both fields populated.
+  - field: case_worker_id
+    rule: not_empty
+    severity: error
+    description: "Case worker ID is required — maker-checker audit requirement."
+
+  - field: approver_id
+    rule: required_if
+    when_field: case_status
+    when_value: APPROVED
+    severity: error
+    description: "Approver ID is required when case status is APPROVED (maker-checker compliance)."
+
+  # ── GDPR ─────────────────────────────────────────────────────────────────────
+  # GDPR Article 5(1)(d): personal data must be accurate and kept up to date.
+  # Record the data source to support accuracy accountability.
+  - field: data_source
+    rule: lookup
+    lookup_values: [SELF_DECLARED, VERIFIED_DOCUMENT, GOVERNMENT_REGISTRY,
+                    THIRD_PARTY_VERIFIED, ESTIMATED, HISTORICAL_TRANSFER]
+    severity: warning
+    description: "Data source indicates the verification level of this record (GDPR Article 5 accuracy principle)."

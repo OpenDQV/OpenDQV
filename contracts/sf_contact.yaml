@@ -1,0 +1,160 @@
+contract:
+  name: sf_contact
+  version: "1.0"
+  description: "Salesforce Contact — data quality validation for CRM contact records"
+  owner: "Sunny Sharma"
+  status: active
+
+  rules:
+    - name: first_name_required
+      field: FirstName
+      type: not_empty
+      severity: error
+      error_message: "FirstName is required."
+
+    - name: last_name_required
+      field: LastName
+      type: not_empty
+      severity: error
+      error_message: "LastName is required."
+
+    - name: first_name_format
+      field: FirstName
+      type: regex
+      pattern: "^[\\w\\s\\-'.àáâãäåæçèéêëìíîïðñòóôõöùúûüýþÿÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖÙÚÛÜÝÞ]{1,40}$"
+      severity: error
+      error_message: "FirstName must be 1-40 characters: letters, accented chars, spaces, hyphens, apostrophes."
+
+    - name: last_name_format
+      field: LastName
+      type: regex
+      pattern: "^[\\w\\s\\-'.àáâãäåæçèéêëìíîïðñòóôõöùúûüýþÿÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖÙÚÛÜÝÞ]{1,80}$"
+      severity: error
+      error_message: "LastName must be 1-80 characters: letters, accented chars, spaces, hyphens, apostrophes."
+
+    - name: email_required
+      field: Email
+      type: not_empty
+      severity: error
+      error_message: "Email is required for contacts."
+
+    - name: email_format
+      field: Email
+      type: regex
+      pattern: "^[\\w\\.\\+\\-]+@[\\w\\.-]+\\.[a-zA-Z]{2,}$"
+      severity: error
+      error_message: "Email must be a valid format (e.g. user@company.com)."
+
+    - name: phone_format
+      field: Phone
+      type: regex
+      pattern: "^[\\+]?[\\d\\s\\-\\(\\)\\.]{7,20}$"
+      severity: warning
+      error_message: "Phone should be 7-20 digits with optional +, spaces, hyphens, parens."
+
+    - name: mobile_format
+      field: MobilePhone
+      type: regex
+      pattern: "^[\\+]?[\\d\\s\\-\\(\\)\\.]{7,20}$"
+      severity: warning
+      error_message: "MobilePhone should be 7-20 digits."
+
+    - name: mailing_street_required
+      field: MailingStreet
+      type: not_empty
+      severity: warning
+      error_message: "MailingStreet is recommended for contacts."
+
+    - name: mailing_city_required
+      field: MailingCity
+      type: not_empty
+      severity: warning
+      error_message: "MailingCity is recommended."
+
+    - name: mailing_state_format
+      field: MailingState
+      type: regex
+      pattern: "^[A-Za-z\\s]{2,50}$"
+      severity: warning
+      error_message: "MailingState should be a valid state/province name or abbreviation."
+
+    - name: mailing_zip_format
+      field: MailingPostalCode
+      type: regex
+      pattern: "^[A-Za-z0-9\\s\\-]{3,10}$"
+      severity: warning
+      error_message: "MailingPostalCode should be a valid postal/zip code."
+
+    - name: mailing_country_not_empty
+      field: MailingCountry
+      type: not_empty
+      severity: warning
+      error_message: "MailingCountry is recommended."
+
+    - name: birthdate_format
+      field: Birthdate
+      type: date_format
+      format: "YYYY-MM-DD"
+      severity: error
+      error_message: "Birthdate must be a valid date (YYYY-MM-DD)."
+
+    - name: title_length
+      field: Title
+      type: max_length
+      max_length: 128
+      severity: warning
+      error_message: "Title should be under 128 characters."
+
+    - name: department_length
+      field: Department
+      type: max_length
+      max_length: 80
+      severity: warning
+      error_message: "Department should be under 80 characters."
+
+    - name: account_name_not_empty
+      field: AccountName
+      type: not_empty
+      severity: warning
+      error_message: "AccountName is recommended — orphan contacts are hard to manage."
+
+    - name: duplicate_check
+      field: Email
+      type: unique
+      severity: error
+      error_message: "Duplicate Email detected — possible duplicate contact."
+
+  contexts:
+    salesforce_prod:
+      Email:
+        type: not_empty
+        error_message: "Email is mandatory for production Salesforce contacts."
+      AccountName:
+        type: not_empty
+        severity: error
+        error_message: "AccountName is required in production — no orphan contacts allowed."
+      Birthdate:
+        min_age: 18
+        max_age: 150
+        error_message: "Contact must be 18+ in production."
+
+    salesforce_sandbox:
+      Email:
+        type: regex
+        pattern: "^.*@(example\\.com|test\\.com|sandbox\\..*|invalid)$"
+        error_message: "Sandbox contacts must use test email domains (example.com, test.com)."
+
+    emea_region:
+      MailingCountry:
+        type: not_empty
+        severity: error
+        error_message: "MailingCountry is required for EMEA contacts."
+      MailingPostalCode:
+        type: not_empty
+        severity: error
+        error_message: "MailingPostalCode is required for EMEA contacts."
+      Phone:
+        type: regex
+        pattern: "^\\+[0-9\\s\\-]{8,20}$"
+        severity: error
+        error_message: "EMEA phone numbers must include country code (e.g. +44 20 1234 5678)."

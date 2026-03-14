@@ -1,0 +1,285 @@
+# =============================================================================
+# OpenDQV Technology / SaaS Incident Starter Contract
+# =============================================================================
+# Purpose   : Software incident and event record validation for SaaS platforms,
+#             cloud infrastructure, and DevOps teams. Supports SLA compliance
+#             tracking, GDPR breach notification, and post-mortem workflows.
+# Frameworks: ITIL 4 incident management, ISO/IEC 20000-1:2018,
+#             GDPR Article 33 (72-hour breach notification),
+#             SOC 2 Type II (CC7 availability and incident response criteria),
+#             NIST SP 800-61 (Computer Security Incident Handling Guide)
+# Deployment: Cloud with TLS (see docs/core/deployment.md — cloud pattern)
+# Version   : 1.0.0
+# =============================================================================
+#
+# SLA STAKES: P1 incidents on most SaaS platforms carry contractual penalties.
+# A 99.9% uptime SLA allows only 8.7 hours downtime per year. Missing an SLA
+# due to incorrect or missing incident data (e.g., wrong detected_at timestamp)
+# creates liability risk and undermines trust with enterprise customers.
+#
+# GDPR BREACH NOTIFICATION:
+#   GDPR Article 33 requires notification to the supervisory authority (e.g.,
+#   ICO in the UK, CNIL in France) within 72 hours of becoming aware of a
+#   personal data breach. The gdpr_breach field triggers the notification
+#   workflow. Where gdpr_breach = YES, the incident response team must ensure
+#   gdpr_notification_required is set and tracked. Failure to notify within
+#   72 hours can result in fines of up to 2% of global annual turnover.
+#
+# SOC 2 AVAILABILITY CRITERIA:
+#   SOC 2 CC7.3 requires that security incidents are identified and responded
+#   to. CC7.4 requires that incidents are evaluated to determine whether they
+#   constitute security events. Accurate incident records — especially
+#   severity, root_cause_category, and mttr_minutes — form the audit evidence
+#   base for SOC 2 Type II certification.
+#
+# P1 INCIDENT SLA IMPLICATIONS:
+#   P1 = complete service outage or critical data unavailability. Typical
+#   enterprise SLAs require:
+#     - Acknowledgement within 15 minutes
+#     - Update every 30 minutes
+#     - Resolution target: 4 hours
+#   mttr_minutes should be validated against P1 SLA thresholds in your
+#   post-mortem review process. P1s with mttr_minutes > 240 should trigger
+#   automatic executive escalation.
+#
+# HOW TO USE:
+#   1. Load this contract: POST /api/v1/contracts (name: "tech_incident")
+#   2. Validate a record: POST /api/v1/validate/tech_incident
+#   3. See sample records: examples/starter_contracts/sample_records/technology.json
+#
+# ADAPTING FOR YOUR SYSTEM:
+#   - Add your internal service catalogue to service_name as a lookup_file
+#   - Replace affected_region lookup with your actual deployed regions
+#   - Extend assigned_team with your specific team names
+#   - Adjust customers_affected_count max to your total user base
+#   - For on-premise deployments: replace AWS region codes with datacenter IDs
+
+name: tech_incident
+version: "1.0.0"
+description: "Technology incident record validation — ITIL 4 severity, GDPR breach notification, SOC 2 availability, SLA compliance"
+asset_id: "urn:opendqv:example:technology:tech_incident"
+
+rules:
+
+  # ── INCIDENT IDENTIFICATION ──────────────────────────────────────────────────
+  # INC- prefix followed by 6 digits. Adjust to your ticketing system format.
+  # Common patterns: INC-000001 (ServiceNow), TKT-000001, INC20240001.
+  - field: incident_id
+    rule: not_empty
+    severity: error
+    description: "Incident ID is mandatory. Every detected event must receive a unique reference for audit trail and SLA tracking."
+
+  - field: incident_id
+    rule: regex
+    pattern: "^INC-[0-9]{6}$"
+    severity: error
+    description: "Incident ID must match format INC-XXXXXX (6 digits). Example: INC-000042."
+
+  # ── SERVICE ──────────────────────────────────────────────────────────────────
+  # The name of the affected service or system. Free text but bounded by length.
+  # For production, replace max_length with a lookup_file pointing to your
+  # internal service catalogue to ensure only registered services are reported.
+  - field: service_name
+    rule: not_empty
+    severity: error
+    description: "Service name is mandatory. Required to route the incident to the correct on-call team."
+
+  - field: service_name
+    rule: max_length
+    max: 100
+    severity: error
+    description: "Service name must not exceed 100 characters."
+
+  # ── SEVERITY ─────────────────────────────────────────────────────────────────
+  # ITIL 4 / PagerDuty-aligned priority levels:
+  #   P1: Critical — complete service outage, all customers affected
+  #   P2: High — major feature unavailable, significant customer impact
+  #   P3: Medium — partial degradation, workaround available
+  #   P4: Low — minor issue, minimal impact
+  #   P5: Informational — no customer impact, proactive alert
+  # P1 incidents must be escalated to on-call SRE within 15 minutes per
+  # typical enterprise SLA. See docs for SLA policy integration.
+  - field: severity
+    rule: lookup
+    lookup_values: [P1, P2, P3, P4, P5]
+    severity: error
+    description: "Severity must be an ITIL 4 priority code. P1=critical outage (4h SLA), P2=major degradation, P3=partial impact, P4=low, P5=informational."
+
+  # ── INCIDENT TYPE ────────────────────────────────────────────────────────────
+  # SECURITY_BREACH: unauthorised access or data exfiltration — triggers GDPR workflow.
+  # DATA_LOSS: data irrecoverably lost or corrupted — also triggers GDPR review.
+  # THIRD_PARTY_DEPENDENCY: failure in an upstream provider (CDN, payment processor,
+  # DNS). Important for SOC 2 vendor management evidence (CC9.2).
+  - field: incident_type
+    rule: lookup
+    lookup_values:
+      - OUTAGE
+      - DEGRADATION
+      - SECURITY_BREACH
+      - DATA_LOSS
+      - PERFORMANCE
+      - CONFIGURATION
+      - DEPLOYMENT
+      - THIRD_PARTY_DEPENDENCY
+    severity: error
+    description: "Incident type must be a recognised ITIL 4 / NIST classification. SECURITY_BREACH and DATA_LOSS types automatically trigger GDPR breach assessment."
+
+  # ── DETECTION TIMESTAMP ──────────────────────────────────────────────────────
+  # ISO 8601 datetime with mandatory timezone offset. All incident timestamps
+  # must include timezone to avoid ambiguity in distributed / multi-region teams.
+  # Examples: 2026-03-09T14:30:00Z (UTC), 2026-03-09T15:30:00+01:00 (CET)
+  - field: detected_at
+    rule: not_empty
+    severity: error
+    description: "Detection timestamp is mandatory. The 72-hour GDPR notification clock starts from the moment of awareness, not discovery."
+
+  - field: detected_at
+    rule: regex
+    # ISO 8601 datetime with timezone: UTC (Z) or offset (+HH:MM / -HH:MM)
+    pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
+    severity: error
+    description: "Detection timestamp must be ISO 8601 with timezone (e.g., 2026-03-09T14:30:00Z or 2026-03-09T15:30:00+01:00)."
+
+  - field: detected_at
+    rule: compare
+    compare_op: lte
+    compare_to: now
+    severity: error
+    description: "Detection timestamp cannot be in the future."
+
+  # ── REPORTER ─────────────────────────────────────────────────────────────────
+  - field: reported_by
+    rule: not_empty
+    severity: error
+    description: "Reported by is mandatory. Required for incident accountability and SOC 2 CC7.3 audit evidence."
+
+  # ── AFFECTED REGION ──────────────────────────────────────────────────────────
+  # AWS region identifiers plus GLOBAL (multi-region / CDN) and ON_PREMISE.
+  # Adjust this lookup to match your actual cloud provider and deployed regions.
+  # For Azure: use eastus, westeurope, etc. For GCP: us-central1, europe-west1.
+  - field: affected_region
+    rule: lookup
+    lookup_values:
+      - us-east-1
+      - us-west-2
+      - eu-west-1
+      - eu-central-1
+      - ap-southeast-1
+      - ap-northeast-1
+      - sa-east-1
+      - GLOBAL
+      - ON_PREMISE
+    severity: error
+    description: "Affected region must be a recognised deployment region. Required for blast radius analysis and customer communication scoping."
+
+  # ── INCIDENT STATUS ──────────────────────────────────────────────────────────
+  # ITIL 4 incident lifecycle states:
+  #   DETECTED → INVESTIGATING → IDENTIFIED → MONITORING → RESOLVED → POST_MORTEM
+  # POST_MORTEM: blameless post-mortem process initiated (required for all P1/P2).
+  # A P1 remaining in DETECTED status for more than 15 minutes without moving
+  # to INVESTIGATING should trigger an SLA breach alert.
+  - field: status
+    rule: lookup
+    lookup_values:
+      - DETECTED
+      - INVESTIGATING
+      - IDENTIFIED
+      - MONITORING
+      - RESOLVED
+      - POST_MORTEM
+    severity: error
+    description: "Status must reflect the ITIL 4 incident lifecycle. POST_MORTEM status is required for all P1 and P2 incidents after resolution."
+
+  # ── IMPACT METRICS ───────────────────────────────────────────────────────────
+  # customers_affected_count: number of unique customers experiencing degraded
+  # or unavailable service. Max 100,000,000 (100M) — adjust to your total
+  # addressable user base. Used for GDPR breach materiality assessment.
+  - field: customers_affected_count
+    rule: range
+    min: 0
+    max: 100000000
+    severity: warning
+    description: "Customers affected must be between 0 and 100,000,000. Used for GDPR breach scope assessment and customer communications prioritisation."
+
+  # estimated_revenue_impact_usd: projected direct revenue loss.
+  # Max 1,000,000,000 (1B USD) — adjust to your maximum realistic single-incident
+  # impact. Used for executive escalation and insurance claim triggers.
+  - field: estimated_revenue_impact_usd
+    rule: range
+    min: 0
+    max: 1000000000
+    severity: warning
+    description: "Estimated revenue impact must be between 0 and 1,000,000,000 USD. Values above threshold trigger CFO escalation workflow."
+
+  # ── GDPR BREACH ASSESSMENT ───────────────────────────────────────────────────
+  # GDPR Article 33: where a personal data breach is likely to result in a risk
+  # to the rights and freedoms of natural persons, the controller shall notify
+  # the supervisory authority within 72 hours of becoming aware of the breach.
+  # UNDER_ASSESSMENT: security/legal team still evaluating whether personal data
+  # was involved. Must be resolved to YES or NO within 24 hours of DETECTED.
+  - field: gdpr_breach
+    rule: lookup
+    lookup_values: [YES, NO, UNDER_ASSESSMENT]
+    severity: error
+    description: "GDPR breach status is mandatory for all SECURITY_BREACH and DATA_LOSS incidents. YES triggers the 72-hour ICO/supervisory authority notification obligation (GDPR Art. 33)."
+
+  # ── GDPR NOTIFICATION ────────────────────────────────────────────────────────
+  # When gdpr_breach = YES, gdpr_notification_sent_at must be present.
+  # The 72-hour clock runs from detected_at. Failure to notify within 72 hours
+  # must be explained and documented (GDPR Art. 33(1): "without undue delay").
+  # Fines for failure to notify: up to 2% of global annual turnover or €10M.
+  - field: gdpr_notification_sent_at
+    rule: required_if
+    when_field: gdpr_breach
+    when_value: "YES"
+    severity: error
+    description: "GDPR notification timestamp is required when gdpr_breach = YES. Supervisory authority (e.g., ICO) must be notified within 72 hours of detection (GDPR Article 33)."
+
+  # ── MEAN TIME TO RESOLVE ─────────────────────────────────────────────────────
+  # mttr_minutes: elapsed time from detected_at to RESOLVED status.
+  # Range: 0 to 525,600 minutes (365 days). Zero is valid for auto-remediated
+  # incidents. Values over 10,080 (1 week) should trigger an executive review.
+  # P1 SLA benchmark: resolve within 240 minutes (4 hours).
+  - field: mttr_minutes
+    rule: range
+    min: 0
+    # 525,600 = 365 days × 24 hours × 60 minutes
+    max: 525600
+    severity: warning
+    description: "MTTR must be between 0 and 525,600 minutes (1 year). P1 SLA target is typically ≤240 minutes. Values above 10,080 (1 week) require executive review."
+
+  # ── ASSIGNED TEAM ────────────────────────────────────────────────────────────
+  # The team responsible for resolution. VENDOR_ESCALATION: incident has been
+  # escalated to a third-party provider (e.g., AWS Support, Cloudflare, Stripe).
+  # For SOC 2 CC9.2 (vendor management), VENDOR_ESCALATION incidents must have
+  # an associated ticket number in the vendor's support system.
+  - field: assigned_team
+    rule: lookup
+    lookup_values:
+      - SRE
+      - SECURITY
+      - PLATFORM
+      - DATABASE
+      - NETWORK
+      - APPLICATION
+      - VENDOR_ESCALATION
+    severity: error
+    description: "Assigned team must be a recognised team identifier. Required for on-call routing and SOC 2 CC7.4 incident evaluation evidence."
+
+  # ── ROOT CAUSE CATEGORY ──────────────────────────────────────────────────────
+  # Post-mortem classification. HUMAN_ERROR: misconfiguration, wrong deployment,
+  # access mistake. CAPACITY: traffic spike beyond provisioned limits.
+  # EXTERNAL_DEPENDENCY: failure in a service your system depends on but does
+  # not control. UNKNOWN: set at RESOLVED if root cause not yet determined;
+  # must be updated before POST_MORTEM is closed.
+  - field: root_cause_category
+    rule: lookup
+    lookup_values:
+      - HUMAN_ERROR
+      - SOFTWARE_BUG
+      - INFRASTRUCTURE
+      - CAPACITY
+      - EXTERNAL_DEPENDENCY
+      - UNKNOWN
+    severity: warning
+    description: "Root cause category is required for post-mortem analysis and SOC 2 CC7.4 evidence. UNKNOWN is acceptable at resolution but must be resolved before the post-mortem is closed."

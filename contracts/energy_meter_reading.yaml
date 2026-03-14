@@ -1,0 +1,57 @@
+contract:
+  name: energy_meter_reading
+  version: "1.0"
+  description: "Energy meter reading record validation"
+  owner: "Smart Metering Data Team"
+  status: active
+
+  rules:
+    - name: meter_id_required
+      field: meter_id
+      type: not_empty
+      severity: error
+      error_message: "meter_id is required"
+
+    - name: reading_date_format
+      field: reading_date
+      type: date_format
+      severity: error
+      error_message: "reading_date must be a valid date (YYYY-MM-DD)"
+
+    - name: kwh_reading_min
+      field: kwh_reading
+      type: min
+      min: 0
+      severity: error
+      error_message: "kwh_reading must be >= 0"
+
+    - name: tariff_code_required
+      field: tariff_code
+      type: not_empty
+      severity: error
+      error_message: "tariff_code is required"
+
+    - name: customer_id_required
+      field: customer_id
+      type: not_empty
+      severity: error
+      error_message: "customer_id is required"
+
+    - name: supply_address_required
+      field: supply_address
+      type: not_empty
+      severity: error
+      error_message: "supply_address is required"
+
+    - name: meter_type_required
+      field: meter_type
+      type: not_empty
+      severity: error
+      error_message: "meter_type is required"
+
+    - name: previous_reading_min
+      field: previous_reading
+      type: min
+      min: 0
+      severity: error
+      error_message: "previous_reading must be >= 0"

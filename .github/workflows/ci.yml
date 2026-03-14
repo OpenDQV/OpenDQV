@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test suite (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest tests/ --ignore=tests/test_e2e.py -q --tb=short --cov=. --cov-report=term-missing
+        env:
+          OPENDQV_NODE_ID: 'ci-test-node'
+
+  sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt cyclonedx-bom
+      - name: Generate SBOM
+        run: cyclonedx-py environment --output-format JSON > sbom.json
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
+
+  security-scan:
+    name: Static security analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+      - name: Install security tools
+        run: pip install bandit pip-audit
+      - name: Run bandit (static analysis)
+        # B310: urllib urlopen — URLs are always http(s) from config, never file:// or custom schemes
+        # B108: hardcoded /tmp — intentional session state file for the onboarding wizard
+        # B608: SQL injection — DuckDB batch queries; field names/values sourced from validated YAML contracts, never user input
+        run: bandit -r core/ api/ -ll -x tests/ --skip B310,B108,B608
+      - name: Run pip-audit (dependency CVE check)
+        # CVE-2024-23342: timing attack in the `ecdsa` package (transitive dep of python-jose).
+        # No upstream fix exists. At runtime python-jose[cryptography] routes all ECDSA ops
+        # through the `cryptography` package, so ecdsa is installed but never called.
+        run: pip install -r requirements.txt && pip-audit --requirement requirements.txt --ignore-vuln CVE-2024-23342
+
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+      - run: pip install ruff
+      - run: ruff check . --select E,W,F --ignore E501,E402,E701

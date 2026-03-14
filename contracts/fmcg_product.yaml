@@ -1,0 +1,58 @@
+contract:
+  name: fmcg_product
+  version: "1.0"
+  description: "FMCG product sales record validation"
+  owner: "Consumer Goods Data Team"
+  status: active
+
+  rules:
+    - name: product_code_required
+      field: product_code
+      type: not_empty
+      severity: error
+      error_message: "product_code is required"
+
+    - name: brand_required
+      field: brand
+      type: not_empty
+      severity: error
+      error_message: "brand is required"
+
+    - name: category_required
+      field: category
+      type: not_empty
+      severity: error
+      error_message: "category is required"
+
+    - name: unit_price_min
+      field: unit_price
+      type: min
+      min: 0
+      severity: error
+      error_message: "unit_price must be >= 0"
+
+    - name: units_sold_min
+      field: units_sold
+      type: min
+      min: 0
+      severity: error
+      error_message: "units_sold must be >= 0"
+
+    - name: store_id_required
+      field: store_id
+      type: not_empty
+      severity: error
+      error_message: "store_id is required"
+
+    - name: sale_date_format
+      field: sale_date
+      type: date_format
+      severity: error
+      error_message: "sale_date must be a valid date (YYYY-MM-DD)"
+
+    - name: shelf_life_days_min
+      field: shelf_life_days
+      type: min
+      min: 0
+      severity: error
+      error_message: "shelf_life_days must be >= 0"

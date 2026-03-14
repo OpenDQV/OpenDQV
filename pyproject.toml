@@ -1,0 +1,69 @@
+[tool.poetry]
+name = "opendqv"
+version = "1.0.0"
+description = "Open Data Quality Validation — rule-based validation gateway for data pipelines and API boundaries"
+authors = ["Sunny Sharma"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/OpenDQV/OpenDQV"
+repository = "https://github.com/OpenDQV/OpenDQV"
+documentation = "https://github.com/OpenDQV/OpenDQV/tree/main/docs"
+keywords = ["data-quality", "validation", "duckdb", "api", "data-contracts"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Quality Assurance",
+]
+packages = [
+    { include = "core" },
+    { include = "api" },
+    { include = "security" },
+    { include = "sdk" },
+    { include = "cli.py" },
+    { include = "config.py" },
+    { include = "main.py" },
+]
+
+[tool.poetry.scripts]
+opendqv = "cli:main"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.115"
+uvicorn = {version = "^0.34", extras = ["standard"]}
+pydantic = "^2.10"
+pyyaml = "^6.0"
+pandas = "^2.2"
+duckdb = "^1.0"
+python-jose = {version = "^3.3", extras = ["cryptography"]}
+passlib = {version = "^1.7", extras = ["bcrypt"]}
+python-multipart = "^0.0.12"
+slowapi = "^0.1"
+prometheus-client = "^0.21"
+httpx = "^0.27"
+requests = "^2.32"
+strawberry-graphql = {version = "^0.235", extras = ["fastapi"]}
+mcp = {version = ">=1.0.0", optional = true}
+
+[tool.poetry.extras]
+# pip install opendqv[server] — adds Gunicorn for production serving
+server = ["gunicorn"]
+# pip install opendqv[ui] — adds the Streamlit workbench
+ui = ["streamlit"]
+# pip install opendqv[mcp] — adds the MCP server for Claude/AI tool use
+mcp = ["mcp"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+pytest-asyncio = "^0.23"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

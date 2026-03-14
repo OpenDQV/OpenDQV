@@ -1,0 +1,180 @@
+# =============================================================================
+# OpenDQV Healthcare Starter Contract
+# =============================================================================
+# Purpose   : Patient record validation for clinical and administrative systems.
+#             Suitable as a starting point for NHS, HIPAA-covered entities,
+#             and any healthcare provider managing patient intake data.
+# Frameworks: NHS Data Dictionary, HL7 FHIR R4, ICD-10-CM 2026, HIPAA §164
+# Deployment: Cloud with TLS (see docs/core/deployment.md — cloud pattern)
+# Version   : 1.0.0
+# =============================================================================
+#
+# CLINICAL STAKES: Incorrect patient data can result in misidentification,
+# wrong-patient medication events, and delayed treatment. Data quality in
+# healthcare is a patient safety issue, not just a technical one.
+#
+# HOW TO USE:
+#   1. Load this contract: POST /api/v1/contracts (name: "patient_record")
+#   2. Validate a record: POST /api/v1/validate/patient_record
+#   3. See sample records: examples/starter_contracts/sample_records/healthcare.json
+#
+# ADAPTING FOR YOUR SYSTEM:
+#   - Replace nhs_number regex with your national patient ID format
+#   - Replace ward_code lookup with your facility's ward codes
+#   - Replace icd10_primary lookup_file with your local code list
+
+name: patient_record
+version: "1.0.0"
+description: "Patient record validation — format, clinical codes, physiological plausibility"
+asset_id: "urn:opendqv:example:healthcare:patient_record"
+
+rules:
+
+  # ── PATIENT IDENTIFICATION ──────────────────────────────────────────────────
+  # NHS Number: 10-digit number, space-separated groups (format: 943 476 5919).
+  # The NHS Number has a modulo-11 check digit (digit 10).
+  # This regex validates format only. Full checksum validation available
+  # via the checksum rule type (see roadmap — HC-3).
+  - field: nhs_number
+    rule: not_empty
+    severity: error
+    description: "NHS Number is mandatory for all patient records."
+
+  - field: nhs_number
+    rule: regex
+    # Accepts 10 digits with optional spaces: "943 476 5919" or "9434765919"
+    pattern: "^[0-9]{3}\\s?[0-9]{3}\\s?[0-9]{4}$"
+    severity: error
+    description: "NHS Number must be 10 digits (spaces optional: '943 476 5919')."
+
+  # ── DEMOGRAPHICS ────────────────────────────────────────────────────────────
+  - field: date_of_birth
+    rule: not_empty
+    severity: error
+    description: "Date of birth is mandatory."
+
+  - field: date_of_birth
+    rule: regex
+    pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    severity: error
+    description: "Date of birth must be in YYYY-MM-DD format."
+
+  - field: date_of_birth
+    rule: compare
+    compare_op: lte
+    compare_to: today
+    severity: error
+    description: "Date of birth cannot be in the future."
+
+  - field: gender
+    rule: lookup
+    # NHS Data Dictionary gender codes (SNOMED aligned)
+    # 9: Not Specified  1: Male  2: Female  0: Not Known  X: Non-Binary
+    lookup_values: ["1", "2", "9", "0", "X"]
+    severity: error
+    description: "Gender must be an NHS Data Dictionary code (1=Male, 2=Female, 9=Not Specified, 0=Not Known, X=Non-Binary)."
+
+  - field: first_name
+    rule: not_empty
+    severity: error
+    description: "First name is required."
+
+  - field: last_name
+    rule: not_empty
+    severity: error
+    description: "Last name is required."
+
+  # ── CLINICAL CODING ─────────────────────────────────────────────────────────
+  # ICD-10-CM format: letter followed by 2 digits, optional decimal and up to 4 more digits.
+  # Examples: J18.9 (pneumonia), I21.0 (STEMI), Z00.00 (general exam)
+  # For production, replace with a lookup_file pointing to the full ICD-10-CM code list:
+  #   lookup_file: "reference_data/icd10cm_2026.csv"
+  - field: icd10_primary
+    rule: regex
+    pattern: "^[A-Z][0-9]{2}(\\.[0-9A-Z]{1,4})?$"
+    severity: error
+    description: "Primary ICD-10-CM diagnosis code must follow standard format (e.g., J18.9, I21.0)."
+
+  # ── ADMISSION ────────────────────────────────────────────────────────────────
+  - field: admission_date
+    rule: not_empty
+    severity: error
+    description: "Admission date is required for inpatient records."
+
+  - field: admission_date
+    rule: regex
+    pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    severity: error
+    description: "Admission date must be in YYYY-MM-DD format."
+
+  - field: admission_type
+    rule: lookup
+    # NHS HES (Hospital Episode Statistics) admission type codes
+    lookup_values: [ELECTIVE, EMERGENCY, MATERNITY, OTHER]
+    severity: error
+    description: "Admission type must be a valid HES code."
+
+  - field: ward_code
+    rule: not_empty
+    severity: error
+    description: "Ward code is required for bed management."
+
+  - field: ward_code
+    rule: max_length
+    max: 10
+    severity: error
+    description: "Ward code must not exceed 10 characters."
+
+  # ── CLINICAL STAFF ──────────────────────────────────────────────────────────
+  # UK GMC (General Medical Council) registration: 7 digits
+  - field: attending_clinician_gmc
+    rule: regex
+    pattern: "^[0-9]{7}$"
+    severity: warning
+    description: "Attending clinician GMC number must be 7 digits."
+
+  # ── PHYSIOLOGICAL PLAUSIBILITY ───────────────────────────────────────────────
+  # These range checks catch data entry errors and unit confusion
+  # before they reach clinical systems.
+  - field: systolic_bp
+    rule: range
+    min: 50
+    max: 250
+    severity: warning
+    description: "Systolic blood pressure should be between 50 and 250 mmHg. Values outside this range are physiologically implausible."
+
+  - field: diastolic_bp
+    rule: range
+    min: 30
+    max: 150
+    severity: warning
+    description: "Diastolic blood pressure should be between 30 and 150 mmHg."
+
+  - field: heart_rate
+    rule: range
+    min: 20
+    max: 300
+    severity: warning
+    description: "Heart rate should be between 20 and 300 bpm. Values outside this range warrant review."
+
+  - field: temperature_celsius
+    rule: range
+    min: 32.0
+    max: 43.0
+    severity: warning
+    description: "Body temperature should be between 32.0°C and 43.0°C. Check for unit error (Fahrenheit entered instead of Celsius)."
+
+  - field: weight_kg
+    rule: range
+    min: 0.3
+    max: 500.0
+    severity: warning
+    description: "Weight should be between 0.3 kg (neonate) and 500 kg. Values outside this range suggest a unit error."
+
+  # ── CONSENT ─────────────────────────────────────────────────────────────────
+  # GDPR Article 9 / HIPAA §164.508: consent status must be recorded.
+  - field: data_sharing_consent
+    rule: lookup
+    lookup_values: [YES, NO, NOT_ASKED, WITHDRAWN]
+    severity: error
+    description: "Data sharing consent status must be recorded. Required under GDPR Article 9 and HIPAA §164.508."

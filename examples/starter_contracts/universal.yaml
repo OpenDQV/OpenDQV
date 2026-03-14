@@ -1,0 +1,177 @@
+# =============================================================================
+# OpenDQV Universal Starter Contract
+# =============================================================================
+# Purpose   : Cross-industry catch-all demonstrating every core rule type.
+#             Adapt field names and values to your own domain.
+# Framework : No specific regulatory framework — universal patterns only.
+# Version   : 1.0.0
+# Author    : OpenDQV Internal Team
+# =============================================================================
+#
+# This contract is designed as a learning artefact.
+# Every rule type supported by OpenDQV appears at least once.
+# Read the comments alongside each rule to understand when to use it.
+#
+# To validate a record against this contract:
+#   curl -X POST http://localhost:8000/api/v1/validate/universal \
+#        -H "Content-Type: application/json" \
+#        -d @examples/starter_contracts/sample_records/universal.json
+#
+# To load into OpenDQV:
+#   curl -X POST http://localhost:8000/api/v1/contracts \
+#        -H "Content-Type: application/json" \
+#        -d "{\"name\": \"universal\", \"content\": \"$(cat universal.yaml | base64)\"}"
+
+name: universal
+version: "1.0.0"
+description: "Universal data quality starter contract — demonstrates all core rule types"
+asset_id: "urn:opendqv:example:universal"
+
+rules:
+
+  # ── NOT EMPTY ────────────────────────────────────────────────────────────────
+  # Use for: any field that must always be present and non-blank.
+  # The most common rule — apply it to every mandatory field.
+  - field: record_id
+    rule: not_empty
+    severity: error
+    description: "Every record must have a unique identifier."
+
+  - field: email
+    rule: not_empty
+    severity: error
+    description: "Email address is required for contact."
+
+  # ── REGEX ────────────────────────────────────────────────────────────────────
+  # Use for: structured strings with a known pattern (emails, IDs, phone numbers,
+  # national identifiers, postcodes, account numbers).
+  # Tip: anchor your patterns with ^ and $ to match the full string.
+  - field: email
+    rule: regex
+    pattern: "^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$"
+    severity: error
+    description: "Email must be a valid address format."
+
+  - field: phone
+    rule: regex
+    # E.164 international format: +[country code][number], 8–15 digits total
+    pattern: "^\\+[1-9][0-9]{7,14}$"
+    severity: warning
+    description: "Phone number should use E.164 international format (+442071234567)."
+
+  - field: created_date
+    rule: regex
+    # ISO 8601 date: YYYY-MM-DD
+    pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    severity: error
+    description: "Created date must be in YYYY-MM-DD format."
+
+  # ── LOOKUP ───────────────────────────────────────────────────────────────────
+  # Use for: categorical fields with a fixed set of valid values.
+  # Inline values (as below) work well for small, stable lists.
+  # For large or frequently-updated lists, use lookup_file: path/to/codes.csv
+  # For externally-managed lists, use lookup_file: https://api.example.com/codes
+  - field: status
+    rule: lookup
+    lookup_values: [ACTIVE, INACTIVE, PENDING, SUSPENDED]
+    severity: error
+    description: "Status must be one of the defined lifecycle values."
+
+  - field: currency
+    rule: lookup
+    lookup_values: [USD, EUR, GBP, JPY, CNY, INR, NGN, BRL, SEK, AUD, CAD, CHF]
+    severity: error
+    description: "Currency must be a supported ISO 4217 code."
+
+  - field: country_code
+    rule: lookup
+    # To use the full ISO 3166-1 list, replace with:
+    # lookup_file: "reference_data/iso3166_alpha2.csv"
+    lookup_values: [AD, AE, AF, AG, AI, AL, AM, AO, AR, AS, AT, AU, AZ, BA, BB,
+                    BD, BE, BF, BG, BH, BI, BJ, BL, BM, BN, BO, BQ, BR, BS, BT,
+                    BV, BW, BY, BZ, CA, CC, CD, CF, CG, CH, CI, CK, CL, CM, CN,
+                    CO, CR, CU, CV, CW, CX, CY, CZ, DE, DJ, DK, DM, DO, DZ, EC,
+                    EE, EG, EH, ER, ES, ET, FI, FJ, FK, FM, FO, FR, GA, GB, GD,
+                    GE, GF, GG, GH, GI, GL, GM, GN, GP, GQ, GR, GS, GT, GU, GW,
+                    GY, HK, HM, HN, HR, HT, HU, ID, IE, IL, IM, IN, IO, IQ, IR,
+                    IS, IT, JE, JM, JO, JP, KE, KG, KH, KI, KM, KN, KP, KR, KW,
+                    KY, KZ, LA, LB, LC, LI, LK, LR, LS, LT, LU, LV, LY, MA, MC,
+                    MD, ME, MF, MG, MH, MK, ML, MM, MN, MO, MP, MQ, MR, MS, MT,
+                    MU, MV, MW, MX, MY, MZ, NA, NC, NE, NF, NG, NI, NL, NO, NP,
+                    NR, NU, NZ, OM, PA, PE, PF, PG, PH, PK, PL, PM, PN, PR, PS,
+                    PT, PW, PY, QA, RE, RO, RS, RU, RW, SA, SB, SC, SD, SE, SG,
+                    SH, SI, SJ, SK, SL, SM, SN, SO, SR, SS, ST, SV, SX, SY, SZ,
+                    TC, TD, TF, TG, TH, TJ, TK, TL, TM, TN, TO, TR, TT, TV, TW,
+                    TZ, UA, UG, UM, US, UY, UZ, VA, VC, VE, VG, VI, VN, VU, WF,
+                    WS, YE, YT, ZA, ZM, ZW]
+    severity: warning
+    description: "Country code must be a valid ISO 3166-1 alpha-2 code."
+
+  # ── RANGE ────────────────────────────────────────────────────────────────────
+  # Use for: numeric fields with known valid bounds.
+  # Catches unit errors (value entered in wrong unit), data entry errors,
+  # and sensor faults.
+  - field: amount
+    rule: range
+    min: 0
+    max: 1000000
+    severity: error
+    description: "Amount must be between 0 and 1,000,000."
+
+  - field: score
+    rule: range
+    min: 0
+    max: 100
+    severity: error
+    description: "Score must be a percentage between 0 and 100."
+
+  # ── MAX LENGTH ───────────────────────────────────────────────────────────────
+  # Use for: free-text fields that feed downstream systems with column limits.
+  - field: description
+    rule: max_length
+    max: 500
+    severity: warning
+    description: "Description must not exceed 500 characters."
+
+  - field: record_id
+    rule: max_length
+    max: 50
+    severity: error
+    description: "Record ID must not exceed 50 characters."
+
+  # ── UNIQUE ───────────────────────────────────────────────────────────────────
+  # Use for: primary key fields that must not repeat within a batch.
+  # Note: uniqueness is checked within a single validate/batch call, not
+  # across all historical records. For cross-batch deduplication, use
+  # your database's primary key constraint.
+  - field: record_id
+    rule: unique
+    severity: error
+    description: "Record ID must be unique within the submitted batch."
+
+  # ── COMPARE ─────────────────────────────────────────────────────────────────
+  # Use for: relational checks against a fixed value or another field.
+  # Operations: eq, ne, gt, gte, lt, lte
+  - field: score
+    rule: compare
+    compare_op: gte
+    compare_to: 0
+    severity: error
+    description: "Score cannot be negative."
+
+  - field: created_date
+    rule: compare
+    compare_op: lte
+    compare_to: today
+    severity: error
+    description: "Created date cannot be in the future."
+
+  # ── REQUIRED IF ──────────────────────────────────────────────────────────────
+  # Use for: fields that are mandatory only under specific conditions.
+  # Example: reason is required when status is SUSPENDED.
+  - field: suspension_reason
+    rule: required_if
+    when_field: status
+    when_value: SUSPENDED
+    severity: error
+    description: "Suspension reason is required when status is SUSPENDED."

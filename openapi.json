@@ -1,0 +1,3915 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OpenDQV",
+    "description": "Open-source rule-based data quality validation service. Centralized, stateless validation API \u2014 shift-left DQ for the enterprise. Source systems call /api/v1/validate before writing data. Bad data is blocked at the door.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/validate": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Validate Single",
+        "description": "Validate a single record against a data contract.\n\nThis is the primary endpoint \u2014 source systems call this before writing data.\nReturns pass/fail with per-field errors. Designed for low latency.\n\nOnly ACTIVE (and DEPRECATED) contracts can be validated against by default.\nPass ?allow_draft=true to test DRAFT contracts during authoring.\nPass ?as_of=<ISO8601> to validate against the contract version active at a historical point in time.",
+        "operationId": "validate_single_api_v1_validate_post",
+        "parameters": [
+          {
+            "name": "allow_draft",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Allow validation against DRAFT contracts (for testing)",
+              "default": false,
+              "title": "Allow Draft"
+            },
+            "description": "Allow validation against DRAFT contracts (for testing)"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO 8601 timestamp \u2014 validate against the contract version that was active at this point in time. Required for EMA clinical trial submissions, MiFIR regulatory reporting, and insurance claim disputes. Example: 2026-01-15T00:00:00Z",
+              "title": "As Of"
+            },
+            "description": "ISO 8601 timestamp \u2014 validate against the contract version that was active at this point in time. Required for EMA clinical trial submissions, MiFIR regulatory reporting, and insurance claim disputes. Example: 2026-01-15T00:00:00Z"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/validate/batch": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Validate Batch Endpoint",
+        "description": "Validate a batch of records against a data contract.\n\nUses DuckDB for high-throughput batch processing.\nReduces network overhead vs. calling /validate per record.",
+        "operationId": "validate_batch_endpoint_api_v1_validate_batch_post",
+        "parameters": [
+          {
+            "name": "allow_draft",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Allow validation against DRAFT contracts",
+              "default": false,
+              "title": "Allow Draft"
+            },
+            "description": "Allow validation against DRAFT contracts"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchValidateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchValidateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/trace/verify": {
+      "get": {
+        "tags": [
+          "OpenDQV",
+          "Audit"
+        ],
+        "summary": "Verify Trace Log Endpoint",
+        "description": "Verify the tamper-evident hash chain of the TRACE_LOG file.",
+        "operationId": "verify_trace_log_endpoint_api_v1_trace_verify_get",
+        "parameters": [
+          {
+            "name": "log_path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Path to trace log file (default: opendqv_trace.jsonl)",
+              "title": "Log Path"
+            },
+            "description": "Path to trace log file (default: opendqv_trace.jsonl)"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/validate/batch/file": {
+      "post": {
+        "tags": [
+          "OpenDQV",
+          "Validation"
+        ],
+        "summary": "Validate Batch File",
+        "description": "Validate records from an uploaded CSV or Parquet file.\n\nReturns a summary and per-row results. DuckDB-powered.\nMax file size: 100MB.",
+        "operationId": "validate_batch_file_api_v1_validate_batch_file_post",
+        "parameters": [
+          {
+            "name": "contract",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Contract name",
+              "title": "Contract"
+            },
+            "description": "Contract name"
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "latest",
+              "title": "Version"
+            }
+          },
+          {
+            "name": "context",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Context"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_validate_batch_file_api_v1_validate_batch_file_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts": {
+      "get": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "List Contracts",
+        "description": "List available data contracts. No auth required \u2014 contracts are public metadata.",
+        "operationId": "list_contracts_api_v1_contracts_get",
+        "parameters": [
+          {
+            "name": "include_all",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include DEPRECATED contracts",
+              "default": false,
+              "title": "Include All"
+            },
+            "description": "Include DEPRECATED contracts"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContractInfo"
+                  },
+                  "title": "Response List Contracts Api V1 Contracts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{name}": {
+      "get": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Get Contract",
+        "description": "Get full detail of a data contract including its rules.",
+        "operationId": "get_contract_api_v1_contracts__name__get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "latest",
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{name}/explain": {
+      "get": {
+        "tags": [
+          "OpenDQV",
+          "Contracts"
+        ],
+        "summary": "Explain Contract",
+        "description": "Return a plain-English description of a contract's validation rules.\n\nDesigned for compliance officers, auditors, and non-technical reviewers\nwho need to understand what the contract validates without reading YAML.\nSensitive fields are suppressed from this output.\n\nAuthentication: required unless OPENDQV_EXPLAIN_PUBLIC=true.",
+        "operationId": "explain_contract_api_v1_contracts__name__explain_get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "latest",
+              "title": "Version"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{name}/explain/{field}/{rule_name}": {
+      "get": {
+        "tags": [
+          "OpenDQV",
+          "Contracts"
+        ],
+        "summary": "Explain a validation rule failure",
+        "description": "Returns a plain-English explanation of why a field failed a rule, including valid and invalid examples. Designed for LLM agents that need to understand and remediate validation errors without reading contract YAML. Call this when /validate returns errors and the agent needs to self-correct.",
+        "operationId": "explain_error_api_v1_contracts__name__explain__field___rule_name__get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "field",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Field"
+            }
+          },
+          {
+            "name": "rule_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Name"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Contract version or 'latest'",
+              "default": "latest",
+              "title": "Version"
+            },
+            "description": "Contract version or 'latest'"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExplainErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{name}/quality-trend": {
+      "get": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Get Quality Trend",
+        "description": "Quality trend for a contract over the last N days.\n\nReturns daily aggregated pass rates and top failing rules,\nderived from batch validation history.\nSingle-record validations are not included \u2014 use validate/batch\nto populate trend data.",
+        "operationId": "get_quality_trend_api_v1_contracts__name__quality_trend_get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 90,
+              "minimum": 1,
+              "description": "Number of calendar days to look back",
+              "default": 7,
+              "title": "Days"
+            },
+            "description": "Number of calendar days to look back"
+          },
+          {
+            "name": "context",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by context",
+              "title": "Context"
+            },
+            "description": "Filter by context"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityTrendResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{name}/at": {
+      "get": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Get Contract At Timestamp",
+        "description": "Point-in-time contract reconstruction.\n\nReturns the exact contract state (rules, version, status) that was active at\nthe requested timestamp. Uses the contract_history audit log.\n\nThis is the foundation for regulatory evidence queries:\n'What validation rules were in force on 14 November 2025?'",
+        "operationId": "get_contract_at_timestamp_api_v1_contracts__name__at_get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "timestamp",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "ISO 8601 timestamp \u2014 returns the contract state active at this moment",
+              "title": "Timestamp"
+            },
+            "description": "ISO 8601 timestamp \u2014 returns the contract state active at this moment"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/reload": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Reload Contracts",
+        "description": "Reload contracts from disk. Useful after editing YAML files.",
+        "operationId": "reload_contracts_api_v1_contracts_reload_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{name}/status": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Change Contract Status",
+        "description": "Change a contract's lifecycle status.\n\nGovernance workflow: draft \u2192 active \u2192 deprecated\n\nMaker-checker: promoting a contract to 'active' requires the 'approver' or\n'admin' role. Writers may only set contracts to 'draft' or 'deprecated'.\nThis enforces separation of duties \u2014 the person who writes a contract cannot\nalso be the person who promotes it to production.",
+        "operationId": "change_contract_status_api_v1_contracts__name__status_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "New status: draft, active, or deprecated",
+              "title": "Status"
+            },
+            "description": "New status: draft, active, or deprecated"
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "latest",
+              "title": "Version"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{name}/{version}/submit-review": {
+      "post": {
+        "tags": [
+          "OpenDQV",
+          "Contracts"
+        ],
+        "summary": "Submit For Review",
+        "description": "Submit a DRAFT contract for review (DRAFT \u2192 REVIEW).",
+        "operationId": "submit_for_review_api_v1_contracts__name___version__submit_review_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{name}/{version}/approve": {
+      "post": {
+        "tags": [
+          "OpenDQV",
+          "Contracts"
+        ],
+        "summary": "Approve Contract",
+        "description": "Approve a REVIEW contract (REVIEW \u2192 ACTIVE). Requires approver role.",
+        "operationId": "approve_contract_api_v1_contracts__name___version__approve_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{name}/{version}/reject": {
+      "post": {
+        "tags": [
+          "OpenDQV",
+          "Contracts"
+        ],
+        "summary": "Reject Contract",
+        "description": "Reject a REVIEW contract (REVIEW \u2192 DRAFT). Requires approver role.",
+        "operationId": "reject_contract_api_v1_contracts__name___version__reject_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{name}/history": {
+      "get": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Get Contract History",
+        "description": "Get version history for a contract.",
+        "operationId": "get_contract_history_api_v1_contracts__name__history_get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{name}/diff": {
+      "get": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Diff Contract Versions",
+        "description": "Compare two versions of a contract.",
+        "operationId": "diff_contract_versions_api_v1_contracts__name__diff_get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "version_a",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "First version to compare",
+              "title": "Version A"
+            },
+            "description": "First version to compare"
+          },
+          {
+            "name": "version_b",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Second version to compare",
+              "title": "Version B"
+            },
+            "description": "Second version to compare"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{name}/version": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Bump Contract Version",
+        "description": "Create a new version of a contract.\n\nSnapshots the current version in history, bumps the version string to the\nrequested value, and sets the new version to DRAFT status \u2014 enforcing the\nmaker-checker requirement that a separate approver must promote it to ACTIVE.\n\nRequires 'approver' or 'admin' role. Version creation is a controlled change\nunder BCBS 239 principle 10 (adaptability): every rule-set change must be\ntraceable to an authorised individual. Writers must request a version bump\nfrom an approver, who then reviews and activates it.",
+        "operationId": "bump_contract_version_api_v1_contracts__name__version_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "new_version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "New version string (e.g. '2.0')",
+              "title": "New Version"
+            },
+            "description": "New version string (e.g. '2.0')"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{name}/rules": {
+      "post": {
+        "tags": [
+          "OpenDQV",
+          "Contracts"
+        ],
+        "summary": "Add Rule",
+        "description": "Add a new rule to a contract.\nBody: rule object (name, field, type, and type-specific fields).\nWrites atomically to YAML and records history.\nACT-036-01",
+        "operationId": "add_rule_api_v1_contracts__name__rules_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{name}/rules/{rule_name}": {
+      "put": {
+        "tags": [
+          "OpenDQV",
+          "Contracts"
+        ],
+        "summary": "Update Rule",
+        "description": "Replace an existing rule in a contract.\nBody: complete rule object (replaces current definition).\nReturns a breaking_change_warning if type/pattern/min/max changed.\nACT-036-01 / ACT-036-06",
+        "operationId": "update_rule_api_v1_contracts__name__rules__rule_name__put",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "rule_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Name"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "OpenDQV",
+          "Contracts"
+        ],
+        "summary": "Delete Rule",
+        "description": "Delete a rule from a contract.\nACT-036-01",
+        "operationId": "delete_rule_api_v1_contracts__name__rules__rule_name__delete",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "rule_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rule Name"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/registry": {
+      "get": {
+        "tags": [
+          "OpenDQV",
+          "Schema Registry"
+        ],
+        "summary": "List Schema Registry",
+        "description": "Schema registry catalog \u2014 list all contracts with version, owner, and schema hash.\n\nReturns a machine-readable registry of all active data contracts. Suitable for\nintegration with data catalog tools (DataHub, Atlan, Collibra) and CI pipelines\nthat need to discover available contracts.\nACT-038-02",
+        "operationId": "list_schema_registry_api_v1_registry_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/registry/{name}": {
+      "get": {
+        "tags": [
+          "OpenDQV",
+          "Schema Registry"
+        ],
+        "summary": "Get Schema Registry Entry",
+        "description": "Schema registry entry \u2014 get a single contract in schema registry format.\n\nReturns the contract with its full rule definitions in a format suitable for\ndownstream consumers that need to discover and validate data against this contract.\nIncludes the schema_hash (from the audit hash chain) for integrity verification.\nACT-038-02",
+        "operationId": "get_schema_registry_entry_api_v1_registry__name__get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/generate": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Generate Code Endpoint",
+        "description": "Generate validation code for a target platform from a contract's rules.",
+        "operationId": "generate_code_endpoint_api_v1_generate_post",
+        "parameters": [
+          {
+            "name": "contract_name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Contract to generate code for",
+              "title": "Contract Name"
+            },
+            "description": "Contract to generate code for"
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Target platform: snowflake, salesforce, js",
+              "title": "Target"
+            },
+            "description": "Target platform: snowflake, salesforce, js"
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "latest",
+              "title": "Version"
+            }
+          },
+          {
+            "name": "context",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional context to apply (e.g. 'salesforce', 'kids_app')",
+              "title": "Context"
+            },
+            "description": "Optional context to apply (e.g. 'salesforce', 'kids_app')"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/import/gx": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Import Great Expectations",
+        "description": "Import a Great Expectations expectation suite and convert to an OpenDQV contract.\n\nAccepts both GX 0.x and 1.x suite formats. Maps supported expectation types\nto OpenDQV rules. Unsupported expectations are skipped and reported.\n\nPass ?save=true to write the contract YAML to the contracts/ directory and\nreload the registry, making it immediately available for validation.",
+        "operationId": "import_great_expectations_api_v1_import_gx_post",
+        "parameters": [
+          {
+            "name": "save",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Save as YAML contract to disk and reload registry",
+              "default": false,
+              "title": "Save"
+            },
+            "description": "Save as YAML contract to disk and reload registry"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Great Expectations expectation suite JSON",
+                "title": "Suite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/import/dbt": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Import Dbt",
+        "description": "Import a dbt schema.yml and convert to OpenDQV contracts.\n\nParses both models and sources sections. Each model/source becomes a separate contract.",
+        "operationId": "import_dbt_api_v1_import_dbt_post",
+        "parameters": [
+          {
+            "name": "save",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Save contracts to disk and reload",
+              "default": false,
+              "title": "Save"
+            },
+            "description": "Save contracts to disk and reload"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "dbt schema.yml content as JSON",
+                "title": "Schema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/import/soda": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Import Soda",
+        "description": "Import a Soda Core checks YAML and convert to OpenDQV contracts.\n\nParses ``checks for <dataset>:`` blocks. Each dataset becomes a separate contract.\nSupports missing_count, duplicate_count, invalid_count, min, max, min_length, max_length.",
+        "operationId": "import_soda_api_v1_import_soda_post",
+        "parameters": [
+          {
+            "name": "save",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Save contracts to disk and reload",
+              "default": false,
+              "title": "Save"
+            },
+            "description": "Save contracts to disk and reload"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Soda checks YAML content as JSON dict",
+                "title": "Checks"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/import/csv": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Import Csv",
+        "description": "Import a CSV rule definition and convert to an OpenDQV contract.\n\nAccepts CSV as plain text body. Expected columns: field, rule_type, value, severity, error_message.",
+        "operationId": "import_csv_api_v1_import_csv_post",
+        "parameters": [
+          {
+            "name": "save",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Save contract to disk and reload",
+              "default": false,
+              "title": "Save"
+            },
+            "description": "Save contract to disk and reload"
+          },
+          {
+            "name": "contract_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Name for the imported contract",
+              "default": "csv_import",
+              "title": "Contract Name"
+            },
+            "description": "Name for the imported contract"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/import/odcs": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Import Odcs Contract",
+        "description": "Import an Open Data Contract Standard (ODCS) 3.1 contract and convert to OpenDQV.\n\nAccepts ODCS 3.1 dict with apiVersion, kind, info, and schema sections.\nMaps quality checks (not_null, unique, regex, range, min, max, min_length,\nmax_length, date_format) and field-level shortcuts (required, unique,\nminLength, maxLength) to OpenDQV rules.\n\nPass ?save=true to write the contract YAML to the contracts/ directory and\nreload the registry, making it immediately available for validation.",
+        "operationId": "import_odcs_contract_api_v1_import_odcs_post",
+        "parameters": [
+          {
+            "name": "save",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Save as YAML contract to disk and reload registry",
+              "default": false,
+              "title": "Save"
+            },
+            "description": "Save as YAML contract to disk and reload registry"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "ODCS 3.1 contract as JSON dict",
+                "title": "Contract Data"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/import/csvw": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Import From Csvw",
+        "description": "Import contract rules from CSVW (CSV on the Web) W3C metadata.\n\nAccepts a CSVW JSON-LD metadata document and maps column definitions to\nOpenDQV validation rules. Supports required, pattern, range, length, and\nenum constraints.\n\nPass ?save=true to write the contract YAML to the contracts/ directory and\nreload the registry, making it immediately available for validation.",
+        "operationId": "import_from_csvw_api_v1_import_csvw_post",
+        "parameters": [
+          {
+            "name": "save",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Save contract to disk and reload",
+              "default": false,
+              "title": "Save"
+            },
+            "description": "Save contract to disk and reload"
+          },
+          {
+            "name": "contract_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Name for the imported contract",
+              "default": "csvw_import",
+              "title": "Contract Name"
+            },
+            "description": "Name for the imported contract"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "CSVW JSON-LD metadata document",
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/import/otel": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Import From Otel",
+        "description": "Import contract rules from OpenTelemetry semantic convention schema.\n\nAccepts an OTel attribute group definition and maps requirement levels,\nknown enum attributes, and numeric ranges to OpenDQV validation rules.\n\nPass ?save=true to write the contract YAML to the contracts/ directory and\nreload the registry, making it immediately available for validation.",
+        "operationId": "import_from_otel_api_v1_import_otel_post",
+        "parameters": [
+          {
+            "name": "save",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Save contract to disk and reload",
+              "default": false,
+              "title": "Save"
+            },
+            "description": "Save contract to disk and reload"
+          },
+          {
+            "name": "contract_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Name for the imported contract",
+              "default": "otel_telemetry",
+              "title": "Contract Name"
+            },
+            "description": "Name for the imported contract"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "OTel semantic convention schema as JSON dict",
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/import/ndc": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Import From Ndc",
+        "description": "Generate NDC (National Drug Code) validation rules.\n\nAccepts an optional configuration dict specifying which field names to\nvalidate as NDC codes, desired severity, and format flags. Returns\nOpenDQV rules covering presence and format validation per FDA standard.\n\nPass ?save=true to write the contract YAML to the contracts/ directory and\nreload the registry, making it immediately available for validation.",
+        "operationId": "import_from_ndc_api_v1_import_ndc_post",
+        "parameters": [
+          {
+            "name": "save",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Save contract to disk and reload",
+              "default": false,
+              "title": "Save"
+            },
+            "description": "Save contract to disk and reload"
+          },
+          {
+            "name": "contract_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Name for the generated contract",
+              "default": "pharma_dispense",
+              "title": "Contract Name"
+            },
+            "description": "Name for the generated contract"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "NDC importer configuration",
+                "default": {},
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/export/gx/{contract_name}": {
+      "get": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Export To Great Expectations",
+        "description": "Export an OpenDQV contract as a Great Expectations expectation suite JSON.\n\nThis enables bidirectional sync: import GX suites into OpenDQV for governance,\nthen export back to keep GX pipelines aligned with the governed rules.",
+        "operationId": "export_to_great_expectations_api_v1_export_gx__contract_name__get",
+        "parameters": [
+          {
+            "name": "contract_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Contract Name"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "latest",
+              "title": "Version"
+            }
+          },
+          {
+            "name": "context",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional context to apply before export",
+              "title": "Context"
+            },
+            "description": "Optional context to apply before export"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/export/odcs/{contract_name}": {
+      "get": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Export To Odcs",
+        "description": "Export an OpenDQV contract as an ODCS 3.1 data contract YAML.\n\nReturns ODCS 3.1 YAML (apiVersion: v3.1.0, kind: DataContract) with quality\nchecks mapped from OpenDQV rules. Suitable for use with OpenMetadata, Soda,\nMonte Carlo, and the Data Contract CLI.",
+        "operationId": "export_to_odcs_api_v1_export_odcs__contract_name__get",
+        "parameters": [
+          {
+            "name": "contract_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Contract Name"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "latest",
+              "title": "Version"
+            }
+          },
+          {
+            "name": "context",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Optional context to apply before export",
+              "title": "Context"
+            },
+            "description": "Optional context to apply before export"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/profile": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Profile Data",
+        "description": "Analyze records and auto-generate an OpenDQV contract with suggested rules.",
+        "operationId": "profile_data_api_v1_profile_post",
+        "parameters": [
+          {
+            "name": "contract_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Name for the generated contract",
+              "default": "profiled",
+              "title": "Contract Name"
+            },
+            "description": "Name for the generated contract"
+          },
+          {
+            "name": "save",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Save as YAML contract",
+              "default": false,
+              "title": "Save"
+            },
+            "description": "Save as YAML contract"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "title": "Records"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tokens/generate": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Generate Token",
+        "description": "Generate a PAT for a source system.\n\nEach source system should have its own token for audit trail and revocation.\nThe token is included in the response \u2014 store it securely, it won't be shown again.\n\nIn AUTH_MODE=open, elevated roles (admin, approver) are capped to 'writer'.\nAdmin and approver tokens can only be issued in AUTH_MODE=token to prevent\nprivilege escalation tokens from being persisted in development environments.",
+        "operationId": "generate_token_api_v1_tokens_generate_post",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Source system name (e.g. 'salesforce-prod', 'sap-hr')",
+              "title": "Username"
+            },
+            "description": "Source system name (e.g. 'salesforce-prod', 'sap-hr')"
+          },
+          {
+            "name": "expiry_days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Token lifetime in days (default: TOKEN_EXPIRY_DAYS from config)",
+              "title": "Expiry Days"
+            },
+            "description": "Token lifetime in days (default: TOKEN_EXPIRY_DAYS from config)"
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Token role: writer, admin, auditor, approver (default: writer)",
+              "default": "writer",
+              "title": "Role"
+            },
+            "description": "Token role: writer, admin, auditor, approver (default: writer)"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tokens": {
+      "get": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "List All Tokens",
+        "description": "List all registered tokens with expiry info. Tokens values are not shown.",
+        "operationId": "list_all_tokens_api_v1_tokens_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tokens/revoke": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Revoke Token",
+        "description": "Revoke a specific PAT by token value.",
+        "operationId": "revoke_token_api_v1_tokens_revoke_post",
+        "requestBody": {
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string",
+                "title": "Token"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tokens/revoke/{username}": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Revoke System Tokens",
+        "description": "Revoke all tokens for a source system (e.g. when rotating credentials).",
+        "operationId": "revoke_system_tokens_api_v1_tokens_revoke__username__post",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Username"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Register Webhook",
+        "description": "Register a webhook to receive notifications on validation events.\n\nBody:\n  - url (required): The URL to POST notifications to.\n  - events (optional): List of event types to subscribe to.\n    Valid: \"validation.failed\", \"validation.warning\", \"batch.failed\".\n    Defaults to all events.\n  - contracts (optional): List of contract names to filter on. Defaults to all.\n\nWebhooks are persisted in SQLite and survive server restarts.",
+        "operationId": "register_webhook_api_v1_webhooks_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Webhook registration: {url, events?, contracts?}",
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "List Webhooks",
+        "description": "List all registered webhooks.",
+        "operationId": "list_webhooks_api_v1_webhooks_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Unregister Webhook",
+        "description": "Unregister a webhook by URL.",
+        "operationId": "unregister_webhook_api_v1_webhooks_delete",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Webhook to remove: {url}",
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stats": {
+      "get": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Get Stats",
+        "description": "Get validation statistics for the monitoring dashboard.",
+        "operationId": "get_stats_api_v1_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/federation/status": {
+      "get": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Federation Status",
+        "description": "Return the federation status of this node.\n\nStandalone nodes: is_federated=False, upstream_url=\"\".\nFederated nodes: is_federated=True, upstream_url set.\n\nThe node_state reflects the current health state machine state:\nonline / degraded / isolated.",
+        "operationId": "federation_status_api_v1_federation_status_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/federation/log": {
+      "get": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Federation Log Endpoint",
+        "description": "Return federation log events since a given LSN.\n\nThe LSN (log sequence number) is the primary key of the federation_log table\nand acts as a replication cursor. Downstream nodes call this endpoint to pull\nchanges they haven't yet processed:\n\n    GET /api/v1/federation/log?since=42\n\nReturns all events with lsn > 42, ordered by lsn ascending. The caller\nadvances its local cursor to the highest lsn in the response.\n\nIn standalone mode this log is empty unless events were manually inserted.",
+        "operationId": "federation_log_endpoint_api_v1_federation_log_get",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Return events with lsn > this value (replication cursor)",
+              "default": 0,
+              "title": "Since"
+            },
+            "description": "Return events with lsn > this value (replication cursor)"
+          },
+          {
+            "name": "contract",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Filter by contract name",
+              "title": "Contract"
+            },
+            "description": "Filter by contract name"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/federation/health": {
+      "get": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Federation Health",
+        "description": "Return detailed node health data for the federation control plane.\n\nIncludes:\n- Current node state (online / degraded / isolated)\n- Recent state transition log\n- Open isolation events (currently in isolation)\n- Recent isolation event history (compliance audit trail)\n\nThe control plane dashboard polls this endpoint to surface stale or\nisolated nodes that require governance review.",
+        "operationId": "federation_health_api_v1_federation_health_get",
+        "parameters": [
+          {
+            "name": "log_limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Maximum health log entries to return",
+              "default": 20,
+              "title": "Log Limit"
+            },
+            "description": "Maximum health log entries to return"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/federation/register": {
+      "post": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Federation Register",
+        "description": "Register this node with an upstream authority node.\n\nThis endpoint is a stub in the OSS tier. Node registration \u2014 including\njoin token validation, topology recording, and contract bootstrapping \u2014\nis part of the enterprise federation tier.\n\nTo enable federation:\n1. Set OPENDQV_UPSTREAM=https://your-authority-node:8000\n2. Set OPENDQV_JOIN_TOKEN=<token-issued-by-authority>\n3. Restart the node \u2014 bootstrap happens automatically on startup\n\nSee https://opendqv.io/enterprise for access to the federation tier.",
+        "operationId": "federation_register_api_v1_federation_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body",
+                "description": "Node registration payload",
+                "default": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/federation/sync-status": {
+      "get": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Federation Sync Status",
+        "description": "Compare local contract versions with a peer node.\n\nReturns a diff showing which contracts have diverged \u2014 useful for:\n- Detecting schema drift between federated nodes\n- Triggering contract rollout verification\n- Manual federation health checks from CI/CD pipelines\n\nIf peer is specified, fetches peer's /api/v1/contracts and diffs with local versions.\nFires a `sync_diverged` webhook if any contracts have diverged.",
+        "operationId": "federation_sync_status_api_v1_federation_sync_status_get",
+        "parameters": [
+          {
+            "name": "peer",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Peer node URL to compare with (e.g. https://peer.example.com:8000). Omit to return local contract inventory only.",
+              "title": "Peer"
+            },
+            "description": "Peer node URL to compare with (e.g. https://peer.example.com:8000). Omit to return local contract inventory only."
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/federation/events": {
+      "get": {
+        "tags": [
+          "OpenDQV"
+        ],
+        "summary": "Federation Events",
+        "description": "Server-Sent Events stream for real-time federation updates.\n\nClients connect once and receive push notifications for:\n- federation_log: new sync events (push/ack/commit/reject/isolation_*)\n- node_state:     node health transitions (online/degraded/isolated)\n- heartbeat:      keep-alive ping (default every 30s)\n- connected:      sent immediately on connection to confirm stream is live\n\nEvent format (SSE):\n    event: <event_type>\n    data: <JSON payload>\n\nThe stream is backed by SQLite polling \u2014 compatible with all deployment\nmodes. On PostgreSQL backends the commercial tier replaces polling with\nLISTEN/NOTIFY for sub-second latency.\n\nClients should track the `lsn` field of `federation_log` events as their\nreplication cursor, passing it back via `GET /federation/log?since=<lsn>`\nafter reconnect to catch up on any events missed during disconnection.",
+        "operationId": "federation_events_api_v1_federation_events_get",
+        "parameters": [
+          {
+            "name": "poll_interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "description": "Polling interval in seconds (default 5, min 1, max 60)",
+              "default": 5.0,
+              "title": "Poll Interval"
+            },
+            "description": "Polling interval in seconds (default 5, min 1, max 60)"
+          },
+          {
+            "name": "heartbeat_interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "description": "Heartbeat ping interval in seconds",
+              "default": 30.0,
+              "title": "Heartbeat Interval"
+            },
+            "description": "Heartbeat ping interval in seconds"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Stop after emitting this many events (0 = unlimited; use in tests/CI)",
+              "default": 0,
+              "title": "Limit"
+            },
+            "description": "Stop after emitting this many events (0 = unlimited; use in tests/CI)"
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/graphql": {
+      "get": {
+        "summary": "Handle Http Get",
+        "operationId": "handle_http_get_graphql_get",
+        "responses": {
+          "200": {
+            "description": "The GraphiQL integrated development environment.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not found if GraphiQL or query via GET are not enabled."
+          }
+        }
+      },
+      "post": {
+        "summary": "Handle Http Post",
+        "operationId": "handle_http_post_graphql_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Root",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BatchResultItem": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index",
+            "description": "Zero-based position of this record in the submitted list"
+          },
+          "valid": {
+            "type": "boolean",
+            "title": "Valid",
+            "description": "True if no blocking errors for this record"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/FieldErrorResponse"
+            },
+            "type": "array",
+            "title": "Errors",
+            "description": "Blocking validation failures for this record"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/FieldErrorResponse"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "description": "Non-blocking quality warnings for this record"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "valid"
+        ],
+        "title": "BatchResultItem",
+        "description": "Validation result for a single record within a batch."
+      },
+      "BatchSummary": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Total number of records submitted"
+          },
+          "passed": {
+            "type": "integer",
+            "title": "Passed",
+            "description": "Number of records with no blocking errors"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed",
+            "description": "Number of records with at least one blocking error"
+          },
+          "error_count": {
+            "type": "integer",
+            "title": "Error Count",
+            "description": "Total number of blocking errors across all records"
+          },
+          "warning_count": {
+            "type": "integer",
+            "title": "Warning Count",
+            "description": "Total number of warnings across all records"
+          },
+          "rule_failure_counts": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Rule Failure Counts",
+            "description": "Per-rule failure counts across all records: {rule_name: count}. Use for triage \u2014 the rules with the highest counts are the most impactful to fix."
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "passed",
+          "failed",
+          "error_count",
+          "warning_count"
+        ],
+        "title": "BatchSummary",
+        "description": "Summary statistics for a batch validation."
+      },
+      "BatchValidateRequest": {
+        "properties": {
+          "records": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Records",
+            "description": "List of data records to validate"
+          },
+          "contract": {
+            "type": "string",
+            "title": "Contract",
+            "description": "Contract name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Contract version or 'latest'",
+            "default": "latest"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context",
+            "description": "Context override"
+          }
+        },
+        "type": "object",
+        "required": [
+          "records",
+          "contract"
+        ],
+        "title": "BatchValidateRequest",
+        "description": "Batch validation request \u2014 for high-throughput use cases.",
+        "examples": [
+          {
+            "contract": "customer",
+            "records": [
+              {
+                "age": 25,
+                "email": "alice@example.com",
+                "name": "Alice"
+              },
+              {
+                "age": 15,
+                "email": "bad-email",
+                "name": ""
+              }
+            ]
+          }
+        ]
+      },
+      "BatchValidateResponse": {
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/BatchSummary",
+            "description": "Aggregate statistics across all submitted records"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/BatchResultItem"
+            },
+            "type": "array",
+            "title": "Results",
+            "description": "Per-record validation results in submission order"
+          },
+          "contract": {
+            "type": "string",
+            "title": "Contract",
+            "description": "Contract that was evaluated"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Contract version that was evaluated"
+          },
+          "owner": {
+            "type": "string",
+            "title": "Owner",
+            "description": "Contract owner \u2014 for routing disputes and on-call escalation",
+            "default": ""
+          },
+          "engine_version": {
+            "type": "string",
+            "title": "Engine Version",
+            "description": "OpenDQV engine version \u2014 for regulatory audit trails",
+            "default": ""
+          },
+          "contract_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Hash",
+            "description": "SHA-256 hash of the contract ruleset at validation time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "summary",
+          "results",
+          "contract",
+          "version"
+        ],
+        "title": "BatchValidateResponse",
+        "description": "Batch validation response."
+      },
+      "Body_validate_batch_file_api_v1_validate_batch_file_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_validate_batch_file_api_v1_validate_batch_file_post"
+      },
+      "ContractDetail": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Unique contract identifier"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Contract version string"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Human-readable description of what this contract validates",
+            "default": ""
+          },
+          "owner": {
+            "type": "string",
+            "title": "Owner",
+            "description": "Team or individual responsible for this contract",
+            "default": ""
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Lifecycle status: 'active', 'draft', or 'deprecated'",
+            "default": "active"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/RuleInfo"
+            },
+            "type": "array",
+            "title": "Rules",
+            "description": "All validation rules in this contract"
+          },
+          "contexts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Contexts",
+            "description": "Named per-system rule overrides available (e.g. 'salesforce', 'kids_app')"
+          },
+          "asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Id",
+            "description": "Data catalog asset ID"
+          },
+          "owner_team": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Team",
+            "description": "Owning team name"
+          },
+          "owner_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Email",
+            "description": "Owning team contact email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "version"
+        ],
+        "title": "ContractDetail",
+        "description": "Full detail of a data contract including its rules."
+      },
+      "ContractInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Unique contract identifier \u2014 use this as the 'contract' parameter in /validate calls"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Current version string (e.g. '1.0', '2.3')"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Human-readable description of what this contract validates",
+            "default": ""
+          },
+          "owner": {
+            "type": "string",
+            "title": "Owner",
+            "description": "Team or individual responsible for this contract",
+            "default": ""
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Lifecycle status: 'active' (use for validation), 'draft' (being authored), 'deprecated' (migrate away)",
+            "default": "active"
+          },
+          "rule_count": {
+            "type": "integer",
+            "title": "Rule Count",
+            "description": "Number of validation rules in this contract",
+            "default": 0
+          },
+          "asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Id",
+            "description": "Data catalog asset ID \u2014 links this contract to its catalog entry"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "version"
+        ],
+        "title": "ContractInfo",
+        "description": "Summary info about a data contract."
+      },
+      "ExplainErrorResponse": {
+        "properties": {
+          "contract": {
+            "type": "string",
+            "title": "Contract",
+            "description": "Contract the rule belongs to"
+          },
+          "field": {
+            "type": "string",
+            "title": "Field",
+            "description": "The field that failed"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule",
+            "description": "The rule name that failed"
+          },
+          "rule_type": {
+            "type": "string",
+            "title": "Rule Type",
+            "description": "The rule type (min, max, regex, enum, etc.)"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation",
+            "description": "Plain-English explanation of the constraint and how to fix it"
+          },
+          "valid_examples": {
+            "items": {},
+            "type": "array",
+            "title": "Valid Examples",
+            "description": "Example values that would pass this rule"
+          },
+          "invalid_examples": {
+            "items": {},
+            "type": "array",
+            "title": "Invalid Examples",
+            "description": "Example values that would fail this rule"
+          },
+          "constraint": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Constraint",
+            "description": "The raw constraint values from the contract (e.g. {'min': 0.01})"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract",
+          "field",
+          "rule",
+          "rule_type",
+          "explanation"
+        ],
+        "title": "ExplainErrorResponse",
+        "description": "Plain-English explanation of a validation rule failure \u2014 designed for LLM agents\nthat need to understand what went wrong and how to fix it without reading YAML."
+      },
+      "FieldErrorResponse": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field",
+            "description": "The field that failed validation"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule",
+            "description": "The rule name that failed, as defined in the contract YAML"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Human-readable description of the failure"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity",
+            "description": "Blocking level: 'error' prevents the record from being accepted; 'warning' is informational only"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "rule",
+          "message",
+          "severity"
+        ],
+        "title": "FieldErrorResponse",
+        "description": "A single field-level validation failure."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "QualityTrendPoint": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date",
+            "description": "Calendar date (UTC), YYYY-MM-DD"
+          },
+          "total_records": {
+            "type": "integer",
+            "title": "Total Records",
+            "description": "Total records validated on this day"
+          },
+          "passed": {
+            "type": "integer",
+            "title": "Passed"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "pass_rate": {
+            "type": "number",
+            "title": "Pass Rate",
+            "description": "Fraction of records that passed (0.0\u20131.0)"
+          },
+          "top_failing_rules": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Top Failing Rules",
+            "description": "Top failing rules for this day: {rule_name: fail_count}"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "total_records",
+          "passed",
+          "failed",
+          "pass_rate"
+        ],
+        "title": "QualityTrendPoint",
+        "description": "Aggregated quality statistics for one calendar day."
+      },
+      "QualityTrendResponse": {
+        "properties": {
+          "contract": {
+            "type": "string",
+            "title": "Contract"
+          },
+          "days": {
+            "type": "integer",
+            "title": "Days"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/QualityTrendPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          },
+          "asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract",
+          "days",
+          "points"
+        ],
+        "title": "QualityTrendResponse",
+        "description": "Quality trend response for a contract over N days."
+      },
+      "RuleInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Unique rule identifier within the contract"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Rule type: not_empty, regex, min, max, range, min_length, max_length, date_format, email, enum, lookup, etc."
+          },
+          "field": {
+            "type": "string",
+            "title": "Field",
+            "description": "The field this rule applies to"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity",
+            "description": "'error' blocks the record; 'warning' allows but flags it"
+          },
+          "error_message": {
+            "type": "string",
+            "title": "Error Message",
+            "description": "Message returned when this rule fails"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "field",
+          "severity",
+          "error_message"
+        ],
+        "title": "RuleInfo",
+        "description": "Rule details within a contract."
+      },
+      "ValidateRequest": {
+        "properties": {
+          "record": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Record",
+            "description": "The data record to validate"
+          },
+          "contract": {
+            "type": "string",
+            "title": "Contract",
+            "description": "Contract name (e.g. 'customer')"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Contract version or 'latest'",
+            "default": "latest"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context",
+            "description": "Context override (e.g. 'kids_app', 'salesforce')"
+          },
+          "record_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Id",
+            "description": "Caller's correlation ID for tracking"
+          }
+        },
+        "type": "object",
+        "required": [
+          "record",
+          "contract"
+        ],
+        "title": "ValidateRequest",
+        "description": "Single-record validation request.",
+        "examples": [
+          {
+            "contract": "customer",
+            "record": {
+              "age": 25,
+              "email": "alice@example.com",
+              "name": "Alice"
+            },
+            "record_id": "sf-lead-12345",
+            "version": "latest"
+          }
+        ]
+      },
+      "ValidateResponse": {
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "title": "Valid",
+            "description": "True if no blocking errors (warnings allowed)"
+          },
+          "record_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Id",
+            "description": "Echo of caller's correlation ID"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/FieldErrorResponse"
+            },
+            "type": "array",
+            "title": "Errors",
+            "description": "Blocking validation failures"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/FieldErrorResponse"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "description": "Non-blocking quality warnings"
+          },
+          "contract": {
+            "type": "string",
+            "title": "Contract",
+            "description": "Contract that was evaluated"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Contract version that was evaluated"
+          },
+          "owner": {
+            "type": "string",
+            "title": "Owner",
+            "description": "Contract owner \u2014 for routing disputes and on-call escalation",
+            "default": ""
+          },
+          "engine_version": {
+            "type": "string",
+            "title": "Engine Version",
+            "description": "OpenDQV engine version \u2014 required for EMA clinical trial submissions, MiFIR regulatory reporting, and Basel III audit trails",
+            "default": ""
+          },
+          "contract_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Hash",
+            "description": "SHA-256 hash of the contract ruleset at validation time \u2014 enables point-in-time audit evidence"
+          },
+          "owner_team": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Team"
+          }
+        },
+        "type": "object",
+        "required": [
+          "valid",
+          "contract",
+          "version"
+        ],
+        "title": "ValidateResponse",
+        "description": "Single-record validation response."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

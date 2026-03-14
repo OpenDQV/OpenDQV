@@ -1,0 +1,69 @@
+contract:
+  name: travel_booking
+  version: "1.0"
+  description: "Travel booking record validation"
+  owner: "Reservations Data Team"
+  status: active
+
+  rules:
+    - name: booking_ref_required
+      field: booking_ref
+      type: not_empty
+      severity: error
+      error_message: "booking_ref is required"
+
+    - name: passenger_name_required
+      field: passenger_name
+      type: not_empty
+      severity: error
+      error_message: "passenger_name is required"
+
+    - name: email_required
+      field: email
+      type: not_empty
+      severity: error
+      error_message: "email is required"
+
+    - name: email_format
+      field: email
+      type: regex
+      pattern: '^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+      severity: error
+      error_message: "email must be a valid email address"
+
+    - name: departure_date_format
+      field: departure_date
+      type: date_format
+      severity: error
+      error_message: "departure_date must be a valid date (YYYY-MM-DD)"
+
+    - name: return_date_format
+      field: return_date
+      type: date_format
+      severity: warning
+      error_message: "return_date must be a valid date (YYYY-MM-DD)"
+
+    - name: origin_required
+      field: origin
+      type: not_empty
+      severity: error
+      error_message: "origin is required"
+
+    - name: destination_required
+      field: destination
+      type: not_empty
+      severity: error
+      error_message: "destination is required"
+
+    - name: ticket_price_min
+      field: ticket_price
+      type: min
+      min: 0
+      severity: error
+      error_message: "ticket_price must be >= 0"
+
+    - name: booking_date_format
+      field: booking_date
+      type: date_format
+      severity: error
+      error_message: "booking_date must be a valid date (YYYY-MM-DD)"

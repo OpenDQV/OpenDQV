@@ -1,0 +1,253 @@
+# =============================================================================
+# OpenDQV Logistics & Supply Chain Starter Contract
+# =============================================================================
+# Purpose   : Shipment tracking event validation for logistics and supply chain.
+#             Catches format errors, implausible weights, unrecognised carrier
+#             codes, and missing customs data before records enter TMS
+#             (Transport Management Systems), WMS, or broker portals.
+# Domain    : Freight forwarding, last-mile delivery, warehousing, customs
+# Frameworks: GS1 SSCC/GLN/GTIN, UN/LOCODE (ISO 3166 + UNECE),
+#             IATA air cargo codes, IMDG hazmat classification,
+#             Incoterms 2020 (ICC), WCO Harmonised System (HS codes)
+# Deployment: Cloud with TLS (see docs/core/deployment.md — cloud pattern)
+# Version   : 1.0.0
+# =============================================================================
+#
+# OPERATIONAL STAKES: A shipment record that clears validation with an
+# incorrect HS code can trigger customs hold, demurrage, and fines.
+# A missing or malformed origin LOCODE can break routing logic in a TMS,
+# causing a container to miss its vessel cut-off.
+#
+# GS1 CONTEXT:
+#   - SSCC (Serial Shipping Container Code): 18-digit GS1 identifier for
+#     logistics units (pallets, cases). Used in EDI 856 ASN messages.
+#   - GLN (Global Location Number): 13-digit GS1 code identifying a
+#     physical location (warehouse, port gate, customs office).
+#   - This contract validates the shipment-level event record, not the
+#     individual SSCC/GLN — add those rules if your TMS surfaces them.
+#
+# HOW TO USE:
+#   1. Load: POST /api/v1/contracts (name: "shipment_event")
+#   2. Validate:
+#      curl -X POST http://localhost:8000/api/v1/validate/shipment_event \
+#           -d '{"shipment_id":"SHP-ABCD123456","carrier_code":"DHL",...}'
+#   3. Sample records: examples/starter_contracts/sample_records/logistics.json
+
+name: shipment_event
+version: "1.0.0"
+description: "Shipment tracking event validation — carrier, routing, customs, hazmat, Incoterms 2020"
+asset_id: "urn:opendqv:example:logistics:shipment_event"
+
+rules:
+
+  # ── SHIPMENT IDENTIFICATION ──────────────────────────────────────────────────
+  # Internal shipment reference. Format: SHP- followed by exactly 10 uppercase
+  # alphanumeric characters. Adapt the regex to match your TMS ID scheme.
+  - field: shipment_id
+    rule: not_empty
+    severity: error
+    description: "Shipment ID is mandatory — all downstream systems key on this reference."
+
+  - field: shipment_id
+    rule: regex
+    pattern: "^SHP-[A-Z0-9]{10}$"
+    severity: error
+    description: "Shipment ID must follow the format SHP-XXXXXXXXXX (10 uppercase alphanumeric characters, e.g., SHP-ABCD123456)."
+
+  # Carrier or freight forwarder tracking number. Format varies by carrier;
+  # this rule enforces a maximum length only. For carrier-specific formats,
+  # create a derived contract or use required_if + regex per carrier_code.
+  - field: tracking_number
+    rule: not_empty
+    severity: error
+    description: "Carrier tracking number is mandatory for end-to-end shipment visibility."
+
+  - field: tracking_number
+    rule: max_length
+    max: 50
+    severity: error
+    description: "Tracking number must not exceed 50 characters."
+
+  # ── CARRIER ─────────────────────────────────────────────────────────────────
+  # Standard carrier codes used in EDI and TMS integrations. Extend this list
+  # with your contracted carriers. Road hauliers (e.g., XPO, GEODIS) and
+  # regional last-mile operators can be added here.
+  - field: carrier_code
+    rule: lookup
+    lookup_values: [UPS, FEDEX, DHL, TNT, ROYAL_MAIL, DPWORLD, MAERSK,
+                    MSC, CMA_CGM, EVERGREEN, AIR_FRANCE_KLM_CARGO,
+                    EMIRATES_SKY_CARGO, AMAZON_LOGISTICS, HERMES, DPD]
+    severity: error
+    description: "Carrier code must be a recognised operator. Add regional carriers to lookup_values as needed."
+
+  # ── SHIPMENT MODE ────────────────────────────────────────────────────────────
+  # IATA/IMDG mode of transport. MULTIMODAL covers combined road+rail,
+  # sea+road, etc. and is common in intermodal container movements.
+  - field: shipment_mode
+    rule: lookup
+    lookup_values: [AIR, SEA, ROAD, RAIL, MULTIMODAL, COURIER]
+    severity: error
+    description: "Shipment mode must be a valid transport mode. MULTIMODAL covers intermodal container movements."
+
+  # ── UN/LOCODE ROUTING ────────────────────────────────────────────────────────
+  # UN/LOCODE is the international standard for identifying locations involved
+  # in trade and transport (ports, airports, inland depots, border crossings).
+  # Maintained by UNECE. Format: 2-letter ISO 3166-1 country code +
+  # 3-character location code (letters or digits). Examples:
+  #   GBLON = London, UK           USNYC = New York, USA
+  #   DEHAM = Hamburg, Germany     CNSHA = Shanghai, China
+  #   NGLOS = Lagos, Nigeria       SGSIN = Singapore
+  # Full list: https://unece.org/trade/cefact/UNLOCODE-Download
+  - field: origin_locode
+    rule: not_empty
+    severity: error
+    description: "Origin UN/LOCODE is mandatory for TMS routing and customs filing."
+
+  - field: origin_locode
+    rule: regex
+    pattern: "^[A-Z]{2}[A-Z0-9]{3}$"
+    severity: error
+    description: "Origin must be a valid UN/LOCODE (2-letter country + 3-character location code, e.g., GBLON, USNYC, DEHAM)."
+
+  - field: destination_locode
+    rule: not_empty
+    severity: error
+    description: "Destination UN/LOCODE is mandatory for delivery planning and customs pre-arrival filing."
+
+  - field: destination_locode
+    rule: regex
+    pattern: "^[A-Z]{2}[A-Z0-9]{3}$"
+    severity: error
+    description: "Destination must be a valid UN/LOCODE (e.g., SGSIN, AESHY, NGLOS)."
+
+  # ── DATES ────────────────────────────────────────────────────────────────────
+  - field: departure_date
+    rule: not_empty
+    severity: error
+    description: "Departure date is mandatory for scheduling and transit time calculation."
+
+  - field: departure_date
+    rule: regex
+    pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    severity: error
+    description: "Departure date must be in YYYY-MM-DD format."
+
+  - field: expected_arrival_date
+    rule: not_empty
+    severity: error
+    description: "Expected arrival date is mandatory for delivery planning and SLA management."
+
+  - field: expected_arrival_date
+    rule: regex
+    pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    severity: error
+    description: "Expected arrival date must be in YYYY-MM-DD format."
+
+  - field: expected_arrival_date
+    rule: cross_field_range
+    min_field: departure_date
+    severity: error
+    description: "Expected arrival date must be on or after departure date."
+
+  # ── PHYSICAL ATTRIBUTES ──────────────────────────────────────────────────────
+  # Weight in kilograms. Upper bound of 200,000 kg = 200 metric tonnes,
+  # covering the heaviest project cargo and break-bulk shipments.
+  # For standard parcel carriers (e.g., COURIER mode), consider a tighter
+  # bound (e.g., max: 70) via a derived contract.
+  - field: weight_kg
+    rule: not_empty
+    severity: error
+    description: "Gross weight is mandatory for carrier booking, freight rate calculation, and dangerous goods declaration."
+
+  - field: weight_kg
+    rule: range
+    min: 0.001
+    max: 200000.0
+    severity: error
+    description: "Gross weight must be between 0.001 kg and 200,000 kg (200 metric tonnes). Values outside this range suggest a unit error (grams entered instead of kg, or a data entry error)."
+
+  # Volume in cubic metres (CBM). Upper bound of 5,000 CBM covers the
+  # largest container vessels' individual shipment allocations.
+  - field: volume_cbm
+    rule: range
+    min: 0.0
+    max: 5000.0
+    severity: warning
+    description: "Volume must be between 0 and 5,000 CBM. Values above 5,000 CBM are implausible for a single shipment record."
+
+  # ── INCOTERMS 2020 ────────────────────────────────────────────────────────────
+  # Incoterms 2020 (International Commercial Terms, ICC) define the point at
+  # which risk and cost transfer from seller to buyer. Correct Incoterm entry
+  # is critical for insurance coverage, customs valuation, and freight invoicing.
+  #
+  # Key risk transfer points:
+  #   EXW (Ex Works)         — risk transfers at seller's premises
+  #   FOB (Free On Board)    — risk transfers when goods cross ship's rail
+  #   CIF (Cost+Ins+Freight) — seller covers freight and insurance to destination port
+  #   DDP (Delivered Duty Paid) — seller bears all costs including import duties
+  #
+  # Incoterms 2020 introduced DPU (Delivered at Place Unloaded), replacing DAT.
+  # FAS and FOB apply to sea/inland waterway only; all others apply to any mode.
+  - field: incoterm
+    rule: lookup
+    lookup_values: [EXW, FCA, FAS, FOB, CFR, CIF, CPT, CIP, DAP, DPU, DDP]
+    severity: error
+    description: "Incoterm must be a valid Incoterms 2020 code (ICC). DPU replaced DAT in the 2020 revision. Incorrect Incoterm affects insurance, customs valuation, and cost allocation."
+
+  # ── CUSTOMS ──────────────────────────────────────────────────────────────────
+  # HS Code (Harmonised System) — the WCO international tariff classification.
+  # 6 digits = international standard; 8–10 digits = country-specific extensions.
+  # Example: 847130 = laptop computers. Required for customs declaration and
+  # import duty calculation.
+  - field: hs_code
+    rule: regex
+    pattern: "^[0-9]{6,10}$"
+    severity: error
+    description: "HS code must be 6–10 digits (WCO Harmonised System). 6 digits = international; 8–10 digits = national extension. Required for customs entry and duty calculation."
+
+  # Customs clearance lifecycle status.
+  - field: customs_status
+    rule: lookup
+    lookup_values: [PRE_CLEARANCE, IN_CUSTOMS, CLEARED, HELD, REFUSED,
+                    DUTY_PAYABLE]
+    severity: error
+    description: "Customs status must reflect the current clearance stage. HELD and REFUSED statuses should trigger operational alerts."
+
+  # ── HAZARDOUS MATERIALS ──────────────────────────────────────────────────────
+  # IMDG (International Maritime Dangerous Goods) and IATA DGR classification.
+  # Class 1–9 covers all regulated hazardous categories. NONE is required for
+  # non-hazardous shipments to confirm the field was not simply omitted.
+  # Carriers require a DGD (Dangerous Goods Declaration) for classes 1–9.
+  #
+  # Class reference:
+  #   1 = Explosives          2 = Gases (flammable, non-flammable, toxic)
+  #   3 = Flammable liquids   4 = Flammable solids / spontaneously combustible
+  #   5 = Oxidisers / organic peroxides
+  #   6 = Toxic / infectious  7 = Radioactive material
+  #   8 = Corrosives          9 = Miscellaneous (lithium batteries, dry ice, etc.)
+  - field: hazmat_class
+    rule: lookup
+    lookup_values: [NONE, 1_EXPLOSIVES, 2_GASES, 3_FLAMMABLE_LIQUIDS,
+                    4_FLAMMABLE_SOLIDS, 5_OXIDISERS, 6_TOXIC,
+                    7_RADIOACTIVE, 8_CORROSIVES, 9_MISCELLANEOUS]
+    severity: error
+    description: "Hazmat class must be declared. Use NONE for non-hazardous goods. Classes 1–9 require a Dangerous Goods Declaration (DGD) under IMDG/IATA DGR."
+
+  # ── SHIPMENT STATUS ──────────────────────────────────────────────────────────
+  - field: shipment_status
+    rule: lookup
+    lookup_values: [BOOKED, COLLECTED, IN_TRANSIT, CUSTOMS, OUT_FOR_DELIVERY,
+                    DELIVERED, EXCEPTION, RETURNED, LOST]
+    severity: error
+    description: "Shipment status must be a recognised lifecycle stage. EXCEPTION and LOST statuses should trigger SLA and claims workflows."
+
+  # ── INSURANCE ────────────────────────────────────────────────────────────────
+  # Declared cargo value for insurance purposes, in USD. Upper bound of
+  # $100,000,000 (100 million) covers high-value project cargo.
+  # Zero is valid (uninsured shipment). Negative values indicate a data error.
+  - field: insurance_value_usd
+    rule: range
+    min: 0.0
+    max: 100000000.0
+    severity: warning
+    description: "Insurance value must be between USD 0 and USD 100,000,000. Zero indicates an uninsured shipment. Negative values are invalid."

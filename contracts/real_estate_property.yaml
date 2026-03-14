@@ -1,0 +1,71 @@
+contract:
+  name: real_estate_property
+  version: "1.0"
+  description: "Real estate property listing validation"
+  owner: "Property Data Team"
+  status: active
+
+  rules:
+    - name: property_id_required
+      field: property_id
+      type: not_empty
+      severity: error
+      error_message: "property_id is required"
+
+    - name: address_required
+      field: address
+      type: not_empty
+      severity: error
+      error_message: "address is required"
+
+    - name: postcode_required
+      field: postcode
+      type: not_empty
+      severity: error
+      error_message: "postcode is required"
+
+    - name: postcode_format
+      field: postcode
+      type: regex
+      pattern: '^[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}$'
+      severity: error
+      error_message: "postcode must be a valid UK postcode"
+
+    - name: property_type_required
+      field: property_type
+      type: not_empty
+      severity: error
+      error_message: "property_type is required"
+
+    - name: bedrooms_range
+      field: bedrooms
+      type: range
+      min: 0
+      max: 100
+      severity: error
+      error_message: "bedrooms must be between 0 and 100"
+
+    - name: asking_price_min
+      field: asking_price
+      type: min
+      min: 0
+      severity: error
+      error_message: "asking_price must be >= 0"
+
+    - name: listing_date_format
+      field: listing_date
+      type: date_format
+      severity: error
+      error_message: "listing_date must be a valid date (YYYY-MM-DD)"
+
+    - name: agent_id_required
+      field: agent_id
+      type: not_empty
+      severity: error
+      error_message: "agent_id is required"
+
+    - name: epc_rating_required
+      field: epc_rating
+      type: not_empty
+      severity: warning
+      error_message: "epc_rating should be provided"

@@ -1,0 +1,57 @@
+contract:
+  name: media_content
+  version: "1.0"
+  description: "Media content record validation"
+  owner: "Content Data Team"
+  status: active
+
+  rules:
+    - name: content_id_required
+      field: content_id
+      type: not_empty
+      severity: error
+      error_message: "content_id is required"
+
+    - name: title_required
+      field: title
+      type: not_empty
+      severity: error
+      error_message: "title is required"
+
+    - name: content_type_required
+      field: content_type
+      type: not_empty
+      severity: error
+      error_message: "content_type is required"
+
+    - name: publish_date_format
+      field: publish_date
+      type: date_format
+      severity: error
+      error_message: "publish_date must be a valid date (YYYY-MM-DD)"
+
+    - name: duration_seconds_min
+      field: duration_seconds
+      type: min
+      min: 0
+      severity: error
+      error_message: "duration_seconds must be >= 0"
+
+    - name: views_min
+      field: views
+      type: min
+      min: 0
+      severity: error
+      error_message: "views must be >= 0"
+
+    - name: channel_id_required
+      field: channel_id
+      type: not_empty
+      severity: error
+      error_message: "channel_id is required"
+
+    - name: rights_territory_required
+      field: rights_territory
+      type: not_empty
+      severity: error
+      error_message: "rights_territory is required"
