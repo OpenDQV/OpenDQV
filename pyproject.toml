@@ -43,7 +43,7 @@ python-jose = {version = "^3.3", extras = ["cryptography"]}
 passlib = {version = "^1.7", extras = ["bcrypt"]}
 python-multipart = "^0.0.12"
 slowapi = "^0.1"
-prometheus-client = "^0.21"
+prometheus-client = "^0.24"
 httpx = "^0.27"
 requests = "^2.32"
 strawberry-graphql = {version = "^0.235", extras = ["fastapi"]}
