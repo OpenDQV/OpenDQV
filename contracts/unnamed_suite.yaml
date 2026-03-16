@@ -1,9 +1,0 @@
-contract:
-  name: unnamed_suite
-  version: '1.0'
-  description: 'Imported from Great Expectations suite: unnamed_suite'
-  owner: imported-from-gx
-  status: draft
-  source: import
-  asset_id: gx::unnamed_suite
-  rules: []
