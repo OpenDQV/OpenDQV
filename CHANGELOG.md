@@ -18,7 +18,7 @@ Initial public release.
 - MCP server — exposes all six tools (`validate_record`, `validate_batch`, `list_contracts`, `get_contract`, `explain_error`, `create_contract_draft`) to Claude Desktop, Cursor, and any MCP-compatible agent framework
 - MCP `create_contract_draft` write tool — agents can propose contracts; blocked from activation until human approves via review workflow
 - Contract review workflow — `DRAFT → REVIEW → ACTIVE` lifecycle with `submit-review`, `approve`, `reject` endpoints; MCP-sourced drafts cannot bypass review
-- Token role differentiation — `writer`, `editor`, `approver`, `auditor`, `admin` roles on PATs
+- Token role differentiation — `validator`, `editor`, `approver`, `auditor`, `admin` roles on PATs
 - Importers: Great Expectations (v0.x + v1.x), dbt schema.yml, Soda Core checks, CSV rule definitions, ODCS 3.1, CSVW (W3C CSV on the Web), OTel semantic conventions, NDC (FDA National Drug Code)
 - Webhook notifications for `validation.failed`, `validation.warning`, `batch.failed`
 - Push-down code generation (Salesforce Apex, JavaScript, Snowflake UDF)

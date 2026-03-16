@@ -32,7 +32,7 @@ examples/       Starter contracts + sample records by domain
 scripts/        Demo, wizard, perf-test, smoke tests, diagnostics
 sdk/            Python SDK: sync client, async client, local validator
 security/       JWT PAT auth (auth.py)
-tests/          1,066 unit/integration tests (36 test files)
+tests/          1,000+ unit/integration tests (39 test files)
 ui/             Streamlit governance workbench (app.py ~2,500 lines)
 ```
 
@@ -135,6 +135,6 @@ States: `draft` → `review` → `active` | `archived`
 | `core/validator.py` | Single-record and DuckDB batch validation engine |
 | `core/contracts.py` | Contract registry, YAML load/save, version management |
 | `api/routes.py` | 50 REST endpoints (~2,400 lines) |
-| `security/auth.py` | JWT PAT auth, RBAC (admin/approver/editor/writer/auditor/reader) |
+| `security/auth.py` | JWT PAT auth, RBAC (admin/approver/editor/validator/auditor/reader) |
 | `core/onboarding.py` | Interactive setup wizard |
 | `tests/conftest.py` | Test fixtures — sets temp contracts dir, auth tokens |

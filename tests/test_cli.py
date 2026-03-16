@@ -475,7 +475,7 @@ class TestCLIDryRunDoesNotWrite:
 # ---------------------------------------------------------------------------
 
 import pytest  # noqa: E402
-import cli as cli_module  # noqa: E402
+import cli as cli_module  # noqa: E402,F811
 
 
 class TestCLIContractNameValidation:

@@ -433,7 +433,7 @@ def cmd_generate(args):
         sys.exit(1)
 
     rules = registry.get_rules_with_context(contract, args.context)
-    code = generate_code(rules, args.target)
+    code = generate_code(rules, args.target, contract_name=contract.name, contract_version=contract.version)
     print(code)
 
 

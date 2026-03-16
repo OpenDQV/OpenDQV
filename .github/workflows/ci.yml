@@ -77,6 +77,37 @@ jobs:
         run: pip install -r requirements.txt && pip-audit --requirement requirements.txt --ignore-vuln CVE-2024-23342
 
 
+  integration:
+    name: Integration tests (live stack)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy env file
+        run: cp .env.example .env
+
+      - name: Start stack
+        run: docker compose up -d --wait
+        timeout-minutes: 3
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run integration tests (require live API)
+        run: python -m pytest tests/test_llm_remediation_loop.py::TestLoopIntegration -v --tb=short
+        env:
+          OPENDQV_NODE_ID: 'ci-integration-node'
+
+      - name: Stop stack
+        if: always()
+        run: docker compose down -v
+
   lint:
     name: Lint
     runs-on: ubuntu-latest

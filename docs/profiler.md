@@ -28,7 +28,7 @@ are too strict for your data — then activate via the normal review workflow.
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/profile?contract_name=my_contract" \
-  -H "Authorization: Bearer $WRITER_TOKEN" \
+  -H "Authorization: Bearer $VALIDATOR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '[
     {"id": "C001", "email": "alice@example.com", "age": 32, "signup_date": "2024-01-15"},
@@ -72,7 +72,7 @@ Query parameters:
 ```bash
 # Profile and save in one step
 curl -X POST "http://localhost:8000/api/v1/profile?contract_name=customer_v2&save=true" \
-  -H "Authorization: Bearer $WRITER_TOKEN" \
+  -H "Authorization: Bearer $VALIDATOR_TOKEN" \
   -H "Content-Type: application/json" \
   -d @sample_records.json
 

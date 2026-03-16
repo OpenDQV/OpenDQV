@@ -135,7 +135,7 @@ class TestApproveRejectRoles:
     """Only approver and admin may approve or reject contracts."""
 
     @pytest.mark.parametrize("headers_fixture,contract", [
-        ("auth_headers",      "customer"),    # writer
+        ("auth_headers",      "customer"),    # validator
         ("reader_headers",    "banking_transaction"),
         ("auditor_headers",   "hr_employee"),
         ("editor_headers",    "insurance_claim"),  # editor CANNOT approve
@@ -173,7 +173,7 @@ class TestStatusChangeRoles:
     """Promoting to ACTIVE requires approver or admin."""
 
     @pytest.mark.parametrize("headers_fixture,contract", [
-        ("auth_headers",      "customer"),          # writer
+        ("auth_headers",      "customer"),          # validator
         ("reader_headers",    "banking_transaction"),
         ("auditor_headers",   "hr_employee"),
         ("editor_headers",    "insurance_claim"),
@@ -196,7 +196,7 @@ class TestTokenManagementRoles:
     """Revoking all tokens for a system requires admin role."""
 
     @pytest.mark.parametrize("headers_fixture", [
-        "auth_headers",    # writer
+        "auth_headers",    # validator
         "reader_headers",
         "auditor_headers",
         "editor_headers",

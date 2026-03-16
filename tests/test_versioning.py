@@ -245,7 +245,7 @@ class TestVersioningAPI:
         resp = client.get("/api/v1/contracts/nonexistent/history", headers=auth_headers)
         assert resp.status_code == 404
 
-    def test_writer_cannot_bump_version(self, client, auth_headers):
+    def test_validator_cannot_bump_version(self, client, auth_headers):
         """Maker-checker: version creation requires approver or admin role."""
         resp = client.post(
             "/api/v1/contracts/customer/version?new_version=99.0",

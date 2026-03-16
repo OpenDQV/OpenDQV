@@ -56,7 +56,7 @@ class TestStatusChange:
         r = client.post("/api/v1/contracts/nonexistent/status", params={"status": "active"}, headers=approver_headers)
         assert r.status_code == 404
 
-    def test_writer_cannot_activate(self, client, auth_headers):
+    def test_validator_cannot_activate(self, client, auth_headers):
         """Maker-checker: activating a contract requires approver or admin role."""
         r = client.post(
             "/api/v1/contracts/customer/status",
@@ -143,8 +143,8 @@ class TestActiveContractImmutability:
         active = [c for c in r.json() if c["status"] == "active"]
         return active[0]["name"] if active else None
 
-    def test_add_rule_blocked_on_active_writer(self, client, auth_headers):
-        """Writer cannot add a rule to any contract — role check returns 403."""
+    def test_add_rule_blocked_on_active_validator(self, client, auth_headers):
+        """Validator cannot add a rule to any contract — role check returns 403."""
         name = self._get_active_contract(client, auth_headers)
         if not name:
             pytest.skip("No active contracts available")

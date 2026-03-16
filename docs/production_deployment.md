@@ -109,7 +109,7 @@ curl -X POST "http://localhost:8000/api/v1/contracts/{name}/version?new_version=
 
 # 2. Edit rules on the DRAFT
 curl -X POST "http://localhost:8000/api/v1/contracts/{name}/rules" \
-  -H "Authorization: Bearer $WRITER_TOKEN" \
+  -H "Authorization: Bearer $EDITOR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "new_rule", "field": "amount", "type": "min", "min_value": 0, ...}'
 

@@ -512,23 +512,23 @@ else
 fi
 
 # =============================================================================
-step "25. Token auth — writer role blocked from contract activation (maker-checker)"
+step "25. Token auth — validator role blocked from contract activation (maker-checker)"
 # =============================================================================
-WRITER_TOKEN_OUT=$(docker compose exec -T api \
-  python -m cli token-generate smoke-writer --role writer --expiry-days 1 2>/dev/null)
-WRITER_PAT=$(echo "$WRITER_TOKEN_OUT" | grep -oE 'eyJ[A-Za-z0-9._-]+' | head -1)
-if [ -z "$WRITER_PAT" ]; then
-  fail "Failed to generate writer PAT via exec"
-  echo "    $WRITER_TOKEN_OUT"
+VALIDATOR_TOKEN_OUT=$(docker compose exec -T api \
+  python -m cli token-generate smoke-validator --role validator --expiry-days 1 2>/dev/null)
+VALIDATOR_PAT=$(echo "$VALIDATOR_TOKEN_OUT" | grep -oE 'eyJ[A-Za-z0-9._-]+' | head -1)
+if [ -z "$VALIDATOR_PAT" ]; then
+  fail "Failed to generate validator PAT via exec"
+  echo "    $VALIDATOR_TOKEN_OUT"
 else
-  WRITER_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+  VALIDATOR_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
     -X POST "http://localhost:8000/api/v1/contracts/customer/status?status=active" \
-    -H "Authorization: Bearer $WRITER_PAT" \
+    -H "Authorization: Bearer $VALIDATOR_PAT" \
     -H "Content-Type: application/json")
-  if [ "$WRITER_HTTP" = "403" ]; then
-    ok "Writer PAT → POST /status?status=active returns 403 (maker-checker enforced)"
+  if [ "$VALIDATOR_HTTP" = "403" ]; then
+    ok "Validator PAT → POST /status?status=active returns 403 (maker-checker enforced)"
   else
-    fail "Expected 403 for writer activation, got $WRITER_HTTP"
+    fail "Expected 403 for validator activation, got $VALIDATOR_HTTP"
   fi
 fi
 
@@ -805,9 +805,9 @@ fi
 step "35. Contract name path traversal protection — 422 on malicious name"
 # =============================================================================
 TRAVERSAL_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
-  -X POST "http://localhost:8000/api/v1/import/odcs?save=true&contract_name=../../etc/passwd" \
+  -X POST "http://localhost:8000/api/v1/import/odcs?save=true" \
   -H "Content-Type: application/json" \
-  -d '{"apiVersion":"v3","kind":"DataContract","info":{"title":"t","version":"1.0"},"schema":[]}')
+  -d '{"apiVersion":"v3","kind":"DataContract","info":{"title":"../../etc/passwd","version":"1.0"},"schema":[]}')
 if [ "$TRAVERSAL_HTTP" = "422" ]; then
   ok "Path traversal contract name → 422 Unprocessable Entity"
 else

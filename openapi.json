@@ -304,11 +304,11 @@
             "required": false,
             "schema": {
               "type": "boolean",
-              "description": "Include DEPRECATED contracts",
+              "description": "Include ARCHIVED contracts",
               "default": false,
               "title": "Include All"
             },
-            "description": "Include DEPRECATED contracts"
+            "description": "Include ARCHIVED contracts"
           }
         ],
         "responses": {
@@ -717,7 +717,7 @@
           "OpenDQV"
         ],
         "summary": "Change Contract Status",
-        "description": "Change a contract's lifecycle status.\n\nGovernance workflow: draft \u2192 active \u2192 deprecated\n\nMaker-checker: promoting a contract to 'active' requires the 'approver' or\n'admin' role. Writers may only set contracts to 'draft' or 'deprecated'.\nThis enforces separation of duties \u2014 the person who writes a contract cannot\nalso be the person who promotes it to production.",
+        "description": "Change a contract's lifecycle status.\n\nGovernance workflow: draft \u2192 review \u2192 active | archived\n\nMaker-checker: promoting a contract to 'active' requires the 'approver' or\n'admin' role. Validators and editors may only set contracts to 'draft' or 'archived'.\nThis enforces separation of duties \u2014 the person who writes a contract cannot\nalso be the person who promotes it to production.",
         "operationId": "change_contract_status_api_v1_contracts__name__status_post",
         "parameters": [
           {
@@ -735,10 +735,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "New status: draft, active, or deprecated",
+              "description": "New status: draft, review, active, or archived",
               "title": "Status"
             },
-            "description": "New status: draft, active, or deprecated"
+            "description": "New status: draft, review, active, or archived"
           },
           {
             "name": "version",
@@ -2342,7 +2342,7 @@
           "OpenDQV"
         ],
         "summary": "Generate Token",
-        "description": "Generate a PAT for a source system.\n\nEach source system should have its own token for audit trail and revocation.\nThe token is included in the response \u2014 store it securely, it won't be shown again.\n\nIn AUTH_MODE=open, elevated roles (admin, approver) are capped to 'writer'.\nAdmin and approver tokens can only be issued in AUTH_MODE=token to prevent\nprivilege escalation tokens from being persisted in development environments.",
+        "description": "Generate a PAT for a source system.\n\nEach source system should have its own token for audit trail and revocation.\nThe token is included in the response \u2014 store it securely, it won't be shown again.\n\nIn AUTH_MODE=open, elevated roles (admin, approver, editor) are capped to 'validator'.\nElevated tokens can only be issued in AUTH_MODE=token to prevent\nprivilege escalation tokens from being persisted in development environments.",
         "operationId": "generate_token_api_v1_tokens_generate_post",
         "parameters": [
           {
@@ -2373,11 +2373,11 @@
             "required": false,
             "schema": {
               "type": "string",
-              "description": "Token role: writer, admin, auditor, approver (default: writer)",
-              "default": "writer",
+              "description": "Token role: validator, reader, auditor, editor, approver, admin (default: validator)",
+              "default": "validator",
               "title": "Role"
             },
-            "description": "Token role: writer, admin, auditor, approver (default: writer)"
+            "description": "Token role: validator, reader, auditor, editor, approver, admin (default: validator)"
           },
           {
             "name": "authorization",
@@ -2458,7 +2458,7 @@
           "OpenDQV"
         ],
         "summary": "Revoke Token",
-        "description": "Revoke a specific PAT by token value.",
+        "description": "Revoke a specific PAT by token value.\n\nNote: any authenticated user can revoke any token by value (not limited to tokens they own). This is a documented limitation \u2014 see SECURITY.md. In AUTH_MODE=token environments, restrict token revocation to admin roles via network policy if ownership enforcement is required.",
         "operationId": "revoke_token_api_v1_tokens_revoke_post",
         "requestBody": {
           "content": {
@@ -3361,7 +3361,7 @@
           "status": {
             "type": "string",
             "title": "Status",
-            "description": "Lifecycle status: 'active', 'draft', or 'deprecated'",
+            "description": "Lifecycle status: 'active', 'draft', 'review', or 'archived'",
             "default": "active"
           },
           "rules": {
@@ -3452,7 +3452,7 @@
           "status": {
             "type": "string",
             "title": "Status",
-            "description": "Lifecycle status: 'active' (use for validation), 'draft' (being authored), 'deprecated' (migrate away)",
+            "description": "Lifecycle status: 'active' (use for validation), 'draft' (being authored), 'review' (pending approval), 'archived' (migrate away)",
             "default": "active"
           },
           "rule_count": {

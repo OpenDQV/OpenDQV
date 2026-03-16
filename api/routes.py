@@ -1409,7 +1409,7 @@ async def generate_code_endpoint(
         raise HTTPException(status_code=404, detail=f"Contract '{contract_name}' not found")
 
     rules = registry.get_rules_with_context(contract, context)
-    code = generate_code(rules, target)
+    code = generate_code(rules, target, contract_name=contract.name, contract_version=contract.version)
     return {"contract": contract.name, "target": target, "context": context, "code": code}
 
 
