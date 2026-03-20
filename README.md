@@ -167,7 +167,7 @@ of write, before the data reaches your pipeline.
 | Neither / not sure where to start | → [Option 1: Complete Beginner](#option-1-complete-beginner) |
 | Python 3.11+ installed | → [Option 2: Python (no Docker)](#option-2-python-no-docker) |
 | Docker Desktop installed | → [Option 3: Docker](#option-3-docker) |
-| Just want the SDK / CLI | → `pip install opendqv` |
+| Just want the SDK / CLI (Python devs) | → `pip install opendqv` |
 
 ---
 
