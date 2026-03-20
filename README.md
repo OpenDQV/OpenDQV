@@ -174,30 +174,34 @@ of write, before the data reaches your pipeline.
 
 **No git, no Docker, no problem.**
 
+> **First: you will need Python 3.11+.** Check before you download anything:
+> - **Windows:** open the Start menu, search for "cmd", open it, and type `python --version`. If it says 3.11 or higher you're good. If not, download from [python.org/downloads](https://www.python.org/downloads/) — make sure to check **"Add Python to PATH"** during installation.
+> - **Mac:** open Spotlight (⌘ Space), search for "Terminal", open it, and type `python3 --version`. If you need to install: [python.org/downloads](https://www.python.org/downloads/).
+> - **Linux:** type `python3 --version` in a terminal. To install: `sudo apt install python3.11` (Ubuntu/Debian).
+
 1. **Download the ZIP:**
    👉 [OpenDQV-v1.0.0.zip](https://github.com/OpenDQV/OpenDQV/archive/refs/tags/v1.0.0.zip)
    *(or [browse all releases](https://github.com/OpenDQV/OpenDQV/releases))*
 
-2. **Unzip it** somewhere you can find it (your Desktop is fine).
+2. **Unzip it** somewhere you can find it (your Desktop is fine). You should see a folder called `OpenDQV-1.0.0` or similar.
 
 3. **Install and run:**
 
-   **Windows** — double-click `install.bat`, or open a command prompt in the folder and run:
-   ```bat
-   install.bat
-   ```
+   **Windows** — open the unzipped folder, then double-click `install.bat`. A command window will open and text will scroll — this is normal. First run takes 2–3 minutes.
 
-   **Mac/Linux** — open a terminal in the folder and run:
+   **Mac** — open Spotlight (⌘ Space), search for "Terminal", and open it. Then type:
+   ```bash
+   cd ~/Desktop/OpenDQV-1.0.0
+   bash install.sh
+   ```
+   *(replace `Desktop/OpenDQV-1.0.0` with wherever you unzipped it)*
+
+   **Linux** — open a terminal, navigate to the unzipped folder, and run:
    ```bash
    bash install.sh
    ```
 
-The script creates an isolated environment, installs all dependencies, and launches the onboarding wizard. First run takes 2–3 minutes for the install step. The wizard detects your environment, creates a starter contract, and validates your first record in under 90 seconds.
-
-> **You will need Python 3.11+.** If you don't have it:
-> - **Windows:** [python.org/downloads](https://www.python.org/downloads/) — check "Add Python to PATH" during installation, then re-run `install.bat`
-> - **Mac:** `brew install python@3.11` or [python.org/downloads](https://www.python.org/downloads/)
-> - **Linux:** `sudo apt install python3.11` (Ubuntu/Debian) or use `pyenv`
+When the install finishes the onboarding wizard launches automatically — you'll see a welcome message and a series of prompts. The wizard creates a starter contract and validates your first record in under 90 seconds.
 
 ---
 
@@ -208,9 +212,10 @@ Mac/Linux:
 git clone https://github.com/OpenDQV/OpenDQV.git
 cd OpenDQV
 cp .env.example .env
-python3 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --reload  # or: bash install.sh to use the wizard
+uvicorn main:app --reload
 
 # Swagger docs: http://localhost:8000/docs
 # Redoc:        http://localhost:8000/redoc
@@ -221,6 +226,7 @@ Windows (cmd.exe):
 ```bat
 git clone https://github.com/OpenDQV/OpenDQV.git
 cd OpenDQV
+copy .env.example .env
 python -m venv .venv
 call .venv\Scripts\activate
 pip install -r requirements.txt
@@ -230,6 +236,16 @@ rem Swagger docs: http://localhost:8000/docs
 rem Redoc:        http://localhost:8000/redoc
 rem GraphQL:      http://localhost:8000/graphql
 ```
+
+When the server starts you will see `Uvicorn running on http://localhost:8000` in your terminal. If you see errors instead, check that your `.env` file exists and that Python 3.11+ is active.
+
+**First time? Use the onboarding wizard instead** — it creates a starter contract and validates your first record automatically:
+```bash
+bash install.sh   # Mac/Linux
+install.bat       # Windows
+```
+
+**Streamlit UI:** run `streamlit run ui/app.py` in a second terminal to start the governance workbench at http://localhost:8501.
 
 ### Option 3: Docker
 
