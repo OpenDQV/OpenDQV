@@ -205,6 +205,7 @@ The script creates an isolated environment, installs all dependencies, and launc
 
 Mac/Linux:
 ```bash
+git clone https://github.com/OpenDQV/OpenDQV.git
 cd OpenDQV
 cp .env.example .env
 python3 -m venv .venv && source .venv/bin/activate
@@ -218,6 +219,7 @@ uvicorn main:app --reload  # or: bash install.sh to use the wizard
 
 Windows (cmd.exe):
 ```bat
+git clone https://github.com/OpenDQV/OpenDQV.git
 cd OpenDQV
 python -m venv .venv
 call .venv\Scripts\activate
