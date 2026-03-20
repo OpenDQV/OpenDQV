@@ -13,30 +13,39 @@ concurrency:
 jobs:
   test:
     name: Test suite
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v6
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Install dependencies
-        run: ~/.local/bin/poetry install --with dev
+        run: pip install poetry && poetry install --with dev
 
       - name: Install missing test dependencies
-        run: ~/.local/bin/poetry run pip install regex pyarrow questionary pytest-timeout
+        run: poetry run pip install regex pyarrow questionary pytest-timeout
 
       - name: Run tests
-        run: ~/.local/bin/poetry run python -m pytest tests/ --ignore=tests/test_e2e.py -p no:playwright --tb=short --timeout=60 -q
+        run: poetry run python -m pytest tests/ --ignore=tests/test_e2e.py -p no:playwright --tb=short --timeout=60 -q
         env:
           OPENDQV_NODE_ID: 'ci-test-node'
 
   sbom:
     name: Generate SBOM
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Install dependencies
-        run: pip3 install --break-system-packages -r requirements.txt cyclonedx-bom
+        run: pip install -r requirements.txt cyclonedx-bom
       - name: Generate SBOM
         run: cyclonedx-py environment --output-format JSON > sbom.json
       - name: Upload SBOM artifact
@@ -47,11 +56,16 @@ jobs:
 
   security-scan:
     name: Static security analysis
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Install security tools
-        run: pip3 install --break-system-packages bandit pip-audit
+        run: pip install bandit pip-audit
       - name: Run bandit (static analysis)
         # B310: urllib urlopen — URLs are always http(s) from config, never file:// or custom schemes
         # B108: hardcoded /tmp — intentional session state file for the onboarding wizard
@@ -61,13 +75,17 @@ jobs:
         # CVE-2024-23342: timing attack in the `ecdsa` package (transitive dep of python-jose).
         # No upstream fix exists. At runtime python-jose[cryptography] routes all ECDSA ops
         # through the `cryptography` package, so ecdsa is installed but never called.
-        run: pip3 install --break-system-packages -r requirements.txt && pip-audit --requirement requirements.txt --ignore-vuln CVE-2024-23342
+        run: pip install -r requirements.txt && pip-audit --requirement requirements.txt --ignore-vuln CVE-2024-23342
 
   integration:
     name: Integration tests (live stack)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
       - name: Copy env file
         run: cp .env.example .env
@@ -77,10 +95,10 @@ jobs:
         timeout-minutes: 3
 
       - name: Install dev dependencies
-        run: ~/.local/bin/poetry install --with dev
+        run: pip install poetry && poetry install --with dev
 
       - name: Run integration tests (require live API)
-        run: ~/.local/bin/poetry run python -m pytest tests/test_llm_remediation_loop.py::TestLoopIntegration -v --tb=short
+        run: poetry run python -m pytest tests/test_llm_remediation_loop.py::TestLoopIntegration -v --tb=short
         env:
           OPENDQV_NODE_ID: 'ci-integration-node'
 
@@ -90,8 +108,13 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - run: pip3 install --break-system-packages ruff
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install ruff
       - run: ruff check . --select E,W,F --ignore E501,E402,E701
