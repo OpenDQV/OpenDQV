@@ -20,7 +20,9 @@ cd OpenDQV
 cp .env.example .env
 ```
 
-If you prefer not to use a terminal, download the release zip from the GitHub releases page and unzip it. Then make a copy of the file called `.env.example` and name it `.env`. You do not need to change anything inside it for local use.
+If you prefer not to use a terminal:
+👉 [Download OpenDQV-v1.0.0.zip](https://github.com/OpenDQV/OpenDQV/archive/refs/tags/v1.0.0.zip)
+Unzip it, then skip to Step 2. The install script handles the `.env` file automatically.
 
 ---
 

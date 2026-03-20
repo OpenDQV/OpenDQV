@@ -160,26 +160,44 @@ of write, before the data reaches your pipeline.
 
 ---
 
-## Quick Start
+## Quick Start — pick your path
 
-### New here? Run the onboarding wizard
+| I have... | Use this path |
+|-----------|---------------|
+| Docker Desktop installed | → [Option 1: Docker (recommended)](#option-1-docker-recommended) |
+| Python 3.11+ installed | → [Option 2: Python (no Docker)](#option-2-python-no-docker) |
+| Neither / not sure where to start | → [Option 3: Complete Beginner](#option-3-complete-beginner) |
 
-```bash
-git clone https://github.com/OpenDQV/OpenDQV.git
-cd OpenDQV
-```
+---
 
-Then run the bootstrap script for your platform:
+### Option 3: Complete Beginner
 
-```bash
-# Mac/Linux
-bash install.sh
+**No git, no Docker, no problem.**
 
-# Windows
-install.bat
-```
+1. **Download the ZIP:**
+   👉 [OpenDQV-v1.0.0.zip](https://github.com/OpenDQV/OpenDQV/archive/refs/tags/v1.0.0.zip)
+   *(or [browse all releases](https://github.com/OpenDQV/OpenDQV/releases))*
 
-The script creates an isolated virtual environment, installs dependencies, and launches the onboarding wizard. The wizard detects Docker, infers validation rules from your field names, writes a starter contract, starts the service, and shows your first validation — in under 90 seconds. First run takes 2–3 minutes for the install step.
+2. **Unzip it** somewhere you can find it (your Desktop is fine).
+
+3. **Install and run:**
+
+   **Windows** — double-click `install.bat`, or open a command prompt in the folder and run:
+   ```bat
+   install.bat
+   ```
+
+   **Mac/Linux** — open a terminal in the folder and run:
+   ```bash
+   bash install.sh
+   ```
+
+The script creates an isolated environment, installs all dependencies, and launches the onboarding wizard. First run takes 2–3 minutes for the install step. The wizard detects your environment, creates a starter contract, and validates your first record in under 90 seconds.
+
+> **You will need Python 3.11+.** If you don't have it:
+> - **Windows:** [python.org/downloads](https://www.python.org/downloads/) — check "Add Python to PATH" during installation, then re-run `install.bat`
+> - **Mac:** `brew install python@3.11` or [python.org/downloads](https://www.python.org/downloads/)
+> - **Linux:** `sudo apt install python3.11` (Ubuntu/Debian) or use `pyenv`
 
 ---
 
@@ -228,7 +246,7 @@ docker compose up -d --build
 > Use `docker-compose.prod.yml` for any non-local deployment.
 > **Regulated deployments:** complete the [Mandatory Deployment Checklist](SECURITY.md#mandatory-deployment-checklist) and review [docs/security/hardening.md](docs/security/hardening.md) before going live.
 
-### Option 2: Local Python
+### Option 2: Python (no Docker)
 
 Mac/Linux:
 ```bash
