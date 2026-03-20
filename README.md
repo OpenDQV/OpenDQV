@@ -5,7 +5,7 @@
 [![CI](https://github.com/OpenDQV/OpenDQV/actions/workflows/ci.yml/badge.svg)](https://github.com/OpenDQV/OpenDQV/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenDQV/OpenDQV/blob/main/LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://pypi.org/project/opendqv/)
-[![PyPI](https://img.shields.io/badge/pypi-v1.0.0%20pending%20approval-orange)](https://pypi.org/project/opendqv/)
+[![PyPI](https://img.shields.io/pypi/v/opendqv)](https://pypi.org/project/opendqv/)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fopendqv-blue?logo=docker)](https://github.com/orgs/OpenDQV/packages/container/package/opendqv%2Fopendqv)
 [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20ARM64-lightgrey)](#)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/OpenDQV/OpenDQV/badge)](https://securityscorecards.dev/#/projects/github.com/OpenDQV/OpenDQV)
@@ -167,6 +167,7 @@ of write, before the data reaches your pipeline.
 | Neither / not sure where to start | → [Option 1: Complete Beginner](#option-1-complete-beginner) |
 | Python 3.11+ installed | → [Option 2: Python (no Docker)](#option-2-python-no-docker) |
 | Docker Desktop installed | → [Option 3: Docker](#option-3-docker) |
+| Just want the SDK / CLI | → `pip install opendqv` |
 
 ---
 
@@ -701,7 +702,11 @@ See [docs/rules/explain_endpoint.md](docs/rules/explain_endpoint.md) for full de
 
 ## Python SDK
 
-> **PyPI status:** The `opendqv` package has been validated end-to-end on TestPyPI. The OpenDQV org account on PyPI is pending approval — `pip install opendqv` will be available once the account is approved, shortly after public release. Until then, install from source using the options above.
+Install the SDK via PyPI:
+
+```bash
+pip install opendqv
+```
 
 Two client classes — synchronous for standard use, async for event-driven pipelines:
 
