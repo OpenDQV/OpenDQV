@@ -164,13 +164,13 @@ of write, before the data reaches your pipeline.
 
 | I have... | Use this path |
 |-----------|---------------|
-| Docker Desktop installed | → [Option 1: Docker (recommended)](#option-1-docker-recommended) |
+| Neither / not sure where to start | → [Option 1: Complete Beginner](#option-1-complete-beginner) |
 | Python 3.11+ installed | → [Option 2: Python (no Docker)](#option-2-python-no-docker) |
-| Neither / not sure where to start | → [Option 3: Complete Beginner](#option-3-complete-beginner) |
+| Docker Desktop installed | → [Option 3: Docker](#option-3-docker) |
 
 ---
 
-### Option 3: Complete Beginner
+### Option 1: Complete Beginner
 
 **No git, no Docker, no problem.**
 
@@ -201,7 +201,35 @@ The script creates an isolated environment, installs all dependencies, and launc
 
 ---
 
-### Option 1: Docker (recommended)
+### Option 2: Python (no Docker)
+
+Mac/Linux:
+```bash
+cd OpenDQV
+cp .env.example .env
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload  # or: bash install.sh to use the wizard
+
+# Swagger docs: http://localhost:8000/docs
+# Redoc:        http://localhost:8000/redoc
+# GraphQL:      http://localhost:8000/graphql
+```
+
+Windows (cmd.exe):
+```bat
+cd OpenDQV
+python -m venv .venv
+call .venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload
+
+rem Swagger docs: http://localhost:8000/docs
+rem Redoc:        http://localhost:8000/redoc
+rem GraphQL:      http://localhost:8000/graphql
+```
+
+### Option 3: Docker
 
 A pre-built multi-arch image (`linux/amd64` + `linux/arm64`) is published to the GitHub Container Registry on every release. This covers Intel/AMD machines and Raspberry Pi (ARM64, validated). Apple Silicon Macs use the `linux/arm64` image natively — the ARM64 architecture has been validated on Raspberry Pi 400; direct Apple Silicon testing has not been performed.
 
@@ -245,34 +273,6 @@ docker compose up -d --build
 > Before connecting any real data, set `AUTH_MODE=token` and a strong `SECRET_KEY` in `.env`.
 > Use `docker-compose.prod.yml` for any non-local deployment.
 > **Regulated deployments:** complete the [Mandatory Deployment Checklist](SECURITY.md#mandatory-deployment-checklist) and review [docs/security/hardening.md](docs/security/hardening.md) before going live.
-
-### Option 2: Python (no Docker)
-
-Mac/Linux:
-```bash
-cd OpenDQV
-cp .env.example .env
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload  # or: bash install.sh to use the wizard
-
-# Swagger docs: http://localhost:8000/docs
-# Redoc:        http://localhost:8000/redoc
-# GraphQL:      http://localhost:8000/graphql
-```
-
-Windows (cmd.exe):
-```bat
-cd OpenDQV
-python -m venv .venv
-call .venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn main:app --reload
-
-rem Swagger docs: http://localhost:8000/docs
-rem Redoc:        http://localhost:8000/redoc
-rem GraphQL:      http://localhost:8000/graphql
-```
 
 ### Authentication
 
