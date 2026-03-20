@@ -1,0 +1,19 @@
+checks for customers:
+  - missing_count(email) = 0
+  - missing_count(last_name) = 0
+  - missing_count(phone) < 5
+  - duplicate_count(customer_id) = 0
+  - duplicate_count(email) < 10
+  - invalid_count(email) = 0:
+      valid format: email
+  - invalid_count(phone) = 0:
+      valid regex: "^\\+?[1-9]\\d{1,14}$"
+  - min(age) >= 0
+  - max(age) <= 150
+  - avg_length(first_name) > 0
+  - min_length(zip_code) >= 5
+  - max_length(zip_code) <= 10
+  - row_count > 0
+  - schema:
+      fail:
+        when required column missing: [customer_id, email, last_name]

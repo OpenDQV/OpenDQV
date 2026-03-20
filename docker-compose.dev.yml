@@ -1,0 +1,77 @@
+# OpenDQV — Development Docker Compose Overlay
+#
+# Adds live source mounts so host file changes are immediately reflected
+# in the running container WITHOUT a rebuild. For development only.
+#
+# Usage (development):
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Usage (production):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# ⚠️  NEVER use this overlay in production or any environment where change
+# controls apply. Live source mounts mean any host filesystem write immediately
+# changes the running service behaviour — bypassing build, test, and image
+# signing steps entirely.
+
+services:
+  api:
+    # Emit a loud warning at container startup if AUTH_MODE=token is detected.
+    # This combination (dev overlay + token mode) is almost always a mistake:
+    # live source mounts in a token-mode environment bypass build controls.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        if [ "${AUTH_MODE:-open}" = "token" ]; then
+          echo ""
+          echo "╔══════════════════════════════════════════════════════════════╗"
+          echo "║  ⚠️  WARNING: DEV OVERLAY + AUTH_MODE=token DETECTED         ║"
+          echo "║  Live source mounts are active in a token-mode deployment.  ║"
+          echo "║  This is NOT a production-safe configuration.               ║"
+          echo "║  If this is intentional (e.g. integration testing), proceed.║"
+          echo "║  If this is a production environment: STOP and use          ║"
+          echo "║  docker-compose.prod.yml instead.                           ║"
+          echo "╚══════════════════════════════════════════════════════════════╝"
+          echo ""
+        fi
+        exec "$@"
+      - --
+    # When entrypoint is overridden, Docker Compose clears the Dockerfile CMD.
+    # Restore the gunicorn startup command so exec "$@" has something to run.
+    command:
+      - sh
+      - -c
+      - >-
+        gunicorn main:app -w ${WEB_CONCURRENCY:-1}
+        -k uvicorn.workers.UvicornWorker
+        --bind 0.0.0.0:8000 --timeout 120 --access-logfile -
+    volumes:
+      - ./api:/app/api
+      - ./core:/app/core
+      - ./security:/app/security
+      - ./tests:/app/tests
+      - ./sdk:/app/sdk
+      - ./config.py:/app/config.py
+      - ./monitoring.py:/app/monitoring.py
+      - ./main.py:/app/main.py
+      - ./cli.py:/app/cli.py
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: opendqv
+      POSTGRES_PASSWORD: opendqv
+      POSTGRES_DB: opendqv
+    ports:
+      - "5432:5432"
+    volumes:
+      - opendqv_pg_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opendqv"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  opendqv_pg_dev:

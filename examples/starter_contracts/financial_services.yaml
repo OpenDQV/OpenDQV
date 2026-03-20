@@ -1,0 +1,270 @@
+# =============================================================================
+# OpenDQV Financial Services Starter Contract
+# =============================================================================
+# Purpose   : Investment portfolio position and trade record validation.
+#             Suitable for asset managers, capital markets desks, fund
+#             administrators, and prime brokers processing trade blotters,
+#             order management system (OMS) exports, and SWIFT confirmations.
+# Domain    : Asset management, capital markets, fund administration
+# Frameworks: MiFID II (EU Directive 2014/65/EU), FCA COBS (UK),
+#             ISDA Master Agreement, SEC Rule 10b-5 reporting,
+#             SWIFT ISO 15022 / ISO 20022 (MT5xx / sese.023)
+# Version   : 1.0.0
+# =============================================================================
+#
+# REGULATORY STAKES:
+#   MiFID II Trade Reporting (RTS 22): Investment firms must report all
+#   transactions in financial instruments to their National Competent Authority
+#   (NCA) by T+1. Missing or invalid ISIN, LEI, execution venue, or trade
+#   fields result in reportable data quality failures. The FCA issued GBP 34.5M
+#   in fines for MiFID II reporting failures between 2018 and 2024.
+#
+#   LEI (Legal Entity Identifier — ISO 17442): The 20-character LEI uniquely
+#   identifies legal entities in financial transactions. MiFID II Article 26
+#   requires both the trading firm's LEI and the counterparty LEI on every
+#   trade report. An invalid LEI format causes the entire report to be rejected
+#   by the NCA.
+#
+#   ISIN (ISO 6166): The 12-character International Securities Identification
+#   Number is the primary instrument identifier for MiFID II and SEC reporting.
+#   An invalid ISIN links a trade to the wrong instrument — a material reporting
+#   error that can trigger regulatory investigation.
+#
+# HOW TO USE:
+#   1. Load this contract: POST /api/v1/contracts (name: "trade_record")
+#   2. Validate a record:  POST /api/v1/validate/trade_record
+#   3. Batch validate:     POST /api/v1/validate/trade_record/batch
+#   4. Sample records:     examples/starter_contracts/sample_records/financial_services.json
+#
+# ADAPTING FOR YOUR SYSTEM:
+#   - Add counterparty_lei as a separate field if you capture both sides' LEIs
+#   - Extend execution_venue lookup for your active markets
+#   - Adjust quantity/price ranges for your asset class (derivatives may need higher ceilings)
+#   - For OTC derivatives, add an ISDA product_type field with your taxonomy
+
+name: trade_record
+version: "1.0.0"
+description: "Investment trade record validation — ISIN, LEI, MiFID II trade reporting fields, execution venue, asset class"
+asset_id: "urn:opendqv:example:financial_services:trade_record"
+
+rules:
+
+  # ── TRADE IDENTIFICATION ──────────────────────────────────────────────────────
+  # trade_id is the OMS-assigned unique trade identifier.
+  # MiFID II RTS 22 field 3 requires a unique transaction reference number.
+  - field: trade_id
+    rule: not_empty
+    severity: error
+    description: "Trade ID is mandatory. Required as the unique transaction reference under MiFID II RTS 22 field 3."
+
+  - field: trade_id
+    rule: regex
+    # 8–20 uppercase alphanumeric characters (covers FIX, Bloomberg, and OMS formats)
+    pattern: "^[A-Z0-9]{8,20}$"
+    severity: error
+    description: "Trade ID must be 8–20 uppercase alphanumeric characters."
+
+  # ── INSTRUMENT IDENTIFICATION ─────────────────────────────────────────────────
+  # ISIN — ISO 6166: 2-letter country code, 9 alphanumeric NSIN digits, 1 check digit.
+  # MiFID II RTS 22 field 41: ISIN is the mandatory instrument identifier.
+  # Examples:
+  #   GB0002634946 — BP plc (ordinary shares, LSE)
+  #   US0378331005 — Apple Inc (NASDAQ)
+  #   DE0005140008 — Deutsche Bank AG (XETRA)
+  - field: isin
+    rule: not_empty
+    severity: error
+    description: "ISIN is mandatory. MiFID II RTS 22 field 41 requires an ISIN for all instruments admitted to trading on a regulated venue."
+
+  - field: isin
+    rule: regex
+    # ISO 6166: 2-letter country code + 9 uppercase alphanumeric NSIN + 1 check digit
+    pattern: "^[A-Z]{2}[A-Z0-9]{9}[0-9]$"
+    severity: error
+    description: "ISIN must follow ISO 6166 format: 2-letter country code + 9 alphanumeric characters + 1 check digit (e.g., GB0002634946)."
+
+  # ── TRADE DATE ────────────────────────────────────────────────────────────────
+  # MiFID II RTS 22 field 31: trading date/time.
+  # ISO 8601 date (YYYY-MM-DD) — time captured separately in trade_datetime
+  # if your OMS separates them.
+  - field: trade_date
+    rule: not_empty
+    severity: error
+    description: "Trade date is mandatory (MiFID II RTS 22 field 31)."
+
+  - field: trade_date
+    rule: regex
+    pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    severity: error
+    description: "Trade date must be in YYYY-MM-DD format."
+
+  - field: trade_date
+    rule: compare
+    compare_op: lte
+    compare_to: today
+    severity: error
+    description: "Trade date cannot be in the future (MiFID II RTS 22 — trade date integrity)."
+
+  # ── SETTLEMENT DATE ───────────────────────────────────────────────────────────
+  # Standard settlement cycles: T+2 for equities (EU CSDR), T+1 for US equities
+  # (SEC rule effective May 2024). Money market instruments typically T+0 or T+1.
+  - field: settlement_date
+    rule: not_empty
+    severity: error
+    description: "Settlement date is mandatory. Required for CSD (Central Securities Depository) instruction generation."
+
+  - field: settlement_date
+    rule: regex
+    pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+    severity: error
+    description: "Settlement date must be in YYYY-MM-DD format."
+
+  # ── ASSET CLASS ───────────────────────────────────────────────────────────────
+  # MiFID II RTS 2 defines financial instrument categories.
+  # Asset class determines reporting template, margining rules, and
+  # capital treatment under Basel III.
+  - field: asset_class
+    rule: lookup
+    lookup_values:
+      - EQUITY
+      - FIXED_INCOME
+      - DERIVATIVE
+      - FX
+      - COMMODITY
+      - ALTERNATIVE
+      - CASH
+      - MONEY_MARKET
+      - ETF
+      - STRUCTURED_PRODUCT
+    severity: error
+    description: "Asset class must be a recognised MiFID II instrument category."
+
+  # ── TRADE TYPE ────────────────────────────────────────────────────────────────
+  # Drives allocation logic, position keeping, and T+1 MiFID II report content.
+  - field: trade_type
+    rule: lookup
+    lookup_values:
+      - BUY
+      - SELL
+      - SHORT_SELL
+      - COVER
+      - EXCHANGE
+      - SUBSCRIPTION
+      - REDEMPTION
+      - TRANSFER_IN
+      - TRANSFER_OUT
+      - CORPORATE_ACTION
+    severity: error
+    description: "Trade type must be a recognised instruction type. SHORT_SELL triggers MiFID II short-selling disclosure obligations."
+
+  # ── QUANTITY ──────────────────────────────────────────────────────────────────
+  # Upper bound covers large institutional block trades.
+  # For bond face value (notional), this field represents units/nominal amount
+  # in the instrument's minimum denomination.
+  - field: quantity
+    rule: range
+    min: 0
+    max: 1000000000
+    severity: error
+    description: "Quantity must be between 0 and 1,000,000,000. For bonds, this is the face value / nominal amount in minimum denomination units."
+
+  # ── PRICE ─────────────────────────────────────────────────────────────────────
+  # Price per unit in the instrument's currency.
+  # Upper bound of 1,000,000 covers high-price equities (e.g., Berkshire Hathaway Class A).
+  # For bonds, price is typically expressed as a percentage of par (e.g., 99.75).
+  - field: price
+    rule: range
+    min: 0
+    max: 1000000
+    severity: error
+    description: "Price per unit must be between 0 and 1,000,000. For bonds, this is percentage of par; for equities, this is the execution price per share."
+
+  # ── CURRENCY ──────────────────────────────────────────────────────────────────
+  # Settlement currency for the trade leg.
+  # MiFID II RTS 22 field 49: price currency.
+  - field: currency
+    rule: lookup
+    lookup_values:
+      - USD
+      - EUR
+      - GBP
+      - JPY
+      - CHF
+      - SEK
+      - CAD
+      - AUD
+      - HKD
+      - SGD
+      - NOK
+      - DKK
+    severity: error
+    description: "Currency must be a supported ISO 4217 code for trade settlement."
+
+  # ── COUNTERPARTY IDENTIFIER (LEI) ─────────────────────────────────────────────
+  # LEI — ISO 17442: 20-character identifier for legal entities in financial markets.
+  # Structure: 4-char LOU prefix + 14 alphanumeric entity-specific chars + 2 check digits.
+  # MiFID II Article 26(6): investment firms must report the LEI of the counterparty.
+  # LEIs are issued by accredited Local Operating Units (LOUs) such as
+  # GLEIF, London Stock Exchange, and DTCC.
+  # Look up LEIs: https://search.gleif.org
+  - field: counterparty_id
+    rule: not_empty
+    severity: error
+    description: "Counterparty LEI is mandatory. MiFID II Article 26(6) requires the counterparty Legal Entity Identifier on all trade reports."
+
+  - field: counterparty_id
+    rule: regex
+    # ISO 17442: 18 uppercase alphanumeric chars (LOU prefix + entity chars) + 2 numeric check digits
+    pattern: "^[A-Z0-9]{18}[0-9]{2}$"
+    severity: error
+    description: "Counterparty ID must be a valid LEI (ISO 17442): 18 uppercase alphanumeric characters followed by 2 numeric check digits (e.g., 549300TRUWO2CD2G5692)."
+
+  # ── PORTFOLIO IDENTIFICATION ──────────────────────────────────────────────────
+  - field: portfolio_id
+    rule: not_empty
+    severity: error
+    description: "Portfolio ID is required for position keeping and fund-level reporting."
+
+  # ── TRADER IDENTIFICATION ─────────────────────────────────────────────────────
+  # MiFID II RTS 22 field 12: investment decision maker identifier.
+  # For algorithmic trades, this is the algorithm ID.
+  - field: trader_id
+    rule: not_empty
+    severity: error
+    description: "Trader ID is required. MiFID II RTS 22 field 12 requires the investment decision maker identifier for all transactions."
+
+  # ── EXECUTION VENUE ───────────────────────────────────────────────────────────
+  # MiFID II RTS 22 field 36: trading venue (MIC code or internal identifier).
+  # MiFID II Article 26(5) requires the trading venue identifier on all reports.
+  # Full MIC codes (ISO 10383) should be used in production — e.g., XLON for LSE,
+  # XNYS for NYSE. This lookup covers the most common venues for starter use.
+  # For production, replace with a lookup_file pointing to the full MIC code list.
+  - field: execution_venue
+    rule: lookup
+    lookup_values:
+      - LSE
+      - NYSE
+      - NASDAQ
+      - XETRA
+      - EURONEXT
+      - LSE_AIM
+      - OTC
+      - DARK_POOL
+      - INTERNAL
+    severity: error
+    description: "Execution venue must be a recognised trading venue (MiFID II RTS 22 field 36). Use ISO 10383 MIC codes in production."
+
+  # ── MiFID II REPORTING STATUS ─────────────────────────────────────────────────
+  # Tracks the trade report lifecycle to the NCA (National Competent Authority).
+  # MiFID II RTS 22: reports must be submitted by close of T+1 business day.
+  # AMENDED covers corrections submitted under RTS 22 Article 3.
+  # CANCELLED covers trade cancellations under RTS 22 Article 4.
+  - field: reporting_status
+    rule: lookup
+    lookup_values:
+      - PENDING
+      - REPORTED
+      - AMENDED
+      - CANCELLED
+    severity: error
+    description: "Reporting status tracks the MiFID II trade report lifecycle. PENDING reports not submitted by T+1 are a regulatory breach."

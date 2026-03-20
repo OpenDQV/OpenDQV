@@ -1,0 +1,10 @@
+FROM python:3.11-slim
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends gcc && rm -rf /var/lib/apt/lists/*
+COPY . .
+# Install runtime deps + test tools only — skip playwright (E2E tests are excluded anyway)
+# This keeps the image ~1-2 GB lighter, important on constrained hardware (e.g. Raspberry Pi)
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir "pytest>=8.0.0" "pytest-asyncio>=0.23.0" "pytest-cov>=4.0.0"
+ENV OPENDQV_NODE_ID=ci-smoketest
+CMD ["python", "-m", "pytest", "tests/", "--ignore=tests/test_e2e.py", "-q", "--tb=short"]

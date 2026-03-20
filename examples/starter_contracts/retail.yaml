@@ -1,0 +1,239 @@
+# =============================================================================
+# OpenDQV Retail & E-Commerce Starter Contract
+# =============================================================================
+# Purpose   : Product catalogue and inventory record validation for retail ops.
+#             Catches format errors, implausible prices, missing classifications,
+#             and regulatory gaps before records enter PIM (Product Information
+#             Management), ERP, or marketplace listing systems.
+# Domain    : E-commerce, brick-and-mortar retail, omnichannel, marketplace
+# Frameworks: GS1 GTIN/EAN/UPC (ISO 15459), GPC (Global Product Classification),
+#             ISO 4217 currency codes, EU General Product Safety Regulation
+#             (GPSR 2023/988), EU VAT Directive 2006/112/EC
+# Deployment: Cloud with TLS (see docs/core/deployment.md — cloud pattern)
+# Version   : 1.0.0
+# =============================================================================
+#
+# COMMERCIAL STAKES: A product listed with an incorrect price in the wrong
+# currency, or missing a mandatory age restriction, can result in regulatory
+# fines (EU GPSR), incorrect VAT computation, or a costly pricing error
+# that reaches consumers before it is caught.
+#
+# GS1 GTIN NOTE:
+#   GTIN (Global Trade Item Number) encodes product identity across EAN-8,
+#   EAN-13, UPC-A, and GTIN-14 (ITF-14 for cases/pallets). The final digit
+#   is a modulo-10 check digit. This contract validates format (8–14 digits)
+#   only. Full check-digit validation is available via the checksum rule type
+#   (see ROADMAP). For marketplace listings, a valid GTIN is increasingly
+#   mandatory (Amazon, Google Shopping, Zalando).
+#
+# EU PRODUCT SAFETY:
+#   The EU General Product Safety Regulation (GPSR, effective Dec 2024)
+#   requires age restrictions and safety information to be recorded for
+#   applicable product categories. The age_restriction field supports
+#   compliance with GPSR and the UK Product Safety and Metrology Bill.
+#
+# HOW TO USE:
+#   1. Load: POST /api/v1/contracts (name: "product_catalogue")
+#   2. Validate:
+#      curl -X POST http://localhost:8000/api/v1/validate/product_catalogue \
+#           -d '{"sku":"ELEC-SNY-XM5-BLK","product_name":"Sony WH-XM5",...}'
+#   3. Sample records: examples/starter_contracts/sample_records/retail.json
+
+name: product_catalogue
+version: "1.0.0"
+description: "Retail product catalogue validation — SKU format, GTIN, pricing, inventory, regulatory compliance"
+asset_id: "urn:opendqv:example:retail:product_catalogue"
+
+rules:
+
+  # ── PRODUCT IDENTIFICATION ───────────────────────────────────────────────────
+  # SKU (Stock Keeping Unit) — your internal product identifier.
+  # Format: 4–20 uppercase letters, digits, or hyphens.
+  # Examples: ELEC-SNY-XM5-BLK, SHOE-NK-AIR270-42, BOOK-9781234567890
+  # Adapt the regex to your SKU naming convention.
+  - field: sku
+    rule: not_empty
+    severity: error
+    description: "SKU is mandatory — it is the primary key for all downstream inventory, fulfilment, and merchandising systems."
+
+  - field: sku
+    rule: regex
+    pattern: "^[A-Z0-9\\-]{4,20}$"
+    severity: error
+    description: "SKU must be 4–20 uppercase alphanumeric characters or hyphens (e.g., ELEC-SNY-XM5-BLK). Lowercase SKUs cause silent mismatches in case-sensitive WMS systems."
+
+  # GTIN: optional at creation time, but if present must be valid format.
+  # EAN-8 (8 digits), UPC-A (12 digits), EAN-13 (13 digits), GTIN-14 (14 digits).
+  # The check digit (last digit) is a modulo-10 (Luhn variant) checksum.
+  - field: gtin
+    rule: checksum
+    algorithm: gtin_mod10
+    severity: error
+    description: "GTIN check digit must be valid (GS1 modulo-10 algorithm)."
+  - field: gtin
+    rule: regex
+    pattern: "^[0-9]{8,14}$"
+    severity: error
+    description: "GTIN must be 8–14 digits (EAN-8, UPC-A, EAN-13, or GTIN-14). The final digit is a GS1 modulo-10 check digit — validate the full checksum before submitting to marketplaces."
+
+  # ── PRODUCT DESCRIPTION ──────────────────────────────────────────────────────
+  - field: product_name
+    rule: not_empty
+    severity: error
+    description: "Product name is mandatory for catalogue display, search indexing, and marketplace listings."
+
+  - field: product_name
+    rule: max_length
+    max: 255
+    severity: error
+    description: "Product name must not exceed 255 characters. Many marketplace APIs (Amazon, Google Shopping) enforce a 200-character limit — a tighter max can be set per channel."
+
+  - field: brand
+    rule: not_empty
+    severity: error
+    description: "Brand is mandatory for catalogue organisation, brand-level reporting, and marketplace brand registry."
+
+  - field: brand
+    rule: max_length
+    max: 100
+    severity: error
+    description: "Brand name must not exceed 100 characters."
+
+  # ── CLASSIFICATION ───────────────────────────────────────────────────────────
+  # GPC (Global Product Classification) top-level brick categories, aligned
+  # to GS1 Global Product Classification standard. Extend with sub-categories
+  # as your catalogue matures, or replace with your internal taxonomy.
+  - field: category_code
+    rule: not_empty
+    severity: error
+    description: "Category code is mandatory for navigation, tax class derivation, and age restriction rules."
+
+  - field: category_code
+    rule: lookup
+    lookup_values: [ELECTRONICS, CLOTHING_APPAREL, FOOTWEAR, FOOD_BEVERAGE,
+                    HEALTH_BEAUTY, HOME_GARDEN, TOYS_GAMES, SPORTS_OUTDOORS,
+                    BOOKS_MEDIA, AUTOMOTIVE, JEWELLERY, FURNITURE,
+                    OFFICE_SUPPLIES, PET_SUPPLIES, GROCERY, PHARMACY]
+    severity: error
+    description: "Category code must be a recognised GPC-aligned category. Used for VAT rate determination, age restriction defaults, and marketplace routing."
+
+  # ── PRICING ──────────────────────────────────────────────────────────────────
+  # Unit price: retail selling price in the specified currency.
+  # Upper bound of 1,000,000 covers luxury goods, industrial equipment,
+  # and high-value jewellery. For standard consumer retail, consider max: 10000.
+  - field: unit_price
+    rule: not_empty
+    severity: error
+    description: "Unit price is mandatory. A missing price will cause the product to be hidden or mis-priced on all sales channels."
+
+  - field: unit_price
+    rule: range
+    min: 0.0
+    max: 1000000.0
+    severity: error
+    description: "Unit price must be between 0 and 1,000,000. Zero is valid for free/promotional items. Negative values indicate a data entry error."
+
+  # ISO 4217 currency codes. Extend the list for additional trading currencies.
+  # The currency must match the pricing region — a GBP price with a USD currency
+  # code will cause incorrect FX conversion in ERP and marketplace listings.
+  - field: currency
+    rule: lookup
+    lookup_values: [USD, EUR, GBP, SEK, NOK, DKK, CHF, CAD, AUD, JPY, CNY,
+                    INR, BRL, NGN, ZAR]
+    severity: error
+    description: "Currency must be a valid ISO 4217 code. Mismatched currency codes cause incorrect FX conversion and VAT calculation errors."
+
+  # ── INVENTORY ────────────────────────────────────────────────────────────────
+  # Stock on hand. Upper bound of 10,000,000 covers bulk commodity retailers
+  # and FMCG distributors. For fashion/electronics, consider max: 100000.
+  - field: stock_quantity
+    rule: range
+    min: 0
+    max: 10000000
+    severity: error
+    description: "Stock quantity must be between 0 and 10,000,000. Negative stock indicates a fulfilment or returns processing error."
+
+  # Reorder point: the stock level that triggers a purchase order.
+  # Must be non-negative; a zero reorder point means no automatic reorder.
+  - field: reorder_point
+    rule: range
+    min: 0
+    max: 100000
+    severity: warning
+    description: "Reorder point must be between 0 and 100,000. A reorder point higher than stock_quantity should trigger a purchasing alert."
+
+  - field: stock_quantity
+    rule: cross_field_range
+    min_field: reorder_point
+    severity: warning
+    description: "Stock quantity is below the reorder point — a purchase order should be raised."
+
+  # ── PHYSICAL ATTRIBUTES ──────────────────────────────────────────────────────
+  # Weight in grams. Upper bound of 500,000 g = 500 kg.
+  # Using grams (not kg) as the base unit avoids decimal precision issues
+  # with lightweight items (e.g., a 15 g phone case = 0.015 kg, error-prone).
+  - field: weight_grams
+    rule: range
+    min: 0
+    max: 500000
+    severity: warning
+    description: "Product weight must be between 0 and 500,000 g (500 kg). Weight is used for shipping rate calculation and carrier selection — errors cause incorrect freight costs."
+
+  # ── ORIGIN & REGULATORY ──────────────────────────────────────────────────────
+  # ISO 3166-1 alpha-2 country of origin codes.
+  # Required for customs (Rules of Origin), consumer labelling, and
+  # country-of-origin restrictions in trade compliance.
+  - field: country_of_origin
+    rule: lookup
+    # ISO 3166-1 alpha-2 — common manufacturing and sourcing countries.
+    # Extend with additional codes as needed. Full list: iso.org/obp/ui/#search
+    lookup_values: [GB, US, DE, FR, IT, ES, CN, JP, KR, IN, BR, MX, TR, PL,
+                    NL, BE, SE, CH, AU, CA, NG, ZA, GH, KE, EG, MA, SG, HK,
+                    TW, TH, VN, ID, PH, BD, PK]
+    severity: error
+    description: "Country of origin must be a valid ISO 3166-1 alpha-2 code. Required for EU/UK customs (Rules of Origin proof) and consumer labelling regulations."
+
+  # ── TAX CLASSIFICATION ───────────────────────────────────────────────────────
+  # EU VAT Directive 2006/112/EC and UK VAT Act 1994 define tax classes.
+  # Incorrect tax class causes VAT calculation errors on every transaction.
+  #
+  # STANDARD    — full VAT rate (UK: 20%, DE: 19%, FR: 20%)
+  # REDUCED     — reduced rate (UK: 5%, EU: typically 5–10% — food, energy, books in some states)
+  # ZERO_RATED  — 0% VAT but still VAT-registered supply (UK: children's clothes, most food)
+  # EXEMPT      — outside scope of VAT (insurance, financial services, healthcare)
+  - field: tax_class
+    rule: lookup
+    lookup_values: [STANDARD, REDUCED, ZERO_RATED, EXEMPT]
+    severity: error
+    description: "Tax class must be set. Incorrect tax class causes VAT miscalculation on every sale. ZERO_RATED and EXEMPT have different VAT reclaim implications."
+
+  # ── PRODUCT STATUS ───────────────────────────────────────────────────────────
+  - field: product_status
+    rule: lookup
+    lookup_values: [DRAFT, ACTIVE, DISCONTINUED, OUT_OF_STOCK, SEASONAL,
+                    CLEARANCE]
+    severity: error
+    description: "Product status controls visibility across all sales channels. DRAFT products must not be published to live channels."
+
+  # ── AGE RESTRICTION ──────────────────────────────────────────────────────────
+  # EU General Product Safety Regulation (GPSR, Regulation 2023/988, effective
+  # 13 December 2024) and UK equivalent (Product Safety and Metrology Bill)
+  # require age restriction information to be recorded for regulated products.
+  # NONE must be set explicitly to confirm the field was assessed, not omitted.
+  #
+  # 15_PLUS — teen-oriented content (some video games, social media features)
+  # 18_PLUS — alcohol, tobacco products, adult content, certain knives (UK)
+  - field: age_restriction
+    rule: lookup
+    lookup_values: [NONE, 15_PLUS, 18_PLUS]
+    severity: error
+    description: "Age restriction must be explicitly set (EU GPSR / UK Product Safety). Use NONE to confirm the product was assessed and has no age restriction, not just that the field was skipped."
+
+  # ── CONDITION ────────────────────────────────────────────────────────────────
+  # Product condition is required for marketplace compliance (Amazon, eBay,
+  # Zalando all require condition disclosure). Affects buyer trust and return rates.
+  - field: condition
+    rule: lookup
+    lookup_values: [NEW, REFURBISHED, USED_LIKE_NEW, USED_GOOD, USED_ACCEPTABLE]
+    severity: error
+    description: "Product condition must be declared. Marketplace platforms require explicit condition disclosure — omission or mismatch triggers listing suppression."

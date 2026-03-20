@@ -1,0 +1,42 @@
+services:
+  api:
+    image: ghcr.io/opendqv/opendqv:latest
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-change-me-to-a-random-secret-key}
+      - AUTH_MODE=${AUTH_MODE:-open}
+      # RATE LIMITING NOTE: RATE_LIMIT_VALIDATE and RATE_LIMIT_DEFAULT use an
+      # in-memory counter per Gunicorn worker. The effective per-IP ceiling is
+      # WEB_CONCURRENCY × the configured value (default 1 worker = 300/min as
+      # configured). For strict enforcement in production, add Redis and set
+      # RATE_LIMIT_BACKEND=redis, or enforce limits at your reverse proxy / load
+      # balancer instead.
+    volumes:
+      - db-data:/app/data
+      - ./contracts:/app/contracts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  ui:
+    image: ghcr.io/opendqv/opendqv:latest
+    build: .
+    command: streamlit run ui/app.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      - API_URL=http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  db-data:

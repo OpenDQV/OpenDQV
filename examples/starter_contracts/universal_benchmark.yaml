@@ -1,0 +1,108 @@
+contract:
+  name: universal_benchmark
+  version: "1.0"
+  description: "Universal benchmark contract — all core rule types, used for performance baseline"
+  owner: "OpenDQV Internal"
+  status: active
+  asset_id: "urn:opendqv:benchmark:universal"
+
+  rules:
+    - name: record_id_required
+      type: not_empty
+      field: record_id
+      severity: error
+      error_message: "record_id is required"
+
+    - name: record_id_max_length
+      type: max_length
+      field: record_id
+      max_length: 50
+      severity: error
+      error_message: "record_id must not exceed 50 characters"
+
+    - name: email_required
+      type: not_empty
+      field: email
+      severity: error
+      error_message: "email is required"
+
+    - name: email_format
+      type: regex
+      field: email
+      pattern: "^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$"
+      severity: error
+      error_message: "email must be a valid address"
+
+    - name: phone_format
+      type: regex
+      field: phone
+      pattern: "^\\+[1-9][0-9]{7,14}$"
+      severity: warning
+      error_message: "phone should use E.164 format"
+
+    - name: created_date_format
+      type: regex
+      field: created_date
+      pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+      severity: error
+      error_message: "created_date must be YYYY-MM-DD"
+
+    - name: created_date_not_future
+      type: compare
+      field: created_date
+      compare_to: today
+      compare_op: lte
+      severity: error
+      error_message: "created_date cannot be in the future"
+
+    - name: status_lookup
+      type: lookup
+      field: status
+      lookup_file: "ref/universal_status.txt"
+      severity: error
+      error_message: "status must be ACTIVE, INACTIVE, PENDING, or SUSPENDED"
+
+    - name: currency_lookup
+      type: lookup
+      field: currency
+      lookup_file: "ref/universal_currency.txt"
+      severity: error
+      error_message: "currency must be a supported ISO 4217 code"
+
+    - name: amount_range
+      type: range
+      field: amount
+      min: 0
+      max: 1000000
+      severity: error
+      error_message: "amount must be between 0 and 1,000,000"
+
+    - name: score_range
+      type: range
+      field: score
+      min: 0
+      max: 100
+      severity: error
+      error_message: "score must be between 0 and 100"
+
+    - name: description_max_length
+      type: max_length
+      field: description
+      max_length: 500
+      severity: warning
+      error_message: "description must not exceed 500 characters"
+
+    - name: record_id_unique
+      type: unique
+      field: record_id
+      severity: error
+      error_message: "record_id must be unique within batch"
+
+    - name: suspension_reason_required_if_suspended
+      type: required_if
+      field: suspension_reason
+      required_if:
+        field: status
+        value: SUSPENDED
+      severity: error
+      error_message: "suspension_reason is required when status is SUSPENDED"

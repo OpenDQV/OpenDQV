@@ -1,0 +1,168 @@
+# =============================================================================
+# OpenDQV Energy & Utilities Starter Contract
+# =============================================================================
+# Purpose   : Smart meter reading and settlement data validation.
+#             Suitable for Meter Data Agents, suppliers, and DSOs processing
+#             half-hourly reads for billing and grid settlement.
+# Frameworks: BSC (Balancing and Settlement Code, UK), CRU (Ireland),
+#             SMETS2 technical specification, Ofgem reporting requirements
+# Deployment: On-premise or edge (see docs/core/deployment.md)
+# Version   : 1.0.0
+# =============================================================================
+#
+# FINANCIAL STAKES: GB electricity settlement processes hundreds of millions
+# of pounds of financial obligation per settlement run (48 half-hour periods
+# per day). A format error in a Meter Point identifier invalidates the read —
+# the consumption is not assigned to a supply point and revenue is lost.
+#
+# VOLUME NOTE: Half-hourly settlement produces ~30M metered volumes per
+# settlement period. For file-based validation of Parquet/CSV settlement
+# files, see the file-based batch endpoint (roadmap — T3, P1).
+# The current batch endpoint handles JSON arrays.
+#
+# MPRN vs MPAN:
+#   Ireland uses MPRN (Meter Point Reference Number): 11 digits.
+#   GB uses MPAN (Meter Point Administration Number): 21 digits.
+#   Comment out the one that does not apply to your market.
+#
+# HOW TO USE:
+#   1. Load: POST /api/v1/contracts (name: "meter_reading")
+#   2. Validate: POST /api/v1/validate/meter_reading
+#   3. Batch (JSON): POST /api/v1/validate/batch with array
+#   4. Sample records: examples/starter_contracts/sample_records/energy.json
+
+name: meter_reading
+version: "1.0.0"
+description: "Smart meter reading validation — MPRN/MPAN format, read type, consumption plausibility, settlement period"
+asset_id: "urn:opendqv:example:energy:meter_reading"
+
+rules:
+
+  # ── METER POINT IDENTIFICATION ───────────────────────────────────────────────
+
+  # Ireland MPRN: exactly 11 digits. No spaces or separators.
+  # Example: 10123456789
+  - field: mprn
+    rule: not_empty
+    severity: error
+    description: "MPRN (Meter Point Reference Number) is mandatory. An invalid MPRN cannot be assigned to a supply point."
+
+  - field: mprn
+    rule: regex
+    pattern: "^[0-9]{11}$"
+    severity: error
+    description: "MPRN must be exactly 11 digits with no spaces or separators."
+
+  # GB MPAN: 21 digits in 3 groups of 2 + 13 core.
+  # Structure: [2 profile class][2 MTC][2 LLFC][13 core MPAN]
+  # To use GB MPAN instead, comment out the MPRN rules above and
+  # uncomment the rules below:
+  #
+  # - field: mpan
+  #   rule: not_empty
+  #   severity: error
+  #   description: "MPAN (Meter Point Administration Number) is mandatory."
+  #
+  # - field: mpan
+  #   rule: regex
+  #   pattern: "^[0-9]{21}$"
+  #   severity: error
+  #   description: "MPAN must be exactly 21 digits."
+
+  # ── METER IDENTIFICATION ─────────────────────────────────────────────────────
+  - field: meter_serial
+    rule: not_empty
+    severity: error
+    description: "Meter serial number is required for asset tracking and dispute resolution."
+
+  - field: meter_serial
+    rule: regex
+    # Alphanumeric, 8–15 characters (covers SMETS1 and SMETS2 formats)
+    pattern: "^[A-Z0-9]{8,15}$"
+    severity: error
+    description: "Meter serial number must be 8–15 alphanumeric characters."
+
+  # ── READ TIMESTAMP ───────────────────────────────────────────────────────────
+  - field: read_timestamp
+    rule: not_empty
+    severity: error
+    description: "Read timestamp is mandatory — required for settlement period assignment."
+
+  - field: read_timestamp
+    rule: regex
+    pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
+    severity: error
+    description: "Read timestamp must be ISO 8601 with timezone (e.g., 2026-03-09T14:30:00Z)."
+
+  - field: read_timestamp
+    rule: compare
+    compare_op: lte
+    compare_to: now
+    severity: error
+    description: "Read timestamp cannot be in the future. BSC settlement requirement."
+
+  # ── READ TYPE ────────────────────────────────────────────────────────────────
+  # Industry standard codes for the reliability of a meter read.
+  # Estimated and substituted reads must be reported to regulators (CRU/Ofgem)
+  # as a percentage of total reads — a key data quality metric.
+  - field: read_type
+    rule: lookup
+    lookup_values: [A, E, D, N]
+    severity: error
+    description: "Read type: A=Actual, E=Estimated, D=Data Substitution, N=Null. Required for CRU/Ofgem data quality reporting."
+
+  # ── CONSUMPTION ──────────────────────────────────────────────────────────────
+  # Residential meter: 0–200 kWh per half-hour period is generous but safe.
+  # Irish average is ~0.23 kWh per half-hour (11 kWh/day ÷ 48).
+  # For industrial/commercial meters, adjust max significantly (up to 50,000+).
+  - field: consumption_kwh
+    rule: range
+    min: 0.0
+    max: 200.0
+    severity: error
+    description: "Consumption for a residential meter must be between 0 and 200 kWh per half-hour period. Values above this threshold suggest a unit error or industrial meter — adjust max for your meter class."
+
+  # Negative consumption is physically possible for export meters (solar/wind).
+  # For supply-only meters, consumption must be >= 0.
+  # For meters that can export, change min to -200.
+  - field: consumption_kwh
+    rule: compare
+    compare_op: gte
+    compare_to: 0
+    severity: error
+    description: "Consumption cannot be negative for supply-only meters. For export meters, set min: -200 in the range rule."
+
+  # ── SETTLEMENT PERIOD ────────────────────────────────────────────────────────
+  # BSC settlement periods: 1–48 for standard days, 1–46 for BST change-back,
+  # 1–50 for BST change-forward. Upper bound 50 covers all cases.
+  - field: settlement_period
+    rule: range
+    min: 1
+    max: 50
+    severity: error
+    description: "Settlement period must be between 1 and 50. Standard days have 48 periods; clock-change days have 46 or 50."
+
+  # ── DATA SOURCE ──────────────────────────────────────────────────────────────
+  - field: data_source
+    rule: lookup
+    lookup_values: [SMETS1, SMETS2, AMR, MANUAL, HH, PREPAYMENT, ALF]
+    severity: error
+    description: "Data source identifies the metering technology. Required for settlement validation class assignment."
+
+  - field: supply_type
+    rule: lookup
+    lookup_values: [ELECTRICITY, GAS]
+    severity: error
+    description: "Supply type is required — electricity and gas settlement run on separate systems."
+
+  # ── DISTRIBUTION NETWORK ─────────────────────────────────────────────────────
+  - field: dno_code
+    rule: not_empty
+    severity: warning
+    description: "Distribution Network Operator code is required for loss factor application in settlement."
+
+  # ── QUALITY TRACKING ─────────────────────────────────────────────────────────
+  # Use the OpenDQV quality trend API to track your ratio of estimated vs
+  # actual reads over time. This is your CRU/Ofgem monthly reporting metric:
+  #   GET /api/v1/quality-trend/meter_reading
+  # Filter by rule: "read_type lookup" to see read type distribution over time.

@@ -1,0 +1,177 @@
+# =============================================================================
+# OpenDQV Manufacturing & Industrial IoT Starter Contract
+# =============================================================================
+# Purpose   : Sensor telemetry validation for factory floor and industrial IoT.
+#             Catches implausible readings before they enter process control,
+#             MES (Manufacturing Execution Systems), or historian databases.
+# Frameworks: OPC UA quality codes, ISO 9001 measurement system analysis
+# Deployment: Edge (preferred) or on-premise (see docs/core/deployment.md)
+# Version   : 1.0.0
+# =============================================================================
+#
+# OPERATIONAL STAKES: A sensor reading that bypasses validation and enters
+# a process control loop can trigger incorrect machine adjustments.
+# A temperature reading off by 10x (unit error: Celsius entered as Fahrenheit)
+# can halt a production line or — in safety-critical processes — trigger
+# emergency shutdown.
+#
+# DEPLOYMENT NOTE: This contract is designed for edge deployment.
+# OpenDQV can run on a small ARM device (Raspberry Pi 4, AWS Graviton)
+# co-located with the data acquisition system. No cloud connectivity
+# required after the contract is loaded.
+# See: docs/core/deployment.md (minimal/edge pattern)
+#
+# HOW TO USE:
+#   1. Load: POST /api/v1/contracts (name: "sensor_reading")
+#   2. Validate from your SCADA/MES integration:
+#      curl -X POST http://localhost:8000/api/v1/validate/sensor_reading \
+#           -d '{"asset_id":"PUMP-00142","sensor_type":"PRESSURE",...}'
+#   3. Sample records: examples/starter_contracts/sample_records/manufacturing.json
+
+name: sensor_reading
+version: "1.0.0"
+description: "Industrial sensor reading validation — physical plausibility, quality flags, asset identification"
+asset_id: "urn:opendqv:example:manufacturing:sensor_reading"
+
+rules:
+
+  # ── ASSET IDENTIFICATION ─────────────────────────────────────────────────────
+  # Asset tag format: 2–6 uppercase letters (asset class) + hyphen + 4–8 digits (serial).
+  # Examples: PUMP-00142, MTR-001, CONV-04892, FURN-0001
+  # Adapt the regex to match your asset naming convention.
+  - field: asset_id
+    rule: not_empty
+    severity: error
+    description: "Asset ID is mandatory — readings cannot be processed without knowing the source asset."
+
+  - field: asset_id
+    rule: regex
+    pattern: "^[A-Z]{2,6}-[0-9]{4,8}$"
+    severity: error
+    description: "Asset ID must follow the format PREFIX-SERIAL (e.g., PUMP-00142, CONV-04892)."
+
+  - field: line_id
+    rule: not_empty
+    severity: error
+    description: "Production line ID is required for routing to the correct process context."
+
+  - field: line_id
+    rule: max_length
+    max: 20
+    severity: error
+    description: "Line ID must not exceed 20 characters."
+
+  # ── SENSOR TYPE ──────────────────────────────────────────────────────────────
+  - field: sensor_type
+    rule: lookup
+    # Extend this list with your sensor types.
+    # OPC UA node class names used as a starting point.
+    lookup_values: [TEMPERATURE, PRESSURE, VIBRATION, FLOW, HUMIDITY,
+                    CURRENT, VOLTAGE, TORQUE, SPEED, POSITION, FORCE,
+                    LEVEL, PH, CONDUCTIVITY, WEIGHT, THICKNESS, OPACITY]
+    severity: error
+    description: "Sensor type must be a recognised measurement category."
+
+  # ── MEASUREMENT VALUE ────────────────────────────────────────────────────────
+  - field: reading_value
+    rule: not_empty
+    severity: error
+    description: "Reading value is mandatory."
+
+  # Temperature range: covers ambient (-40°C) through industrial furnace (1200°C).
+  # For narrower processes (e.g., cold chain: -25 to +8°C), create a separate
+  # contract or use required_if to apply tighter bounds for TEMPERATURE sensors.
+  - field: temperature_reading
+    rule: range
+    min: -40.0
+    max: 1200.0
+    severity: error
+    description: "Temperature reading must be between -40°C and 1200°C. Values outside this range are physically implausible for industrial sensors."
+
+  # Pressure range: 0 to 1000 bar covers most industrial applications.
+  # Adjust max for high-pressure hydraulics (up to 3000 bar) or low-pressure
+  # pneumatics (adjust min to -1 for vacuum).
+  - field: pressure_reading
+    rule: range
+    min: 0.0
+    max: 1000.0
+    severity: error
+    description: "Pressure reading must be between 0 and 1,000 bar."
+
+  # Current range: 0 to 1000 A covers most industrial motors and drives.
+  - field: current_reading
+    rule: range
+    min: 0.0
+    max: 1000.0
+    severity: warning
+    description: "Current reading must be between 0 and 1,000 amperes."
+
+  - field: reading_value
+    rule: cross_field_range
+    min_field: tolerance_low
+    max_field: tolerance_high
+    severity: error
+    description: "Reading must fall within the tolerance band for this part/process."
+
+  # ── ENGINEERING UNITS ────────────────────────────────────────────────────────
+  # Unit errors are among the most common and damaging data quality failures
+  # in manufacturing. Validate units explicitly.
+  - field: unit
+    rule: lookup
+    # SI and common industrial units. Extend as needed.
+    lookup_values: [degC, degF, K, bar, psi, kPa, MPa, Pa,
+                    mm_s, m_s2, Hz, rpm, L_min, m3_h, kg_s,
+                    pct_RH, A, V, kW, W, Nm, N, kg, g, mm, m,
+                    pH, mS_cm, ppm, ppb, lux, dB]
+    severity: error
+    description: "Engineering unit must be a recognised symbol. This prevents unit confusion errors (e.g., Celsius entered as Fahrenheit)."
+
+  # ── TIMESTAMP ────────────────────────────────────────────────────────────────
+  - field: timestamp
+    rule: not_empty
+    severity: error
+    description: "Timestamp is mandatory for time-series data."
+
+  - field: timestamp
+    rule: regex
+    # ISO 8601 datetime with timezone
+    pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+    severity: error
+    description: "Timestamp must be ISO 8601 datetime with timezone (e.g., 2026-03-09T14:30:00.000Z)."
+
+  - field: timestamp
+    rule: compare
+    compare_op: lte
+    compare_to: now
+    severity: error
+    description: "Sensor timestamp cannot be in the future."
+
+  # ── OPC UA QUALITY FLAGS ─────────────────────────────────────────────────────
+  # OPC UA defines a quality code for every data point indicating the
+  # reliability of the reading. Always validate quality_flag before
+  # using a reading in process control or analytics.
+  - field: quality_flag
+    rule: lookup
+    # OPC UA Part 8 quality codes (simplified)
+    lookup_values: [GOOD, BAD, UNCERTAIN, SUBSTITUTED, CALCULATED,
+                    SENSOR_FAILURE, COMM_FAILURE, OUT_OF_RANGE,
+                    CONFIGURATION_ERROR, NOT_CONNECTED]
+    severity: error
+    description: "OPC UA quality flag must be set. Readings with BAD or SENSOR_FAILURE quality should not be used in process control."
+
+  # Rule: reject readings with BAD quality before they enter downstream systems.
+  # Using required_if as a workaround: if quality_flag is BAD, require a
+  # reason_code field to be present (forces explicit acknowledgement).
+  - field: reason_code
+    rule: required_if
+    when_field: quality_flag
+    when_value: BAD
+    severity: error
+    description: "A reason code is required when quality flag is BAD (e.g., SENSOR_OFFLINE, MAINTENANCE, CALIBRATION)."
+
+  # ── SHIFT / BATCH CONTEXT ────────────────────────────────────────────────────
+  - field: shift_code
+    rule: lookup
+    lookup_values: [MORNING, AFTERNOON, NIGHT, DAY, MAINTENANCE]
+    severity: warning
+    description: "Shift code enables aggregate quality analysis per production shift."

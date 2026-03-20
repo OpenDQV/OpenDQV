@@ -1,0 +1,193 @@
+# OpenDQV
+
+> Open Data Quality Validation Service — validates records against named contracts at write-time and blocks bad data before it reaches your database, API, or Kafka topic.
+
+## What it does
+
+OpenDQV validates data records against YAML contracts and returns structured, field-level errors. Record field values are never stored or logged. Validation metadata (rule names, failure counts, contract version) is written to an optional hash-chained audit log. Source systems call the API before writing; bad records are rejected with per-field error details; good records pass through.
+
+One API. Every caller. No SDK needed in every system. Contracts are YAML updated centrally — all callers benefit immediately.
+
+## When to use it
+
+- Before any database write
+- Before any API write
+- In Kafka consumers, before committing the offset — bad records route to a dead-letter topic
+- In Airflow / Prefect / Dagster, as a pre-load task gate
+- In AI agent pipelines, to prevent bad LLM-generated data from corrupting systems of record
+- When you need field-level audit evidence (contract hash in every response)
+- In scripts and ETL jobs that have no API server — use `LocalValidator` (no Docker, no network, pure Python)
+
+## How to call it — two modes
+
+**Mode 1: HTTP API (all callers, all languages)**
+
+Requires a running OpenDQV API server. One API serves Salesforce Apex, Python, Node.js, Power Automate, etc. simultaneously.
+
+**Mode 2: LocalValidator (Python only, no server)**
+
+Runs the full validation engine in-process. Zero network dependency. Useful for CI tests, ETL scripts, Pandas DataFrames, and edge deployments.
+
+```python
+from sdk.local import LocalValidator
+
+validator = LocalValidator()  # reads OPENDQV_CONTRACTS_DIR or ./contracts/
+result = validator.validate({"email": "alice@example.com", "age": 25}, contract="customer")
+
+# Batch — works directly with DataFrames
+import pandas as pd
+df = pd.read_csv("data.csv")
+result = validator.validate_batch(df.to_dict("records"), contract="customer")
+```
+
+## How to call it (HTTP — no SDK required)
+
+```bash
+# Validate a single record
+curl -X POST http://localhost:8000/api/v1/validate \
+  -H "Content-Type: application/json" \
+  -d '{"contract": "customer", "record": {"email": "alice@example.com", "age": 25}}'
+# → {"valid": true, "errors": [], "contract": "customer", "version": "1.0", "contract_hash": "sha256:..."}
+
+# Validate a batch
+curl -X POST http://localhost:8000/api/v1/validate/batch \
+  -H "Content-Type: application/json" \
+  -d '{"contract": "customer", "records": [{...}, {...}]}'
+# → {"summary": {"total": 2, "passed": 1, "failed": 1}, "results": [...]}
+
+# Discover available contracts
+curl http://localhost:8000/api/v1/contracts
+# → [{name, version, status, rule_count, owner, asset_id, contract_hash}, ...]
+
+# Understand why a rule failed and how to fix it
+curl http://localhost:8000/api/v1/contracts/customer/explain/email/email_format
+# → {"explanation": "...", "valid_examples": [...], "invalid_examples": [...]}
+```
+
+## MCP server (for AI agents — Claude Desktop, Cursor, any MCP client)
+
+An MCP server is available. It gives agents native access to all OpenDQV tools without writing HTTP code.
+
+```bash
+pip install opendqv[mcp]
+python mcp_server.py
+```
+
+Claude Desktop config (`~/.claude/claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "opendqv": {
+      "command": "python",
+      "args": ["/path/to/OpenDQV/mcp_server.py"],
+      "env": {"OPENDQV_AGENT_IDENTITY": "your.email@example.com"}
+    }
+  }
+}
+```
+
+MCP tools exposed: `validate_record`, `validate_batch`, `list_contracts`, `get_contract`, `explain_error`, `create_contract_draft`
+
+Agents can bootstrap new contracts via `create_contract_draft` when no matching contract exists. Names must start with `MCP_`. Drafts are testable immediately and require human approval before going ACTIVE.
+
+**Enterprise / remote mode:** Set `OPENDQV_MCP_API_URL=https://opendqv.internal.company.com` (and optionally `OPENDQV_MCP_TOKEN`) in the Claude Desktop env config to proxy all MCP tool calls through the central API. All validation events become visible in the monitoring UI. Without this, MCP operates self-contained (local filesystem only) and events are not visible in the UI.
+
+Full guide: `docs/llm_integration.md`
+
+## Validation response shape
+
+Single record:
+```json
+{"valid": false, "errors": [{"field": "email", "rule": "email_format", "message": "...", "severity": "error"}], "contract": "customer", "version": "1.0", "contract_hash": "sha256:..."}
+```
+
+Batch:
+```json
+{"summary": {"total": 3, "passed": 2, "failed": 1}, "results": [{"index": 0, "valid": true, "errors": []}, ...]}
+```
+
+MCP responses add `governance_tip` (always) and `draft_notice` (only for DRAFT contracts).
+
+## Rule types
+
+`not_empty`, `regex`, `min`, `max`, `range`, `min_length`, `max_length`, `date_format`, `unique` (batch), `min_age`, `max_age`, `compare` (cross-field), `required_if` (conditional), `lookup` (file or HTTP reference list), `checksum`, `cross_field_range`, `field_sum`, `forbidden_if`, `conditional_value`, `date_diff`, `ratio_check`, `conditional_lookup`, `geospatial_bounds`, `age_match`
+
+## Ecosystem position
+
+OpenDQV is the **write-time** layer. It blocks records before they enter any system. It complements — not replaces — the tools that operate later:
+
+| Moment | Tool |
+|--------|------|
+| At write (milliseconds) | OpenDQV |
+| At pipeline (minutes) | Great Expectations, Soda Core |
+| At rest (continuous) | Monte Carlo |
+| Orchestration gate | Airflow, Prefect, Dagster |
+| Streaming gate | Kafka (validate before committing offset) |
+| Warehouse gate | Snowflake (Python connector, External Function, Snowpipe) |
+| Lakehouse gate | Databricks / Spark (Delta Lake, Structured Streaming, DLT) |
+| Governance catalog | Collibra, DataHub, Atlan, OpenMetadata |
+
+## Integration guides
+
+- `docs/llm_integration.md` — Claude tool use, LangChain, MCP, error remediation loop, security
+- `docs/kafka_integration.md` — validate before offset commit; dead-letter topic; async batch
+- `docs/snowflake_integration.md` — Python connector; Snowpipe; External Function (`opendqv_validate`); Streams & Tasks; local simulation with DuckDB
+- `docs/databricks_integration.md` — Auto Loader; Delta Live Tables; Jobs/Asset Bundles gate; Unity Catalog; local simulation with PySpark
+- `docs/spark_integration.md` — generic Spark: EMR, Dataproc, HDInsight; Delta Lake batch; Structured Streaming foreachBatch
+- `docs/postgres_integration.md` — validate-before-INSERT; Docker local dev; quarantine table; psycopg2
+- `docs/pandas_integration.md` — df.to_dict('records') pattern; annotate with _opendqv_valid; chunked validation
+- `docs/orchestrator_integration.md` — Airflow, Prefect, Dagster pre-load gate
+- `docs/gx_integration.md` — Great Expectations: import/export; two-layer enforcement
+- `docs/soda_integration.md` — Soda Core: import checks.yml; pre-pipeline gate
+- `docs/montecarlo_integration.md` — trace log shipping; webhook correlation; asset_id bridge
+- `docs/dbt_integration.md` — bidirectional import/export with dbt schema.yml
+- `docs/collibra_integration.md` — contract metadata sync; DQ scores; workflow triggers
+- `docs/purview_integration.md` — Azure Purview; custom attributes; Event Hub webhook
+- `docs/datahub_integration.md` — sync contracts to DataHub via Python SDK
+- `docs/atlan_integration.md` — sync contracts to Atlan
+- `docs/openmetadata_integration.md` — sync contracts to OpenMetadata
+- `docs/importers.md` — import from GX, dbt, Soda, CSV, ODCS, CSVW, OTel, NDC
+- `docs/webhooks.md` — webhook events (`opendqv.validation.failed`, `opendqv.validation.warning`, `opendqv.batch.failed`); payload schema
+
+## Key concepts for agents
+
+- `asset_id` — optional field linking a contract to a catalog asset (DataHub URN, Atlan qualifiedName, Collibra `community/domain/name`, dbt model ref, Kafka topic). Free-form; use your catalog's native format.
+- `contract_hash` — SHA-256 of the exact ruleset used. Echo it alongside records for point-in-time audit. Use it to skip catalog syncs when a contract has not changed.
+- `trace_id` — pass via `X-Trace-Id` header or query param; echoed in response headers and trace log. Use your orchestrator run ID, Kafka offset, or request ID for end-to-end correlation.
+- `severity: error` — blocks the write (returns 422). `severity: warning` — passes but appears in `warnings` array.
+- `status` — `draft` (testable, not production), `review` (pending approval), `active` (production-ready).
+
+## Contract authoring (YAML)
+
+```yaml
+contract:
+  name: customer
+  version: "1.0"
+  description: "Customer master data quality contract"
+  owner: "Data Governance Team"
+  asset_id: "urn:opendqv:acme:customer:1.0"
+  rules:
+    - name: email_valid
+      type: regex
+      field: email
+      pattern: "^[^@]+@[^@]+\\.[^@]+$"
+      error_message: "Must be a valid email address"
+      severity: error
+    - name: age_range
+      type: range
+      field: age
+      min: 0
+      max: 120
+      severity: error
+```
+
+## OpenAPI spec
+
+`GET /openapi.json` when the server is running. The spec is generated dynamically by FastAPI — always accurate, never stale. No static file in the repo.
+
+## Links
+
+- GitHub: https://github.com/OpenDQV/OpenDQV
+- Quickstart: `docs/quickstart.md`
+- Full docs index: `docs/index.md`
+- Roadmap: `docs/roadmap.md`

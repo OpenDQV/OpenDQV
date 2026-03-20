@@ -1,0 +1,4 @@
+# CVE-2024-23342: timing attack in the `ecdsa` package (transitive dep of python-jose).
+# No upstream fix exists. At runtime python-jose[cryptography] routes all ECDSA operations
+# through the `cryptography` package — ecdsa is installed but never called.
+CVE-2024-23342

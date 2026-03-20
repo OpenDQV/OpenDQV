@@ -1,0 +1,63 @@
+contract:
+  name: banking_transaction
+  version: "1.0"
+  description: "Banking transaction record validation"
+  owner: "Payments Data Team"
+  status: active
+
+  rules:
+    - name: transaction_id_required
+      field: transaction_id
+      type: not_empty
+      severity: error
+      error_message: "transaction_id is required"
+
+    - name: account_number_required
+      field: account_number
+      type: not_empty
+      severity: error
+      error_message: "account_number is required"
+
+    - name: transaction_date_format
+      field: transaction_date
+      type: date_format
+      severity: error
+      error_message: "transaction_date must be a valid date (YYYY-MM-DD)"
+
+    - name: amount_min
+      field: amount
+      type: min
+      min: 0.01
+      severity: error
+      error_message: "amount must be > 0"
+
+    - name: currency_required
+      field: currency
+      type: not_empty
+      severity: error
+      error_message: "currency is required"
+
+    - name: currency_format
+      field: currency
+      type: regex
+      pattern: '^[A-Z]{3}$'
+      severity: error
+      error_message: "currency must be a 3-letter ISO 4217 code (e.g. GBP, USD)"
+
+    - name: transaction_type_required
+      field: transaction_type
+      type: not_empty
+      severity: error
+      error_message: "transaction_type is required"
+
+    - name: merchant_id_required
+      field: merchant_id
+      type: not_empty
+      severity: warning
+      error_message: "merchant_id should be provided for card transactions"
+
+    - name: channel_required
+      field: channel
+      type: not_empty
+      severity: error
+      error_message: "channel is required"

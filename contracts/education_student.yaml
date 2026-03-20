@@ -1,0 +1,64 @@
+contract:
+  name: education_student
+  version: "1.0"
+  description: "Education student record validation"
+  owner: "Student Data Team"
+  status: active
+
+  rules:
+    - name: student_id_required
+      field: student_id
+      type: not_empty
+      severity: error
+      error_message: "student_id is required"
+
+    - name: first_name_required
+      field: first_name
+      type: not_empty
+      severity: error
+      error_message: "first_name is required"
+
+    - name: last_name_required
+      field: last_name
+      type: not_empty
+      severity: error
+      error_message: "last_name is required"
+
+    - name: email_required
+      field: email
+      type: not_empty
+      severity: error
+      error_message: "email is required"
+
+    - name: email_format
+      field: email
+      type: regex
+      pattern: '^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+      severity: error
+      error_message: "email must be a valid email address"
+
+    - name: date_of_birth_format
+      field: date_of_birth
+      type: date_format
+      severity: error
+      error_message: "date_of_birth must be a valid date (YYYY-MM-DD)"
+
+    - name: course_code_required
+      field: course_code
+      type: not_empty
+      severity: error
+      error_message: "course_code is required"
+
+    - name: enrollment_date_format
+      field: enrollment_date
+      type: date_format
+      severity: error
+      error_message: "enrollment_date must be a valid date (YYYY-MM-DD)"
+
+    - name: gpa_range
+      field: gpa
+      type: range
+      min: 0
+      max: 4
+      severity: error
+      error_message: "gpa must be between 0 and 4"

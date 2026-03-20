@@ -1,0 +1,178 @@
+# BFSI Customer Data Quality Contract
+#
+# Regulatory context:
+#   - BCBS 239: Requires accurate, complete, and timely risk data aggregation.
+#     Demographic plausibility is a baseline data integrity control.
+#   - FCA Consumer Duty (PS22/9): Firms must understand and verify customer
+#     information to deliver appropriate outcomes and prevent harm.
+#   - AML lookback / CDD refresh: Anti-Money Laundering regulations (MLR 2017,
+#     JMLSG guidance) require periodic re-verification of customer identity.
+#     Placeholder or sentinel dates of birth (e.g. 1900-01-01) are a known
+#     indicator of incomplete CDD records and must be flagged before submission
+#     to risk or compliance systems.
+#
+# Field coverage: account_number, full_name, email, phone, date_of_birth,
+#                 postcode, ni_number
+#
+# Contexts:
+#   retail_kyc      — Production KYC pipeline; all failures block onboarding.
+#   internal_review — Data-quality monitoring; failures raise warnings only.
+
+contract:
+  name: bfsi_customer
+  version: "1.0"
+  description: >
+    BFSI-specific customer data quality rules for UK regulated financial services.
+    Enforces demographic plausibility controls required under BCBS 239 (risk data
+    aggregation), FCA Consumer Duty (PS22/9), and AML / CDD lookback programmes.
+    Sentinel placeholder dates of birth are explicitly rejected to prevent known
+    bad data from propagating into risk and compliance systems.
+  owner: "Data Governance Team"
+  status: active
+
+  rules:
+    - name: account_number_required
+      description: Account number must not be empty
+      type: not_empty
+      field: account_number
+      severity: error
+      error_message: "Account number is required"
+
+    - name: full_name_required
+      description: Full name must not be empty
+      type: not_empty
+      field: full_name
+      severity: error
+      error_message: "Full name is required"
+
+    - name: valid_email
+      description: Email must be a valid format
+      type: regex
+      field: email
+      pattern: "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$"
+      severity: error
+      error_message: "Invalid email format"
+
+    - name: valid_phone
+      description: Phone must be in E.164 format (international dialling)
+      type: regex
+      field: phone
+      pattern: "^\\+?[1-9]\\d{1,14}$"
+      severity: error
+      error_message: "Invalid phone number format — expected E.164 (e.g. +447911123456)"
+
+    - name: dob_not_empty
+      description: Date of birth must not be empty
+      type: not_empty
+      field: date_of_birth
+      severity: error
+      error_message: "Date of birth is required"
+
+    - name: dob_format
+      description: Date of birth must be in YYYY-MM-DD format
+      type: date_format
+      field: date_of_birth
+      format: "YYYY-MM-DD"
+      severity: error
+      error_message: "Date of birth must be in YYYY-MM-DD format"
+
+    - name: dob_min_age
+      description: Date of birth must not be in the future (minimum age = 0 years)
+      type: date_format
+      field: date_of_birth
+      format: "YYYY-MM-DD"
+      min_age: 0
+      severity: error
+      error_message: "Date of birth cannot be a future date"
+
+    - name: dob_max_age
+      description: Date of birth must yield an age of no more than 120 years
+      type: date_format
+      field: date_of_birth
+      format: "YYYY-MM-DD"
+      max_age: 120
+      severity: error
+      error_message: "Date of birth implies an age exceeding 120 years — likely a data error"
+
+    - name: dob_plausible_year
+      description: >
+        Date of birth must be a plausible modern date (year 1905-2099) in
+        YYYY-MM-DD format. This rule REJECTS known sentinel/placeholder dates
+        such as 1900-01-01, 1800-01-01, and 0001-01-01 that are commonly
+        inserted when the true date of birth is unknown. Any record carrying
+        such a value must be quarantined for CDD remediation before onboarding
+        or AML lookback submission.
+        NOTE: The upper bound covers the full 21st century (to 2099). The
+        dob_max_age rule independently enforces a 120-year age ceiling using
+        calendar arithmetic — it does not need to be updated annually.
+      type: regex
+      field: date_of_birth
+      # Pattern matches years 1905-2099. Sentinel years (0001, 1800, 1900,
+      # etc.) do not match, causing the rule to fail — flagging the record.
+      # Upper bound is the full 21st century; dob_max_age handles age enforcement.
+      pattern: "^(19[0-9][5-9]|19[1-9][0-9]|20[0-9][0-9])-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+      severity: error
+      error_message: "Date of birth is outside the plausible range (1905-2099) or is a known sentinel/placeholder value — CDD remediation required"
+
+    - name: valid_uk_postcode
+      description: Postcode must not be empty and must match the UK postcode format
+      type: regex
+      field: postcode
+      # Covers standard UK postcode formats: AN NAA, ANN NAA, AAN NAA,
+      # AANN NAA, ANA NAA, AANA NAA (space optional, case-insensitive stored
+      # as uppercase after normalisation).
+      pattern: "^[A-Z]{1,2}[0-9][0-9A-Z]?\\s?[0-9][A-Z]{2}$"
+      severity: error
+      error_message: "Invalid UK postcode format (e.g. SW1A 1AA)"
+
+    - name: valid_ni_number
+      description: National Insurance number must match the HMRC-defined format
+      type: regex
+      field: ni_number
+      # HMRC format: two letters, six digits, one letter (A-D).
+      # Prefixes D, F, I, Q, U, V and second-letter O are disallowed by HMRC.
+      # This pattern enforces the structural rule; a stricter prefix exclusion
+      # can be layered on via a custom rule in the retail_kyc context.
+      pattern: "^[A-CEGHJ-PR-TW-Z]{1}[A-CEGHJ-NPR-TW-Z]{1}[0-9]{6}[A-D]{1}$"
+      severity: error
+      error_message: "Invalid UK National Insurance number format (e.g. AB123456C)"
+
+  contexts:
+    retail_kyc:
+      # Stricter context: used by the live KYC onboarding pipeline.
+      # All plausibility failures block customer onboarding (severity: error).
+      date_of_birth:
+        type: regex
+        pattern: "^(19[0-9][5-9]|19[1-9][0-9]|20[0-9][0-9])-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+        severity: error
+        error_message: "DOB fails plausibility check in retail KYC context — record blocked pending CDD remediation"
+      ni_number:
+        type: regex
+        pattern: "^[A-CEGHJ-PR-TW-Z]{1}[A-CEGHJ-NPR-TW-Z]{1}[0-9]{6}[A-D]{1}$"
+        severity: error
+        error_message: "NI number is required and must be valid for retail KYC onboarding"
+      postcode:
+        type: regex
+        pattern: "^[A-Z]{1,2}[0-9][0-9A-Z]?\\s?[0-9][A-Z]{2}$"
+        severity: error
+        error_message: "Valid UK postcode is required for retail KYC onboarding"
+
+    internal_review:
+      # Relaxed context: used by data-quality monitoring and AML lookback
+      # triage dashboards. Failures raise warnings only so analysts can
+      # investigate without blocking upstream processes.
+      date_of_birth:
+        type: regex
+        pattern: "^(19[0-9][5-9]|19[1-9][0-9]|20[0-9][0-9])-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+        severity: warning
+        error_message: "DOB may be a sentinel/placeholder value — flag for CDD review"
+      ni_number:
+        type: regex
+        pattern: "^[A-CEGHJ-PR-TW-Z]{1}[A-CEGHJ-NPR-TW-Z]{1}[0-9]{6}[A-D]{1}$"
+        severity: warning
+        error_message: "NI number format issue detected — review recommended"
+      postcode:
+        type: regex
+        pattern: "^[A-Z]{1,2}[0-9][0-9A-Z]?\\s?[0-9][A-Z]{2}$"
+        severity: warning
+        error_message: "Postcode format issue detected — review recommended"

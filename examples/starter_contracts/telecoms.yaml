@@ -1,0 +1,150 @@
+# =============================================================================
+# OpenDQV Telecoms Starter Contract
+# =============================================================================
+# Purpose   : Call Detail Record (CDR) validation for mobile and fixed-line
+#             network operators. Revenue assurance and regulatory compliance.
+# Frameworks: GSMA CDR standard, Ofcom reporting requirements, ITU-T E.164
+# Deployment: On-premise or cloud (see docs/core/deployment.md)
+# Version   : 1.0.0
+# =============================================================================
+#
+# REVENUE STAKES: A 0.01% CDR error rate on 100M records/day = 10,000 billing
+# errors daily. Unbilled calls, duplicate charges, and roaming disputes all
+# originate in CDR data quality failures.
+#
+# REGULATORY STAKES: Ofcom (UK), ANACOM (Portugal), ComReg (Ireland), and
+# most national regulators require CDR data to be accurate for lawful
+# intercept, fraud investigation, and traffic analysis obligations.
+#
+# HOW TO USE:
+#   1. Load: POST /api/v1/contracts (name: "cdr_record")
+#   2. Validate: POST /api/v1/validate/cdr_record
+#   3. Batch (large files): POST /api/v1/validate/batch with array of records
+#      For Parquet/CSV files, see roadmap T3 — file-based batch endpoint.
+#   4. Sample records: examples/starter_contracts/sample_records/telecoms.json
+
+name: cdr_record
+version: "1.0.0"
+description: "Call Detail Record validation — number formats, duration, charge, classification"
+asset_id: "urn:opendqv:example:telecoms:cdr_record"
+
+rules:
+
+  # ── NUMBER FORMATS ──────────────────────────────────────────────────────────
+  # E.164 international number format: + followed by country code and subscriber
+  # number, total 8–15 digits. No spaces, dashes, or brackets.
+  # Examples: +447911123456 (UK mobile), +2348012345678 (Nigeria mobile)
+  - field: calling_number
+    rule: not_empty
+    severity: error
+    description: "Calling number is mandatory for all CDR records."
+
+  - field: calling_number
+    rule: regex
+    pattern: "^\\+[1-9][0-9]{7,14}$"
+    severity: error
+    description: "Calling number must be in E.164 format (+[country code][number])."
+
+  - field: called_number
+    rule: not_empty
+    severity: error
+    description: "Called number is mandatory."
+
+  - field: called_number
+    rule: regex
+    pattern: "^\\+[1-9][0-9]{7,14}$"
+    severity: error
+    description: "Called number must be in E.164 format."
+
+  # ── TIMING ──────────────────────────────────────────────────────────────────
+  - field: call_start_time
+    rule: not_empty
+    severity: error
+    description: "Call start time is mandatory — revenue and regulatory obligation."
+
+  - field: call_start_time
+    rule: regex
+    # ISO 8601 datetime with timezone: 2026-03-09T14:30:00Z or +01:00
+    pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
+    severity: error
+    description: "Call start time must be ISO 8601 datetime with timezone."
+
+  - field: call_start_time
+    rule: compare
+    compare_op: lte
+    compare_to: now
+    severity: error
+    description: "Call start time cannot be in the future."
+
+  - field: duration_seconds
+    rule: not_empty
+    severity: error
+    description: "Call duration is required."
+
+  - field: duration_seconds
+    rule: range
+    min: 0
+    # 86400 = 24 hours. Calls longer than this are data errors.
+    max: 86400
+    severity: error
+    description: "Call duration must be between 0 and 86,400 seconds (24 hours)."
+
+  # ── CALL CLASSIFICATION ──────────────────────────────────────────────────────
+  - field: call_type
+    rule: lookup
+    # GSMA CDR call type classifications
+    lookup_values: [VOICE, SMS, DATA, MMS, ROAMING_VOICE, ROAMING_DATA,
+                    ROAMING_SMS, VOICEMAIL, CONFERENCE, PREMIUM_RATE,
+                    INTERNATIONAL, EMERGENCY]
+    severity: error
+    description: "Call type must be a GSMA-defined CDR classification."
+
+  - field: record_type
+    rule: lookup
+    # CDR record perspective: who generated the record
+    lookup_values: [ORIGINATING, TERMINATING, TRANSIT, FORWARDED, ROAMING_VISITOR]
+    severity: error
+    description: "Record type indicates the network node's perspective on the call."
+
+  # ── NETWORK IDENTIFICATION ───────────────────────────────────────────────────
+  # MCC-MNC (Mobile Country Code - Mobile Network Code)
+  # MCC: 3 digits. MNC: 2 or 3 digits.
+  # Examples: 234-20 (UK Three), 621-30 (Nigeria MTN)
+  - field: network_code
+    rule: regex
+    pattern: "^[0-9]{3}-[0-9]{2,3}$"
+    severity: error
+    description: "Network code must be MCC-MNC format (e.g., 234-20 for UK Three)."
+
+  - field: serving_cell_id
+    rule: not_empty
+    severity: warning
+    description: "Serving cell ID required for network analysis and regulatory reporting."
+
+  # ── CHARGING ────────────────────────────────────────────────────────────────
+  - field: charge_amount
+    rule: range
+    min: 0
+    # 1000 in local currency units. Adjust max for your pricing model.
+    # Values above this threshold likely indicate a unit error or fraud.
+    max: 1000
+    severity: warning
+    description: "Charge amount should be between 0 and 1,000 currency units. High values require review."
+
+  - field: charge_currency
+    rule: lookup
+    lookup_values: [USD, EUR, GBP, NGN, KES, GHS, ZAR, INR, JPY, CNY, BRL, SEK]
+    severity: error
+    description: "Charge currency must be a supported ISO 4217 code."
+
+  # ── QUALITY INDICATORS ───────────────────────────────────────────────────────
+  - field: data_completeness_flag
+    rule: lookup
+    # Indicates whether the CDR is a complete record or a partial reconstruction
+    lookup_values: [COMPLETE, PARTIAL, RECONSTRUCTED, ESTIMATED]
+    severity: warning
+    description: "Data completeness flag indicates CDR record reliability."
+
+  # For Ofcom regulatory reporting: CDRs with PARTIAL or RECONSTRUCTED flags
+  # must be reported separately. Use the quality trend API to track the ratio
+  # of non-COMPLETE records over time as your Ofcom compliance metric.

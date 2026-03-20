@@ -1,0 +1,145 @@
+contract:
+  name: customer
+  version: "1.0"
+  description: Standard customer data quality validation
+  owner: Data Governance Team
+  status: active
+  asset_id: urn:opendqv:customer
+  rules:
+  - name: valid_email
+    description: ''
+    type: regex
+    field: email
+    severity: error
+    error_message: Invalid email format
+    inherited: false
+    negate: false
+    all_of: false
+  - name: age_minimum
+    description: Age must be at least 0
+    type: min
+    field: age
+    min: 0.0
+    severity: error
+    error_message: Age cannot be negative
+    inherited: false
+    negate: false
+    all_of: false
+  - name: age_reasonable
+    description: Age should be under 150
+    type: max
+    field: age
+    max: 150.0
+    severity: warning
+    error_message: Age seems unreasonably high
+    inherited: false
+    negate: false
+    all_of: false
+  - name: unique_id
+    description: Customer ID must be unique within batch
+    type: unique
+    field: id
+    severity: error
+    error_message: Duplicate customer ID
+    inherited: false
+    negate: false
+    all_of: false
+  - name: positive_balance
+    description: Balance should not be negative
+    type: min
+    field: balance
+    min: 0.0
+    severity: warning
+    error_message: Negative balance detected
+    inherited: false
+    negate: false
+    all_of: false
+  - name: valid_phone
+    description: Phone must be E.164 format
+    type: regex
+    field: phone
+    pattern: ^\+?[1-9]\d{1,14}$
+    severity: error
+    error_message: Invalid phone number format
+    inherited: false
+    negate: false
+    all_of: false
+  - name: name_required
+    description: Name must not be empty
+    type: not_empty
+    field: name
+    severity: error
+    error_message: Customer name is required
+    inherited: false
+    negate: false
+    all_of: false
+  - name: score_range
+    description: Score must be between 0 and 100
+    type: range
+    field: score
+    min: 0.0
+    max: 100.0
+    severity: error
+    error_message: Score must be between 0 and 100
+    inherited: false
+    negate: false
+    all_of: false
+  - name: valid_date
+    description: Date must be valid format
+    type: date_format
+    field: date
+    format: YYYY-MM-DD
+    severity: error
+    error_message: Invalid date format
+    inherited: false
+    negate: false
+    all_of: false
+  - name: username_format
+    description: Username must be alphanumeric/underscore only
+    type: regex
+    field: username
+    pattern: ^[a-zA-Z0-9_]+$
+    severity: error
+    error_message: Username contains invalid characters
+    inherited: false
+    negate: false
+    all_of: false
+  - name: password_length
+    description: Password must be at least 8 characters
+    type: min_length
+    field: password
+    min_length: 8
+    severity: error
+    error_message: Password must be at least 8 characters
+    inherited: false
+    negate: false
+    all_of: false
+  - name: loyalty_tier_valid
+    description: loyalty_tier must be a recognised tier value when provided
+    type: lookup
+    field: loyalty_tier
+    lookup_file: ref/loyalty_tiers.txt
+    severity: error
+    error_message: "loyalty_tier must be one of: gold, silver, bronze, standard"
+    inherited: false
+    negate: false
+    all_of: false
+  contexts:
+    kids_app:
+      age:
+        type: range
+        min: 5
+        max: 17
+        severity: error
+        error_message: Age must be 5-17 for kids app
+    financial:
+      age:
+        type: min
+        min: 18
+        severity: error
+        error_message: Must be 18+ for financial products
+      balance:
+        type: min
+        min: 0
+        severity: error
+        error_message: Balance must be non-negative for financial accounts

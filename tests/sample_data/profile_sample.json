@@ -1,0 +1,22 @@
+[
+  {"id": 1, "email": "alice@example.com", "name": "Alice Johnson", "age": 28, "score": 85.5, "signup_date": "2024-01-15", "phone": "+12025551001", "status": "active"},
+  {"id": 2, "email": "bob@example.com", "name": "Bob Smith", "age": 34, "score": 72.3, "signup_date": "2024-02-20", "phone": "+12025551002", "status": "active"},
+  {"id": 3, "email": "carol@example.com", "name": "Carol Davis", "age": 45, "score": 91.0, "signup_date": "2024-03-10", "phone": "+12025551003", "status": "inactive"},
+  {"id": 4, "email": "dave@example.com", "name": "Dave Wilson", "age": 22, "score": 68.7, "signup_date": "2024-03-22", "phone": null, "status": "pending"},
+  {"id": 5, "email": "eve@example.com", "name": "Eve Brown", "age": 51, "score": 95.2, "signup_date": "2024-04-05", "phone": "+12025551005", "status": "active"},
+  {"id": 6, "email": "frank@example.com", "name": null, "age": 29, "score": 43.8, "signup_date": "2024-04-18", "phone": "+12025551006", "status": "inactive"},
+  {"id": 7, "email": "grace@example.com", "name": "Grace Lee", "age": 38, "score": 77.1, "signup_date": "2024-05-01", "phone": "+12025551007", "status": "active"},
+  {"id": 8, "email": "hank@example.com", "name": "Hank Miller", "age": 62, "score": 55.9, "signup_date": "2024-05-14", "phone": null, "status": "pending"},
+  {"id": 9, "email": "iris@example.com", "name": "Iris Chen", "age": 19, "score": 88.4, "signup_date": "2024-06-02", "phone": "+12025551009", "status": "active"},
+  {"id": 10, "email": "jack@example.com", "name": "Jack Taylor", "age": 41, "score": 62.0, "signup_date": "2024-06-19", "phone": "+12025551010", "status": "inactive"},
+  {"id": 11, "email": "kate@example.com", "name": "Kate Anderson", "age": 33, "score": 79.6, "signup_date": "2024-07-03", "phone": "+12025551011", "status": "active"},
+  {"id": 12, "email": "leo@example.com", "name": "Leo Thomas", "age": 27, "score": 91.3, "signup_date": "2024-07-21", "phone": "+12025551012", "status": "active"},
+  {"id": 13, "email": "mia@example.com", "name": "Mia Jackson", "age": 55, "score": 34.2, "signup_date": "2024-08-08", "phone": "+12025551013", "status": "pending"},
+  {"id": 14, "email": "nick@example.com", "name": "Nick White", "age": 48, "score": 70.8, "signup_date": "2024-08-25", "phone": "+12025551014", "status": "inactive"},
+  {"id": 15, "email": "olivia@example.com", "name": "Olivia Harris", "age": 24, "score": 96.1, "signup_date": "2024-09-09", "phone": "+12025551015", "status": "active"},
+  {"id": 16, "email": "paul@example.com", "name": "Paul Martin", "age": 67, "score": 48.5, "signup_date": "2024-09-28", "phone": null, "status": "active"},
+  {"id": 17, "email": "quinn@example.com", "name": "Quinn Garcia", "age": 31, "score": 82.7, "signup_date": "2024-10-12", "phone": "+12025551017", "status": "inactive"},
+  {"id": 18, "email": "rachel@example.com", "name": "Rachel Lopez", "age": 43, "score": 59.3, "signup_date": "2024-10-30", "phone": "+12025551018", "status": "pending"},
+  {"id": 19, "email": "sam@example.com", "name": "Sam Robinson", "age": 75, "score": 0.5, "signup_date": "2024-11-15", "phone": "+12025551019", "status": "active"},
+  {"id": 20, "email": "tina@example.com", "name": "Tina Clark", "age": 18, "score": 100.0, "signup_date": "2024-12-01", "phone": "+12025551020", "status": "active"}
+]

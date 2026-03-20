@@ -1,0 +1,53 @@
+[
+  {
+    "_comment": "Record 1 — PASS: valid adult (dob=2001-03-14, age 25), fully verified via document check",
+    "user_id": "USR-00001",
+    "age": 25,
+    "dob": "2001-03-14",
+    "verified_identity": "TRUE",
+    "verification_method": "DOCUMENT_CHECK",
+    "verification_timestamp": "2026-03-10T09:15:00Z"
+  },
+  {
+    "_comment": "Record 2 — PASS: valid teen (dob=2009-11-22, age 16), verified via facial age estimation (most realistic method for smartphone-based registration)",
+    "user_id": "USR-00002",
+    "age": 16,
+    "dob": "2009-11-22",
+    "verified_identity": "TRUE",
+    "verification_method": "FACIAL_AGE_ESTIMATION",
+    "verification_timestamp": "2026-03-10T11:42:30Z"
+  },
+  {
+    "_comment": "Record 3 — FAIL: under-13 (dob=2014-06-05, age 11) — age_match passes (11==11) but age_minimum_13 + dob_age_gate both fire. GOVERNMENT_ID (passport) is realistic: many UK children have passports. Strong verification does not override the age gate.",
+    "user_id": "USR-00003",
+    "age": 11,
+    "dob": "2014-06-05",
+    "verified_identity": "TRUE",
+    "verification_method": "GOVERNMENT_ID",
+    "verification_timestamp": "2026-03-10T13:05:00Z"
+  },
+  {
+    "_comment": "Record 4 — WARN: self-declared teen (dob=2010-08-19, age 15), verified_identity=FALSE triggers advisory warning; no method/timestamp required",
+    "user_id": "USR-00004",
+    "age": 15,
+    "dob": "2010-08-19",
+    "verified_identity": "FALSE"
+  },
+  {
+    "_comment": "Record 5 — FAIL: invalid verification_method 'SELFIE_CHECK' not in approved list",
+    "user_id": "USR-00005",
+    "age": 19,
+    "dob": "2007-01-30",
+    "verified_identity": "TRUE",
+    "verification_method": "SELFIE_CHECK",
+    "verification_timestamp": "2026-03-11T08:00:00+00:00"
+  },
+  {
+    "_comment": "Record 6 — FAIL: verified_identity=TRUE but verification_method missing — required_if violation",
+    "user_id": "USR-00006",
+    "age": 22,
+    "dob": "2004-05-17",
+    "verified_identity": "TRUE",
+    "verification_timestamp": "2026-03-11T10:30:00Z"
+  }
+]

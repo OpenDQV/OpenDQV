@@ -1,0 +1,72 @@
+[
+  {
+    "_comment": "Record 1 — VALID: all fields correct",
+    "record_id": "REC-2026-001",
+    "email": "alice.nguyen@example.com",
+    "phone": "+447911123456",
+    "status": "ACTIVE",
+    "created_date": "2026-03-01",
+    "amount": 1250.00,
+    "country_code": "GB",
+    "description": "Annual subscription renewal for enterprise tier.",
+    "score": 87,
+    "currency": "GBP",
+    "suspension_reason": null
+  },
+  {
+    "_comment": "Record 2 — VALID: different status, no suspension_reason needed",
+    "record_id": "REC-2026-002",
+    "email": "marco.bellini@acmecorp.it",
+    "phone": "+393312345678",
+    "status": "PENDING",
+    "created_date": "2026-02-15",
+    "amount": 0.00,
+    "country_code": "IT",
+    "description": "New account — pending identity verification.",
+    "score": 0,
+    "currency": "EUR",
+    "suspension_reason": null
+  },
+  {
+    "_comment": "Record 3 — VALID: SUSPENDED status with required suspension_reason",
+    "record_id": "REC-2026-003",
+    "email": "roisin.doherty@utility.ie",
+    "phone": "+353861234567",
+    "status": "SUSPENDED",
+    "created_date": "2025-11-20",
+    "amount": 4999.99,
+    "country_code": "IE",
+    "description": "Account suspended pending fraud investigation outcome.",
+    "score": 23,
+    "currency": "EUR",
+    "suspension_reason": "FRAUD_INVESTIGATION"
+  },
+  {
+    "_comment": "Record 4 — INVALID: email fails regex (missing domain suffix), score out of range",
+    "record_id": "REC-2026-004",
+    "email": "bad.email@",
+    "phone": "+12025551234",
+    "status": "ACTIVE",
+    "created_date": "2026-03-05",
+    "amount": 750.00,
+    "country_code": "US",
+    "description": "Test record with invalid email format.",
+    "score": 150,
+    "currency": "USD",
+    "suspension_reason": null
+  },
+  {
+    "_comment": "Record 5 — INVALID: country_code not in lookup (XX is not ISO 3166-1), amount exceeds max",
+    "record_id": "REC-2026-005",
+    "email": "test@example.org",
+    "phone": "+819012345678",
+    "status": "INACTIVE",
+    "created_date": "2026-01-10",
+    "amount": 9999999.99,
+    "country_code": "XX",
+    "description": "Record with invalid country code and amount above threshold.",
+    "score": 55,
+    "currency": "JPY",
+    "suspension_reason": null
+  }
+]

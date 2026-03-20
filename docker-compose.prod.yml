@@ -1,0 +1,73 @@
+# OpenDQV — Production Docker Compose
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# This overlay adds production-grade hardening on top of docker-compose.yml:
+#   - restart: unless-stopped  (auto-recover on crash or host reboot)
+#   - resource limits          (prevent runaway OOM or CPU starvation)
+#   - non-root user            (defence-in-depth)
+#   - explicit env defaults    (no silent fallback to insecure dev values)
+#
+# ⚠️  RATE LIMITING WARNING
+# RATE_LIMIT_VALIDATE and RATE_LIMIT_DEFAULT use an in-memory counter per
+# Gunicorn worker. With WEB_CONCURRENCY=4 workers, the effective per-IP
+# ceiling is 4× the configured value (300/min configured = 1,200/min effective).
+# For strict rate enforcement, use a Redis-backed limiter or enforce limits at
+# your reverse proxy / load balancer.
+#
+# ⚠️  TRUST_PROXY_HEADERS WARNING
+# Leave TRUST_PROXY_HEADERS=false unless OpenDQV is behind a trusted reverse
+# proxy (nginx, Caddy, AWS ALB). Setting it to true without a proxy allows
+# clients to spoof X-Forwarded-For headers, defeating per-IP rate limiting.
+# See README.md "Running Behind a Reverse Proxy" for setup guidance.
+
+services:
+  api:
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      - AUTH_MODE=${AUTH_MODE:-token}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY must be set in .env for production}
+      - WEB_CONCURRENCY=${WEB_CONCURRENCY:-4}
+      - RATE_LIMIT_VALIDATE=${RATE_LIMIT_VALIDATE:-300/minute}
+      - RATE_LIMIT_DEFAULT=${RATE_LIMIT_DEFAULT:-300/minute}
+      - TRUST_PROXY_HEADERS=${TRUST_PROXY_HEADERS:-false}
+      - OPENDQV_MAX_BATCH_ROWS=${OPENDQV_MAX_BATCH_ROWS:-10000}
+      - OPENDQV_MAX_SSE_CONNECTIONS=${OPENDQV_MAX_SSE_CONNECTIONS:-50}
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  ui:
+    restart: unless-stopped
+    user: "1000:1000"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"

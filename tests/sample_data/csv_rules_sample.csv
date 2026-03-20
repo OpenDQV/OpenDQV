@@ -1,0 +1,9 @@
+field,rule_type,value,severity,error_message
+email,not_empty,,error,Email is required
+email,regex,"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$",error,Invalid email format
+age,min,0,error,Age must be at least 0
+age,max,120,error,Age must be at most 120
+age,range,"0,120",error,Age must be between 0 and 120
+name,min_length,2,warning,Name is too short
+name,max_length,100,error,Name is too long
+score,unique,,error,Score must be unique
