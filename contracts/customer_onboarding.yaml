@@ -1,47 +1,87 @@
-rules:
-  first_name:
-    type: string
-    required: true
-    min_length: 2
-    max_length: 50
-    regex: ^[A-Za-z\s-]+$
-    error_message: First name must be 2-50 letters, spaces, or hyphens.
-  last_name:
-    type: string
-    required: true
-    min_length: 2
-    max_length: 50
-    regex: ^[A-Za-z\s-]+$
-    error_message: Last name must be 2-50 letters, spaces, or hyphens.
-  email:
-    type: string
-    required: true
-    regex: ^[\w\.-]+@[\w\.-]+\.\w+$
-    error_message: Invalid email format.
-  date_of_birth:
-    type: date
-    required: true
-    format: YYYY-MM-DD
-    min: '1900-01-01'
-    max: today
-    error_message: Date of birth must be a valid past date.
-contexts:
-  kids_app:
-    date_of_birth:
-      min_age: 5
-      max_age: 17
-      error_message: For kids app, age must be 5-17.
-  salesforce:
-    date_of_birth:
-      min_age: 18
-      max_age: 150
-      error_message: For Salesforce, age must be 18+.
-  uk_region:
-    address:
-      required: true
+contract:
+  name: customer_onboarding
+  version: "1.0"
+  description: >
+    Customer onboarding data quality validation with context-aware rules.
+    Enforces name format, email validity, and date of birth plausibility
+    before a new customer record is created. Context overrides allow
+    age-range enforcement for kids apps, Salesforce integration, and
+    UK regional address requirements.
+  owner: "Data Team"
+  status: active
+
+  rules:
+
+    # ── IDENTITY ───────────────────────────────────────────────────────────────
+    - name: first_name_required
+      field: first_name
       type: not_empty
-      error_message: UK address is required.
-metadata:
-  version: '1.0'
-  author: Sunny Sharma
-  description: Customer onboarding validation with context-aware overrides
+      severity: error
+      error_message: "first_name is required"
+
+    - name: first_name_format
+      field: first_name
+      type: regex
+      pattern: "^[A-Za-z\\s\\-']{2,50}$"
+      severity: error
+      error_message: "first_name must be 2–50 characters (letters, spaces, hyphens, apostrophes)"
+
+    - name: last_name_required
+      field: last_name
+      type: not_empty
+      severity: error
+      error_message: "last_name is required"
+
+    - name: last_name_format
+      field: last_name
+      type: regex
+      pattern: "^[A-Za-z\\s\\-']{2,50}$"
+      severity: error
+      error_message: "last_name must be 2–50 characters (letters, spaces, hyphens, apostrophes)"
+
+    # ── CONTACT ────────────────────────────────────────────────────────────────
+    - name: email_required
+      field: email
+      type: not_empty
+      severity: error
+      error_message: "email is required"
+
+    - name: email_format
+      field: email
+      type: regex
+      pattern: "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$"
+      severity: error
+      error_message: "email must be a valid email address"
+
+    # ── DATE OF BIRTH ──────────────────────────────────────────────────────────
+    - name: date_of_birth_required
+      field: date_of_birth
+      type: not_empty
+      severity: error
+      error_message: "date_of_birth is required"
+
+    - name: date_of_birth_format
+      field: date_of_birth
+      type: date_format
+      severity: error
+      error_message: "date_of_birth must be a valid date (YYYY-MM-DD)"
+
+  contexts:
+    kids_app:
+      date_of_birth:
+        type: range
+        min: 5
+        max: 17
+        severity: error
+        error_message: "For kids app, age must be between 5 and 17"
+    salesforce:
+      date_of_birth:
+        type: min
+        min: 18
+        severity: error
+        error_message: "For Salesforce, customer must be 18 or older"
+    uk_region:
+      address:
+        type: not_empty
+        severity: error
+        error_message: "address is required for UK region customers"

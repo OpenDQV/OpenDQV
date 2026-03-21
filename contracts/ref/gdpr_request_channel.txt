@@ -1,0 +1,6 @@
+email
+post
+web_form
+verbal
+social_media
+other

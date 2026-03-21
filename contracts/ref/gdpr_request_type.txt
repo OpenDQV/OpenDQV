@@ -1,0 +1,8 @@
+subject_access
+rectification
+erasure
+restriction
+portability
+objection
+automated_decision
+other

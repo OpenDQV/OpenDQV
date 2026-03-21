@@ -1,0 +1,4 @@
+fulfilled
+refused
+partially_fulfilled
+withdrawn
