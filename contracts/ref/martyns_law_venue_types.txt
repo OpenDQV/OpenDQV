@@ -1,0 +1,12 @@
+arena
+conference_centre
+hotel
+museum_gallery
+nightclub
+place_of_worship
+pub_bar
+restaurant
+shopping_centre
+sports_stadium
+theatre
+other

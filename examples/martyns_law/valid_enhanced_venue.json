@@ -1,0 +1,20 @@
+{
+  "venue_id": "VEN-MCR-001",
+  "venue_name": "Manchester Arena",
+  "venue_address": "Victoria Station Approach, Manchester, M3 1AR",
+  "capacity": 21000,
+  "venue_type": "arena",
+  "duty_tier": "enhanced",
+  "evacuation_procedure_documented": "true",
+  "invacuation_procedure_documented": "true",
+  "lockdown_procedure_documented": "true",
+  "staff_training_completed": "true",
+  "staff_training_date": "2026-01-15",
+  "senior_responsible_person": "David Clarke",
+  "senior_responsible_person_role": "Head of Security",
+  "sia_registration_number": "SIA-2026-MCR-00142",
+  "terrorism_protection_plan_documented": "true",
+  "terrorism_protection_plan_review_date": "2026-02-01",
+  "compliance_reviewed_by": "Sarah Jennings (Safety Manager)",
+  "compliance_review_date": "2026-03-21"
+}
