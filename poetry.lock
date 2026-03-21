@@ -2681,4 +2681,4 @@ ui = []
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "e54c02364c3aed7af8be1c44c767d95fd4dcb6621ebb106f8e7541e05ec83906"
+content-hash = "87000e151019a805bcf594a0567fee2eb09059e10d7224d37f30be68e83cf371"
