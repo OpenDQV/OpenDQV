@@ -1,0 +1,88 @@
+name: Create Release
+
+# Trigger manually from GitHub UI: Actions → Create Release → Run workflow
+# Prerequisites before running:
+#   1. Add the new version section to CHANGELOG.md and push to main
+#   2. Choose the bump type below
+#
+# What this workflow does:
+#   1. Calculates the new version from pyproject.toml + bump type
+#   2. Extracts release notes from CHANGELOG.md for that version
+#   3. Creates and pushes the git tag
+#   4. Creates a published GitHub release with the CHANGELOG notes
+#
+# What fires automatically after:
+#   - publish.yml   → PyPI publish (triggered by the release event)
+#   - docker-publish.yml → Docker multi-arch image (triggered by the tag push)
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Tag and release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: pip install poetry==2.3.2
+
+      - name: Calculate new version
+        id: version
+        run: |
+          poetry version ${{ inputs.bump }}
+          echo "version=$(poetry version -s)" >> $GITHUB_OUTPUT
+
+      - name: Verify tag does not already exist
+        run: |
+          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "Tag v${{ steps.version.outputs.version }} already exists. Aborting."
+            exit 1
+          fi
+
+      - name: Extract CHANGELOG notes for this version
+        id: notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          awk "/^## \[$VERSION\]/{found=1;next} found && /^---/{exit} found{print}" CHANGELOG.md > release_notes.txt
+          if [ ! -s release_notes.txt ]; then
+            echo "No CHANGELOG entry found for v$VERSION."
+            echo "Add a '## [$VERSION]' section to CHANGELOG.md before running this workflow."
+            exit 1
+          fi
+          echo "Release notes:"
+          cat release_notes.txt
+
+      - name: Create and push tag
+        run: |
+          git tag v${{ steps.version.outputs.version }}
+          git push origin v${{ steps.version.outputs.version }}
+
+      - name: Create GitHub release
+        run: |
+          gh release create v${{ steps.version.outputs.version }} \
+            --title "v${{ steps.version.outputs.version }}" \
+            --notes-file release_notes.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
