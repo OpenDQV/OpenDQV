@@ -1,0 +1,6 @@
+director
+company_secretary
+person_with_significant_control
+llp_member
+llp_designated_member
+other

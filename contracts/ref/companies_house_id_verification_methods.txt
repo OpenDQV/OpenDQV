@@ -1,0 +1,6 @@
+uk_passport
+uk_driving_licence
+biometric_residence_permit
+digital_identity_service
+certified_copy
+other

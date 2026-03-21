@@ -1,0 +1,19 @@
+{
+  "building_id": "BSA-BRM-00007",
+  "building_name": "Centenary Tower",
+  "building_address": "Broad Street, Birmingham, B1 2HF",
+  "height_metres": 45.0,
+  "storeys_above_ground": 14,
+  "primary_use": "residential",
+  "accountable_person_name": "Sarah Okafor",
+  "accountable_person_organisation": "Birmingham City Council",
+  "accountable_person_contact": "s.okafor@birmingham.gov.uk",
+  "building_safety_manager_name": "David Patel",
+  "building_safety_manager_contact": "d.patel@birmingham.gov.uk",
+  "bsr_registration_number": "BSR-2023-BRM-00091",
+  "bsr_registration_date": "2023-09-30",
+  "fire_and_emergency_file_maintained": "true",
+  "residents_engagement_strategy_documented": "false",
+  "golden_thread_maintained_by": "David Patel (Building Safety Manager)",
+  "golden_thread_last_updated": "2026-02-28"
+}

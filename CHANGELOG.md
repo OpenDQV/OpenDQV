@@ -2,6 +2,47 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.0.5] - 2026-03-21
+
+### Contracts
+
+- **`building_safety_golden_thread`** — Building Safety Act 2022 Golden Thread
+  compliance contract for higher-risk buildings (18m+ / 7+ storeys). Enforces
+  accountable person appointment, BSR registration, safety case documentation,
+  and golden thread audit trail at the point of write. 26 rules. New reference
+  files: `building_safety_primary_uses.txt`.
+
+- **`companies_house_filing`** — Economic Crime and Corporate Transparency Act
+  2023 compliance contract for Companies House director and PSC identity
+  verification. Enforces mandatory ID verification before a filing record is
+  saved. 23 rules. New reference files: `companies_house_roles.txt`,
+  `companies_house_id_verification_methods.txt`.
+
+Suite: 1,780 passing, 25 skipped (no new tests — contract-only additions).
+
+---
+
+## [1.0.4] - 2026-03-21
+
+### Contracts
+
+- **`qsr_menu_item`** — Natasha's Law (Food Information (Amendment) (England)
+  Regulations 2019) allergen compliance contract for Pre-Packed for Direct Sale
+  (PPDS) food. All 14 major allergens are mandatory fields — omission triggers a
+  422 before the record enters the system. 49 rules. New reference files:
+  `allergen_boolean.txt`, `allergen_gluten_cereals.txt`,
+  `allergen_tree_nut_types.txt`, `qsr_item_categories.txt`.
+
+- **`martyns_law_venue`** — Terrorism (Protection of Premises) Act 2025
+  compliance contract for venues and events. Two-tier enforcement: standard duty
+  (200–799 capacity) and enhanced duty (800+, requires named SRP, SIA
+  registration, Terrorism Protection Plan). 29 rules. New reference files:
+  `martyns_law_duty_tiers.txt`, `martyns_law_venue_types.txt`.
+
+Suite: 1,780 passing, 25 skipped (no new tests — contract-only additions).
+
+---
+
 ## [1.0.3] - 2026-03-21
 
 ### Fixes

@@ -1,0 +1,16 @@
+{
+  "building_id": "BSA-MCR-00018",
+  "building_name": "City Tower",
+  "building_address": "Piccadilly Plaza, Manchester, M1 4BT",
+  "height_metres": 122.0,
+  "storeys_above_ground": 38,
+  "primary_use": "mixed_use",
+  "bsr_registration_number": "BSR-2023-MCR-00187",
+  "bsr_registration_date": "2023-10-01",
+  "safety_case_documented": "true",
+  "safety_case_report_date": "2024-06-01",
+  "fire_and_emergency_file_maintained": "true",
+  "residents_engagement_strategy_documented": "true",
+  "golden_thread_maintained_by": "Facilities Team",
+  "golden_thread_last_updated": "2026-03-15"
+}

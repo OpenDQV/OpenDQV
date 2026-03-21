@@ -1,0 +1,15 @@
+{
+  "company_number": "99001122",
+  "company_name": "Meridian Holdings Ltd",
+  "individual_full_name": "Alejandro Torres",
+  "individual_role": "person_with_significant_control",
+  "date_of_birth": "1968-07-22",
+  "nationality": "Spanish",
+  "country_of_residence": "England",
+  "id_verification_completed": "true",
+  "id_verification_method": "digital_identity_service",
+  "id_verification_date": "2025-11-30",
+  "id_verified_by": "Yoti (Authorised Digital Identity Service)",
+  "filing_prepared_by": "Helen Cross (ACSP — Cross & Partners LLP)",
+  "filing_date": "2026-03-21"
+}

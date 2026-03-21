@@ -1,0 +1,129 @@
+contract:
+  name: companies_house_filing
+  version: "1.0"
+  description: >
+    Economic Crime and Corporate Transparency Act 2023 compliance contract for
+    Companies House director and PSC (Person with Significant Control) identity
+    verification. Enforces mandatory ID verification before a filing record is
+    saved — structurally preventing the omission failure mode the Act was designed
+    to close: directors and PSCs registered at Companies House without their
+    identity having been verified. A missing verification field triggers a 422
+    before the record enters the filing system.
+  owner: "Corporate Compliance Data Team"
+  status: active
+
+  rules:
+
+    # ── COMPANY IDENTITY ──────────────────────────────────────────────────────
+    - name: company_number_required
+      field: company_number
+      type: not_empty
+      severity: error
+      error_message: "company_number is required — every filing must be linked to a registered Companies House company number"
+
+    - name: company_name_required
+      field: company_name
+      type: not_empty
+      severity: error
+      error_message: "company_name is required"
+
+    # ── INDIVIDUAL IDENTITY ───────────────────────────────────────────────────
+    - name: individual_full_name_required
+      field: individual_full_name
+      type: not_empty
+      severity: error
+      error_message: "individual_full_name is required — the full legal name of the director, officer, or PSC must be recorded"
+
+    - name: individual_role_required
+      field: individual_role
+      type: not_empty
+      severity: error
+      error_message: "individual_role is required — record whether this individual is a director, company_secretary, person_with_significant_control, or other"
+
+    - name: individual_role_valid
+      field: individual_role
+      type: lookup
+      lookup_file: ref/companies_house_roles.txt
+      severity: error
+      error_message: "individual_role must be one of: director, company_secretary, person_with_significant_control, llp_member, llp_designated_member, other"
+
+    - name: date_of_birth_required
+      field: date_of_birth
+      type: not_empty
+      severity: error
+      error_message: "date_of_birth is required — the Economic Crime and Corporate Transparency Act 2023 requires DOB for all individuals registered at Companies House"
+
+    - name: date_of_birth_format
+      field: date_of_birth
+      type: date_format
+      severity: error
+      error_message: "date_of_birth must be a valid date (YYYY-MM-DD)"
+
+    - name: nationality_required
+      field: nationality
+      type: not_empty
+      severity: error
+      error_message: "nationality is required — nationality must be recorded for all individuals in the filing"
+
+    - name: country_of_residence_required
+      field: country_of_residence
+      type: not_empty
+      severity: error
+      error_message: "country_of_residence is required"
+
+    # ── IDENTITY VERIFICATION ─────────────────────────────────────────────────
+    # The Act requires identity verification for all individuals registering
+    # at Companies House. Verification is mandatory — there is no valid filing
+    # state where verification has not been completed. The method, date, and
+    # verifying party are all required to create an auditable record. Omission
+    # of any verification field blocks the record before it enters the system.
+
+    - name: id_verification_method_required
+      field: id_verification_method
+      type: not_empty
+      severity: error
+      error_message: "id_verification_method is required — identity verification is mandatory under the Economic Crime and Corporate Transparency Act 2023; record how identity was verified"
+
+    - name: id_verification_method_valid
+      field: id_verification_method
+      type: lookup
+      lookup_file: ref/companies_house_id_verification_methods.txt
+      severity: error
+      error_message: "id_verification_method must be one of: uk_passport, uk_driving_licence, biometric_residence_permit, digital_identity_service, certified_copy, other"
+
+    - name: id_verification_date_required
+      field: id_verification_date
+      type: not_empty
+      severity: error
+      error_message: "id_verification_date is required — record the date identity was verified"
+
+    - name: id_verification_date_format
+      field: id_verification_date
+      type: date_format
+      severity: error
+      error_message: "id_verification_date must be a valid date (YYYY-MM-DD)"
+
+    - name: id_verified_by_required
+      field: id_verified_by
+      type: not_empty
+      severity: error
+      error_message: "id_verified_by is required — record who or what verified identity (Companies House, ACSP name, or digital identity provider)"
+
+    # ── FILING AUDIT TRAIL ────────────────────────────────────────────────────
+    - name: filing_prepared_by_required
+      field: filing_prepared_by
+      type: not_empty
+      severity: error
+      error_message: "filing_prepared_by is required — record who prepared this filing record"
+
+    - name: filing_date_required
+      field: filing_date
+      type: not_empty
+      severity: error
+      error_message: "filing_date is required — record the date this filing record was prepared"
+
+    - name: filing_date_format
+      field: filing_date
+      type: date_format
+      severity: error
+      error_message: "filing_date must be a valid date (YYYY-MM-DD)"
