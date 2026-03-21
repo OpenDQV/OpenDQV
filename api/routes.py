@@ -640,7 +640,8 @@ async def explain_contract(
     if not EXPLAIN_PUBLIC and config.AUTH_MODE != "open":
         from fastapi.security.utils import get_authorization_scheme_param
         from security import auth as _auth_mod
-        from jose import JWTError, jwt as _jose_jwt
+        import jwt as _jose_jwt
+        from jwt.exceptions import InvalidTokenError as _JWTInvalidTokenError
         if not authorization:
             raise HTTPException(status_code=401, detail="No token provided. Set AUTH_MODE=open to disable auth.")
         scheme, token_val = get_authorization_scheme_param(authorization)
@@ -650,7 +651,7 @@ async def explain_contract(
             payload = _jose_jwt.decode(token_val, _auth_mod.SECRET_KEY, algorithms=[_auth_mod.ALGORITHM])
             if not payload.get("sub"):
                 raise HTTPException(status_code=401, detail="Invalid token payload")
-        except JWTError:
+        except _JWTInvalidTokenError:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     contract = registry.get(name, version)

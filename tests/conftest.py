@@ -10,7 +10,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 # Use a temporary DB for tests
-os.environ["SECRET_KEY"] = "test-secret-key-for-testing"
+os.environ["SECRET_KEY"] = "test-secret-key-for-testing-opendqv"
 os.environ["AUTH_MODE"] = "token"  # Tests run with auth enabled to verify auth logic
 os.environ["OPENDQV_DB_PATH"] = os.path.join(tempfile.gettempdir(), "opendqv_test.db")
 

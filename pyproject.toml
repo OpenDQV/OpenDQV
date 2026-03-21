@@ -39,7 +39,7 @@ pydantic = "^2.10"
 pyyaml = "^6.0"
 pandas = "^2.2"
 duckdb = "^1.0"
-python-jose = {version = "^3.3", extras = ["cryptography"]}
+PyJWT = "^2.10"
 passlib = {version = "^1.7", extras = ["bcrypt"]}
 python-multipart = ">=0.0.12,<0.0.23"
 slowapi = "^0.1"
