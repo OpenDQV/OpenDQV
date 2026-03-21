@@ -74,6 +74,3 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-
-[tool.coverage.run]
-omit = ["tests/*", "ui/*", "scripts/*", "examples/*"]
