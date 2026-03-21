@@ -11,6 +11,7 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/OpenDQV/OpenDQV/badge)](https://securityscorecards.dev/#/projects/github.com/OpenDQV/OpenDQV)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12229/badge)](https://www.bestpractices.dev/projects/12229)
+[![Coverage](https://codecov.io/gh/OpenDQV/OpenDQV/branch/main/graph/badge.svg)](https://codecov.io/gh/OpenDQV/OpenDQV)
 
 **OpenDQV — the validation bouncer that stops bad data before it enters your systems.**
 
