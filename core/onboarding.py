@@ -268,6 +268,7 @@ _TEMPLATE_LABELS: dict[str, str] = {
     "universal_benchmark":      "Universal Benchmark    — performance & load testing",
     "qsr_menu_item":            "QSR / Food Safety      — Natasha's Law PPDS allergen compliance",
     "martyns_law_venue":        "Public Safety / Venues — Martyn's Law terrorism preparedness",
+    "martyns_law_event":        "Public Safety / Events — Martyn's Law qualifying events",
     "building_safety_golden_thread": "Building Safety        — Golden Thread, higher-risk buildings",
     "companies_house_filing":   "Corporate Compliance   — Companies House director/PSC identity verification",
     "water_utility_reading":    "Water Utilities        — meter readings, consumption",

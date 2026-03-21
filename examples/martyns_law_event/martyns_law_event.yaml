@@ -1,0 +1,282 @@
+# Martyn's Law — Qualifying Event Terrorism Preparedness Compliance Contract
+# Terrorism (Protection of Premises) Act 2025
+#
+# This contract is for QUALIFYING EVENTS — temporary or one-off events where
+# 200 or more persons are expected to attend, regardless of whether the venue
+# is a permanent premises.
+#
+# KEY DIFFERENCES FROM martyns_law_venue:
+#   - Responsible party is the EVENT ORGANISER (not a venue Accountable Person)
+#   - SIA obligation is NOTIFICATION (not registration — that is for permanent premises)
+#   - Staff obligation is BRIEFING (event-specific, pre-event) not ongoing training
+#   - Records are time-bounded (event_start_date / event_end_date required)
+#
+# TWO-TIER SYSTEM:
+#   standard  — 200–799 expected attendance
+#   enhanced  — 800+ expected attendance: standard PLUS SRP, SIA notification, TTP
+#
+# USAGE:
+#   Copy this file to contracts/ and reload:
+#     POST /api/v1/contracts/reload          (requires admin token)
+#   Then validate:
+#     POST /api/v1/validate/martyns_law_event
+#
+# See contracts/martyns_law_venue.yaml for permanent venue obligations.
+
+contract:
+  name: martyns_law_event
+  version: "1.0"
+  description: >
+    Martyn's Law (Terrorism (Protection of Premises) Act 2025) compliance contract
+    for qualifying events (200+ expected attendance). Enforces event-specific
+    emergency procedures, staff briefing, and — for enhanced-duty events (800+) —
+    a named Senior Responsible Person, SIA notification reference, and Terrorism
+    Protection Plan at the point of write.
+  owner: "Public Safety Data Team"
+  status: active
+
+  rules:
+
+    # ── EVENT IDENTITY ────────────────────────────────────────────────────────
+    - name: event_id_required
+      field: event_id
+      type: not_empty
+      severity: error
+      error_message: "event_id is required"
+
+    - name: event_name_required
+      field: event_name
+      type: not_empty
+      severity: error
+      error_message: "event_name is required"
+
+    - name: event_location_required
+      field: event_location
+      type: not_empty
+      severity: error
+      error_message: "event_location is required"
+
+    - name: event_organiser_required
+      field: event_organiser
+      type: not_empty
+      severity: error
+      error_message: "event_organiser is required — the event organiser is the responsible party under Martyn's Law for qualifying events"
+
+    - name: event_type_required
+      field: event_type
+      type: not_empty
+      severity: error
+      error_message: "event_type is required"
+
+    - name: event_type_valid
+      field: event_type
+      type: lookup
+      lookup_file: ref/martyns_law_event_types.txt
+      severity: error
+      error_message: "event_type must be one of: concert_live_music, festival, sports_event, conference_exhibition, market_fair, religious_gathering, protest_demonstration, film_production, other"
+
+    - name: expected_attendance_required
+      field: expected_attendance
+      type: not_empty
+      severity: error
+      error_message: "expected_attendance is required — Martyn's Law applies to qualifying events with an expected attendance of 200 or more"
+
+    - name: expected_attendance_minimum
+      field: expected_attendance
+      type: min
+      min: 200
+      severity: error
+      error_message: "expected_attendance must be >= 200 — Martyn's Law applies only to qualifying events with an expected attendance of 200 or more persons"
+
+    - name: event_start_date_required
+      field: event_start_date
+      type: not_empty
+      severity: error
+      error_message: "event_start_date is required"
+
+    - name: event_start_date_format
+      field: event_start_date
+      type: date_format
+      severity: error
+      error_message: "event_start_date must be a valid date (YYYY-MM-DD)"
+
+    - name: event_end_date_required
+      field: event_end_date
+      type: not_empty
+      severity: error
+      error_message: "event_end_date is required"
+
+    - name: event_end_date_format
+      field: event_end_date
+      type: date_format
+      severity: error
+      error_message: "event_end_date must be a valid date (YYYY-MM-DD)"
+
+    # ── DUTY TIER DECLARATION ─────────────────────────────────────────────────
+    - name: duty_tier_required
+      field: duty_tier
+      type: not_empty
+      severity: error
+      error_message: "duty_tier is required — declare 'standard' (200–799 expected attendance) or 'enhanced' (800+ expected attendance)"
+
+    - name: duty_tier_valid
+      field: duty_tier
+      type: lookup
+      lookup_file: ref/martyns_law_duty_tiers.txt
+      severity: error
+      error_message: "duty_tier must be 'standard' or 'enhanced'"
+
+    # ── STANDARD DUTY (ALL QUALIFYING EVENTS) ────────────────────────────────
+    - name: evacuation_procedure_documented_required
+      field: evacuation_procedure_documented
+      type: not_empty
+      severity: error
+      error_message: "evacuation_procedure_documented must be declared (true or false)"
+
+    - name: evacuation_procedure_documented_valid
+      field: evacuation_procedure_documented
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "evacuation_procedure_documented must be 'true' or 'false'"
+
+    - name: invacuation_procedure_documented_required
+      field: invacuation_procedure_documented
+      type: not_empty
+      severity: error
+      error_message: "invacuation_procedure_documented must be declared (true or false)"
+
+    - name: invacuation_procedure_documented_valid
+      field: invacuation_procedure_documented
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "invacuation_procedure_documented must be 'true' or 'false'"
+
+    - name: lockdown_procedure_documented_required
+      field: lockdown_procedure_documented
+      type: not_empty
+      severity: error
+      error_message: "lockdown_procedure_documented must be declared (true or false)"
+
+    - name: lockdown_procedure_documented_valid
+      field: lockdown_procedure_documented
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "lockdown_procedure_documented must be 'true' or 'false'"
+
+    - name: staff_briefing_completed_required
+      field: staff_briefing_completed
+      type: not_empty
+      severity: error
+      error_message: "staff_briefing_completed must be declared (true or false) — all event staff must be briefed on emergency procedures before the event opens"
+
+    - name: staff_briefing_completed_valid
+      field: staff_briefing_completed
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "staff_briefing_completed must be 'true' or 'false'"
+
+    - name: staff_briefing_date_required_if_completed
+      field: staff_briefing_date
+      type: required_if
+      required_if:
+        field: staff_briefing_completed
+        value: "true"
+      severity: error
+      error_message: "staff_briefing_date is required when staff_briefing_completed is true"
+
+    - name: staff_briefing_date_format
+      field: staff_briefing_date
+      type: date_format
+      condition:
+        field: staff_briefing_completed
+        value: "true"
+      severity: error
+      error_message: "staff_briefing_date must be a valid date (YYYY-MM-DD)"
+
+    # ── ENHANCED DUTY (duty_tier = enhanced) ──────────────────────────────────
+    - name: senior_responsible_person_required_if_enhanced
+      field: senior_responsible_person
+      type: required_if
+      required_if:
+        field: duty_tier
+        value: "enhanced"
+      severity: error
+      error_message: "senior_responsible_person is required for enhanced-duty events"
+
+    - name: senior_responsible_person_role_required_if_enhanced
+      field: senior_responsible_person_role
+      type: required_if
+      required_if:
+        field: duty_tier
+        value: "enhanced"
+      severity: error
+      error_message: "senior_responsible_person_role is required for enhanced-duty events"
+
+    - name: sia_notification_reference_required_if_enhanced
+      field: sia_notification_reference
+      type: required_if
+      required_if:
+        field: duty_tier
+        value: "enhanced"
+      severity: error
+      error_message: "sia_notification_reference is required for enhanced-duty events — notify the SIA and record the reference"
+
+    - name: terrorism_protection_plan_documented_required_if_enhanced
+      field: terrorism_protection_plan_documented
+      type: required_if
+      required_if:
+        field: duty_tier
+        value: "enhanced"
+      severity: error
+      error_message: "terrorism_protection_plan_documented is required for enhanced-duty events"
+
+    - name: terrorism_protection_plan_documented_valid
+      field: terrorism_protection_plan_documented
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      condition:
+        field: duty_tier
+        value: "enhanced"
+      severity: error
+      error_message: "terrorism_protection_plan_documented must be 'true' or 'false'"
+
+    - name: terrorism_protection_plan_review_date_required_if_ttp_documented
+      field: terrorism_protection_plan_review_date
+      type: required_if
+      required_if:
+        field: terrorism_protection_plan_documented
+        value: "true"
+      severity: error
+      error_message: "terrorism_protection_plan_review_date is required when terrorism_protection_plan_documented is true"
+
+    - name: terrorism_protection_plan_review_date_format
+      field: terrorism_protection_plan_review_date
+      type: date_format
+      condition:
+        field: terrorism_protection_plan_documented
+        value: "true"
+      severity: error
+      error_message: "terrorism_protection_plan_review_date must be a valid date (YYYY-MM-DD)"
+
+    # ── COMPLIANCE AUDIT TRAIL ────────────────────────────────────────────────
+    - name: compliance_reviewed_by_required
+      field: compliance_reviewed_by
+      type: not_empty
+      severity: error
+      error_message: "compliance_reviewed_by is required"
+
+    - name: compliance_review_date_required
+      field: compliance_review_date
+      type: not_empty
+      severity: error
+      error_message: "compliance_review_date is required"
+
+    - name: compliance_review_date_format
+      field: compliance_review_date
+      type: date_format
+      severity: error
+      error_message: "compliance_review_date must be a valid date (YYYY-MM-DD)"

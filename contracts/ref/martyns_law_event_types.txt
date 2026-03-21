@@ -1,0 +1,9 @@
+concert_live_music
+festival
+sports_event
+conference_exhibition
+market_fair
+religious_gathering
+protest_demonstration
+film_production
+other
