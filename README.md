@@ -245,6 +245,7 @@ bash install.sh       # Mac/Linux
 ```
 
 ```bat
+REM Windows — Command Prompt or PowerShell
 git clone https://github.com/OpenDQV/OpenDQV.git
 cd OpenDQV
 install.bat
