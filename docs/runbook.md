@@ -86,9 +86,8 @@ docker compose down && docker compose -f docker-compose.yml -f docker-compose.pr
 Once the service is healthy, create the initial token:
 
 ```bash
-curl -s -X POST http://localhost:8000/api/v1/tokens \
-  -H "Content-Type: application/json" \
-  -d '{"name": "admin", "role": "admin"}' | python3 -m json.tool
+curl -s -X POST "http://localhost:8000/api/v1/tokens/generate?username=admin&role=admin" \
+  -H "Authorization: Bearer <existing-admin-token>" | python3 -m json.tool
 ```
 
 Save the returned `token` value immediately. It is not recoverable from the database (only the hash is stored).

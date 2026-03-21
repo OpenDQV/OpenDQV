@@ -22,7 +22,11 @@ GET /api/v1/contracts/{name}/explain?version=latest
 | `name` | Yes | — | Contract name (path parameter) |
 | `version` | No | `latest` | Contract version. Use `latest` for the current active version. |
 
-**Auth:** No authentication required. Sensitive field values are suppressed regardless.
+**Auth:** Depends on deployment mode.
+- `AUTH_MODE=open` (default for local dev): no token required.
+- `AUTH_MODE=token` (production): a valid Bearer token is required **unless** `OPENDQV_EXPLAIN_PUBLIC=true` is set in the environment, which makes `/explain` publicly readable without a token.
+
+Sensitive field values are suppressed regardless of auth mode.
 
 ## Response
 
