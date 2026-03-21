@@ -103,8 +103,6 @@ The phrase "shift-left data quality" has been used for years — but it has almo
 
 Every tool in the open-source data contract ecosystem — datacontract-cli, Soda Core, Great Expectations, dbt tests — tests data after it lands. OpenDQV is the only open-source tool built as a live validation service that blocks data before it is written.
 
-The deeper point: a `422` at the point of write **changes behaviour**. A data quality report three weeks later does not. When developers and data producers see failures immediately — at the system that caused them — they fix the upstream issue. Rejection rates drop over time because the tool changes the incentive, not just the outcome.
-
 ---
 
 ### vs. No Centralised Validation
@@ -322,34 +320,15 @@ docker compose up -d --build
 
 ### Authentication
 
-Most endpoints require a token. In `AUTH_MODE=open` (default for dev) you can skip this. In `AUTH_MODE=token` (required for production), every request needs:
+In `AUTH_MODE=open` (the default), no token is needed — omit the `Authorization` header.
+
+In `AUTH_MODE=token` (production), every request must include:
 
 ```
 Authorization: Bearer <your-token>
 ```
 
-Create a token (use `validator` for source systems, `admin` for operators — see the [Administration](#administration) section for the full role guide):
-
-```bash
-opendqv token-generate my-service --role validator
-```
-
-Or via API:
-
-```bash
-curl -s -X POST http://localhost:8000/api/v1/tokens/generate \
-  -H "Content-Type: application/json" \
-  -d '{"username": "my-service", "role": "validator"}'
-```
-
-Save the `token` value — it is shown once. Use it in all subsequent requests:
-
-```bash
-curl -s http://localhost:8000/api/v1/contracts \
-  -H "Authorization: Bearer opendqv_abc123..."
-```
-
-In `AUTH_MODE=open`, omit the `Authorization` header entirely — all endpoints are accessible without authentication.
+For token creation, roles, and production setup see [Administration](#administration).
 
 ### Validate your first record
 
@@ -1169,7 +1148,7 @@ Benchmarked on a Dell XPS 13 (single Docker container, 4 Gunicorn workers, `WEB_
 
 Sustained throughput ~208 req/s (5-minute stabilised figure). Zero errors across all runs. Throughput ramps as the CPU reaches boost state — the 5-minute figure is the most representative for capacity planning.
 
-**ARM64 validated:** Raspberry Pi 400 (Cortex-A72 @ 1.8GHz) sustains **79.1 req/s** over 10 minutes with zero errors across 47,454 requests. OpenDQV runs correctly on ARM64 — AWS Graviton deployments will significantly exceed the Pi figure.
+**ARM64 validated:** Raspberry Pi 400 (Cortex-A72 @ 1.8GHz) sustains **79.1 req/s** over 10 minutes with zero errors across 47,454 requests in the 10-minute run (72,443 combined across all three runs). OpenDQV runs correctly on ARM64 — AWS Graviton deployments will significantly exceed the Pi figure.
 
 **Windows 10 validated:** Dell XPS 13 (i7, Docker Desktop) sustains **185.1 req/s** with zero errors across 11,108 requests. Enterprise developers on Windows — common in banking, insurance, and large corporates — can run OpenDQV without a Linux server.
 
