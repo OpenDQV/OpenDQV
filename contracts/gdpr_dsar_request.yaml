@@ -1,0 +1,256 @@
+contract:
+  name: gdpr_dsar_request
+  version: "1.0"
+  description: >
+    UK GDPR Article 15 / Data Protection Act 2018 s.45 — Data Subject Access Request
+    (DSAR) record compliance contract. Controllers must respond to DSARs within one
+    calendar month (extendable by two months for complex requests). This contract
+    enforces completeness at the point of write: requester identity, receipt date,
+    response deadline, identity verification, outcome recording, and extension
+    justification. The omission failure mode: request received, response deadline
+    missed because key fields were never recorded. ICO enforcement action.
+    Fines up to £17.5M or 4% of global annual turnover.
+  owner: "Data Protection Team"
+  status: active
+
+  rules:
+
+    # ── REQUEST IDENTITY ─────────────────────────────────────────────────────
+    - name: request_id_required
+      field: request_id
+      type: not_empty
+      severity: error
+      error_message: "request_id is required — every DSAR must be uniquely identifiable for tracking and audit purposes"
+
+    - name: requester_name_required
+      field: requester_name
+      type: not_empty
+      severity: error
+      error_message: "requester_name is required — the identity of the data subject making the request must be recorded"
+
+    - name: requester_email_required
+      field: requester_email
+      type: not_empty
+      severity: error
+      error_message: "requester_email is required — a contact address is needed to deliver the response to the data subject"
+
+    - name: requester_email_format
+      field: requester_email
+      type: regex
+      pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+      severity: error
+      error_message: "requester_email must be a valid email address format"
+
+    # ── RECEIPT AND DEADLINES ────────────────────────────────────────────────
+    # Article 12(3) UK GDPR: the controller shall provide information without
+    # undue delay and in any event within one month of receipt. Recording the
+    # receipt date is essential for calculating the statutory deadline.
+
+    - name: receipt_date_required
+      field: receipt_date
+      type: not_empty
+      severity: error
+      error_message: "receipt_date is required — the Article 12(3) UK GDPR one-month deadline runs from the date the request is received"
+
+    - name: receipt_date_format
+      field: receipt_date
+      type: date_format
+      severity: error
+      error_message: "receipt_date must be a valid date (YYYY-MM-DD)"
+
+    - name: response_due_date_required
+      field: response_due_date
+      type: not_empty
+      severity: error
+      error_message: "response_due_date is required — record the statutory deadline (30 calendar days from receipt_date) per Article 12(3) UK GDPR"
+
+    - name: response_due_date_format
+      field: response_due_date
+      type: date_format
+      severity: error
+      error_message: "response_due_date must be a valid date (YYYY-MM-DD)"
+
+    # ── REQUEST CLASSIFICATION ───────────────────────────────────────────────
+    - name: request_channel_required
+      field: request_channel
+      type: not_empty
+      severity: error
+      error_message: "request_channel is required — record how the DSAR was received for audit trail purposes"
+
+    - name: request_channel_valid
+      field: request_channel
+      type: lookup
+      lookup_file: ref/gdpr_request_channel.txt
+      severity: error
+      error_message: "request_channel must be one of: email, post, web_form, verbal, social_media, other"
+
+    - name: request_type_required
+      field: request_type
+      type: not_empty
+      severity: error
+      error_message: "request_type is required — record which data subject right is being exercised (Articles 15–22 UK GDPR)"
+
+    - name: request_type_valid
+      field: request_type
+      type: lookup
+      lookup_file: ref/gdpr_request_type.txt
+      severity: error
+      error_message: "request_type must be one of: subject_access, rectification, erasure, restriction, portability, objection, automated_decision, other"
+
+    # ── IDENTITY VERIFICATION ────────────────────────────────────────────────
+    # Article 12(6) UK GDPR: where the controller has reasonable doubts about
+    # the identity of the person making the request, the controller may request
+    # additional information. Identity must be verified before data is released.
+
+    - name: id_verification_completed_required
+      field: id_verification_completed
+      type: not_empty
+      severity: error
+      error_message: "id_verification_completed must be declared (true or false) — Article 12(6) UK GDPR requires identity verification before releasing personal data"
+
+    - name: id_verification_completed_valid
+      field: id_verification_completed
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "id_verification_completed must be 'true' or 'false'"
+
+    - name: id_verification_date_required_if_verified
+      field: id_verification_date
+      type: required_if
+      required_if:
+        field: id_verification_completed
+        value: "true"
+      severity: error
+      error_message: "id_verification_date is required when id_verification_completed is true — record when the data subject's identity was verified"
+
+    - name: id_verification_date_format
+      field: id_verification_date
+      type: date_format
+      condition:
+        field: id_verification_completed
+        value: "true"
+      severity: error
+      error_message: "id_verification_date must be a valid date (YYYY-MM-DD)"
+
+    - name: id_verification_method_required_if_verified
+      field: id_verification_method
+      type: required_if
+      required_if:
+        field: id_verification_completed
+        value: "true"
+      severity: error
+      error_message: "id_verification_method is required when id_verification_completed is true — record how identity was verified (e.g. passport, driving licence, digital identity)"
+
+    # ── EXTENSION (Article 12(3) — complex requests) ─────────────────────────
+    # The response period may be extended by two further months where necessary,
+    # taking into account the complexity and number of requests. The controller
+    # must inform the data subject within one month and explain the reason.
+
+    - name: extension_applied_required
+      field: extension_applied
+      type: not_empty
+      severity: error
+      error_message: "extension_applied must be declared (true or false) — Article 12(3) UK GDPR permits a two-month extension for complex requests"
+
+    - name: extension_applied_valid
+      field: extension_applied
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "extension_applied must be 'true' or 'false'"
+
+    - name: extension_reason_required_if_extended
+      field: extension_reason
+      type: required_if
+      required_if:
+        field: extension_applied
+        value: "true"
+      severity: error
+      error_message: "extension_reason is required when extension_applied is true — Article 12(3) UK GDPR requires the controller to inform the data subject of the reasons for the delay"
+
+    - name: extended_due_date_required_if_extended
+      field: extended_due_date
+      type: required_if
+      required_if:
+        field: extension_applied
+        value: "true"
+      severity: error
+      error_message: "extended_due_date is required when extension_applied is true — record the revised deadline (maximum two months beyond the original due date)"
+
+    - name: extended_due_date_format
+      field: extended_due_date
+      type: date_format
+      condition:
+        field: extension_applied
+        value: "true"
+      severity: error
+      error_message: "extended_due_date must be a valid date (YYYY-MM-DD)"
+
+    # ── OUTCOME AND STATUS ───────────────────────────────────────────────────
+    - name: status_required
+      field: status
+      type: not_empty
+      severity: error
+      error_message: "status is required — track the current state of the DSAR for compliance monitoring"
+
+    - name: status_valid
+      field: status
+      type: lookup
+      lookup_file: ref/gdpr_dsar_status.txt
+      severity: error
+      error_message: "status must be one of: open, in_progress, closed, withdrawn"
+
+    - name: outcome_required_if_closed
+      field: outcome
+      type: required_if
+      required_if:
+        field: status
+        value: "closed"
+      severity: error
+      error_message: "outcome is required when status is closed — record whether the request was fulfilled, refused, partially_fulfilled, or withdrawn"
+
+    - name: outcome_valid
+      field: outcome
+      type: lookup
+      lookup_file: ref/gdpr_dsar_outcome.txt
+      condition:
+        field: status
+        value: "closed"
+      severity: error
+      error_message: "outcome must be one of: fulfilled, refused, partially_fulfilled, withdrawn"
+
+    - name: refusal_reason_required_if_refused
+      field: refusal_reason
+      type: required_if
+      required_if:
+        field: outcome
+        value: "refused"
+      severity: error
+      error_message: "refusal_reason is required when outcome is refused — Article 12(4) UK GDPR requires the controller to explain the reasons for not taking action and inform the data subject of their right to complain to the ICO"
+
+    # ── ASSIGNMENT ───────────────────────────────────────────────────────────
+    - name: assigned_to_required
+      field: assigned_to
+      type: not_empty
+      severity: error
+      error_message: "assigned_to is required — every DSAR must have a named handler to ensure accountability and prevent requests falling through the cracks"
+
+    # ── COMPLIANCE AUDIT TRAIL ───────────────────────────────────────────────
+    - name: reviewed_by_required
+      field: reviewed_by
+      type: not_empty
+      severity: error
+      error_message: "reviewed_by is required — record who reviewed this DSAR record for compliance"
+
+    - name: review_date_required
+      field: review_date
+      type: not_empty
+      severity: error
+      error_message: "review_date is required"
+
+    - name: review_date_format
+      field: review_date
+      type: date_format
+      severity: error
+      error_message: "review_date must be a valid date (YYYY-MM-DD)"

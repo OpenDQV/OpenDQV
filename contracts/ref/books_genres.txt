@@ -1,0 +1,17 @@
+fiction
+non_fiction
+science_fiction
+fantasy
+mystery
+thriller
+romance
+biography
+history
+science
+technology
+children
+young_adult
+poetry
+graphic_novel
+reference
+other

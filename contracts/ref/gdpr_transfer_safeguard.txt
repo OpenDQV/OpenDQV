@@ -1,0 +1,6 @@
+adequacy_decision
+standard_contractual_clauses
+binding_corporate_rules
+derogation
+approved_code_of_conduct
+approved_certification
