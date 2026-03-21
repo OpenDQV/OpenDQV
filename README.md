@@ -5,7 +5,7 @@
 [![CI](https://github.com/OpenDQV/OpenDQV/actions/workflows/ci.yml/badge.svg)](https://github.com/OpenDQV/OpenDQV/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/OpenDQV/OpenDQV/blob/main/LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://pypi.org/project/opendqv/)
-[![PyPI](https://img.shields.io/pypi/v/opendqv)](https://pypi.org/project/opendqv/)
+[![PyPI](https://img.shields.io/pypi/v/opendqv?style=flat)](https://pypi.org/project/opendqv/)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fopendqv-blue?logo=docker)](https://github.com/orgs/OpenDQV/packages/container/package/opendqv%2Fopendqv)
 [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20ARM64-lightgrey)](#)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/OpenDQV/OpenDQV/badge)](https://securityscorecards.dev/#/projects/github.com/OpenDQV/OpenDQV)
