@@ -2,6 +2,57 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.0.3] - 2026-03-21
+
+### Fixes
+
+- **Three additional unprotected context endpoints** — `POST /generate`,
+  `GET /export/gx/{name}`, and `GET /export/odcs/{name}` were missing the
+  `UnknownContextError` try/except guard that existed on the three validate
+  endpoints. An unknown `context` parameter on any of these would have
+  produced an unhandled exception. Now returns 422 consistently.
+- **Regex rule with no `pattern` now fails records** — previously a `regex`
+  rule with no `pattern` field silently passed every value (no-op). Now
+  returns `error_message` so the misconfiguration is visible immediately
+  rather than silently corrupting data quality guarantees. This is the
+  production-side fix that complements the contract linter (see below).
+- **Misconfiguration warnings at contract load time** — `rule_parser.py`
+  now logs a warning when rules are loaded with missing required fields:
+  `regex` without `pattern`, `lookup` without `lookup_file`, `checksum`
+  without `checksum_algorithm`, `date_diff` without `date_diff_field`.
+  Makes broken contracts visible at startup rather than silently at
+  validation time.
+
+### Tests
+
+454 net new tests. Suite: 1,679 passing, 25 skipped.
+
+- **Contract linter** (`tests/test_contract_linter.py`) — 8 semantic
+  completeness checks parametrised across all 29 standard contracts.
+  Verifies regex rules have patterns, lookup rules have files, checksum
+  rules have algorithms, compare rules have operands, date_format explicit
+  formats are valid strftime, all rule types are known. A regression of the
+  RT77 Fix D (`customer.yaml` no-op email rule) would now be caught.
+- **Endpoint consistency** (`tests/test_endpoint_consistency.py`) — unknown
+  context → 422 parametrised across all 6 context-accepting endpoints.
+  Adding a new endpoint without updating the list breaks the suite visibly.
+- **Rule model field audit** (`tests/test_rule_model_fields.py`) — explicit
+  behaviour tests for `format` (date_format), `cache_ttl`, and
+  `lookup_auth_header`. Locks in that each field has the effect the model
+  promises.
+- **Auth mode matrix** (`tests/test_auth_modes.py`) — tests `/explain` in
+  `AUTH_MODE=open` without a token (RT79 Fix B regression lock), open-mode
+  bypass on key endpoints, token-mode enforcement. Tests the bypass, not
+  just the block.
+- **DB isolation** (`tests/conftest.py`) — test DB now uses a fresh temp
+  directory per session. Eliminates false positives from stale history
+  snapshots between runs.
+- **Smoke test Part 4** (`scripts/run_smoke_tests.sh`) — verifies
+  `PYTHON=python3.11 bash install.sh` works on a machine where `python3`
+  is not in PATH (RT79 Fix E regression lock).
+
+---
+
 ## [1.0.2] - 2026-03-21
 
 ### Security
