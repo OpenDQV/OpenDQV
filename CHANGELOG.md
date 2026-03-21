@@ -2,6 +2,32 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.0.2] - 2026-03-21
+
+### Security
+
+- **Replace `python-jose` with `PyJWT`** — `python-jose` pulled `ecdsa` as a
+  transitive dependency (CVE-2024-23342, Minerva timing attack on P-256). OpenDQV
+  uses `HS256` exclusively; `ecdsa` was never exercised. Migrated to `PyJWT>=2.10.0`
+  which has zero extra dependencies. `ecdsa`, `pyasn1`, and `rsa` are removed from
+  the dependency tree. API surface unchanged — `jwt.encode`/`jwt.decode` signatures
+  are identical.
+- **Starlette `FileResponse` DoS alerts dismissed** (CVE-2025-62727, CVE-2025-54121)
+  — OpenDQV uses neither `FileResponse` nor `StaticFiles`. Both vulnerable code paths
+  are unreachable. Alerts dismissed with documented rationale.
+
+### Documentation
+
+- `README.md` — added *"The shift-left distinction that actually matters"* section
+  to `## Why OpenDQV?`: direct comparison table contrasting industry "shift-left" tools
+  with true pre-write validation.
+- `README.md` — added three-layer governance architecture table to `## What OpenDQV
+  is NOT`: write-time enforcement (OpenDQV) / catalog+stewardship (Atlan, Collibra,
+  Purview) / pipeline testing+observability (GX, Soda, Monte Carlo). Answers the
+  most common evaluator question — how does this fit with tools we already have?
+
+---
+
 ## [1.0.1] - 2026-03-21
 
 ### Fixes
