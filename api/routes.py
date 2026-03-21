@@ -1419,7 +1419,10 @@ async def generate_code_endpoint(
     if not contract:
         raise HTTPException(status_code=404, detail=f"Contract '{contract_name}' not found")
 
-    rules = registry.get_rules_with_context(contract, context)
+    try:
+        rules = registry.get_rules_with_context(contract, context)
+    except UnknownContextError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     code = generate_code(rules, target, contract_name=contract.name, contract_version=contract.version)
     return {"contract": contract.name, "target": target, "context": context, "code": code}
 
@@ -1868,7 +1871,10 @@ async def export_to_great_expectations(
     if not contract:
         raise HTTPException(status_code=404, detail=f"Contract '{contract_name}' not found")
 
-    rules = registry.get_rules_with_context(contract, context)
+    try:
+        rules = registry.get_rules_with_context(contract, context)
+    except UnknownContextError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     suite = export_gx_suite(contract.name, rules)
     suite["meta"]["contract_version"] = contract.version
     suite["meta"]["context"] = context
@@ -1895,7 +1901,10 @@ async def export_to_odcs(
     if not contract:
         raise HTTPException(status_code=404, detail=f"Contract '{contract_name}' not found")
 
-    rules = registry.get_rules_with_context(contract, context)
+    try:
+        rules = registry.get_rules_with_context(contract, context)
+    except UnknownContextError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     yaml_str = contract_to_odcs_yaml(
         contract_name=contract.name,
         rules=rules,

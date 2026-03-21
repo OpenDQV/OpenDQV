@@ -345,7 +345,7 @@ def _check_rule(value, rule: Rule, record: Optional[dict] = None) -> Optional[st
 
     if rule.type == "regex":
         if not rule.pattern:
-            return None
+            return rule.error_message  # misconfigured — fail visible rather than silently pass
         str_val = str(value) if value is not None else ""
         # Expand built-in pattern shorthands
         pattern = _BUILTIN_PATTERNS.get(rule.pattern, rule.pattern)
