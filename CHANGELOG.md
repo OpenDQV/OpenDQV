@@ -2,6 +2,59 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.1.0] - 2026-03-21
+
+### Contracts
+
+- **`gdpr_processing_record`** — UK GDPR Article 30 Record of Processing Activities
+  (ROPA). Enforces lawful basis declaration (all 6 Article 6 bases), consent-specific
+  fields (mechanism, timestamp, withdrawal) via `required_if`, Legitimate Interests
+  Assessment gating, special category data basis (Article 9), international transfer
+  safeguard, and DPO audit trail. 29 rules. 7 new reference files.
+
+- **`gdpr_dsar_request`** — UK GDPR Article 15 Data Subject Access Request handling.
+  Enforces 30-day response deadline recording at intake, identity verification gate,
+  extension logic (`required_if extension_applied=true`), outcome and refusal tracking.
+  31 rules.
+
+- **Removed `books.yaml`** — accidental wizard output committed during testing.
+  Contained a `merchant_category_code` artifact from an unrelated domain.
+
+- **Removed `customer_onboarding.yaml`** — redundant with `customer` contract. Was
+  in a legacy schema format incompatible with the standard contract loader.
+
+### Security
+
+- **Dependency floors tightened:** `PyJWT>=2.12.0` (CVE-2026-32597 — JWT algorithm
+  confusion), `urllib3>=2.6.3` (4 CVEs), `cryptography>=44.0.1` (CVE-2024-12797).
+
+### CI
+
+- **Coverage reporting:** `pytest-cov` with `--cov-branch` now runs on every push.
+  Coverage report uploaded to Codecov. Branch coverage: 74% across `core/`, `api/`,
+  `security/`, `sdk/`.
+
+- **Release automation:** `release.yml` workflow — trigger via GitHub UI
+  (Actions → Create Release → Run workflow). Selects patch/minor/major bump,
+  extracts CHANGELOG notes, creates tag and GitHub release. PyPI publish and
+  Docker rebuild fire automatically from the release and tag events.
+
+### Documentation
+
+- New integration guide: `docs/integrations/gdpr-compliance.md`
+- README: three-layer governance table moved to top; nav links repositioned above
+  demo GIF; install script leads Option 2; ethos line labelled; GDPR callout block
+  added.
+
+### Badges
+
+- Added: Ruff, OpenSSF Best Practices (100% passing), Coverage (74% branch).
+- PyPI badge cache-busted (`?style=flat`).
+
+Suite: 1,942 passing, 25 skipped.
+
+---
+
 ## [1.0.7] - 2026-03-21
 
 ### Fixes
