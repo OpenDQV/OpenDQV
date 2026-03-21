@@ -236,43 +236,45 @@ When the install finishes the onboarding wizard launches automatically — you'l
 
 ### Option 2: Python (no Docker)
 
-Mac/Linux:
+**Recommended — use the install script.** It checks your Python version, creates a virtual environment, installs dependencies, and launches the onboarding wizard automatically:
+
 ```bash
 git clone https://github.com/OpenDQV/OpenDQV.git
 cd OpenDQV
+bash install.sh       # Mac/Linux
+```
+
+```bat
+git clone https://github.com/OpenDQV/OpenDQV.git
+cd OpenDQV
+install.bat           # Windows — double-click or run from cmd.exe
+```
+
+The wizard will start automatically after setup and have you validating your first record in under 90 seconds.
+
+<details>
+<summary>Manual setup (advanced users)</summary>
+
+Mac/Linux:
+```bash
 cp .env.example .env
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn main:app --reload
-
-# Swagger docs: http://localhost:8000/docs
-# Redoc:        http://localhost:8000/redoc
-# GraphQL:      http://localhost:8000/graphql
 ```
 
 Windows (cmd.exe):
 ```bat
-git clone https://github.com/OpenDQV/OpenDQV.git
-cd OpenDQV
 copy .env.example .env
 python -m venv .venv
 call .venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn main:app --reload
-
-rem Swagger docs: http://localhost:8000/docs
-rem Redoc:        http://localhost:8000/redoc
-rem GraphQL:      http://localhost:8000/graphql
 ```
 
-When the server starts you will see `Uvicorn running on http://localhost:8000` in your terminal. If you see errors instead, check that your `.env` file exists and that Python 3.11+ is active.
-
-**First time? Use the onboarding wizard instead** — it creates a starter contract and validates your first record automatically:
-```bash
-bash install.sh   # Mac/Linux
-install.bat       # Windows
-```
+When the server starts you will see `Uvicorn running on http://localhost:8000` in your terminal. Swagger docs at `/docs`, ReDoc at `/redoc`, GraphQL at `/graphql`.
+</details>
 
 **Streamlit UI:** run `streamlit run ui/app.py` in a second terminal to start the governance workbench at http://localhost:8501.
 
