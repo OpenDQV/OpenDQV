@@ -4,6 +4,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -28,7 +33,9 @@ jobs:
         run: pip install poetry==2.3.2
 
       - name: Set version from tag
-        run: poetry version "${GITHUB_REF_NAME#v}"
+        run: poetry version "${INPUT_VERSION:-${GITHUB_REF_NAME#v}}"
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
 
       - name: Build package
         run: poetry build
