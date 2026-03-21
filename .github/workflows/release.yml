@@ -53,6 +53,11 @@ jobs:
       - name: Calculate new version
         id: version
         run: |
+          # Use the latest git tag as the base version, not pyproject.toml
+          # This keeps versions in sync with releases even when pyproject.toml is not committed
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          CURRENT_VERSION="${LATEST_TAG#v}"
+          poetry version "$CURRENT_VERSION"
           poetry version ${{ inputs.bump }}
           echo "version=$(poetry version -s)" >> $GITHUB_OUTPUT
 
