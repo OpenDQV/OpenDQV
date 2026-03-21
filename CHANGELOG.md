@@ -2,6 +2,23 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.0.7] - 2026-03-21
+
+### Fixes
+
+- **PyPI publish workflow** — all releases since v1.0.1 failed to publish to PyPI
+  with `400 Bad Request` because `pyproject.toml` was never bumped from `1.0.0`.
+  Fixed by: (a) adding a `poetry version ${GITHUB_REF_NAME#v}` step that derives
+  the package version from the git tag automatically on every future release, and
+  (b) adding `permissions: read-all` at the workflow top level in
+  `docker-publish.yml` (Scorecard `TokenPermissions` check), and (c) pinning
+  `poetry==2.3.2` in `publish.yml` (Scorecard `PinnedDependencies` check).
+  The v1.0.7 release is the first to publish correctly since v1.0.0.
+
+Suite: 1,876 passing, 25 skipped (no code changes).
+
+---
+
 ## [1.0.6] - 2026-03-21
 
 ### Contracts
