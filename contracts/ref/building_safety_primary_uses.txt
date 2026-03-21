@@ -1,0 +1,7 @@
+residential
+mixed_use
+hotel
+care_home
+student_accommodation
+hospital
+other

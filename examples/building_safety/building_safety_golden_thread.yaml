@@ -1,0 +1,215 @@
+# Building Safety Act 2022 — Golden Thread Compliance Contract
+#
+# The Building Safety Act 2022 requires higher-risk buildings to maintain
+# a "golden thread" of accurate, up-to-date building information throughout
+# the building lifecycle. The law's own phrase: "accurate and up-to-date
+# information." This contract enforces that obligation at the point of write.
+#
+# HIGHER-RISK BUILDING DEFINITION:
+#   18 metres or more in height, OR 7 or more storeys above ground
+#   AND residential (2+ dwellings), hospital, or care home
+#
+# KEY OBLIGATIONS ENFORCED:
+#   - Named Accountable Person (AP) with contact details
+#   - Named Building Safety Manager (BSM)
+#   - BSR registration number and date
+#   - Safety Case documented + report date
+#   - Fire and emergency file maintained
+#   - Residents engagement strategy documented
+#   - Golden thread audit trail (maintained by + last updated)
+#
+# USAGE:
+#   Copy this file to contracts/ and reload:
+#     POST /api/v1/contracts/reload          (requires admin token)
+#   Then validate:
+#     POST /api/v1/validate/building_safety_golden_thread
+#
+# See docs/integrations/building-safety-golden-thread.md for full guide.
+
+contract:
+  name: building_safety_golden_thread
+  version: "1.0"
+  description: >
+    Building Safety Act 2022 — Golden Thread compliance contract for higher-risk
+    buildings (18m+ / 7+ storeys). Enforces accountable person appointment, BSR
+    registration, safety case documentation, and golden thread audit trail at the
+    point of write.
+  owner: "Building Safety Data Team"
+  status: active
+
+  rules:
+
+    # ── BUILDING IDENTITY ────────────────────────────────────────────────────
+    - name: building_id_required
+      field: building_id
+      type: not_empty
+      severity: error
+      error_message: "building_id is required — every golden thread record must be uniquely identifiable"
+
+    - name: building_name_required
+      field: building_name
+      type: not_empty
+      severity: error
+      error_message: "building_name is required"
+
+    - name: building_address_required
+      field: building_address
+      type: not_empty
+      severity: error
+      error_message: "building_address is required — the golden thread record must include the full address of the higher-risk building"
+
+    # Both height and storeys are required. Either criterion alone qualifies
+    # a building as higher-risk (18m+ OR 7+ storeys). The golden thread must
+    # record both.
+    - name: height_metres_required
+      field: height_metres
+      type: not_empty
+      severity: error
+      error_message: "height_metres is required — the golden thread must record the building height; higher-risk threshold is 18 metres"
+
+    - name: storeys_above_ground_required
+      field: storeys_above_ground
+      type: not_empty
+      severity: error
+      error_message: "storeys_above_ground is required — higher-risk threshold is 7 storeys"
+
+    - name: primary_use_required
+      field: primary_use
+      type: not_empty
+      severity: error
+      error_message: "primary_use is required"
+
+    - name: primary_use_valid
+      field: primary_use
+      type: lookup
+      lookup_file: ref/building_safety_primary_uses.txt
+      severity: error
+      error_message: "primary_use must be one of: residential, mixed_use, hotel, care_home, student_accommodation, hospital, other"
+
+    # ── ACCOUNTABLE PERSONS ───────────────────────────────────────────────────
+    - name: accountable_person_name_required
+      field: accountable_person_name
+      type: not_empty
+      severity: error
+      error_message: "accountable_person_name is required — the Building Safety Act mandates a named Accountable Person for every higher-risk building"
+
+    - name: accountable_person_organisation_required
+      field: accountable_person_organisation
+      type: not_empty
+      severity: error
+      error_message: "accountable_person_organisation is required"
+
+    - name: accountable_person_contact_required
+      field: accountable_person_contact
+      type: not_empty
+      severity: error
+      error_message: "accountable_person_contact is required — a contact address or email for the Accountable Person must be in the golden thread"
+
+    - name: building_safety_manager_name_required
+      field: building_safety_manager_name
+      type: not_empty
+      severity: error
+      error_message: "building_safety_manager_name is required — a named Building Safety Manager is required under the Building Safety Act"
+
+    - name: building_safety_manager_contact_required
+      field: building_safety_manager_contact
+      type: not_empty
+      severity: error
+      error_message: "building_safety_manager_contact is required"
+
+    # ── BSR REGISTRATION ──────────────────────────────────────────────────────
+    - name: bsr_registration_number_required
+      field: bsr_registration_number
+      type: not_empty
+      severity: error
+      error_message: "bsr_registration_number is required — all higher-risk buildings must be registered with the Building Safety Regulator (BSR)"
+
+    - name: bsr_registration_date_required
+      field: bsr_registration_date
+      type: not_empty
+      severity: error
+      error_message: "bsr_registration_date is required"
+
+    - name: bsr_registration_date_format
+      field: bsr_registration_date
+      type: date_format
+      severity: error
+      error_message: "bsr_registration_date must be a valid date (YYYY-MM-DD)"
+
+    # ── SAFETY CASE ───────────────────────────────────────────────────────────
+    - name: safety_case_documented_required
+      field: safety_case_documented
+      type: not_empty
+      severity: error
+      error_message: "safety_case_documented must be declared (true or false) — the Building Safety Act requires a Safety Case for every higher-risk building"
+
+    - name: safety_case_documented_valid
+      field: safety_case_documented
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "safety_case_documented must be 'true' or 'false'"
+
+    - name: safety_case_report_date_required_if_documented
+      field: safety_case_report_date
+      type: required_if
+      required_if:
+        field: safety_case_documented
+        value: "true"
+      severity: error
+      error_message: "safety_case_report_date is required when safety_case_documented is true — record the date the Safety Case Report was prepared or last reviewed"
+
+    - name: safety_case_report_date_format
+      field: safety_case_report_date
+      type: date_format
+      condition:
+        field: safety_case_documented
+        value: "true"
+      severity: error
+      error_message: "safety_case_report_date must be a valid date (YYYY-MM-DD)"
+
+    # ── SUPPORTING DOCUMENTS ──────────────────────────────────────────────────
+    - name: fire_and_emergency_file_maintained_required
+      field: fire_and_emergency_file_maintained
+      type: not_empty
+      severity: error
+      error_message: "fire_and_emergency_file_maintained must be declared (true or false)"
+
+    - name: fire_and_emergency_file_maintained_valid
+      field: fire_and_emergency_file_maintained
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "fire_and_emergency_file_maintained must be 'true' or 'false'"
+
+    - name: residents_engagement_strategy_required
+      field: residents_engagement_strategy_documented
+      type: not_empty
+      severity: error
+      error_message: "residents_engagement_strategy_documented must be declared (true or false)"
+
+    - name: residents_engagement_strategy_valid
+      field: residents_engagement_strategy_documented
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "residents_engagement_strategy_documented must be 'true' or 'false'"
+
+    # ── GOLDEN THREAD AUDIT TRAIL ─────────────────────────────────────────────
+    - name: golden_thread_maintained_by_required
+      field: golden_thread_maintained_by
+      type: not_empty
+      severity: error
+      error_message: "golden_thread_maintained_by is required — record who is responsible for maintaining the golden thread"
+
+    - name: golden_thread_last_updated_required
+      field: golden_thread_last_updated
+      type: not_empty
+      severity: error
+      error_message: "golden_thread_last_updated is required — the golden thread must record when it was last updated"
+
+    - name: golden_thread_last_updated_format
+      field: golden_thread_last_updated
+      type: date_format
+      severity: error
+      error_message: "golden_thread_last_updated must be a valid date (YYYY-MM-DD)"

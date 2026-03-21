@@ -1,0 +1,21 @@
+{
+  "building_id": "BSA-LDN-00042",
+  "building_name": "Grenfell Point",
+  "building_address": "Lancaster West Estate, London, W11 1AX",
+  "height_metres": 67.3,
+  "storeys_above_ground": 24,
+  "primary_use": "residential",
+  "accountable_person_name": "Judith Clarke",
+  "accountable_person_organisation": "Royal Borough of Kensington and Chelsea",
+  "accountable_person_contact": "j.clarke@rbkc.gov.uk",
+  "building_safety_manager_name": "Thomas Reid",
+  "building_safety_manager_contact": "t.reid@rbkc.gov.uk",
+  "bsr_registration_number": "BSR-2023-LDN-00412",
+  "bsr_registration_date": "2023-09-28",
+  "safety_case_documented": "true",
+  "safety_case_report_date": "2024-03-15",
+  "fire_and_emergency_file_maintained": "true",
+  "residents_engagement_strategy_documented": "true",
+  "golden_thread_maintained_by": "Thomas Reid (Building Safety Manager)",
+  "golden_thread_last_updated": "2026-03-21"
+}

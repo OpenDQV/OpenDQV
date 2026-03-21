@@ -1,0 +1,15 @@
+{
+  "company_number": "12345678",
+  "company_name": "Acme Technologies Ltd",
+  "individual_full_name": "Priya Sharma",
+  "individual_role": "director",
+  "date_of_birth": "1985-04-12",
+  "nationality": "British",
+  "country_of_residence": "England",
+  "id_verification_completed": "true",
+  "id_verification_method": "uk_passport",
+  "id_verification_date": "2026-01-10",
+  "id_verified_by": "Companies House (GOV.UK One Login)",
+  "filing_prepared_by": "Jane Watkins (Company Secretary)",
+  "filing_date": "2026-03-21"
+}
