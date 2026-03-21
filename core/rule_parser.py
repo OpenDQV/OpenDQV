@@ -61,11 +61,14 @@ Supported rule types:
                       geo_min_lon/geo_max_lon: longitude bounds
 """
 
+import logging
 import re
 import yaml
 from pydantic import BaseModel, Field, model_validator
 from typing import Any, List, Optional
 from enum import Enum
+
+logger = logging.getLogger(__name__)
 
 
 _BUILTIN_PATTERNS = {
@@ -225,10 +228,36 @@ class Rule(BaseModel):
 
     @model_validator(mode="after")
     def _post_parse(self) -> "Rule":
-        """Pre-compile regex patterns and normalise compare_op symbols to word form."""
-        if self.type == "regex" and self.pattern:
-            expanded = _BUILTIN_PATTERNS.get(self.pattern, self.pattern)
-            self.compiled_pattern = re.compile(expanded)
+        """Pre-compile regex patterns and normalise compare_op symbols to word form.
+        Warn on misconfigured rules that would be no-ops or fail silently."""
+        if self.type == "regex":
+            if not self.pattern:
+                logger.warning(
+                    "Rule '%s' (type=regex) has no pattern — it will fail every record. "
+                    "Add a pattern field to make this rule functional.",
+                    self.name,
+                )
+            else:
+                expanded = _BUILTIN_PATTERNS.get(self.pattern, self.pattern)
+                self.compiled_pattern = re.compile(expanded)
+        if self.type == "lookup" and not self.lookup_file:
+            logger.warning(
+                "Rule '%s' (type=lookup) has no lookup_file — it will skip validation. "
+                "Add a lookup_file field.",
+                self.name,
+            )
+        if self.type == "checksum" and not self.checksum_algorithm:
+            logger.warning(
+                "Rule '%s' (type=checksum) has no checksum_algorithm — it will skip validation. "
+                "Add a checksum_algorithm field.",
+                self.name,
+            )
+        if self.type == "date_diff" and not self.date_diff_field:
+            logger.warning(
+                "Rule '%s' (type=date_diff) has no date_diff_field — it will skip validation. "
+                "Add a date_diff_field.",
+                self.name,
+            )
         if self.compare_op and self.compare_op in self._COMPARE_OP_ALIASES:
             self.compare_op = self._COMPARE_OP_ALIASES[self.compare_op]
         # SEC-004: Validate field name is safe for use as a SQL identifier in DuckDB

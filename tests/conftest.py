@@ -9,10 +9,15 @@ import pytest
 # Ensure project root is on sys.path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# Use a temporary DB for tests
+# Use a fresh isolated DB per test session — prevents stale history snapshots from
+# prior runs causing false positives in versioning tests.
 os.environ["SECRET_KEY"] = "test-secret-key-for-testing-opendqv"
 os.environ["AUTH_MODE"] = "token"  # Tests run with auth enabled to verify auth logic
-os.environ["OPENDQV_DB_PATH"] = os.path.join(tempfile.gettempdir(), "opendqv_test.db")
+_tmp_db_dir = tempfile.mkdtemp(prefix="opendqv_test_db_")
+_db_path = os.path.join(_tmp_db_dir, "opendqv.db")
+os.environ["OPENDQV_DB_PATH"] = _db_path
+atexit.register(shutil.rmtree, _tmp_db_dir, ignore_errors=True)
+print(f"\n[conftest] Test DB: {_db_path}", flush=True)
 
 # Copy contracts to a temp directory so tests that mutate contracts (e.g.
 # TestRuleMutationOnDraft bumping the draft version counter) never write
