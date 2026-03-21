@@ -29,6 +29,16 @@
 | [Docs](docs/) | [Quickstart](docs/quickstart.md) | [Benchmark](docs/benchmark_throughput.md) | [Rules Reference](docs/rules/) | [Salesforce](docs/salesforce_integration.md) | [Ethos](docs/ethos.md) |
 |---|---|---|---|---|---|
 
+A mature data governance programme operates across three layers, each with a distinct job:
+
+| Layer | Purpose | Tools |
+|---|---|---|
+| **1. Write-time enforcement** | Prevent bad data from entering any system | **OpenDQV** |
+| **2. Catalog / governance / stewardship** | Ownership, glossary, lineage, policy, stewardship workflows | Alation, Atlan, Collibra, Purview, DataHub |
+| **3. Pipeline testing / observability** | Detect drift, freshness issues, residual quality after ingestion | Great Expectations, Soda Core, dbt tests, Monte Carlo |
+
+OpenDQV addresses layer one. They are complementary, not competitive.
+
 ---
 
 ![OpenDQV demo — invalid record rejected, valid record accepted, 422 returned with per-field errors](docs/demo.gif)
@@ -174,15 +184,7 @@ of write, before the data reaches your pipeline.
 - **Not a semantic layer** — it does not define business meaning or ontology mappings
 - **Not an SLA monitor** — it does not track or alert on service level obligations
 - **Not a lineage tracker** — it does not model upstream data dependencies
-- **Not a replacement for Collibra, DataHub, Atlan, or Purview** — it complements them. A mature data governance programme operates across three layers, each with a distinct job:
-
-| Layer | Purpose | Tools |
-|---|---|---|
-| **1. Write-time enforcement** | Prevent bad data from entering any system | **OpenDQV** |
-| **2. Catalog / governance / stewardship** | Ownership, glossary, lineage, policy, stewardship workflows | Alation, Atlan, Collibra, Purview, DataHub |
-| **3. Pipeline testing / observability** | Detect drift, freshness issues, residual quality after ingestion | Great Expectations, Soda Core, dbt tests, Monte Carlo |
-
-OpenDQV addresses layer one. Your existing catalog and governance tooling addresses layer two. Your pipeline testing and observability tools address layer three. They are complementary, not competitive. A governance team running Atlan or Collibra for stewardship should think of OpenDQV as the enforcement layer that sits upstream of everything their catalog manages — it ensures the data being governed was clean before it arrived.
+- **Not a replacement for Collibra, DataHub, Atlan, or Purview** — it complements them. A governance team running Atlan or Collibra for stewardship should think of OpenDQV as the enforcement layer that sits upstream of everything their catalog manages — it ensures the data being governed was clean before it arrived.
 
 - **Not a data profiler or drift monitor** — it does not monitor data distributions over time or detect schema drift. For that, use [Great Expectations](https://greatexpectations.io), [Soda](https://www.soda.io), or [Evidently](https://evidentlyai.com). The built-in `profile_records()` function generates *suggested validation rules* from a sample of records — a one-time bootstrapping aid, not a monitoring system.
 
