@@ -37,7 +37,7 @@ A mature data governance programme operates across three layers, each with a dis
 | **2. Catalog / governance / stewardship** | Ownership, glossary, lineage, policy, stewardship workflows | Alation, Atlan, Collibra, Purview, DataHub |
 | **3. Pipeline testing / observability** | Detect drift, freshness issues, residual quality after ingestion | Great Expectations, Soda Core, dbt tests, Monte Carlo |
 
-OpenDQV addresses layer one. They are complementary, not competitive.
+OpenDQV addresses layer one. Your catalog handles layer two, your pipeline tools handle layer three. Think of OpenDQV as the enforcement layer that sits upstream of everything your catalog manages — it ensures the data being governed was clean before it arrived.
 
 ---
 
