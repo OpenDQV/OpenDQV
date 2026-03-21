@@ -1,0 +1,356 @@
+# =============================================================================
+# OpenDQV QSR Menu Item — Natasha's Law (PPDS) Compliance Contract
+# =============================================================================
+# Purpose   : Enforce explicit declaration of all 14 major allergens for
+#             Pre-Packed for Direct Sale (PPDS) food items at the point of
+#             write — before the item is labelled or served.
+# Law       : The Food Information (Amendment) (England) Regulations 2019
+#             ("Natasha's Law"), in force 1 October 2021.
+#             Scotland / Wales / NI: equivalent national regulations.
+#             EU equivalent: Food Information to Consumers Reg 1169/2011 (FIC).
+# Scope     : Any Quick Service Restaurant (QSR)
+#             that prepares and sells food on the same premises: sandwich shops,
+#             bakeries, coffee shops, delis, fast food chains, canteens.
+# Version   : 1.0.0
+# =============================================================================
+#
+# WHY 14 SEPARATE BOOLEAN FIELDS?
+#   The only way to enforce Natasha's Law's *obligation to declare* is to make
+#   each of the 14 allergens a mandatory field. An array approach can validate
+#   the values you provide but cannot detect dangerous omissions — if "peanuts"
+#   is missing from a list, OpenDQV cannot know whether it was intentionally
+#   excluded or accidentally forgotten. The boolean model makes omission
+#   structurally impossible: a missing field is a 422 error.
+#
+# HOW TO USE:
+#   1. Load this contract: POST /api/v1/contracts (name: "qsr_menu_item")
+#      Or copy to your contracts/ directory and restart the service.
+#   2. Validate a record:  POST /api/v1/validate/qsr_menu_item
+#   3. Batch validate:     POST /api/v1/validate/qsr_menu_item/batch
+#   4. Sample records:     examples/qsr/
+#
+# REQUIRED REFERENCE FILES (place in contracts/ref/):
+#   ref/allergen_boolean.txt        — true, false
+#   ref/allergen_gluten_cereals.txt — wheat, rye, barley, oats, spelt, kamut
+#   ref/allergen_tree_nut_types.txt — almonds, hazelnuts, walnuts, cashews, ...
+#   ref/qsr_item_categories.txt     — sandwich, wrap, hot_food, pastry, ...
+
+contract:
+  name: qsr_menu_item
+  version: "1.0.0"
+  description: >
+    Natasha's Law PPDS allergen compliance contract for QSR menu items.
+    Enforces explicit yes/no declaration of all 14 major UK food allergens at
+    the point of write. Omitting any allergen field blocks the record with a 422.
+  owner: "Food Safety Data Team"
+  status: active
+
+  rules:
+
+    # ── ITEM IDENTIFICATION ──────────────────────────────────────────────────
+    - name: item_id_required
+      field: item_id
+      type: not_empty
+      severity: error
+      error_message: "item_id is required"
+
+    - name: item_name_required
+      field: item_name
+      type: not_empty
+      severity: error
+      error_message: "item_name is required"
+
+    - name: item_name_max_length
+      field: item_name
+      type: max_length
+      max_length: 200
+      severity: error
+      error_message: "item_name must not exceed 200 characters"
+
+    - name: sku_required
+      field: sku
+      type: not_empty
+      severity: error
+      error_message: "sku is required"
+
+    - name: category_required
+      field: category
+      type: not_empty
+      severity: error
+      error_message: "category is required"
+
+    - name: category_valid
+      field: category
+      type: lookup
+      lookup_file: ref/qsr_item_categories.txt
+      severity: error
+      error_message: "category must be one of: sandwich, wrap, hot_food, pastry, salad, beverage, dessert, side, sauce, other"
+
+    # ── INGREDIENTS ──────────────────────────────────────────────────────────
+    - name: ingredients_text_required
+      field: ingredients_text
+      type: not_empty
+      severity: error
+      error_message: "ingredients_text is required — Natasha's Law mandates a full ingredients list on every PPDS label"
+
+    - name: ingredients_text_max_length
+      field: ingredients_text
+      type: max_length
+      max_length: 2000
+      severity: error
+      error_message: "ingredients_text must not exceed 2000 characters"
+
+    # ── ALLERGEN DECLARATIONS (all 14 are mandatory) ─────────────────────────
+    # Each field must be "true" or "false". Missing any field = 422 error.
+
+    - name: contains_celery_required
+      field: contains_celery
+      type: not_empty
+      severity: error
+      error_message: "contains_celery must be declared (true or false)"
+
+    - name: contains_celery_valid
+      field: contains_celery
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "contains_celery must be 'true' or 'false'"
+
+    - name: contains_gluten_required
+      field: contains_gluten
+      type: not_empty
+      severity: error
+      error_message: "contains_gluten must be declared (true or false)"
+
+    - name: contains_gluten_valid
+      field: contains_gluten
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "contains_gluten must be 'true' or 'false'"
+
+    - name: contains_crustaceans_required
+      field: contains_crustaceans
+      type: not_empty
+      severity: error
+      error_message: "contains_crustaceans must be declared (true or false)"
+
+    - name: contains_crustaceans_valid
+      field: contains_crustaceans
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "contains_crustaceans must be 'true' or 'false'"
+
+    - name: contains_eggs_required
+      field: contains_eggs
+      type: not_empty
+      severity: error
+      error_message: "contains_eggs must be declared (true or false)"
+
+    - name: contains_eggs_valid
+      field: contains_eggs
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "contains_eggs must be 'true' or 'false'"
+
+    - name: contains_fish_required
+      field: contains_fish
+      type: not_empty
+      severity: error
+      error_message: "contains_fish must be declared (true or false)"
+
+    - name: contains_fish_valid
+      field: contains_fish
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "contains_fish must be 'true' or 'false'"
+
+    - name: contains_lupin_required
+      field: contains_lupin
+      type: not_empty
+      severity: error
+      error_message: "contains_lupin must be declared (true or false)"
+
+    - name: contains_lupin_valid
+      field: contains_lupin
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "contains_lupin must be 'true' or 'false'"
+
+    - name: contains_milk_required
+      field: contains_milk
+      type: not_empty
+      severity: error
+      error_message: "contains_milk must be declared (true or false)"
+
+    - name: contains_milk_valid
+      field: contains_milk
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "contains_milk must be 'true' or 'false'"
+
+    - name: contains_molluscs_required
+      field: contains_molluscs
+      type: not_empty
+      severity: error
+      error_message: "contains_molluscs must be declared (true or false)"
+
+    - name: contains_molluscs_valid
+      field: contains_molluscs
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "contains_molluscs must be 'true' or 'false'"
+
+    - name: contains_mustard_required
+      field: contains_mustard
+      type: not_empty
+      severity: error
+      error_message: "contains_mustard must be declared (true or false)"
+
+    - name: contains_mustard_valid
+      field: contains_mustard
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "contains_mustard must be 'true' or 'false'"
+
+    - name: contains_peanuts_required
+      field: contains_peanuts
+      type: not_empty
+      severity: error
+      error_message: "contains_peanuts must be declared (true or false)"
+
+    - name: contains_peanuts_valid
+      field: contains_peanuts
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "contains_peanuts must be 'true' or 'false'"
+
+    - name: contains_sesame_required
+      field: contains_sesame
+      type: not_empty
+      severity: error
+      error_message: "contains_sesame must be declared (true or false)"
+
+    - name: contains_sesame_valid
+      field: contains_sesame
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "contains_sesame must be 'true' or 'false'"
+
+    - name: contains_soybeans_required
+      field: contains_soybeans
+      type: not_empty
+      severity: error
+      error_message: "contains_soybeans must be declared (true or false)"
+
+    - name: contains_soybeans_valid
+      field: contains_soybeans
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "contains_soybeans must be 'true' or 'false'"
+
+    - name: contains_sulphites_required
+      field: contains_sulphites
+      type: not_empty
+      severity: error
+      error_message: "contains_sulphites must be declared (true or false)"
+
+    - name: contains_sulphites_valid
+      field: contains_sulphites
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "contains_sulphites must be 'true' or 'false'"
+
+    - name: contains_tree_nuts_required
+      field: contains_tree_nuts
+      type: not_empty
+      severity: error
+      error_message: "contains_tree_nuts must be declared (true or false)"
+
+    - name: contains_tree_nuts_valid
+      field: contains_tree_nuts
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "contains_tree_nuts must be 'true' or 'false'"
+
+    # ── CONDITIONAL SUB-FIELDS ───────────────────────────────────────────────
+    - name: gluten_cereal_types_required_if_gluten
+      field: gluten_cereal_types
+      type: required_if
+      required_if:
+        field: contains_gluten
+        value: "true"
+      severity: error
+      error_message: "gluten_cereal_types is required when contains_gluten is true — specify cereal(s): wheat, rye, barley, oats, spelt, kamut"
+
+    - name: gluten_cereal_types_valid
+      field: gluten_cereal_types
+      type: lookup
+      lookup_file: ref/allergen_gluten_cereals.txt
+      all_of: true
+      condition:
+        field: contains_gluten
+        value: "true"
+      severity: error
+      error_message: "gluten_cereal_types must only contain: wheat, rye, barley, oats, spelt, kamut"
+
+    - name: tree_nut_types_required_if_tree_nuts
+      field: tree_nut_types
+      type: required_if
+      required_if:
+        field: contains_tree_nuts
+        value: "true"
+      severity: error
+      error_message: "tree_nut_types is required when contains_tree_nuts is true — specify nut(s): almonds, hazelnuts, walnuts, cashews, pecans, brazil_nuts, pistachios, macadamia, queensland_nuts"
+
+    - name: tree_nut_types_valid
+      field: tree_nut_types
+      type: lookup
+      lookup_file: ref/allergen_tree_nut_types.txt
+      all_of: true
+      condition:
+        field: contains_tree_nuts
+        value: "true"
+      severity: error
+      error_message: "tree_nut_types must only contain recognised tree nut types"
+
+    - name: sulphites_ppm_min
+      field: sulphites_ppm
+      type: min
+      min: 10
+      condition:
+        field: contains_sulphites
+        value: "true"
+      severity: error
+      error_message: "sulphites_ppm must be >= 10 — sulphites only require declaration above the 10ppm statutory threshold"
+
+    # ── PPDS AUDIT TRAIL ─────────────────────────────────────────────────────
+    - name: ppds_reviewed_by_required
+      field: ppds_compliant_reviewed_by
+      type: not_empty
+      severity: error
+      error_message: "ppds_compliant_reviewed_by is required — record who verified allergen declarations before the item was labelled or served"
+
+    - name: ppds_review_date_required
+      field: ppds_review_date
+      type: not_empty
+      severity: error
+      error_message: "ppds_review_date is required — record the date of allergen compliance review"
+
+    - name: ppds_review_date_format
+      field: ppds_review_date
+      type: date_format
+      severity: error
+      error_message: "ppds_review_date must be a valid date (YYYY-MM-DD)"

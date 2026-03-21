@@ -266,6 +266,7 @@ _TEMPLATE_LABELS: dict[str, str] = {
     "telecoms_cdr":             "Telecoms               — call detail records, CDR",
     "travel_booking":           "Travel & Hospitality   — bookings, PNR",
     "universal_benchmark":      "Universal Benchmark    — performance & load testing",
+    "qsr_menu_item":            "QSR / Food Safety      — Natasha's Law PPDS allergen compliance",
     "water_utility_reading":    "Water Utilities        — meter readings, consumption",
 }
 
@@ -943,6 +944,7 @@ class OnboardingWizard:
                 })
             except Exception:
                 continue
+        templates.sort(key=lambda t: t["label"].lower())
         return templates
 
     # ── Main flow ─────────────────────────────────────────────────────────────

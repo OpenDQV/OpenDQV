@@ -1,0 +1,21 @@
+{
+  "_comment": "FAIL — multiple allergen fields omitted. This is the Natasha's Law failure mode: the operator filled in the item but did not complete the allergen declaration block. OpenDQV fires 422 errors on every missing contains_* field before the record enters the system.",
+  "item_id": "ITEM-00099",
+  "item_name": "Prawn and Avocado Wrap",
+  "sku": "SKU-PRAWN-AVO-001",
+  "category": "wrap",
+  "ingredients_text": "Wheat tortilla, king prawns (crustacean), avocado, mayonnaise (eggs, rapeseed oil, mustard), mixed leaves, lemon juice.",
+  "contains_celery": "false",
+  "contains_gluten": "true",
+  "gluten_cereal_types": ["wheat"],
+  "contains_crustaceans": "true",
+  "contains_eggs": "true",
+  "contains_fish": "false",
+  "contains_lupin": "false",
+  "contains_milk": "false",
+  "contains_molluscs": "false",
+  "contains_mustard": "true",
+  "_missing": "contains_peanuts, contains_sesame, contains_soybeans, contains_sulphites, contains_tree_nuts are omitted — these 5 omissions each trigger a 422 error",
+  "ppds_compliant_reviewed_by": "K. Brooks",
+  "ppds_review_date": "2026-03-21"
+}

@@ -1,0 +1,9 @@
+almonds
+hazelnuts
+walnuts
+cashews
+pecans
+brazil_nuts
+pistachios
+macadamia
+queensland_nuts
