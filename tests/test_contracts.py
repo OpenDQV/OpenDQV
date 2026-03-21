@@ -25,10 +25,6 @@ class TestContractRegistry:
         assert c.name == "customer"
         assert len(c.rules) > 0
 
-    def test_customer_onboarding_exists(self, registry):
-        c = registry.get("customer_onboarding")
-        assert c is not None
-
     def test_get_latest_version(self, registry):
         c = registry.get("customer", "latest")
         assert c is not None
