@@ -26,14 +26,14 @@
 - Salesforce / SAP / Kafka / Postgres engineers who need records rejected *before* they're stored
 - LLM and AI agent builders who need reliable, contract-driven validation with full governance
 
+| [Docs](docs/) | [Quickstart](docs/quickstart.md) | [Benchmark](docs/benchmark_throughput.md) | [Rules Reference](docs/rules/) | [Salesforce](docs/salesforce_integration.md) | [Ethos](docs/ethos.md) |
+|---|---|---|---|---|---|
+
 ---
 
 ![OpenDQV demo — invalid record rejected, valid record accepted, 422 returned with per-field errors](docs/demo.gif)
 
 *The core loop: bad record → 422 with per-field errors → producer fixes it at source. Rejection rates drop over time because the tool changes behaviour, not just outcomes.*
-
-| [Docs](docs/) | [Quickstart](docs/quickstart.md) | [Benchmark](docs/benchmark_throughput.md) | [Rules Reference](docs/rules/) | [Salesforce](docs/salesforce_integration.md) | [Ethos](docs/ethos.md) |
-|---|---|---|---|---|---|
 
 ---
 
