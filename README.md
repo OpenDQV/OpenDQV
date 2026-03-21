@@ -9,6 +9,7 @@
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fopendqv-blue?logo=docker)](https://github.com/orgs/OpenDQV/packages/container/package/opendqv%2Fopendqv)
 [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20ARM64-lightgrey)](#)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/OpenDQV/OpenDQV/badge)](https://securityscorecards.dev/#/projects/github.com/OpenDQV/OpenDQV)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 **OpenDQV — the validation bouncer that stops bad data before it enters your systems.**
 
