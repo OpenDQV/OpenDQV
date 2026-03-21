@@ -89,6 +89,24 @@ OpenDQV is the bouncer at the door for your enterprise data. Source systems (Sal
 
 ## Why OpenDQV?
 
+### The shift-left distinction that actually matters
+
+The phrase "shift-left data quality" has been used for years — but it has almost universally meant *validating earlier in the pipeline*, not validating before data enters any system at all.
+
+| What the industry calls "shift-left" | What OpenDQV actually does |
+|---|---|
+| Validate at the first pipeline step (post-ingestion) | Validate before any write occurs |
+| Scan data at rest in the warehouse | Block data in flight at the source |
+| Data engineer runs the check | Source system calls the check |
+| Find problems minutes or hours later | Return a per-field error in milliseconds |
+| Fix it in the pipeline | Fix it at source, before it is ever stored |
+
+Every tool in the open-source data contract ecosystem — datacontract-cli, Soda Core, Great Expectations, dbt tests — tests data after it lands. OpenDQV is the only open-source tool built as a live validation service that blocks data before it is written.
+
+The deeper point: a `422` at the point of write **changes behaviour**. A data quality report three weeks later does not. When developers and data producers see failures immediately — at the system that caused them — they fix the upstream issue. Rejection rates drop over time because the tool changes the incentive, not just the outcome.
+
+---
+
 ### vs. No Centralised Validation
 
 | Without OpenDQV | With OpenDQV |
@@ -155,7 +173,16 @@ of write, before the data reaches your pipeline.
 - **Not a semantic layer** — it does not define business meaning or ontology mappings
 - **Not an SLA monitor** — it does not track or alert on service level obligations
 - **Not a lineage tracker** — it does not model upstream data dependencies
-- **Not a replacement for Collibra, DataHub, Atlan, or Purview** — it complements them
+- **Not a replacement for Collibra, DataHub, Atlan, or Purview** — it complements them. A mature data governance programme operates across three layers, each with a distinct job:
+
+| Layer | Purpose | Tools |
+|---|---|---|
+| **1. Write-time enforcement** | Prevent bad data from entering any system | **OpenDQV** |
+| **2. Catalog / governance / stewardship** | Ownership, glossary, lineage, policy, stewardship workflows | Alation, Atlan, Collibra, Purview, DataHub |
+| **3. Pipeline testing / observability** | Detect drift, freshness issues, residual quality after ingestion | Great Expectations, Soda Core, dbt tests, Monte Carlo |
+
+OpenDQV addresses layer one. Your existing catalog and governance tooling addresses layer two. Your pipeline testing and observability tools address layer three. They are complementary, not competitive. A governance team running Atlan or Collibra for stewardship should think of OpenDQV as the enforcement layer that sits upstream of everything their catalog manages — it ensures the data being governed was clean before it arrived.
+
 - **Not a data profiler or drift monitor** — it does not monitor data distributions over time or detect schema drift. For that, use [Great Expectations](https://greatexpectations.io), [Soda](https://www.soda.io), or [Evidently](https://evidentlyai.com). The built-in `profile_records()` function generates *suggested validation rules* from a sample of records — a one-time bootstrapping aid, not a monitoring system.
 
 ---
