@@ -2,6 +2,26 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.0.6] - 2026-03-21
+
+### Contracts
+
+- **`martyns_law_event`** — Martyn's Law (Terrorism (Protection of Premises) Act
+  2025) qualifying events contract. Distinct from `martyns_law_venue`: the
+  responsible party is the event organiser, the SIA obligation is notification
+  (not registration), staff obligation is a pre-event briefing (not ongoing
+  training), and records are time-bounded with `event_start_date` /
+  `event_end_date`. 33 rules. New reference file: `martyns_law_event_types.txt`.
+
+### Fixes
+
+- **Stale pip output file** — `=2.10.0` in repo root (stale artifact from v1.0.2
+  PyJWT install, shell redirect mishap) removed.
+
+Suite: 1,876 passing, 25 skipped (+43 from contract linter coverage of new contract).
+
+---
+
 ## [1.0.5] - 2026-03-21
 
 ### Contracts

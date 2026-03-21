@@ -1,0 +1,18 @@
+{
+  "event_id": "EVT-2026-MCR-007",
+  "event_name": "Manchester Pride Festival 2026",
+  "event_location": "Manchester City Centre, M1",
+  "event_organiser": "Manchester Pride Ltd",
+  "event_type": "festival",
+  "expected_attendance": 100000,
+  "event_start_date": "2026-08-22",
+  "event_end_date": "2026-08-24",
+  "duty_tier": "enhanced",
+  "evacuation_procedure_documented": "true",
+  "invacuation_procedure_documented": "true",
+  "lockdown_procedure_documented": "true",
+  "staff_briefing_completed": "true",
+  "staff_briefing_date": "2026-08-21",
+  "compliance_reviewed_by": "Operations Team",
+  "compliance_review_date": "2026-08-15"
+}

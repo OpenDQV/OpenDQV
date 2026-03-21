@@ -1,0 +1,18 @@
+{
+  "event_id": "EVT-2026-LDN-042",
+  "event_name": "Southbank Summer Market",
+  "event_location": "South Bank, London, SE1 8XX",
+  "event_organiser": "Southbank Centre",
+  "event_type": "market_fair",
+  "expected_attendance": 450,
+  "event_start_date": "2026-07-05",
+  "event_end_date": "2026-07-06",
+  "duty_tier": "standard",
+  "evacuation_procedure_documented": "true",
+  "invacuation_procedure_documented": "true",
+  "lockdown_procedure_documented": "true",
+  "staff_briefing_completed": "true",
+  "staff_briefing_date": "2026-07-04",
+  "compliance_reviewed_by": "Priya Nair (Event Manager)",
+  "compliance_review_date": "2026-06-28"
+}
