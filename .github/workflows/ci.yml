@@ -34,7 +34,7 @@ jobs:
         run: poetry run pip install regex pyarrow questionary pytest-timeout
 
       - name: Run tests
-        run: poetry run python -m pytest tests/ --ignore=tests/test_e2e.py -p no:playwright --tb=short --timeout=60 -q --cov=. --cov-report=xml --cov-omit="tests/*,ui/*,scripts/*,examples/*"
+        run: poetry run python -m pytest tests/ --ignore=tests/test_e2e.py -p no:playwright --tb=short --timeout=60 -q --cov=. --cov-report=xml
         env:
           OPENDQV_NODE_ID: 'ci-test-node'
 
