@@ -13,6 +13,9 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12229/badge)](https://www.bestpractices.dev/projects/12229)
 [![Coverage](https://codecov.io/gh/OpenDQV/OpenDQV/branch/main/graph/badge.svg)](https://codecov.io/gh/OpenDQV/OpenDQV)
 
+| [Docs](docs/) | [Quickstart](docs/quickstart.md) | [Benchmark](docs/benchmark_throughput.md) | [Rules Reference](docs/rules/) | [Salesforce](docs/salesforce_integration.md) | [Ethos](docs/ethos.md) |
+|---|---|---|---|---|---|
+
 **OpenDQV — the validation bouncer that stops bad data before it enters your systems.**
 
 **Bad data blocked at the door. Not discovered three weeks later.**
@@ -25,9 +28,6 @@
 - Data governance teams tired of finding bad records in dashboards three weeks after they were written
 - Salesforce / SAP / Kafka / Postgres engineers who need records rejected *before* they're stored
 - LLM and AI agent builders who need reliable, contract-driven validation with full governance
-
-| [Docs](docs/) | [Quickstart](docs/quickstart.md) | [Benchmark](docs/benchmark_throughput.md) | [Rules Reference](docs/rules/) | [Salesforce](docs/salesforce_integration.md) | [Ethos](docs/ethos.md) |
-|---|---|---|---|---|---|
 
 A mature data governance programme operates across three layers, each with a distinct job:
 
