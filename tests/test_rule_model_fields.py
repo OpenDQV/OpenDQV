@@ -11,8 +11,7 @@ Gaps covered here:
 - cache_ttl   (HTTP lookup rule) — passed as parameter but cache TTL effect untested
 - lookup_auth_header (HTTP lookup) — passed to HTTP call but header presence untested
 """
-import pytest
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch
 from core.rule_parser import Rule
 from core.validator import validate_record
 
