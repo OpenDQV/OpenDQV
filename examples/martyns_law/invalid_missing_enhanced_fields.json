@@ -1,0 +1,15 @@
+{
+  "venue_id": "VEN-LDN-WEM",
+  "venue_name": "Wembley Stadium",
+  "venue_address": "London, HA9 0WS",
+  "capacity": 90000,
+  "venue_type": "sports_stadium",
+  "duty_tier": "enhanced",
+  "evacuation_procedure_documented": "true",
+  "invacuation_procedure_documented": "true",
+  "lockdown_procedure_documented": "true",
+  "staff_training_completed": "true",
+  "staff_training_date": "2026-01-20",
+  "compliance_reviewed_by": "Operations Team",
+  "compliance_review_date": "2026-03-20"
+}

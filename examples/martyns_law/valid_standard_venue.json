@@ -1,0 +1,15 @@
+{
+  "venue_id": "VEN-LDN-047",
+  "venue_name": "The Lyceum Theatre",
+  "venue_address": "21 Wellington Street, London, WC2E 7RQ",
+  "capacity": 350,
+  "venue_type": "theatre",
+  "duty_tier": "standard",
+  "evacuation_procedure_documented": "true",
+  "invacuation_procedure_documented": "true",
+  "lockdown_procedure_documented": "true",
+  "staff_training_completed": "true",
+  "staff_training_date": "2026-02-10",
+  "compliance_reviewed_by": "Mark Thompson (Venue Manager)",
+  "compliance_review_date": "2026-03-15"
+}

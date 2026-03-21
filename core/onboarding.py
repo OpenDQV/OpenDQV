@@ -267,6 +267,7 @@ _TEMPLATE_LABELS: dict[str, str] = {
     "travel_booking":           "Travel & Hospitality   — bookings, PNR",
     "universal_benchmark":      "Universal Benchmark    — performance & load testing",
     "qsr_menu_item":            "QSR / Food Safety      — Natasha's Law PPDS allergen compliance",
+    "martyns_law_venue":        "Public Safety / Venues — Martyn's Law terrorism preparedness",
     "water_utility_reading":    "Water Utilities        — meter readings, consumption",
 }
 
