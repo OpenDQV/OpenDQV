@@ -16,9 +16,9 @@
 | [Docs](docs/) | [Quickstart](docs/quickstart.md) | [Benchmark](docs/benchmark_throughput.md) | [Rules Reference](docs/rules/) | [Salesforce](docs/salesforce_integration.md) | [Ethos](docs/ethos.md) |
 |---|---|---|---|---|---|
 
-**OpenDQV — the validation bouncer that stops bad data before it enters your systems.**
+**OpenDQV — the validation bouncer that stops bad data at the door.**
 
-**Bad data blocked at the door. Not discovered three weeks later.**
+**Legacy check factories, scattered scripts, and post-load reports only tell you how bad it already got.**
 
 *Our ethos: [Trust is cheaper to build than to repair.](docs/ethos.md)*
 
@@ -28,6 +28,9 @@
 - Data governance teams tired of finding bad records in dashboards three weeks after they were written
 - Salesforce / SAP / Kafka / Postgres engineers who need records rejected *before* they're stored
 - LLM and AI agent builders who need reliable, contract-driven validation with full governance
+- Compliance and audit teams who need every rule change tracked, approved, and hash-chained before it affects production
+
+**The enforcement layer survives re-orgs.** Every contract change goes through a maker-checker workflow, is hash-chained into an immutable audit trail, and requires explicit approval before going active. RBAC (6 roles), rejection-rate Prometheus metrics, and sensitive-field redaction are built in. A one-off script has none of this.
 
 A mature data governance programme operates across three layers, each with a distinct job:
 
@@ -37,7 +40,9 @@ A mature data governance programme operates across three layers, each with a dis
 | **2. Catalog / governance / stewardship** | Ownership, glossary, lineage, policy, stewardship workflows | Alation, Atlan, Collibra, Purview, DataHub |
 | **3. Pipeline testing / observability** | Detect drift, freshness issues, residual quality after ingestion | Great Expectations, Soda Core, dbt tests, Monte Carlo |
 
-OpenDQV addresses layer one. Your catalog handles layer two, your pipeline tools handle layer three. Think of OpenDQV as the enforcement layer that sits upstream of everything your catalog manages — it ensures the data being governed was clean before it arrived.
+OpenDQV owns layer one. Your catalog handles layer two, your pipeline tools handle layer three. OpenDQV is the bouncer — nothing else. The Layer 3 teams tell you how bad it got; OpenDQV stops it before it lands.
+
+**Whether you're maintaining 400 outsourced stored procedures, 1,200 Great Expectations checks, or a folder of ad-hoc validation scripts** — OpenDQV replaces custom-check spaghetti with a single governed contract layer. One YAML file, one API, enforced everywhere, owned by your governance team.
 
 ---
 
