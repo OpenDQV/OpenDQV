@@ -12,7 +12,7 @@ name: Create Release
 #   4. Creates a published GitHub release with the CHANGELOG notes
 #
 # What fires automatically after:
-#   - publish.yml   → PyPI publish (triggered by the release event)
+#   - publish.yml   → PyPI publish (called directly by this workflow)
 #   - docker-publish.yml → Docker multi-arch image (triggered by the tag push)
 
 on:
@@ -35,6 +35,8 @@ jobs:
   release:
     name: Tag and release
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -86,3 +88,13 @@ jobs:
             --notes-file release_notes.txt
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    name: Publish to PyPI
+    needs: release
+    uses: ./.github/workflows/publish.yml
+    with:
+      version: ${{ needs.release.outputs.version }}
+    permissions:
+      contents: read
+      id-token: write
