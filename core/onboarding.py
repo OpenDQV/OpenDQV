@@ -271,6 +271,8 @@ _TEMPLATE_LABELS: dict[str, str] = {
     "martyns_law_event":        "Public Safety / Events — Martyn's Law qualifying events",
     "building_safety_golden_thread": "Building Safety        — Golden Thread, higher-risk buildings",
     "companies_house_filing":   "Corporate Compliance   — Companies House director/PSC identity verification",
+    "gdpr_processing_record":   "Data Protection / GDPR — Record of Processing Activities (ROPA), Article 30",
+    "gdpr_dsar_request":        "Data Protection / GDPR — Data Subject Access Request handling, Article 15",
     "water_utility_reading":    "Water Utilities        — meter readings, consumption",
 }
 
