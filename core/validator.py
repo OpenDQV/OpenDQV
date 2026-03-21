@@ -408,8 +408,12 @@ def _check_rule(value, rule: Rule, record: Optional[dict] = None) -> Optional[st
         if value is None:
             return rule.error_message
         str_val = str(value)
-        # Try common date formats
-        for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%d/%m/%Y", "%m/%d/%Y"):
+        # Try rule.format first, then common fallbacks
+        formats_to_try = []
+        if rule.format:
+            formats_to_try.append(rule.format)
+        formats_to_try += ["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%d/%m/%Y", "%m/%d/%Y"]
+        for fmt in formats_to_try:
             try:
                 datetime.strptime(str_val, fmt)
                 return None

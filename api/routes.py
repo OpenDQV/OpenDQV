@@ -546,7 +546,10 @@ async def validate_batch_file(
     if not dc:
         raise HTTPException(status_code=404, detail=f"Contract '{contract}' not found")
 
-    rules = registry.get_rules_with_context(dc, context)
+    try:
+        rules = registry.get_rules_with_context(dc, context)
+    except UnknownContextError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     content = await file.read()
     filename = file.filename or ""
@@ -633,23 +636,22 @@ async def explain_contract(
 
     Authentication: required unless OPENDQV_EXPLAIN_PUBLIC=true.
     """
-    # SEC-010: enforce auth unless EXPLAIN_PUBLIC is set
-    if not EXPLAIN_PUBLIC:
+    # SEC-010: enforce auth unless EXPLAIN_PUBLIC is set or AUTH_MODE=open
+    if not EXPLAIN_PUBLIC and config.AUTH_MODE != "open":
         from fastapi.security.utils import get_authorization_scheme_param
         from security import auth as _auth_mod
         from jose import JWTError, jwt as _jose_jwt
         if not authorization:
             raise HTTPException(status_code=401, detail="No token provided. Set AUTH_MODE=open to disable auth.")
-        if config.AUTH_MODE != "open":
-            scheme, token_val = get_authorization_scheme_param(authorization)
-            if scheme.lower() != "bearer" or not token_val:
-                raise HTTPException(status_code=401, detail="Invalid authorization header format")
-            try:
-                payload = _jose_jwt.decode(token_val, _auth_mod.SECRET_KEY, algorithms=[_auth_mod.ALGORITHM])
-                if not payload.get("sub"):
-                    raise HTTPException(status_code=401, detail="Invalid token payload")
-            except JWTError:
-                raise HTTPException(status_code=401, detail="Invalid or expired token")
+        scheme, token_val = get_authorization_scheme_param(authorization)
+        if scheme.lower() != "bearer" or not token_val:
+            raise HTTPException(status_code=401, detail="Invalid authorization header format")
+        try:
+            payload = _jose_jwt.decode(token_val, _auth_mod.SECRET_KEY, algorithms=[_auth_mod.ALGORITHM])
+            if not payload.get("sub"):
+                raise HTTPException(status_code=401, detail="Invalid token payload")
+        except JWTError:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     contract = registry.get(name, version)
     if not contract:
