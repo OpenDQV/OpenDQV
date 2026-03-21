@@ -58,7 +58,7 @@ The script creates an isolated virtual environment, installs dependencies, and l
 2. Ask you which industry template to start with (or let you build your own)
 3. Validate a sample record against your chosen contract and show the result
 
-When it finishes, you are up and running. The workbench is at **http://localhost:8501** and the API is at **http://localhost:8000**.
+When the script finishes you will see the wizard prompt in your terminal. Two services are now running: API at **http://localhost:8000** and the governance workbench at **http://localhost:8501**. Open both in your browser.
 
 ---
 
@@ -130,6 +130,18 @@ Five issues come up most often.
 6. **Workbench changes not appearing after editing `ui/app.py`** — The UI image is
    baked at build time. After editing any file under `ui/`, rebuild the image before
    restarting: `docker compose build ui && docker compose up -d --no-deps ui`.
+
+### Python (no Docker)
+
+If you installed with `install.sh` / `install.bat` and something isn't working:
+
+1. **Server not starting** — run `uvicorn main:app` directly in your terminal to see the full error output instead of a silent failure.
+
+2. **Port conflict** — open `.env` in a text editor and change `API_PORT=8000` or `WORKBENCH_PORT=8501` to a free port, then restart.
+
+3. **Python version wrong** — run `python3 --version`. You need 3.11 or higher. Install it from [python.org](https://www.python.org/downloads/) and re-run the install script. If you have Python 3.11 installed under a different name (e.g. `python3.11` via Homebrew on macOS), use the override: `PYTHON=python3.11 bash install.sh`.
+
+4. **Missing module error** — run `pip install -r requirements.txt` again inside the project directory. This usually happens if the virtual environment was not activated before running Python directly.
 
 ---
 

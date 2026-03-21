@@ -4,6 +4,59 @@ Common errors and how to resolve them.
 
 ---
 
+## Python (no Docker) — common issues
+
+If you installed with `install.sh` / `install.bat` and are not using Docker, the sections below (which reference `docker compose logs`) do not apply to you. Start here instead.
+
+**1. Server not starting**
+
+Run `uvicorn main:app` directly in your terminal to see the full error output:
+
+```bash
+source .venv/bin/activate   # Mac/Linux
+uvicorn main:app
+```
+
+```bat
+.venv\Scripts\activate      # Windows
+uvicorn main:app
+```
+
+The error message will point at the specific problem (missing env var, bad config, etc.).
+
+**2. Port conflict**
+
+Open `.env` and change `API_PORT=8000` to a free port (e.g. `8001`), or change `WORKBENCH_PORT=8501` to `8502`. Then restart:
+
+```bash
+python -m uvicorn main:app --port 8001
+```
+
+**3. Python version wrong**
+
+```bash
+python3 --version   # must be 3.11 or higher
+```
+
+If it is below 3.11, install a newer Python from [python.org](https://www.python.org/downloads/) and re-run the install script.
+
+If you have Python 3.11 installed under a different command (e.g. `python3.11` on macOS Homebrew) but `python3` still points to an older version, use the `PYTHON` override:
+
+```bash
+PYTHON=python3.11 bash install.sh
+```
+
+**4. Missing module error**
+
+Re-run the dependency install inside the project directory:
+
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+---
+
 ## 1. `docker compose up` exits immediately / services restart
 
 **Symptom:** One or more services (usually `api`) start and then exit with code 0 or code 1 within seconds.

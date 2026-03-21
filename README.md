@@ -594,7 +594,7 @@ curl -X POST .../validate -d '{"record": {...}, "contract": "sf_contact", "conte
 | `not_empty` | — | Field not null/empty string |
 | `min_length` | `min_length` | String length >= minimum |
 | `max_length` | `max_length` | String length <= maximum |
-| `date_format` | `format` | Valid date string (YYYY-MM-DD, ISO 8601, etc.) |
+| `date_format` | `format?` | Field must be a parseable date/datetime. If `format` is specified (Python strftime syntax, e.g. `'%Y-%m-%d %H:%M:%S'`), that format is tried first. Falls back to common formats: `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM:SS`, `DD/MM/YYYY`, `MM/DD/YYYY`. |
 | `unique` | `group_by?` | No duplicates within batch (batch mode only). Set `group_by` to scope uniqueness within groups. |
 | `compare` | `compare_to`, `compare_op` | **Cross-field:** `field` op `compare_to`. ops: `gt` `lt` `gte` `lte` `eq` `neq` (or symbols `>` `<` etc.). Works with numbers, ISO dates, strings. `compare_to` also accepts `today` or `now` as sentinel values resolved at validation time. |
 | `required_if` | `required_if: {field, value}` | **Conditional:** field required when another field equals a value |
