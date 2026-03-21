@@ -17,7 +17,7 @@
 
 **Bad data blocked at the door. Not discovered three weeks later.**
 
-*[Trust is cheaper to build than to repair.](docs/ethos.md)*
+*Our ethos: [Trust is cheaper to build than to repair.](docs/ethos.md)*
 
 > **[Get started in 15 minutes →](docs/quickstart.md)**  &nbsp; **[Building with LLMs or AI agents? Read `llms.txt` first →](llms.txt)**
 
