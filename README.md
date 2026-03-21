@@ -562,7 +562,6 @@ contract:
 | Contract | Description | Contexts | Highlights |
 |----------|-------------|----------|-----------|
 | `customer` | General customer validation (email, age, name, phone, etc.) | `kids_app`, `financial` | — |
-| `customer_onboarding` | Onboarding flow validation with age-based contexts | `salesforce`, `kids_app`, `uk_region` | — |
 | `sf_contact` | Salesforce Contact — 18 validation criteria, production-grade | `salesforce_prod`, `salesforce_sandbox`, `emea_region` | Sentinel date rejection |
 | `sf_lead` | Salesforce Lead — 16 validation criteria with lead-specific checks | `web_form`, `trade_show`, `partner_referral` | — |
 | `proof_of_play` | **Reference contract: OOH advertising impression validation** | `billing`, `operations` | Cross-field rules, conditional constraints, context-aware billing thresholds |

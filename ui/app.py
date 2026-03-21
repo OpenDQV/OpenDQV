@@ -1083,7 +1083,7 @@ if section == "Validate Batch":
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        batch_contract = st.text_input("Contract", value=st.session_state.get("active_contract", "customer_onboarding"), key="batch_contract")
+        batch_contract = st.text_input("Contract", value=st.session_state.get("active_contract", "customer"), key="batch_contract")
     with col2:
         batch_version = st.text_input("Version", value="latest", key="batch_version")
     with col3:
@@ -1535,7 +1535,7 @@ if section == "Code Export":
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        gen_contract = st.text_input("Contract", value=st.session_state.get("active_contract", "customer_onboarding"), key="gen_contract")
+        gen_contract = st.text_input("Contract", value=st.session_state.get("active_contract", "customer"), key="gen_contract")
     with col2:
         target = st.selectbox("Target Platform", ["snowflake", "salesforce", "js"])
     with col3:
@@ -2257,7 +2257,7 @@ if section == "CLI Guide":
         language="bash",
     )
     st.code(
-        "# With context filter\nopendqv validate --contract customer_onboarding --context salesforce --record @record.json",
+        "# With context filter\nopendqv validate --contract customer --context salesforce --record @record.json",
         language="bash",
     )
 
@@ -2305,15 +2305,15 @@ if section == "CLI Guide":
         "for embedding in source systems that cannot make HTTP calls."
     )
     st.code(
-        "opendqv generate --contract customer_onboarding --target snowflake",
+        "opendqv generate --contract customer --target snowflake",
         language="bash",
     )
     st.code(
-        "opendqv generate --contract customer_onboarding --target salesforce --out validator.cls",
+        "opendqv generate --contract customer --target salesforce --out validator.cls",
         language="bash",
     )
     st.code(
-        "opendqv generate --contract customer_onboarding --target js --context web",
+        "opendqv generate --contract customer --target js --context web",
         language="bash",
     )
 
@@ -2325,15 +2325,15 @@ if section == "CLI Guide":
         "a review workflow before they can be activated. The same workflow is available for any draft."
     )
     st.code(
-        "# Submit a draft contract for review (editor or above)\nopendqv submit-review customer_onboarding --version 1.0.0 --proposed-by alice@example.com",
+        "# Submit a draft contract for review (editor or above)\nopendqv submit-review customer --version 1.0.0 --proposed-by alice@example.com",
         language="bash",
     )
     st.code(
-        "# Approve a contract under review\nopendqv approve customer_onboarding --version 1.0.0 --approved-by lead-architect@example.com",
+        "# Approve a contract under review\nopendqv approve customer --version 1.0.0 --approved-by lead-architect@example.com",
         language="bash",
     )
     st.code(
-        "# Reject a contract back to draft\nopendqv reject customer_onboarding --version 1.0.0 --reason \"Missing address field rules\" --rejected-by lead-architect@example.com",
+        "# Reject a contract back to draft\nopendqv reject customer --version 1.0.0 --reason \"Missing address field rules\" --rejected-by lead-architect@example.com",
         language="bash",
     )
     st.markdown(
