@@ -9,7 +9,8 @@ from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager
 
 from fastapi import Depends, HTTPException, Header
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
 
 import config
@@ -140,7 +141,7 @@ async def get_current_user(authorization: str = Header(None)) -> str:
             try:
                 payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
                 return payload.get("sub", "anonymous")
-            except JWTError:
+            except InvalidTokenError:
                 pass
         return "anonymous"
 
@@ -172,7 +173,7 @@ async def get_current_user(authorization: str = Header(None)) -> str:
 
         return username
 
-    except JWTError:
+    except InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
@@ -193,7 +194,7 @@ async def get_current_role(authorization: str = Header(None)) -> str:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload.get("role", "validator")
-    except JWTError:
+    except InvalidTokenError:
         return "validator"
 
 
