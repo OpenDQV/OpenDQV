@@ -1,0 +1,14 @@
+credit_institution
+investment_firm
+payment_institution
+electronic_money_institution
+crypto_asset_service_provider
+central_counterparty
+central_securities_depository
+trade_repository
+insurance_undertaking
+reinsurance_undertaking
+management_company
+alternative_investment_fund_manager
+ict_third_party_service_provider
+other

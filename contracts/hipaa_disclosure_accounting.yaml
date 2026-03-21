@@ -1,0 +1,217 @@
+contract:
+  name: hipaa_disclosure_accounting
+  version: "1.0"
+  description: >
+    Health Insurance Portability and Accountability Act (HIPAA) — 45 CFR 164.528,
+    Accounting of Disclosures compliance contract. Covered entities and business associates
+    must maintain an accounting of disclosures of protected health information (PHI) for
+    six years. This contract enforces completeness at the point of write: covered entity
+    identification, recipient details, disclosure purpose, PHI categories, date, and
+    conditional fields for patient authorization, minimum necessary standard, and research
+    IRB waivers. The omission failure mode: a disclosure record is created without the
+    required recipient type, disclosure purpose, or authorization reference. OCR audit
+    finds incomplete accounting of disclosures. Civil monetary penalties up to $2.1M per
+    violation category per year under 42 USC 1320d-5. Criminal referral possible under
+    42 USC 1320d-6 (up to $250K fine and 10 years imprisonment for wrongful disclosure).
+  owner: "Privacy Office"
+  status: active
+
+  rules:
+
+    # ── RECORD IDENTITY ──────────────────────────────────────────────────────
+    - name: record_id_required
+      field: record_id
+      type: not_empty
+      severity: error
+      error_message: "record_id is required — every disclosure accounting entry must be uniquely identifiable per 45 CFR 164.528"
+
+    - name: record_id_unique
+      field: record_id
+      type: unique
+      severity: error
+      error_message: "record_id must be unique — duplicate records compromise the disclosure accounting log"
+
+    # ── COVERED ENTITY ───────────────────────────────────────────────────────
+    - name: covered_entity_name_required
+      field: covered_entity_name
+      type: not_empty
+      severity: error
+      error_message: "covered_entity_name is required — 45 CFR 164.528 requires identification of the covered entity or business associate making the disclosure"
+
+    - name: covered_entity_type_required
+      field: covered_entity_type
+      type: not_empty
+      severity: error
+      error_message: "covered_entity_type is required — identify whether the disclosing entity is a covered_entity or business_associate per 45 CFR 160.103"
+
+    - name: covered_entity_type_valid
+      field: covered_entity_type
+      type: lookup
+      lookup_file: ref/hipaa_covered_entity_type.txt
+      severity: error
+      error_message: "covered_entity_type must be one of: covered_entity, business_associate — per 45 CFR 160.103 definitions"
+
+    # ── RECIPIENT ────────────────────────────────────────────────────────────
+    - name: recipient_name_required
+      field: recipient_name
+      type: not_empty
+      severity: error
+      error_message: "recipient_name is required — 45 CFR 164.528(b)(2)(ii) requires the name of the entity or person who received the PHI"
+
+    - name: recipient_type_required
+      field: recipient_type
+      type: not_empty
+      severity: error
+      error_message: "recipient_type is required — 45 CFR 164.528(b)(2)(ii) requires the address (and type) of the recipient"
+
+    - name: recipient_type_valid
+      field: recipient_type
+      type: lookup
+      lookup_file: ref/hipaa_recipient_type.txt
+      severity: error
+      error_message: "recipient_type must be one of: covered_entity, business_associate, individual, public_health_authority, law_enforcement, oversight_agency, researcher, other"
+
+    # ── PHI DETAILS ──────────────────────────────────────────────────────────
+    - name: phi_categories_required
+      field: phi_categories
+      type: not_empty
+      severity: error
+      error_message: "phi_categories is required — 45 CFR 164.528(b)(2)(iii) requires a brief description of the PHI disclosed"
+
+    - name: patient_identifier_required
+      field: patient_identifier
+      type: not_empty
+      severity: error
+      error_message: "patient_identifier is required — the disclosure must be linked to a specific individual for the accounting to be meaningful per 45 CFR 164.528"
+
+    # ── DISCLOSURE PURPOSE ───────────────────────────────────────────────────
+    - name: disclosure_purpose_required
+      field: disclosure_purpose
+      type: not_empty
+      severity: error
+      error_message: "disclosure_purpose is required — 45 CFR 164.528(b)(2)(iv) requires a brief statement of the purpose of the disclosure"
+
+    - name: disclosure_purpose_valid
+      field: disclosure_purpose
+      type: lookup
+      lookup_file: ref/hipaa_disclosure_purpose.txt
+      severity: error
+      error_message: "disclosure_purpose must be one of the 45 CFR 164.512 permitted purposes: treatment, payment, healthcare_operations, required_by_law, public_health, health_oversight, judicial_proceedings, law_enforcement, decedents, research, serious_threat, workers_compensation, patient_authorization, other"
+
+    # ── DISCLOSURE DATE ──────────────────────────────────────────────────────
+    - name: disclosure_date_required
+      field: disclosure_date
+      type: not_empty
+      severity: error
+      error_message: "disclosure_date is required — 45 CFR 164.528(b)(2)(i) requires the date of each disclosure"
+
+    - name: disclosure_date_format
+      field: disclosure_date
+      type: date_format
+      severity: error
+      error_message: "disclosure_date must be a valid date (YYYY-MM-DD) — per 45 CFR 164.528(b)(2)(i)"
+
+    # ── AUTHORIZATION (required when purpose is patient_authorization) ───────
+    - name: authorization_reference_required_if_patient_auth
+      field: authorization_reference
+      type: required_if
+      required_if:
+        field: disclosure_purpose
+        value: "patient_authorization"
+      severity: error
+      error_message: "authorization_reference is required when disclosure_purpose is patient_authorization — 45 CFR 164.508 requires a valid authorization form; record the reference number"
+
+    # ── MINIMUM NECESSARY STANDARD (45 CFR 164.502(b)) ──────────────────────
+    # The minimum necessary standard applies to all disclosures EXCEPT treatment.
+    # When minimum_necessary_applied is true, the method of determination must be recorded.
+
+    - name: minimum_necessary_applied_required_if_payment
+      field: minimum_necessary_applied
+      type: required_if
+      required_if:
+        field: disclosure_purpose
+        value: "payment"
+      severity: error
+      error_message: "minimum_necessary_applied is required for non-treatment disclosures — 45 CFR 164.502(b) minimum necessary standard applies"
+
+    - name: minimum_necessary_applied_required_if_healthcare_ops
+      field: minimum_necessary_applied
+      type: required_if
+      required_if:
+        field: disclosure_purpose
+        value: "healthcare_operations"
+      severity: error
+      error_message: "minimum_necessary_applied is required for non-treatment disclosures — 45 CFR 164.502(b) minimum necessary standard applies"
+
+    - name: minimum_necessary_applied_required_if_research
+      field: minimum_necessary_applied
+      type: required_if
+      required_if:
+        field: disclosure_purpose
+        value: "research"
+      severity: error
+      error_message: "minimum_necessary_applied is required for non-treatment disclosures — 45 CFR 164.502(b) minimum necessary standard applies"
+
+    - name: minimum_necessary_applied_required_if_law_enforcement
+      field: minimum_necessary_applied
+      type: required_if
+      required_if:
+        field: disclosure_purpose
+        value: "law_enforcement"
+      severity: error
+      error_message: "minimum_necessary_applied is required for non-treatment disclosures — 45 CFR 164.502(b) minimum necessary standard applies"
+
+    - name: minimum_necessary_applied_valid
+      field: minimum_necessary_applied
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "minimum_necessary_applied must be 'true' or 'false'"
+
+    - name: minimum_necessary_method_required_if_applied
+      field: minimum_necessary_determination_method
+      type: required_if
+      required_if:
+        field: minimum_necessary_applied
+        value: "true"
+      severity: error
+      error_message: "minimum_necessary_determination_method is required when minimum_necessary_applied is true — record how the minimum necessary determination was made per 45 CFR 164.514(d)"
+
+    # ── RESEARCH IRB WAIVER (45 CFR 164.512(i)) ─────────────────────────────
+    - name: research_irb_waiver_required_if_research
+      field: research_irb_waiver
+      type: required_if
+      required_if:
+        field: disclosure_purpose
+        value: "research"
+      severity: error
+      error_message: "research_irb_waiver is required when disclosure_purpose is research — 45 CFR 164.512(i) requires documentation of IRB or Privacy Board waiver of authorization"
+
+    - name: research_irb_waiver_valid
+      field: research_irb_waiver
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      condition:
+        field: disclosure_purpose
+        value: "research"
+      severity: error
+      error_message: "research_irb_waiver must be 'true' or 'false'"
+
+    # ── COMPLIANCE AUDIT TRAIL ───────────────────────────────────────────────
+    - name: reviewed_by_required
+      field: reviewed_by
+      type: not_empty
+      severity: error
+      error_message: "reviewed_by is required — record who reviewed this disclosure accounting entry for HIPAA compliance"
+
+    - name: review_date_required
+      field: review_date
+      type: not_empty
+      severity: error
+      error_message: "review_date is required"
+
+    - name: review_date_format
+      field: review_date
+      type: date_format
+      severity: error
+      error_message: "review_date must be a valid date (YYYY-MM-DD)"

@@ -1,0 +1,6 @@
+monetary
+yield
+spread
+percentage
+basis_points
+no_price

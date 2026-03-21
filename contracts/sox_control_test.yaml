@@ -1,0 +1,271 @@
+contract:
+  name: sox_control_test
+  version: "1.0"
+  description: >
+    Sarbanes-Oxley Act 2002, Sections 302 and 404 — 15 USC 7262, Internal Control
+    over Financial Reporting (ICFR) test record compliance contract. Public companies
+    must maintain and test internal controls under SOX Section 404. External auditors
+    assess ICFR effectiveness per PCAOB Auditing Standard 2201. This contract enforces
+    completeness at the point of write: control identification, COSO category, financial
+    assertion, test methodology, result, and a cascading deficiency classification and
+    remediation workflow. The omission failure mode: a control test record is written
+    without deficiency classification or remediation plan. A material weakness goes
+    unclassified. The external auditor issues an adverse ICFR opinion. CEO and CFO face
+    personal certification liability under Section 302 and potential criminal charges
+    under Section 906 (up to $5M fine, 20 years imprisonment for false certification).
+  owner: "Internal Audit"
+  status: active
+
+  rules:
+
+    # ── CONTROL IDENTITY ─────────────────────────────────────────────────────
+    - name: control_id_required
+      field: control_id
+      type: not_empty
+      severity: error
+      error_message: "control_id is required — every internal control must be uniquely identifiable for SOX 404 testing and tracking"
+
+    - name: control_id_unique
+      field: control_id
+      type: unique
+      severity: error
+      error_message: "control_id must be unique — duplicate control IDs compromise the completeness of ICFR testing per PCAOB AS 2201"
+
+    - name: control_name_required
+      field: control_name
+      type: not_empty
+      severity: error
+      error_message: "control_name is required — a descriptive name is needed to identify the control being tested"
+
+    - name: control_owner_required
+      field: control_owner
+      type: not_empty
+      severity: error
+      error_message: "control_owner is required — COSO framework requires clear assignment of control ownership and accountability"
+
+    - name: control_objective_required
+      field: control_objective
+      type: not_empty
+      severity: error
+      error_message: "control_objective is required — document what risk the control is designed to mitigate per PCAOB AS 2201"
+
+    # ── CONTROL CLASSIFICATION ───────────────────────────────────────────────
+    - name: control_category_required
+      field: control_category
+      type: not_empty
+      severity: error
+      error_message: "control_category is required — classify the control per the COSO Integrated Framework components"
+
+    - name: control_category_valid
+      field: control_category
+      type: lookup
+      lookup_file: ref/sox_control_category.txt
+      severity: error
+      error_message: "control_category must be one of the COSO framework components: control_environment, risk_assessment, control_activities, information_and_communication, monitoring"
+
+    - name: financial_assertion_required
+      field: financial_assertion
+      type: not_empty
+      severity: error
+      error_message: "financial_assertion is required — PCAOB AS 2201 requires mapping each control to a financial statement assertion"
+
+    - name: financial_assertion_valid
+      field: financial_assertion
+      type: lookup
+      lookup_file: ref/sox_financial_assertion.txt
+      severity: error
+      error_message: "financial_assertion must be one of the PCAOB assertions: existence_or_occurrence, completeness, valuation_or_allocation, rights_and_obligations, presentation_and_disclosure"
+
+    # ── FISCAL PERIOD ────────────────────────────────────────────────────────
+    - name: fiscal_period_end_required
+      field: fiscal_period_end
+      type: not_empty
+      severity: error
+      error_message: "fiscal_period_end is required — SOX 404 testing is performed for a specific fiscal period"
+
+    - name: fiscal_period_end_format
+      field: fiscal_period_end
+      type: date_format
+      severity: error
+      error_message: "fiscal_period_end must be a valid date (YYYY-MM-DD)"
+
+    # ── TEST EXECUTION ───────────────────────────────────────────────────────
+    - name: test_date_required
+      field: test_date
+      type: not_empty
+      severity: error
+      error_message: "test_date is required — record when the control test was performed per PCAOB AS 2201"
+
+    - name: test_date_format
+      field: test_date
+      type: date_format
+      severity: error
+      error_message: "test_date must be a valid date (YYYY-MM-DD)"
+
+    - name: test_type_required
+      field: test_type
+      type: not_empty
+      severity: error
+      error_message: "test_type is required — PCAOB AS 2201 requires the nature of testing procedures to be documented"
+
+    - name: test_type_valid
+      field: test_type
+      type: lookup
+      lookup_file: ref/sox_test_type.txt
+      severity: error
+      error_message: "test_type must be one of: inquiry, observation, inspection_of_documents, reperformance — per PCAOB AS 2201 testing procedures"
+
+    - name: test_result_required
+      field: test_result
+      type: not_empty
+      severity: error
+      error_message: "test_result is required — record the outcome of the control test per PCAOB AS 2201"
+
+    - name: test_result_valid
+      field: test_result
+      type: lookup
+      lookup_file: ref/sox_test_result.txt
+      severity: error
+      error_message: "test_result must be one of: effective, ineffective, not_tested"
+
+    # ── DEFICIENCY CASCADE (Level 1: test_result = ineffective) ──────────────
+    - name: deficiency_classification_required_if_ineffective
+      field: deficiency_classification
+      type: required_if
+      required_if:
+        field: test_result
+        value: "ineffective"
+      severity: error
+      error_message: "deficiency_classification is required when test_result is ineffective — PCAOB AS 2201 requires all control deficiencies to be classified"
+
+    - name: deficiency_classification_valid
+      field: deficiency_classification
+      type: lookup
+      lookup_file: ref/sox_deficiency_classification.txt
+      condition:
+        field: test_result
+        value: "ineffective"
+      severity: error
+      error_message: "deficiency_classification must be one of: control_deficiency, significant_deficiency, material_weakness — per PCAOB AS 2201"
+
+    # ── REMEDIATION CASCADE (Level 2: significant_deficiency or material_weakness) ──
+    - name: remediation_plan_required_if_significant
+      field: remediation_plan
+      type: required_if
+      required_if:
+        field: deficiency_classification
+        value: "significant_deficiency"
+      severity: error
+      error_message: "remediation_plan is required when deficiency_classification is significant_deficiency — significant deficiencies require documented remediation per PCAOB AS 2201"
+
+    - name: remediation_plan_required_if_material
+      field: remediation_plan
+      type: required_if
+      required_if:
+        field: deficiency_classification
+        value: "material_weakness"
+      severity: error
+      error_message: "remediation_plan is required when deficiency_classification is material_weakness — material weaknesses require immediate documented remediation per PCAOB AS 2201"
+
+    - name: remediation_target_date_required_if_significant
+      field: remediation_target_date
+      type: required_if
+      required_if:
+        field: deficiency_classification
+        value: "significant_deficiency"
+      severity: error
+      error_message: "remediation_target_date is required when deficiency_classification is significant_deficiency — a target remediation date must be set"
+
+    - name: remediation_target_date_required_if_material
+      field: remediation_target_date
+      type: required_if
+      required_if:
+        field: deficiency_classification
+        value: "material_weakness"
+      severity: error
+      error_message: "remediation_target_date is required when deficiency_classification is material_weakness — a target remediation date must be set"
+
+    - name: remediation_target_date_format
+      field: remediation_target_date
+      type: date_format
+      condition:
+        field: test_result
+        value: "ineffective"
+      severity: error
+      error_message: "remediation_target_date must be a valid date (YYYY-MM-DD)"
+
+    - name: remediation_owner_required_if_significant
+      field: remediation_owner
+      type: required_if
+      required_if:
+        field: deficiency_classification
+        value: "significant_deficiency"
+      severity: error
+      error_message: "remediation_owner is required when deficiency_classification is significant_deficiency — assign accountability for remediation"
+
+    - name: remediation_owner_required_if_material
+      field: remediation_owner
+      type: required_if
+      required_if:
+        field: deficiency_classification
+        value: "material_weakness"
+      severity: error
+      error_message: "remediation_owner is required when deficiency_classification is material_weakness — assign accountability for remediation"
+
+    # ── AUDIT COMMITTEE ESCALATION (Level 3: material_weakness only) ─────────
+    - name: escalated_to_audit_committee_required_if_material
+      field: escalated_to_audit_committee
+      type: required_if
+      required_if:
+        field: deficiency_classification
+        value: "material_weakness"
+      severity: error
+      error_message: "escalated_to_audit_committee is required when deficiency_classification is material_weakness — SOX 302 requires material weaknesses to be disclosed to the audit committee"
+
+    - name: escalated_to_audit_committee_valid
+      field: escalated_to_audit_committee
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      condition:
+        field: deficiency_classification
+        value: "material_weakness"
+      severity: error
+      error_message: "escalated_to_audit_committee must be 'true' or 'false'"
+
+    # ── MANAGEMENT ASSERTION ─────────────────────────────────────────────────
+    - name: management_assertion_by_required
+      field: management_assertion_by
+      type: not_empty
+      severity: error
+      error_message: "management_assertion_by is required — SOX 302 requires CEO and CFO to certify ICFR effectiveness; record who made the management assertion"
+
+    - name: assertion_date_required
+      field: assertion_date
+      type: not_empty
+      severity: error
+      error_message: "assertion_date is required — record the date of the management assertion per SOX 302"
+
+    - name: assertion_date_format
+      field: assertion_date
+      type: date_format
+      severity: error
+      error_message: "assertion_date must be a valid date (YYYY-MM-DD)"
+
+    # ── COMPLIANCE AUDIT TRAIL ───────────────────────────────────────────────
+    - name: reviewed_by_required
+      field: reviewed_by
+      type: not_empty
+      severity: error
+      error_message: "reviewed_by is required — record who reviewed this control test record for SOX 404 compliance"
+
+    - name: review_date_required
+      field: review_date
+      type: not_empty
+      severity: error
+      error_message: "review_date is required"
+
+    - name: review_date_format
+      field: review_date
+      type: date_format
+      severity: error
+      error_message: "review_date must be a valid date (YYYY-MM-DD)"

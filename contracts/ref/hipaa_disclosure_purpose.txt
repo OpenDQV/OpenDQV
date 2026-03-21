@@ -1,0 +1,14 @@
+treatment
+payment
+healthcare_operations
+required_by_law
+public_health
+health_oversight
+judicial_proceedings
+law_enforcement
+decedents
+research
+serious_threat
+workers_compensation
+patient_authorization
+other
