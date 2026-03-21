@@ -206,10 +206,10 @@ OpenDQV addresses layer one. Your existing catalog and governance tooling addres
 > - **Linux:** type `python3 --version` in a terminal. To install: `sudo apt install python3.11` (Ubuntu/Debian).
 
 1. **Download the ZIP:**
-   👉 [OpenDQV-v1.0.0.zip](https://github.com/OpenDQV/OpenDQV/archive/refs/tags/v1.0.0.zip)
+   👉 [OpenDQV-v1.0.7.zip](https://github.com/OpenDQV/OpenDQV/archive/refs/tags/v1.0.7.zip)
    *(or [browse all releases](https://github.com/OpenDQV/OpenDQV/releases))*
 
-2. **Unzip it** somewhere you can find it (your Desktop is fine). You should see a folder called `OpenDQV-1.0.0` or similar.
+2. **Unzip it** somewhere you can find it (your Desktop is fine). You should see a folder called `OpenDQV-1.0.7` or similar.
 
 3. **Install and run:**
 
@@ -217,10 +217,10 @@ OpenDQV addresses layer one. Your existing catalog and governance tooling addres
 
    **Mac** — open Spotlight (⌘ Space), search for "Terminal", and open it. Then type:
    ```bash
-   cd ~/Desktop/OpenDQV-1.0.0
+   cd ~/Desktop/OpenDQV-1.0.7
    bash install.sh
    ```
-   *(replace `Desktop/OpenDQV-1.0.0` with wherever you unzipped it)*
+   *(replace `Desktop/OpenDQV-1.0.7` with wherever you unzipped it)*
 
    **Linux** — open a terminal, navigate to the unzipped folder, and run:
    ```bash
@@ -307,7 +307,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 # Pull a specific version:
-docker pull ghcr.io/opendqv/opendqv:1.0.0
+docker pull ghcr.io/opendqv/opendqv:1.0.7
 
 # Build from source instead (if you've modified the code):
 docker compose up -d --build
