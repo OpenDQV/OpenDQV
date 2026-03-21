@@ -1,0 +1,260 @@
+contract:
+  name: eu_gdpr_processing_record
+  version: "1.0"
+  description: >
+    EU GDPR Article 30 — Regulation (EU) 2016/679, Record of Processing Activity (ROPA)
+    compliance contract. Every controller established in the EU must maintain records of
+    processing activities under Article 30(1). This contract enforces completeness at the
+    point of write: lawful basis, purpose, data categories, retention period, and conditional
+    fields for consent processing, legitimate interests assessments, special category data,
+    and international transfers. The supervisory authority field records the lead DPA under
+    the one-stop-shop mechanism (Article 56). The omission failure mode: a processing
+    activity recorded without lawful basis, purpose, or retention period. Supervisory
+    authority audit fails. Administrative fines up to EUR 10M or 2% of global annual
+    turnover under Article 83(4) for Article 30 violations.
+  owner: "Data Protection Team"
+  status: active
+
+  rules:
+
+    # ── RECORD IDENTITY ──────────────────────────────────────────────────────
+    - name: record_id_required
+      field: record_id
+      type: not_empty
+      severity: error
+      error_message: "record_id is required — every ROPA entry must be uniquely identifiable per Article 30(1) EU GDPR"
+
+    - name: controller_name_required
+      field: controller_name
+      type: not_empty
+      severity: error
+      error_message: "controller_name is required — Article 30(1)(a) EU GDPR requires the name and contact details of the controller"
+
+    # ── SUPERVISORY AUTHORITY ────────────────────────────────────────────────
+    - name: supervisory_authority_required
+      field: supervisory_authority
+      type: not_empty
+      severity: error
+      error_message: "supervisory_authority is required — Article 56 EU GDPR one-stop-shop mechanism requires identification of the lead supervisory authority"
+
+    - name: supervisory_authority_valid
+      field: supervisory_authority
+      type: lookup
+      lookup_file: ref/eu_gdpr_supervisory_authority.txt
+      severity: error
+      error_message: "supervisory_authority must be one of the 27 EU member state DPAs — per Article 56 EU GDPR one-stop-shop mechanism"
+
+    # ── PROCESSING PURPOSE AND LAWFUL BASIS ──────────────────────────────────
+    - name: processing_purpose_required
+      field: processing_purpose
+      type: not_empty
+      severity: error
+      error_message: "processing_purpose is required — Article 30(1)(b) EU GDPR requires the purposes of the processing to be recorded"
+
+    - name: lawful_basis_required
+      field: lawful_basis
+      type: not_empty
+      severity: error
+      error_message: "lawful_basis is required — Article 6(1) EU GDPR requires at least one lawful basis for every processing activity"
+
+    - name: lawful_basis_valid
+      field: lawful_basis
+      type: lookup
+      lookup_file: ref/gdpr_lawful_basis.txt
+      severity: error
+      error_message: "lawful_basis must be one of: consent, contract, legal_obligation, vital_interests, public_task, legitimate_interests — these are the six Article 6(1) bases"
+
+    # ── DATA CATEGORIES AND SUBJECTS ─────────────────────────────────────────
+    - name: data_categories_required
+      field: data_categories
+      type: not_empty
+      severity: error
+      error_message: "data_categories is required — Article 30(1)(c) EU GDPR requires a description of the categories of personal data"
+
+    - name: data_subjects_required
+      field: data_subjects
+      type: not_empty
+      severity: error
+      error_message: "data_subjects is required — Article 30(1)(c) EU GDPR requires a description of the categories of data subjects"
+
+    - name: recipients_required
+      field: recipients
+      type: not_empty
+      severity: error
+      error_message: "recipients is required — Article 30(1)(d) EU GDPR requires the categories of recipients; use 'none' if data is not shared"
+
+    # ── RETENTION ────────────────────────────────────────────────────────────
+    - name: retention_period_required
+      field: retention_period
+      type: not_empty
+      severity: error
+      error_message: "retention_period is required — Article 30(1)(f) EU GDPR requires the envisaged time limits for erasure of the different categories of data"
+
+    # ── CONSENT-SPECIFIC FIELDS (Article 6(1)(a)) ───────────────────────────
+    - name: consent_mechanism_required_if_consent
+      field: consent_mechanism
+      type: required_if
+      required_if:
+        field: lawful_basis
+        value: "consent"
+      severity: error
+      error_message: "consent_mechanism is required when lawful_basis is consent — Article 7(1) EU GDPR requires the controller to demonstrate how consent was obtained"
+
+    - name: consent_timestamp_required_if_consent
+      field: consent_timestamp
+      type: required_if
+      required_if:
+        field: lawful_basis
+        value: "consent"
+      severity: error
+      error_message: "consent_timestamp is required when lawful_basis is consent — record when the data subject gave consent (ISO 8601)"
+
+    - name: consent_timestamp_format
+      field: consent_timestamp
+      type: date_format
+      condition:
+        field: lawful_basis
+        value: "consent"
+      severity: error
+      error_message: "consent_timestamp must be a valid date (YYYY-MM-DD)"
+
+    - name: withdrawal_mechanism_required_if_consent
+      field: withdrawal_mechanism
+      type: required_if
+      required_if:
+        field: lawful_basis
+        value: "consent"
+      severity: error
+      error_message: "withdrawal_mechanism is required when lawful_basis is consent — Article 7(3) EU GDPR requires that withdrawal of consent is as easy as giving it; record how the data subject can withdraw"
+
+    # ── LEGITIMATE INTERESTS ASSESSMENT (Article 6(1)(f)) ────────────────────
+    - name: lia_completed_required_if_legitimate_interests
+      field: lia_completed
+      type: required_if
+      required_if:
+        field: lawful_basis
+        value: "legitimate_interests"
+      severity: error
+      error_message: "lia_completed is required when lawful_basis is legitimate_interests — a Legitimate Interests Assessment must be documented per Article 6(1)(f) EU GDPR"
+
+    - name: lia_completed_valid
+      field: lia_completed
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      condition:
+        field: lawful_basis
+        value: "legitimate_interests"
+      severity: error
+      error_message: "lia_completed must be 'true' or 'false'"
+
+    - name: lia_date_required_if_lia_completed
+      field: lia_date
+      type: required_if
+      required_if:
+        field: lia_completed
+        value: "true"
+      severity: error
+      error_message: "lia_date is required when lia_completed is true — record the date the Legitimate Interests Assessment was completed"
+
+    - name: lia_date_format
+      field: lia_date
+      type: date_format
+      condition:
+        field: lia_completed
+        value: "true"
+      severity: error
+      error_message: "lia_date must be a valid date (YYYY-MM-DD)"
+
+    # ── SPECIAL CATEGORY DATA (Article 9) ────────────────────────────────────
+    - name: special_category_data_required
+      field: special_category_data
+      type: not_empty
+      severity: error
+      error_message: "special_category_data must be declared (true or false) — Article 9 EU GDPR requires explicit identification of special category data processing"
+
+    - name: special_category_data_valid
+      field: special_category_data
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "special_category_data must be 'true' or 'false'"
+
+    - name: special_category_basis_required_if_special
+      field: special_category_basis
+      type: required_if
+      required_if:
+        field: special_category_data
+        value: "true"
+      severity: error
+      error_message: "special_category_basis is required when special_category_data is true — Article 9(2) EU GDPR requires an explicit legal basis for processing special category data"
+
+    - name: special_category_basis_valid
+      field: special_category_basis
+      type: lookup
+      lookup_file: ref/gdpr_special_category_basis.txt
+      condition:
+        field: special_category_data
+        value: "true"
+      severity: error
+      error_message: "special_category_basis must be one of the Article 9(2) bases: explicit_consent, employment_law, vital_interests, not_for_profit, made_public, legal_claims, substantial_public_interest, medical_diagnosis, public_health, archiving_research"
+
+    - name: special_category_types_required_if_special
+      field: special_category_types
+      type: required_if
+      required_if:
+        field: special_category_data
+        value: "true"
+      severity: error
+      error_message: "special_category_types is required when special_category_data is true — record which special categories are processed (e.g. health, biometric, racial origin, political opinions)"
+
+    # ── INTERNATIONAL TRANSFERS (Article 44–49) ──────────────────────────────
+    - name: international_transfer_required
+      field: international_transfer
+      type: not_empty
+      severity: error
+      error_message: "international_transfer must be declared (true or false) — Article 30(1)(e) EU GDPR requires recording of transfers to third countries"
+
+    - name: international_transfer_valid
+      field: international_transfer
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "international_transfer must be 'true' or 'false'"
+
+    - name: transfer_safeguard_required_if_transfer
+      field: transfer_safeguard
+      type: required_if
+      required_if:
+        field: international_transfer
+        value: "true"
+      severity: error
+      error_message: "transfer_safeguard is required when international_transfer is true — Articles 44–49 EU GDPR require an appropriate safeguard for international transfers"
+
+    - name: transfer_safeguard_valid
+      field: transfer_safeguard
+      type: lookup
+      lookup_file: ref/eu_gdpr_transfer_safeguard.txt
+      condition:
+        field: international_transfer
+        value: "true"
+      severity: error
+      error_message: "transfer_safeguard must be one of: adequacy_decision, standard_contractual_clauses, binding_corporate_rules, binding_corporate_rules_processor, approved_code_of_conduct, approved_certification_mechanism, derogation — per Articles 44–49 EU GDPR"
+
+    # ── DPO COMPLIANCE AUDIT TRAIL ───────────────────────────────────────────
+    - name: dpo_reviewed_by_required
+      field: dpo_reviewed_by
+      type: not_empty
+      severity: error
+      error_message: "dpo_reviewed_by is required — record who reviewed this ROPA entry for Article 30 EU GDPR compliance"
+
+    - name: dpo_review_date_required
+      field: dpo_review_date
+      type: not_empty
+      severity: error
+      error_message: "dpo_review_date is required"
+
+    - name: dpo_review_date_format
+      field: dpo_review_date
+      type: date_format
+      severity: error
+      error_message: "dpo_review_date must be a valid date (YYYY-MM-DD)"

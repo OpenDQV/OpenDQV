@@ -2,6 +2,41 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.2.0] - 2026-03-21
+
+### Contracts
+
+- **`dora_ict_incident`** — EU DORA (Digital Operational Resilience Act), Articles 17-19.
+  ICT incident reporting for EU financial entities (in force 17 January 2025). Enforces
+  incident classification, 24h early warning and 72h notification windows via `date_diff`
+  rule, root cause documentation for major/significant incidents, and remediation tracking.
+  30 rules. 3 new reference files.
+
+- **`hipaa_disclosure_accounting`** — US HIPAA 45 CFR 164.528. Accounting of disclosures
+  for covered entities and business associates. Enforces recipient type, disclosure purpose,
+  authorization reference (required for patient_authorization purpose), and minimum necessary
+  determination (required for all non-treatment disclosures). 27 rules. 3 new reference files.
+
+- **`sox_control_test`** — US Sarbanes-Oxley Act 2002, Sections 302/404. Internal control
+  test record for US public companies. Three-level `required_if` cascade: ineffective test
+  → deficiency classification → remediation plan + audit committee escalation for material
+  weaknesses. 32 rules. 5 new reference files.
+
+- **`eu_gdpr_processing_record`** — EU GDPR Article 30 ROPA. EU variant of the UK GDPR
+  contract with EU Standard Contractual Clauses, 27-DPA supervisory authority lookup, and
+  EU adequacy decision list. 31 rules.
+
+- **`eu_gdpr_dsar_request`** — EU GDPR Article 15 DSAR. EU variant with EUR penalty
+  references and EU supervisory authority. 31 rules.
+
+- **`mifid_transaction_report`** — MiFID II / MiFIR Article 26. Transaction reporting for
+  investment firms. LEI regex, ISIN regex, venue MIC regex enforced at point of write.
+  30 rules. 3 new reference files.
+
+Suite: 2,181 passing, 24 skipped (+239 from contract linter coverage of 6 new contracts).
+
+---
+
 ## [1.1.0] - 2026-03-21
 
 ### Contracts

@@ -1,0 +1,246 @@
+contract:
+  name: mifid_transaction_report
+  version: "1.0"
+  description: >
+    MiFID II / MiFIR Article 26 — Regulation (EU) 600/2014, transaction report compliance
+    contract. Investment firms must report complete and accurate details of transactions in
+    financial instruments to competent authorities via Approved Reporting Mechanisms (ARMs).
+    Also retained in UK law as UK MiFIR. This contract enforces completeness at the point
+    of write: LEI identifiers, ISIN, venue MIC code, execution timestamp, buyer/seller
+    identification, price, quantity, and currency. The omission failure mode: a transaction
+    report is submitted to an ARM without required LEI identifiers, ISIN, venue MIC code,
+    or execution timestamp. ARM rejects the report. Regulatory reporting breach. FCA fined
+    UBS GBP 27.6M in 2014 for equivalent MiFID I reporting failures. ESMA can impose fines
+    on trading venues and systematic internalisers under Article 70 MiFID II.
+  owner: "Regulatory Reporting Team"
+  status: active
+
+  rules:
+
+    # ── TRANSACTION IDENTITY ─────────────────────────────────────────────────
+    - name: transaction_reference_required
+      field: transaction_reference
+      type: not_empty
+      severity: error
+      error_message: "transaction_reference is required — every transaction report must have a unique reference per MiFIR Article 26(1)"
+
+    - name: transaction_reference_unique
+      field: transaction_reference
+      type: unique
+      severity: error
+      error_message: "transaction_reference must be unique — duplicate transaction references compromise reporting integrity"
+
+    # ── EXECUTION TIMESTAMP ──────────────────────────────────────────────────
+    - name: execution_timestamp_required
+      field: execution_timestamp
+      type: not_empty
+      severity: error
+      error_message: "execution_timestamp is required — MiFIR Article 26(3)(b) requires the date and time of the transaction to microsecond granularity"
+
+    - name: execution_timestamp_format
+      field: execution_timestamp
+      type: date_format
+      severity: error
+      error_message: "execution_timestamp must be a valid datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS) — RTS 25 requires timestamp accuracy"
+
+    # ── REPORTING FIRM LEI ───────────────────────────────────────────────────
+    - name: reporting_firm_lei_required
+      field: reporting_firm_lei
+      type: not_empty
+      severity: error
+      error_message: "reporting_firm_lei is required — MiFIR Article 26(1) requires identification of the investment firm executing the transaction via LEI"
+
+    - name: reporting_firm_lei_format
+      field: reporting_firm_lei
+      type: regex
+      pattern: "^[A-Z0-9]{18}[0-9]{2}$"
+      severity: error
+      error_message: "reporting_firm_lei must be a valid 20-character LEI per ISO 17442 — 18 alphanumeric characters followed by 2 check digits"
+
+    # ── EXECUTING ENTITY LEI ─────────────────────────────────────────────────
+    - name: executing_entity_lei_required
+      field: executing_entity_lei
+      type: not_empty
+      severity: error
+      error_message: "executing_entity_lei is required — MiFIR Article 26(3)(a) requires the LEI of the entity executing the transaction"
+
+    - name: executing_entity_lei_format
+      field: executing_entity_lei
+      type: regex
+      pattern: "^[A-Z0-9]{18}[0-9]{2}$"
+      severity: error
+      error_message: "executing_entity_lei must be a valid 20-character LEI per ISO 17442 — 18 alphanumeric characters followed by 2 check digits"
+
+    # ── VENUE MIC ────────────────────────────────────────────────────────────
+    - name: venue_mic_required
+      field: venue_mic
+      type: not_empty
+      severity: error
+      error_message: "venue_mic is required — MiFIR Article 26(3)(e) requires the venue of execution identified by MIC code"
+
+    - name: venue_mic_format
+      field: venue_mic
+      type: regex
+      pattern: "^[A-Z]{4}$"
+      severity: error
+      error_message: "venue_mic must be a valid 4-character Market Identifier Code per ISO 10383"
+
+    # ── INSTRUMENT ISIN ──────────────────────────────────────────────────────
+    - name: instrument_isin_required
+      field: instrument_isin
+      type: not_empty
+      severity: error
+      error_message: "instrument_isin is required — MiFIR Article 26(2) requires identification of the financial instrument via ISIN"
+
+    - name: instrument_isin_format
+      field: instrument_isin
+      type: regex
+      pattern: "^[A-Z]{2}[A-Z0-9]{9}[0-9]$"
+      severity: error
+      error_message: "instrument_isin must be a valid 12-character ISIN per ISO 6166 — 2-letter country code, 9 alphanumeric characters, 1 check digit"
+
+    # ── BUYER IDENTIFICATION ─────────────────────────────────────────────────
+    - name: buyer_id_type_required
+      field: buyer_id_type
+      type: not_empty
+      severity: error
+      error_message: "buyer_id_type is required — RTS 25 Annex I requires the type of buyer identifier"
+
+    - name: buyer_id_type_valid
+      field: buyer_id_type
+      type: lookup
+      lookup_file: ref/mifid_id_type.txt
+      severity: error
+      error_message: "buyer_id_type must be one of: lei, national_client_identifier, mifid_client_identifier, aggregated, pending_allocation — per RTS 25 Annex I"
+
+    - name: buyer_id_required
+      field: buyer_id
+      type: not_empty
+      severity: error
+      error_message: "buyer_id is required — MiFIR Article 26(3)(c) requires identification of the buyer"
+
+    - name: buyer_id_lei_format
+      field: buyer_id
+      type: regex
+      pattern: "^[A-Z0-9]{18}[0-9]{2}$"
+      condition:
+        field: buyer_id_type
+        value: "lei"
+      severity: error
+      error_message: "buyer_id must be a valid 20-character LEI per ISO 17442 when buyer_id_type is lei"
+
+    # ── SELLER IDENTIFICATION ────────────────────────────────────────────────
+    - name: seller_id_type_required
+      field: seller_id_type
+      type: not_empty
+      severity: error
+      error_message: "seller_id_type is required — RTS 25 Annex I requires the type of seller identifier"
+
+    - name: seller_id_type_valid
+      field: seller_id_type
+      type: lookup
+      lookup_file: ref/mifid_id_type.txt
+      severity: error
+      error_message: "seller_id_type must be one of: lei, national_client_identifier, mifid_client_identifier, aggregated, pending_allocation — per RTS 25 Annex I"
+
+    - name: seller_id_required
+      field: seller_id
+      type: not_empty
+      severity: error
+      error_message: "seller_id is required — MiFIR Article 26(3)(c) requires identification of the seller"
+
+    - name: seller_id_lei_format
+      field: seller_id
+      type: regex
+      pattern: "^[A-Z0-9]{18}[0-9]{2}$"
+      condition:
+        field: seller_id_type
+        value: "lei"
+      severity: error
+      error_message: "seller_id must be a valid 20-character LEI per ISO 17442 when seller_id_type is lei"
+
+    # ── PRICE AND QUANTITY ───────────────────────────────────────────────────
+    - name: price_min
+      field: price
+      type: min
+      min: 0
+      severity: error
+      error_message: "price must be >= 0 — MiFIR Article 26(3)(f) requires the price of the transaction"
+
+    - name: price_type_required
+      field: price_type
+      type: not_empty
+      severity: error
+      error_message: "price_type is required — RTS 25 requires the type of price to be reported"
+
+    - name: price_type_valid
+      field: price_type
+      type: lookup
+      lookup_file: ref/mifid_price_type.txt
+      severity: error
+      error_message: "price_type must be one of: monetary, yield, spread, percentage, basis_points, no_price"
+
+    - name: quantity_min
+      field: quantity
+      type: min
+      min: 0
+      severity: error
+      error_message: "quantity must be >= 0 — MiFIR Article 26(3)(g) requires the quantity of the transaction"
+
+    - name: currency_required
+      field: currency
+      type: not_empty
+      severity: error
+      error_message: "currency is required — MiFIR Article 26(3)(f) requires the currency in which the price is expressed"
+
+    - name: currency_valid
+      field: currency
+      type: lookup
+      lookup_file: ref/universal_currency.txt
+      severity: error
+      error_message: "currency must be a valid ISO 4217 currency code"
+
+    # ── TRANSACTION TYPE AND TRADE DATE ──────────────────────────────────────
+    - name: transaction_type_required
+      field: transaction_type
+      type: not_empty
+      severity: error
+      error_message: "transaction_type is required — MiFIR Article 26(3)(d) requires whether the transaction is a buy or sell"
+
+    - name: transaction_type_valid
+      field: transaction_type
+      type: lookup
+      lookup_file: ref/mifid_transaction_type.txt
+      severity: error
+      error_message: "transaction_type must be one of: buy, sell"
+
+    - name: trade_date_required
+      field: trade_date
+      type: not_empty
+      severity: error
+      error_message: "trade_date is required — the trading date must be recorded for T+1 reporting obligations"
+
+    - name: trade_date_format
+      field: trade_date
+      type: date_format
+      severity: error
+      error_message: "trade_date must be a valid date (YYYY-MM-DD)"
+
+    # ── COMPLIANCE AUDIT TRAIL ───────────────────────────────────────────────
+    - name: reviewed_by_required
+      field: reviewed_by
+      type: not_empty
+      severity: error
+      error_message: "reviewed_by is required — record who reviewed this transaction report for MiFIR Article 26 compliance"
+
+    - name: review_date_required
+      field: review_date
+      type: not_empty
+      severity: error
+      error_message: "review_date is required"
+
+    - name: review_date_format
+      field: review_date
+      type: date_format
+      severity: error
+      error_message: "review_date must be a valid date (YYYY-MM-DD)"

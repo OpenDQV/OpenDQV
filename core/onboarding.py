@@ -271,8 +271,14 @@ _TEMPLATE_LABELS: dict[str, str] = {
     "martyns_law_event":        "Public Safety / Events — Martyn's Law qualifying events",
     "building_safety_golden_thread": "Building Safety        — Golden Thread, higher-risk buildings",
     "companies_house_filing":   "Corporate Compliance   — Companies House director/PSC identity verification",
-    "gdpr_processing_record":   "Data Protection / GDPR — Record of Processing Activities (ROPA), Article 30",
-    "gdpr_dsar_request":        "Data Protection / GDPR — Data Subject Access Request handling, Article 15",
+    "gdpr_processing_record":   "Data Protection / GDPR — UK GDPR Article 30 ROPA",
+    "gdpr_dsar_request":        "Data Protection / GDPR — UK GDPR Article 15 DSAR",
+    "eu_gdpr_processing_record": "Data Protection / GDPR — EU GDPR Article 30 ROPA",
+    "eu_gdpr_dsar_request":     "Data Protection / GDPR — EU GDPR Article 15 DSAR",
+    "dora_ict_incident":        "Financial Resilience   — EU DORA ICT incident reporting (Jan 2025)",
+    "hipaa_disclosure_accounting": "Healthcare / HIPAA  — US HIPAA PHI disclosure accounting (45 CFR 164.528)",
+    "sox_control_test":         "Financial Controls     — US SOX 404 internal control test record",
+    "mifid_transaction_report": "Capital Markets        — MiFID II/MiFIR Article 26 transaction reporting",
     "water_utility_reading":    "Water Utilities        — meter readings, consumption",
 }
 

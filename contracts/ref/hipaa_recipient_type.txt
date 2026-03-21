@@ -1,0 +1,8 @@
+covered_entity
+business_associate
+individual
+public_health_authority
+law_enforcement
+oversight_agency
+researcher
+other

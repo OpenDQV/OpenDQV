@@ -1,0 +1,3 @@
+effective
+ineffective
+not_tested

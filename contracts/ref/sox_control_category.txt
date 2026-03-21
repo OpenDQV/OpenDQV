@@ -1,0 +1,5 @@
+control_environment
+risk_assessment
+control_activities
+information_and_communication
+monitoring

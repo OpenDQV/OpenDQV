@@ -1,0 +1,5 @@
+lei
+national_client_identifier
+mifid_client_identifier
+aggregated
+pending_allocation
