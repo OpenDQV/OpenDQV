@@ -25,7 +25,10 @@ jobs:
           python-version: '3.11'
 
       - name: Install Poetry
-        run: pip install poetry
+        run: pip install poetry==2.3.2
+
+      - name: Set version from tag
+        run: poetry version "${GITHUB_REF_NAME#v}"
 
       - name: Build package
         run: poetry build
