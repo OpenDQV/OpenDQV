@@ -34,9 +34,21 @@ def _load_all_contracts():
             results.append((path.name, raw))
     return results
 
-def _is_standard_contract(contract_dict):
-    """Return True only if the YAML uses the standard OpenDQV contract: wrapper."""
+def _is_canonical(contract_dict):
+    """Return True only for the canonical contract: wrapper format.
+    Semantic linting applies to this format only. The registry also loads
+    legacy list format (rules: [...]) and field-keyed onboarding format
+    (rules: {field: def}) — both are valid but use different structure."""
     return isinstance(contract_dict, dict) and "contract" in contract_dict
+
+def _is_known_format(contract_dict):
+    """Return True for any format the registry recognises."""
+    return isinstance(contract_dict, dict) and (
+        "contract" in contract_dict or "rules" in contract_dict
+    )
+
+# Alias used throughout
+_is_standard_contract = _is_canonical
 
 def _rules_from(contract_dict):
     """Extract the rules list from a raw contract dict."""
@@ -49,14 +61,16 @@ def _contract_name(contract_dict):
 # ── parametrised fixtures ─────────────────────────────────────────────────────
 
 _all_contracts = _load_all_contracts()
-_standard_contracts = [(f, c) for f, c in _all_contracts if _is_standard_contract(c)]
-_nonstandard = [f for f, c in _all_contracts if not _is_standard_contract(c)]
-if _nonstandard:
+_standard_contracts = [(f, c) for f, c in _all_contracts if _is_canonical(c)]
+# Warn only about genuinely unrecognised files — not about the supported
+# non-canonical formats (legacy list, field-keyed onboarding).
+_unrecognised = [f for f, c in _all_contracts if not _is_known_format(c)]
+if _unrecognised:
     import warnings
     warnings.warn(
-        f"Found {len(_nonstandard)} YAML file(s) in contracts/ that do not use the "
-        f"standard 'contract:' wrapper and will not be loaded by the registry: "
-        f"{_nonstandard}",
+        f"Found {len(_unrecognised)} YAML file(s) in contracts/ that are not in any "
+        f"recognised format and will be silently skipped by the registry: "
+        f"{_unrecognised}",
         stacklevel=1,
     )
 
