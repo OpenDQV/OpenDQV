@@ -247,7 +247,7 @@ bash install.sh       # Mac/Linux
 ```bat
 git clone https://github.com/OpenDQV/OpenDQV.git
 cd OpenDQV
-install.bat           # Windows — double-click or run from cmd.exe
+install.bat
 ```
 
 The wizard will start automatically after setup and have you validating your first record in under 90 seconds.
