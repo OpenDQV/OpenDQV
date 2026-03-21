@@ -10,6 +10,7 @@ contract:
     description: ''
     type: regex
     field: email
+    pattern: "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$"
     severity: error
     error_message: Invalid email format
     inherited: false

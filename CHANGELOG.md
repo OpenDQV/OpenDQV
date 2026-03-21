@@ -2,6 +2,41 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.0.1] - 2026-03-21
+
+### Fixes
+
+- **`date_format` validator** — `rule.format` (strftime syntax) is now used as the
+  primary format when specified. Previously the field was accepted by the Rule model
+  but silently ignored; only four hardcoded formats were tried. Custom formats such as
+  `'%Y-%m-%d %H:%M:%S'` (space-separated datetime, common in SQL Server exports) now
+  validate correctly.
+- **`/explain` endpoint** — respects `AUTH_MODE=open`. The auth check order was
+  inverted: an absent token raised 401 before the auth-mode check was reached, making
+  the endpoint unreachable without a token even in open mode.
+- **`/validate/batch/file`** — unknown `context` values now return `422` instead of
+  an unhandled exception. The try/except for `UnknownContextError` was present on
+  `/validate` and `/validate/batch` but missing on the file upload endpoint.
+- **`contracts/customer.yaml`** — `valid_email` regex rule now includes the email
+  pattern. The rule existed but had no `pattern` field, making it a no-op that
+  accepted any value including invalid emails.
+- **`install.sh`** — added `PYTHON` environment variable override. Users with Python
+  3.11 installed under a non-default command (e.g. `python3.11` via Homebrew on macOS)
+  can now run `PYTHON=python3.11 bash install.sh` instead of failing silently.
+
+### Documentation
+
+- `docs/rules/explain_endpoint.md` — corrected auth behaviour: documents
+  `AUTH_MODE=open` vs `AUTH_MODE=token` behaviour and `OPENDQV_EXPLAIN_PUBLIC` flag.
+- `README.md` — `date_format` rule entry clarified: `format` is optional, uses Python
+  strftime syntax, tried before fallback list; all four fallback formats listed.
+- `docs/troubleshooting.md` — added `PYTHON=python3.11 bash install.sh` override
+  under Python version troubleshooting.
+- `docs/quickstart.md` — same PYTHON override tip added to Python install section.
+- `docs/runbook.md` — corrected token generation curl command to current API path.
+
+---
+
 ## [1.0.0] - 2026-03-20
 
 Initial public release.
