@@ -560,10 +560,13 @@ contract:
 | `sf_lead` | Salesforce Lead — 16 validation criteria with lead-specific checks | `web_form`, `trade_show`, `partner_referral` | — |
 | `proof_of_play` | **Reference contract: OOH advertising impression validation** | `billing`, `operations` | Cross-field rules, conditional constraints, context-aware billing thresholds |
 | `social_media_age_compliance` | UK Online Safety Act / Ofcom age assurance — 13+ age gate, DOB consistency, identity verification audit trail | — | `age_match` rule, identity verification lookup, verification timestamp |
+| `qsr_menu_item` | Natasha's Law (PPDS) allergen compliance — all 14 major allergens must be explicitly declared before a QSR menu item is saved or labelled | — | 14 mandatory boolean fields, `required_if` for gluten/tree-nut type, sulphite threshold, audit trail |
 
-OpenDQV ships 30 production-ready industry contracts in `contracts/` covering agriculture, automotive, banking, education, energy, FMCG, healthcare, HR, insurance, logistics, manufacturing, media, pharma, public sector, real estate, retail, telecoms, travel, water utility, and more — plus 17 starter templates in `examples/starter_contracts/`. See [docs/community_use_cases.md](docs/community_use_cases.md) for real-world examples by industry.
+OpenDQV ships 31 production-ready industry contracts in `contracts/` covering agriculture, automotive, banking, education, energy, FMCG, food safety, healthcare, HR, insurance, logistics, manufacturing, media, pharma, public sector, real estate, retail, telecoms, travel, water utility, and more — plus 17 starter templates in `examples/starter_contracts/`. See [docs/community_use_cases.md](docs/community_use_cases.md) for real-world examples by industry.
 
 > **UK Online Safety Act (Ofcom enforcement from January 2026):** The `social_media_age_compliance` contract demonstrates age assurance patterns required by the UK Online Safety Act 2023: 13-year age gate, age/DOB consistency check (`age_match` rule), identity verification method tracking, and verification timestamp audit trail.
+
+> **Natasha's Law (in force 1 October 2021):** The `qsr_menu_item` contract enforces explicit allergen declaration for Pre-Packed for Direct Sale (PPDS) food at the point of write. All 14 major allergens are mandatory fields — omission is structurally impossible and triggers a 422 before the record enters the system. See [docs/integrations/natasha-law-compliance.md](docs/integrations/natasha-law-compliance.md).
 
 **`proof_of_play` is the recommended reference for cross-field rules and condition blocks.** It demonstrates:
 - `compare` rule: `impression_end` must be strictly after `impression_start` (catches phantom billing from inverted timestamps)

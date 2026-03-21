@@ -1,0 +1,10 @@
+sandwich
+wrap
+hot_food
+pastry
+salad
+beverage
+dessert
+side
+sauce
+other
