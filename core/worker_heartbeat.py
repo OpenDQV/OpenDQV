@@ -22,6 +22,7 @@ Design notes:
 import logging
 import os
 import sqlite3
+import sys
 import threading
 import time
 from datetime import datetime, timezone, timedelta
@@ -280,7 +281,18 @@ class WorkerHeartbeat:
 
 
 def _pid_exists(pid: int) -> bool:
-    """Check if a process with the given PID is currently running."""
+    """Check if a process with the given PID is currently running.
+
+    On Windows, os.kill(pid, 0) sends CTRL_C_EVENT (signal 0) which raises
+    KeyboardInterrupt. Use OpenProcess instead.
+    """
+    if sys.platform == "win32":
+        import ctypes
+        handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
+        if not handle:
+            return False
+        ctypes.windll.kernel32.CloseHandle(handle)
+        return True
     try:
         os.kill(pid, 0)
         return True
