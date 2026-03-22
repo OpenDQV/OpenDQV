@@ -756,6 +756,9 @@ def _check_lookup_path_safe(file_path: str) -> Path:
     Resolves the path and verifies it lies within the configured contracts
     directory. Raises ValueError on traversal attempts (e.g. ../../etc/passwd).
     """
+    # Null byte injection — Linux pathlib raises this automatically; Windows does not.
+    if "\x00" in file_path:
+        raise ValueError("null byte in lookup_file path — rejected")
     import config as _cfg
     base = Path(_cfg.CONTRACTS_DIR).resolve()
     # Support both absolute paths and paths relative to CONTRACTS_DIR

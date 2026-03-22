@@ -13,12 +13,16 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+
+# Cross-platform temp dir — /tmp on Linux/Mac, %TEMP% on Windows
+_SESSION_FILE = Path(tempfile.gettempdir()) / ".opendqv_session"
 
 
 def _pid_alive(pid: int) -> bool:
@@ -1009,11 +1013,9 @@ class OnboardingWizard:
             print()
 
         # Write session file so the workbench auto-jumps to this contract on next open
-        import json as _json_mod
-        import pathlib as _path_mod
         try:
-            _path_mod.Path("/tmp/.opendqv_session").write_text(
-                _json_mod.dumps({"contract": entity})
+            _SESSION_FILE.write_text(
+                json.dumps({"contract": entity}), encoding="utf-8"
             )
         except Exception:
             pass  # non-critical
