@@ -418,7 +418,7 @@ SELECT net.http_post(
 |---|---|
 | Postgres backend (`OPENDQV_DB_BACKEND=postgres`) | The contract history and federation log Postgres backend is part of the enterprise tier. The application-layer validate-before-INSERT pattern (this document) works with SQLite or any database. |
 | `unique` rule in batch | The `unique` rule checks within the batch only, not against existing Postgres rows. Use a `UNIQUE` constraint on the column for database-level deduplication. |
-| `plpython3u` UDF | Not recommended for v1 — application-layer validation is simpler, more portable, and doesn't require the `plpython3u` extension. |
+| `plpython3u` UDF | Requires `apk add python3` (Alpine) or `apt install postgresql-plpython3` (Debian). Not available on all managed Postgres providers — check your provider's extension allowlist before using Approach 4. |
 
 ---
 
@@ -431,6 +431,12 @@ SELECT net.http_post(
 | **Governance-first** | Approach 4 — native DB trigger calling the OpenDQV API (enforcement at DB layer, any writer validated) |
 | **Platform migration** | Approach 4 trigger pattern unblocks Databricks/Snowflake migrations by removing the stored-procedure DQ dependency |
 | **Community** | Postgres enterprise storage backend (contract history + federation log in Postgres) — community PR welcome |
+
+---
+
+## Roadmap
+
+See [`roadmap.md`](roadmap.md) for planned Postgres features including community-contributed generators and native constraint integrations.
 
 ---
 

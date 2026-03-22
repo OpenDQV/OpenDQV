@@ -159,5 +159,6 @@ You are up and running. Here are the natural next steps:
 - **CLI reference** — local validation, contract lifecycle, code generation without a running server: [`docs/cli.md`](cli.md)
 - **Observability** — Prometheus metrics, alert rules, trace log, Grafana panels: [`docs/observability.md`](observability.md)
 - **LocalValidator** — validate without a running API server (Python-only, zero latency): [`docs/pandas_integration.md`](pandas_integration.md)
+- **Platform integrations** — connect OpenDQV to your database at the write layer: [Postgres](postgres_integration.md) · [Databricks](databricks_integration.md) · [Snowflake](snowflake_integration.md)
 
 If you get stuck at any point, the `docker compose logs` command is your friend — it shows exactly what each service is doing and usually points straight at the problem.
