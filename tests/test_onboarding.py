@@ -1187,10 +1187,11 @@ class TestWizardUXRegressions:
         assert "contracts/reload" in all_output
 
     def test_next_steps_writes_session_file(self, tmp_path):
-        """Wizard writes /tmp/.opendqv_session with the contract name after onboarding."""
+        """Wizard writes .opendqv_session in the system temp dir after onboarding."""
         import json
         import pathlib
-        session_file = pathlib.Path("/tmp/.opendqv_session")
+        import tempfile
+        session_file = pathlib.Path(tempfile.gettempdir()) / ".opendqv_session"
         # Remove any leftover file before test
         if session_file.exists():
             session_file.unlink()

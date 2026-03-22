@@ -214,8 +214,10 @@ import pathlib as _pathlib
 if "section" not in st.session_state:
     st.session_state["section"] = "Contracts"  # default; key= keeps it in sync
 if "known_contracts" not in st.session_state:
-    # Seed from /tmp/.opendqv_session if available (non-Docker host run)
-    _session_file = _pathlib.Path("/tmp/.opendqv_session")
+    # Seed from session file if available (non-Docker host run)
+    # tempfile.gettempdir() is cross-platform (/tmp on Unix, %TEMP% on Windows)
+    import tempfile as _tempfile
+    _session_file = _pathlib.Path(_tempfile.gettempdir()) / ".opendqv_session"
     _hint: str = ""
     if _session_file.exists():
         try:
