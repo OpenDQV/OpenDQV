@@ -9,6 +9,7 @@
 - [date_format](../../README.md#rule-types#date_format) — field must be a parseable date
 - [unique](../../README.md#rule-types#unique) — field must be unique (supports `group_by`)
 - [lookup](../../README.md#rule-types#lookup) — field value must appear in a reference list (supports `all_of`)
+- [allowed_values](../../README.md#rule-types#allowed_values) — field value must be one of an inline list (no external file needed)
 - [compare](../../README.md#rule-types#compare) — field compared to another field or sentinel (`today`, `now`)
 - [required_if](../../README.md#rule-types#required_if) — field required when another field equals a value
 - [min_age / max_age](../../README.md#rule-types#age) — date field implies an age constraint

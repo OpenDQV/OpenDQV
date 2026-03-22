@@ -2,6 +2,49 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.2.3] - 2026-03-22
+
+### Features
+
+- **`allowed_values` rule type** — validate that a field value is one of an inline
+  list without needing a separate lookup file. Supports single-record and DuckDB
+  batch validation.
+
+  ```yaml
+  - name: status_valid
+    field: status
+    type: allowed_values
+    allowed_values: [active, inactive, pending]
+    severity: error
+    error_message: "status must be one of: active, inactive, pending"
+  ```
+
+- **Lifecycle webhooks** — three new webhook events fire on contract lifecycle
+  transitions: `opendqv.contract.submitted` (DRAFT → REVIEW),
+  `opendqv.contract.approved` (REVIEW → ACTIVE), `opendqv.contract.rejected`
+  (REVIEW → DRAFT). Subscribers can notify approvers automatically.
+
+### Contracts
+
+Eight "adequate starter" contracts upgraded with domain-specific validation:
+
+- **`telecoms_cdr`** — fixed `call_start`/`call_end` from date to datetime format
+  (CDRs record to the second); added `call_type` allowed_values
+- **`healthcare_patient`** — added ICD-10 `diagnosis_code` regex
+- **`banking_transaction`** — added `transaction_type` allowed_values,
+  `account_number` min_length
+- **`hr_employee`** — added `contract_type` allowed_values
+- **`insurance_claim`** — added `claim_type` and `claim_status` allowed_values
+- **`logistics_shipment`** — added ISO 3166-1 alpha-2 country code regex,
+  `shipment_status` allowed_values
+- **`manufacturing_iot`** — fixed `timestamp` from date to datetime format;
+  added `unit_of_measure` allowed_values
+- **`energy_meter_reading`** — added `meter_type` and `reading_unit` allowed_values
+
+Suite: 2,261 passing, 24 skipped.
+
+---
+
 ## [1.2.2] - 2026-03-22
 
 ### Fixes
