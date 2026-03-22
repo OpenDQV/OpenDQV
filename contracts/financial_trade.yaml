@@ -1,7 +1,15 @@
 contract:
   name: financial_trade
-  version: "1.0"
-  description: "Financial trade record validation"
+  version: "1.1"
+  description: >
+    Financial trade record validation. Enforces instrument identifier standards
+    (ISIN per ISO 6166 for securities), Legal Entity Identifier format (LEI per
+    ISO 17442) for institutional counterparties, trade side classification, and
+    settlement lifecycle status. Designed for equity, bond, and fund trading desks
+    operating under MiFID II Article 26 transaction reporting obligations and FCA
+    COBS/SYSC data quality requirements. For full ARM-ready MiFID II transaction
+    reports see mifid_transaction_report contract. This contract covers internal
+    order management and execution records prior to ARM submission.
   owner: "Trading Data Team"
   status: active
 
@@ -24,11 +32,77 @@ contract:
       severity: error
       error_message: "settlement_date must be a valid date (YYYY-MM-DD)"
 
+    - name: settlement_date_after_trade
+      description: "Settlement must occur on or after trade date. T+1 (equities,
+        US/EU 2024) and T+2 (bonds) are standard cycles. A settlement date before
+        trade date indicates a data entry error or system clock failure."
+      field: settlement_date
+      type: compare
+      compare_to: trade_date
+      compare_op: gte
+      severity: error
+      error_message: "settlement_date must be on or after trade_date — settlement
+        cannot precede execution"
+
     - name: instrument_id_required
       field: instrument_id
       type: not_empty
       severity: error
       error_message: "instrument_id is required"
+
+    - name: instrument_id_isin_format
+      description: "ISO 6166 ISIN format: 2-letter country code + 9-character national
+        security identifier + 1 check digit. Required for all exchange-listed securities
+        under MiFID II RTS 22. OTC instruments may use CUSIP or SEDOL — validate
+        those via instrument_type context."
+      field: instrument_id
+      type: regex
+      pattern: '^[A-Z]{2}[A-Z0-9]{9}[0-9]$'
+      severity: warning
+      error_message: "instrument_id does not match ISIN format (ISO 6166: 2-letter
+        country code + 9 alphanumeric + 1 check digit, e.g. GB0002162385) — verify
+        if using CUSIP, SEDOL, or internal identifier"
+
+    - name: instrument_type_values
+      description: "Asset class classification aligned with MiFID II financial instrument
+        taxonomy (Annex I Section C) and EMIR trade reporting categories."
+      field: instrument_type
+      type: allowed_values
+      allowed_values:
+        - equity
+        - bond
+        - derivative_equity
+        - derivative_rates
+        - derivative_credit
+        - derivative_fx
+        - derivative_commodity
+        - etf
+        - fund
+        - fx_spot
+        - fx_forward
+        - repo
+        - structured_product
+      severity: error
+      error_message: "instrument_type must be one of: equity, bond, derivative_equity,
+        derivative_rates, derivative_credit, derivative_fx, derivative_commodity,
+        etf, fund, fx_spot, fx_forward, repo, structured_product"
+
+    - name: trade_side_values
+      description: "Execution side. short_sell requires locate/borrow confirmation
+        under MiFID II Article 12 short selling regulation and SEC Rule 203 (US).
+        cover = closing an existing short position."
+      field: trade_side
+      type: allowed_values
+      allowed_values:
+        - buy
+        - sell
+        - short_sell
+        - cover
+        - subscription
+        - redemption
+      severity: error
+      error_message: "trade_side must be one of: buy, sell, short_sell, cover, subscription,
+        redemption"
 
     - name: quantity_min
       field: quantity
@@ -56,6 +130,19 @@ contract:
       severity: error
       error_message: "counterparty_id is required"
 
+    - name: counterparty_lei_format
+      description: "ISO 17442 LEI format: 18 alphanumeric characters (issuing LOU
+        prefix + entity-specific identifier) followed by 2 numeric check digits.
+        Required for all counterparties that are legal entities under EMIR and MiFID
+        II Article 26(1). Natural persons use client_id instead."
+      field: counterparty_id
+      type: regex
+      pattern: '^[A-Z0-9]{18}[0-9]{2}$'
+      severity: warning
+      error_message: "counterparty_id does not match LEI format (ISO 17442: 20 chars,
+        e.g. 549300TRUWO2CD2G5692) — verify if counterparty is a natural person
+        or using internal identifier"
+
     - name: currency_required
       field: currency
       type: not_empty
@@ -67,4 +154,24 @@ contract:
       type: regex
       pattern: '^[A-Z]{3}$'
       severity: error
-      error_message: "currency must be a 3-letter ISO 4217 code (e.g. GBP, USD)"
+      error_message: "currency must be a 3-letter ISO 4217 code (e.g. GBP, USD, EUR)"
+
+    - name: settlement_status_values
+      description: "Settlement lifecycle status. 'failed' triggers mandatory fail
+        reporting under CSDR Article 7 (EU) from 2022 — buy-in and cash penalties
+        apply after standard settlement cycle. Failed trades must be escalated within
+        the settlement window."
+      field: settlement_status
+      type: allowed_values
+      allowed_values:
+        - pending
+        - affirmed
+        - matched
+        - settled
+        - partially_settled
+        - failed
+        - cancelled
+        - on_hold
+      severity: warning
+      error_message: "settlement_status must be one of: pending, affirmed, matched,
+        settled, partially_settled, failed, cancelled, on_hold"

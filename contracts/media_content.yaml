@@ -1,7 +1,15 @@
 contract:
   name: media_content
-  version: "1.0"
-  description: "Media content record validation"
+  version: "1.1"
+  description: >
+    Media content record validation for broadcast, streaming, and digital distribution
+    pipelines. Enforces content type classification aligned with EIDR (Entertainment
+    Identifier Registry) taxonomy, BBFC/PEGI age rating standards, ISO 639-1 language
+    codes, ISO 3166-1 territory rights validation, and title length constraints for
+    EPG and catalogue system compatibility. Prevents unrated, uncategorised, or
+    territorially unrestricted content from entering distribution pipelines where
+    OFCOM broadcast licensing, AVMS Directive (EU) 2018/1808, and rights clearance
+    obligations apply.
   owner: "Content Data Team"
   status: active
 
@@ -18,11 +26,89 @@ contract:
       severity: error
       error_message: "title is required"
 
+    - name: title_max_length
+      description: "EPG (Electronic Programme Guide) systems and streaming catalogue
+        APIs typically truncate titles beyond 255 characters. Values exceeding this
+        limit cause display errors in broadcast middleware and VOD platform ingestion."
+      field: title
+      type: max_length
+      max: 255
+      severity: warning
+      error_message: "title exceeds 255 characters — will be truncated in EPG and
+        streaming catalogue systems"
+
     - name: content_type_required
       field: content_type
       type: not_empty
       severity: error
       error_message: "content_type is required"
+
+    - name: content_type_values
+      description: "EIDR-aligned content type taxonomy. 'series' is the parent container;
+        'episode' is a child of series. 'clip' is a promotional or editorial excerpt.
+        Correct classification is required for AVMS Directive metadata obligations
+        and VOD platform content discovery."
+      field: content_type
+      type: allowed_values
+      allowed_values:
+        - film
+        - series
+        - episode
+        - season
+        - documentary
+        - short
+        - live
+        - clip
+        - podcast
+        - podcast_episode
+        - album
+        - track
+        - ebook
+        - audiobook
+        - game
+        - trailer
+      severity: error
+      error_message: "content_type must be one of: film, series, episode, season,
+        documentary, short, live, clip, podcast, podcast_episode, album, track,
+        ebook, audiobook, game, trailer"
+
+    - name: content_rating_values
+      description: "UK BBFC classification system for video content. U/PG/12A/15/18/R18
+        are mandatory for theatrical and home video releases under the Video Recordings
+        Act 1984. 'unrated' is only valid for content exempt from classification
+        (e.g. music videos, news). PEGI ratings (3/7/12/16/18) apply to games."
+      field: content_rating
+      type: allowed_values
+      allowed_values:
+        - U
+        - PG
+        - "12"
+        - 12A
+        - "15"
+        - "18"
+        - R18
+        - unrated
+        - exempt
+        - PEGI_3
+        - PEGI_7
+        - PEGI_12
+        - PEGI_16
+        - PEGI_18
+      severity: warning
+      error_message: "content_rating must be a valid BBFC or PEGI classification:
+        U, PG, 12, 12A, 15, 18, R18, unrated, exempt, or PEGI_3/7/12/16/18"
+
+    - name: language_format
+      description: "ISO 639-1 two-letter lowercase language code. Required for AVMS
+        Directive (EU) 2018/1808 European works quota reporting and OFCOM prominence
+        obligations. Enables automated language-based rights filtering in distribution
+        platforms."
+      field: language
+      type: regex
+      pattern: '^[a-z]{2}$'
+      severity: warning
+      error_message: "language must be a valid ISO 639-1 two-letter lowercase code
+        (e.g. en, fr, de, es, zh) — required for AVMS Directive quota reporting"
 
     - name: publish_date_format
       field: publish_date
@@ -36,6 +122,17 @@ contract:
       min: 0
       severity: error
       error_message: "duration_seconds must be >= 0"
+
+    - name: duration_seconds_anomaly
+      description: "Content duration exceeding 86,400 seconds (24 hours) is anomalous
+        for all content types except live streams. Likely indicates a data entry
+        error (e.g. milliseconds stored in a seconds field)."
+      field: duration_seconds
+      type: max
+      max: 86400
+      severity: warning
+      error_message: "duration_seconds exceeds 86,400 (24 hours) — verify this is
+        not a unit error (milliseconds stored as seconds)"
 
     - name: views_min
       field: views
@@ -55,3 +152,16 @@ contract:
       type: not_empty
       severity: error
       error_message: "rights_territory is required"
+
+    - name: rights_territory_format
+      description: "ISO 3166-1 alpha-2 territory code or 'WORLDWIDE' for global
+        rights clearance. Unvalidated territory strings cause silent rights violations
+        in distribution APIs — content may be served to audiences without cleared
+        rights, exposing the distributor to copyright infringement liability."
+      field: rights_territory
+      type: regex
+      pattern: '^[A-Z]{2}$|^WORLDWIDE$'
+      severity: error
+      error_message: "rights_territory must be a 2-letter ISO 3166-1 alpha-2 country
+        code (e.g. GB, US, DE) or WORLDWIDE — unvalidated territory values risk
+        rights clearance violations"

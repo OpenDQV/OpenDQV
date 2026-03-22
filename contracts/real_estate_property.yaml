@@ -1,7 +1,16 @@
 contract:
   name: real_estate_property
-  version: "1.0"
-  description: "Real estate property listing validation"
+  version: "1.1"
+  description: >
+    Real estate property listing validation for UK residential and commercial
+    property pipelines. Enforces UK postcode format, RICS property type taxonomy,
+    Energy Performance Certificate (EPC) rating validation (A-G scale, mandatory
+    for all residential lettings under the Energy Efficiency (Private Rented Property)
+    (England and Wales) Regulations 2015 and for sales since 2008), council tax
+    band validation (England/Wales A-H), legal tenure classification (freehold/
+    leasehold/shared ownership), and listing lifecycle status. Prevents uncompliant
+    property records from entering Rightmove/Zoopla feed APIs, RICS valuation
+    databases, and HM Land Registry submission pipelines.
   owner: "Property Data Team"
   status: active
 
@@ -37,6 +46,37 @@ contract:
       severity: error
       error_message: "property_type is required"
 
+    - name: property_type_values
+      description: "RICS and Rightmove/Zoopla property type taxonomy. Correct classification
+        is required for portal feed compliance, automated valuation model (AVM)
+        inputs, and Land Registry transaction categorisation. 'maisonette' is a
+        self-contained flat over two floors; distinct from 'flat' for AVM purposes."
+      field: property_type
+      type: allowed_values
+      allowed_values:
+        - detached
+        - semi_detached
+        - terraced
+        - end_of_terrace
+        - flat
+        - maisonette
+        - studio
+        - bungalow
+        - detached_bungalow
+        - semi_detached_bungalow
+        - cottage
+        - townhouse
+        - commercial
+        - land
+        - farm
+        - houseboat
+        - park_home
+      severity: error
+      error_message: "property_type must be a standard RICS/portal type: detached,
+        semi_detached, terraced, end_of_terrace, flat, maisonette, studio, bungalow,
+        detached_bungalow, semi_detached_bungalow, cottage, townhouse, commercial,
+        land, farm, houseboat, park_home"
+
     - name: bedrooms_range
       field: bedrooms
       type: range
@@ -58,14 +98,102 @@ contract:
       severity: error
       error_message: "listing_date must be a valid date (YYYY-MM-DD)"
 
-    - name: agent_id_required
-      field: agent_id
-      type: not_empty
-      severity: error
-      error_message: "agent_id is required"
+    - name: listing_status_values
+      description: "Property transaction lifecycle status aligned with Rightmove/
+        Zoopla portal feed specification and RICS transaction stage definitions.
+        'under_offer' and 'sold_stc' are distinct: under_offer = offer accepted,
+        not yet exchanged; sold_stc = sold subject to contract (UK usage). Portal
+        feeds require accurate status for market statistics reporting."
+      field: listing_status
+      type: allowed_values
+      allowed_values:
+        - for_sale
+        - under_offer
+        - sold_stc
+        - exchanged
+        - completed
+        - withdrawn
+        - to_let
+        - let_agreed
+        - let
+      severity: warning
+      error_message: "listing_status must be one of: for_sale, under_offer, sold_stc,
+        exchanged, completed, withdrawn, to_let, let_agreed, let"
+
+    - name: tenure_values
+      description: "Legal tenure classification. 'leasehold' requires remaining lease
+        term disclosure under Consumer Protection from Unfair Trading Regulations
+        2008 and NTSELAT (National Trading Standards Estate & Letting Agents Team)
+        material information guidance Part B. Leasehold properties with < 80 years
+        remaining are typically unmortgageable."
+      field: tenure
+      type: allowed_values
+      allowed_values:
+        - freehold
+        - leasehold
+        - shared_ownership
+        - commonhold
+        - feudal
+        - unknown
+      severity: warning
+      error_message: "tenure must be one of: freehold, leasehold, shared_ownership,
+        commonhold, feudal, unknown (leasehold requires remaining term disclosure
+        under NTSELAT material information guidance)"
 
     - name: epc_rating_required
       field: epc_rating
       type: not_empty
       severity: warning
       error_message: "epc_rating should be provided"
+
+    - name: epc_rating_values
+      description: "Energy Performance Certificate rating scale A (most efficient)
+        to G (least efficient). Mandatory for all residential properties listed
+        for sale or let since 2008 under the Energy Performance of Buildings
+        Regulations 2012. Properties rated F or G cannot be let under MEES
+        (Minimum Energy Efficiency Standards) Regulations 2018 — minimum EPC E
+        required for new tenancies since April 2018."
+      field: epc_rating
+      type: allowed_values
+      allowed_values:
+        - A
+        - B
+        - C
+        - D
+        - E
+        - F
+        - G
+        - exempt
+        - not_required
+      severity: warning
+      error_message: "epc_rating must be A, B, C, D, E, F, G, exempt, or not_required
+        — F/G rated properties cannot be let under MEES Regulations 2018"
+
+    - name: council_tax_band_values
+      description: "England and Wales council tax bands A-H (set by Valuation Office
+        Agency at 1991 values). Scotland uses bands A-I with different thresholds
+        (band I added above band H). Northern Ireland uses rates rather than council
+        tax. Correct band is required for affordability calculations in mortgage
+        Decision in Principle (DIP) systems."
+      field: council_tax_band
+      type: allowed_values
+      allowed_values:
+        - A
+        - B
+        - C
+        - D
+        - E
+        - F
+        - G
+        - H
+        - I
+        - unknown
+      severity: warning
+      error_message: "council_tax_band must be A through H (England/Wales) or A
+        through I (Scotland), or unknown"
+
+    - name: agent_id_required
+      field: agent_id
+      type: not_empty
+      severity: error
+      error_message: "agent_id is required"

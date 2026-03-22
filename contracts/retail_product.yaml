@@ -1,7 +1,15 @@
 contract:
   name: retail_product
-  version: "1.0"
-  description: "Retail product catalogue record validation"
+  version: "1.1"
+  description: >
+    Retail product catalogue record validation for merchandising, replenishment,
+    and e-commerce pipelines. Enforces GS1 GTIN barcode format (8, 12, 13, or
+    14-digit numeric identifiers used across UK retail EDI), product lifecycle
+    status classification, department taxonomy for planogram and space management
+    systems, ISO 4217 currency codes, and product name length constraints for POS
+    system compatibility. Prevents uncategorised products, invalid barcodes, and
+    products without lifecycle status from entering EPoS, WMS, and retailer catalogue
+    exchange pipelines.
   owner: "Merchandising Data Team"
   status: active
 
@@ -18,11 +26,56 @@ contract:
       severity: error
       error_message: "product_name is required"
 
+    - name: product_name_max_length
+      description: "POS system display fields and retailer catalogue APIs typically
+        cap product names at 100 characters. Values exceeding this are silently
+        truncated, producing misleading descriptions on shelf-edge labels and
+        customer receipts."
+      field: product_name
+      type: max_length
+      max: 100
+      severity: warning
+      error_message: "product_name exceeds 100 characters — will be truncated in
+        POS systems and retailer catalogue APIs"
+
     - name: category_required
       field: category
       type: not_empty
       severity: error
       error_message: "category is required"
+
+    - name: category_values
+      description: "Retail department taxonomy aligned with GS1 UK category management
+        standards and Nielsen/Circana retail measurement categories. Correct department
+        classification is required for space planning, promotional mechanics, and
+        Category Captain reporting."
+      field: category
+      type: allowed_values
+      allowed_values:
+        - ambient_grocery
+        - chilled
+        - frozen
+        - fresh_produce
+        - bakery
+        - deli_and_counters
+        - meat_and_poultry
+        - fish_and_seafood
+        - dairy
+        - beers_wines_spirits
+        - soft_drinks
+        - health_and_beauty
+        - household
+        - baby
+        - pet
+        - electricals
+        - clothing
+        - stationery
+        - seasonal
+        - tobacco
+        - other
+      severity: warning
+      error_message: "category should be a standard retail department — use one of
+        the defined GS1 UK taxonomy values for space planning and category reporting"
 
     - name: price_min
       field: price
@@ -30,6 +83,17 @@ contract:
       min: 0
       severity: error
       error_message: "price must be >= 0"
+
+    - name: currency_format
+      description: "ISO 4217 three-letter currency code. Required on all price fields
+        for multi-market retail operations. Missing or invalid currency codes cause
+        silent misreporting in promotional P&L and cross-border pricing analysis."
+      field: currency
+      type: regex
+      pattern: '^[A-Z]{3}$'
+      severity: error
+      error_message: "currency must be a valid ISO 4217 three-letter code (e.g.
+        GBP, EUR, USD)"
 
     - name: stock_quantity_min
       field: stock_quantity
@@ -43,6 +107,38 @@ contract:
       type: not_empty
       severity: error
       error_message: "barcode is required"
+
+    - name: barcode_gtin_format
+      description: "GS1 GTIN (Global Trade Item Number) format. GTIN-8 (EAN-8, small
+        pack), GTIN-12 (UPC-A, US market), GTIN-13 (EAN-13, UK/EU standard retail),
+        GTIN-14 (ITF-14, outer case). All digits must be numeric. The final digit
+        is a GS1 check digit. Invalid barcodes cause scan failures at POS, WMS
+        receiving, and supplier EDI interfaces."
+      field: barcode
+      type: regex
+      pattern: '^[0-9]{8}$|^[0-9]{12}$|^[0-9]{13}$|^[0-9]{14}$'
+      severity: error
+      error_message: "barcode must be a valid GS1 GTIN: 8, 12, 13, or 14 numeric
+        digits (EAN-8, UPC-A, EAN-13, or ITF-14). e.g. 5000112548167"
+
+    - name: product_status_values
+      description: "Product lifecycle status. 'discontinued' and 'end_of_life'
+        products must not be re-ordered but may remain in stock. 'out_of_stock'
+        is a temporary replenishment state. Systems must not raise purchase orders
+        against discontinued or end_of_life products."
+      field: product_status
+      type: allowed_values
+      allowed_values:
+        - active
+        - out_of_stock
+        - discontinued
+        - end_of_life
+        - recalled
+        - pending_launch
+        - delisted
+      severity: warning
+      error_message: "product_status must be one of: active, out_of_stock, discontinued,
+        end_of_life, recalled, pending_launch, delisted"
 
     - name: supplier_id_required
       field: supplier_id

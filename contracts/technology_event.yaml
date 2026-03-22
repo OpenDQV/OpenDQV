@@ -1,7 +1,15 @@
 contract:
   name: technology_event
-  version: "1.0"
-  description: "Technology platform event record validation"
+  version: "1.1"
+  description: >
+    Technology platform event record validation for product analytics and behavioural
+    telemetry pipelines. Enforces event type taxonomy aligned with common analytics
+    schema standards (Amplitude, Segment, Snowplow), platform classification,
+    semantic versioning for SDK version tracking, and UUID format for event
+    deduplication. Prevents uncategorised events, unversioned SDK telemetry, and
+    malformed event identifiers from entering analytics pipelines where GDPR Article
+    5(1)(c) data minimisation and ICO Privacy by Design obligations apply to user
+    behavioural data collection.
   owner: "Product Analytics Team"
   status: active
 
@@ -11,6 +19,19 @@ contract:
       type: not_empty
       severity: error
       error_message: "event_id is required"
+
+    - name: event_id_uuid_format
+      description: "UUID v4 format for event deduplication. Analytics pipelines rely
+        on event_id uniqueness for exactly-once processing guarantees. Non-UUID
+        identifiers typically lack the collision resistance required for high-volume
+        event streams."
+      field: event_id
+      type: regex
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      severity: warning
+      error_message: "event_id does not match UUID v4 format (e.g.
+        550e8400-e29b-41d4-a716-446655440000) — non-UUID identifiers risk collision
+        in high-volume event streams"
 
     - name: user_id_required
       field: user_id
@@ -29,6 +50,39 @@ contract:
       type: not_empty
       severity: error
       error_message: "event_type is required"
+
+    - name: event_type_values
+      description: "Standard analytics event taxonomy aligned with Segment Spec and
+        Snowplow structured event model. 'identify' and 'group' are user-level events;
+        all others are interaction events. Uncategorised free-text event types break
+        funnel analysis, cohort queries, and downstream BI tooling."
+      field: event_type
+      type: allowed_values
+      allowed_values:
+        - page_view
+        - screen_view
+        - click
+        - form_submit
+        - form_start
+        - search
+        - api_call
+        - error
+        - login
+        - logout
+        - signup
+        - purchase
+        - refund
+        - identify
+        - group
+        - feature_flag_evaluated
+        - experiment_exposure
+        - notification_received
+        - notification_clicked
+        - file_upload
+        - file_download
+      severity: warning
+      error_message: "event_type should be a standard analytics event — use one of
+        the defined taxonomy values for funnel and cohort query compatibility"
 
     - name: product_id_required
       field: product_id
@@ -54,8 +108,44 @@ contract:
       severity: error
       error_message: "platform is required"
 
+    - name: platform_values
+      description: "Platform classification for device-segmented analytics. Required
+        for GDPR-compliant privacy control enforcement (e.g. iOS ATT framework,
+        Android Privacy Sandbox) and for platform-specific funnel analysis. 'server'
+        indicates backend-generated events without a user device context."
+      field: platform
+      type: allowed_values
+      allowed_values:
+        - web
+        - ios
+        - android
+        - desktop_windows
+        - desktop_mac
+        - desktop_linux
+        - api
+        - cli
+        - tv
+        - watch
+        - server
+      severity: error
+      error_message: "platform must be one of: web, ios, android, desktop_windows,
+        desktop_mac, desktop_linux, api, cli, tv, watch, server"
+
     - name: sdk_version_required
       field: sdk_version
       type: not_empty
       severity: warning
       error_message: "sdk_version should be provided"
+
+    - name: sdk_version_semver_format
+      description: "Semantic versioning format (MAJOR.MINOR.PATCH). Unversioned SDK
+        telemetry prevents identification of instrumentation bugs introduced in
+        specific releases and blocks correlation of data quality issues with SDK
+        deployment timelines."
+      field: sdk_version
+      type: regex
+      pattern: '^\d+\.\d+\.\d+(-[a-zA-Z0-9._-]+)?(\+[a-zA-Z0-9._-]+)?$'
+      severity: warning
+      error_message: "sdk_version should follow semantic versioning format (e.g.
+        2.4.1, 3.0.0-beta.1) — unversioned telemetry prevents instrumentation
+        bug correlation"
