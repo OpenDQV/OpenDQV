@@ -12,11 +12,11 @@ OpenDQV integrates natively with the Databricks platform — Auto Loader ingesti
 
 | Use case | Recommended approach | Why |
 |----------|---------------------|-----|
-| Batch notebook / ETL | Approach 3 (Auto Loader foreachBatch) | Validates micro-batches before Delta write |
-| Scheduled Databricks Job | Approach 4 (Pre-task validation gate) | Fails the job before any data lands |
-| Continuous streaming pipeline | Approach 3 with `trigger(processingTime=...)` | Streaming validation with quarantine |
-| Delta Live Tables | Approach 5 (DLT + UDF expectation) | Native DLT integration |
-| Multi-workspace governance | Approach 7 (Federation-aware) | Routes to nearest OpenDQV instance |
+| Batch notebook / ETL | Approach 1 (Auto Loader foreachBatch) | Validates micro-batches before Delta write |
+| Scheduled Databricks Job | Approach 2 (Pre-task validation gate) | Fails the job before any data lands |
+| Continuous streaming pipeline | Approach 1 with `trigger(processingTime=...)` | Streaming validation with quarantine |
+| Delta Live Tables | Approach 3 (DLT + UDF expectation) | Native DLT integration |
+| Multi-workspace governance | Approach 5 (Federation-aware) | Routes to nearest OpenDQV instance |
 
 ---
 
@@ -41,7 +41,7 @@ For non-Unity Catalog deployments, fall back to the generic Spark convention:
 
 ---
 
-## Approach 3 — Auto Loader with Validation
+## Approach 1 — Auto Loader with Validation
 
 Auto Loader (`cloudFiles`) incrementally ingests files from cloud storage. Use `foreachBatch` to validate each loaded micro-batch before writing.
 
@@ -102,7 +102,7 @@ query.awaitTermination()
 
 ---
 
-## Approach 4 — Databricks Jobs: Pre-Task Validation Gate
+## Approach 2 — Databricks Jobs: Pre-Task Validation Gate
 
 In a Databricks Workflow (Jobs UI or Asset Bundle), add an OpenDQV validation task before the Delta write task. Fail the task if validation rejects too many records.
 
@@ -164,7 +164,7 @@ The `depends_on` ensures `write_to_delta` only runs if `validate_orders` succeed
 
 ---
 
-## Approach 5 — Delta Live Tables: Quarantine Expectation
+## Approach 3 — Delta Live Tables: Quarantine Expectation
 
 In Delta Live Tables (DLT), use an OpenDQV-backed quarantine table alongside your main pipeline table. DLT handles the flow; OpenDQV provides the validation logic.
 
@@ -213,11 +213,11 @@ def orders_clean():
     )
 ```
 
-> **DLT performance note:** The UDF makes one HTTP call per row. For high-volume DLT pipelines, use `foreachBatch` (Approach 3) instead — it batches calls to OpenDQV rather than calling once per record. A single batch validation call for 10,000 rows is dramatically faster than 10,000 individual HTTP calls.
+> **DLT performance note:** The UDF makes one HTTP call per row. For high-volume DLT pipelines, use `foreachBatch` (Approach 1) instead — it batches calls to OpenDQV rather than calling once per record. A single batch validation call for 10,000 rows is dramatically faster than 10,000 individual HTTP calls.
 
 ---
 
-## Approach 6 — Unity Catalog: `asset_id` Linkage
+## Approach 4 — Unity Catalog: `asset_id` Linkage
 
 Set `asset_id` to the Unity Catalog three-level identifier to link OpenDQV contracts to Unity Catalog tables. This enables cross-tool lineage in DataHub and Atlan when both are connected to the Databricks Unity Catalog lineage API.
 
@@ -242,7 +242,7 @@ def find_contract_for_table(workspace_host: str, catalog: str, schema: str, tabl
 
 ---
 
-## Approach 7 — Federation-Aware: Multiple Databricks Workspaces
+## Approach 5 — Federation-Aware: Multiple Databricks Workspaces
 
 Route validation requests to the OpenDQV instance closest to each Databricks workspace:
 
@@ -336,7 +336,7 @@ clean_df = annotated_df.filter(col("_opendqv_valid") == True)
 | Limitation | Detail |
 |---|---|
 | `.collect()` memory | Collecting a large DataFrame to the driver for batch validation is memory-bounded. Use `foreachPartition` or the streaming approach for DataFrames larger than ~10M rows |
-| UDF HTTP calls in DLT | One HTTP call per row in the DLT UDF (Approach 5) is slow at scale — use `foreachBatch` for production DLT pipelines above ~100k rows per trigger |
+| UDF HTTP calls in DLT | One HTTP call per row in the DLT UDF (Approach 3) is slow at scale — use `foreachBatch` for production DLT pipelines above ~100k rows per trigger |
 | `unique` rule in distributed mode | The `unique` rule requires the full dataset. In partitioned Spark jobs, per-partition validation cannot detect cross-partition duplicates — use a global deduplication step before validation |
 | Structured Streaming latency | `foreachBatch` adds one OpenDQV round-trip per micro-batch trigger interval. Keep trigger intervals ≥10s for small batches; tune down for high-volume streams |
 
