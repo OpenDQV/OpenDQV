@@ -141,6 +141,10 @@ if errorlevel 1 (
 echo   Lint OK.
 echo.
 
+:: ── Set UTF-8 mode (fixes Unicode symbols in CLI output on Windows) ──
+set PYTHONUTF8=1
+set PYTHONIOENCODING=utf-8
+
 :: ── 3-run test benchmark ─────────────────────────────────────
 echo [5/5] Running test suite (3 passes for benchmark consistency)...
 echo.
