@@ -163,43 +163,28 @@ set RUN3_END=
 :: ── Run 1 ────────────────────────────────────────────────────
 echo ── Run 1 of 3 ──────────────────────────────────────────────
 set RUN1_START=%TIME%
-python -m pytest tests\ --ignore=tests\test_e2e.py -q --tb=short 2>&1 | tee test_run1.log
-set RUN1_EXIT=!ERRORLEVEL!
+python -m pytest tests\ --ignore=tests\test_e2e.py -q --tb=short
+set RUN1_EXIT=%ERRORLEVEL%
 set RUN1_END=%TIME%
-if !RUN1_EXIT! EQU 0 (
-    set RUN1_STATUS=PASS
-) else (
-    set OVERALL_PASS=0
-    echo   [Run 1 log saved to test_run1.log]
-)
+if !RUN1_EXIT! EQU 0 (set RUN1_STATUS=PASS) else (set OVERALL_PASS=0)
 echo.
 
 :: ── Run 2 ────────────────────────────────────────────────────
 echo ── Run 2 of 3 ──────────────────────────────────────────────
 set RUN2_START=%TIME%
-python -m pytest tests\ --ignore=tests\test_e2e.py -q --tb=short 2>&1 | tee test_run2.log
-set RUN2_EXIT=!ERRORLEVEL!
+python -m pytest tests\ --ignore=tests\test_e2e.py -q --tb=short
+set RUN2_EXIT=%ERRORLEVEL%
 set RUN2_END=%TIME%
-if !RUN2_EXIT! EQU 0 (
-    set RUN2_STATUS=PASS
-) else (
-    set OVERALL_PASS=0
-    echo   [Run 2 log saved to test_run2.log]
-)
+if !RUN2_EXIT! EQU 0 (set RUN2_STATUS=PASS) else (set OVERALL_PASS=0)
 echo.
 
 :: ── Run 3 ────────────────────────────────────────────────────
 echo ── Run 3 of 3 ──────────────────────────────────────────────
 set RUN3_START=%TIME%
-python -m pytest tests\ --ignore=tests\test_e2e.py -q --tb=short 2>&1 | tee test_run3.log
-set RUN3_EXIT=!ERRORLEVEL!
+python -m pytest tests\ --ignore=tests\test_e2e.py -q --tb=short
+set RUN3_EXIT=%ERRORLEVEL%
 set RUN3_END=%TIME%
-if !RUN3_EXIT! EQU 0 (
-    set RUN3_STATUS=PASS
-) else (
-    set OVERALL_PASS=0
-    echo   [Run 3 log saved to test_run3.log]
-)
+if !RUN3_EXIT! EQU 0 (set RUN3_STATUS=PASS) else (set OVERALL_PASS=0)
 echo.
 
 :: ── Summary ──────────────────────────────────────────────────
@@ -230,12 +215,9 @@ if !OVERALL_PASS! EQU 1 (
 :: ── Cleanup (pass) ───────────────────────────────────────────
 :cleanup_pass
 echo Cleaning up...
-if exist .venv         rmdir /s /q .venv
-if exist .coverage     del /f /q .coverage
-if exist opendqv.db    del /f /q opendqv.db
-if exist test_run1.log del /f /q test_run1.log
-if exist test_run2.log del /f /q test_run2.log
-if exist test_run3.log del /f /q test_run3.log
+if exist .venv      rmdir /s /q .venv
+if exist .coverage  del /f /q .coverage
+if exist opendqv.db del /f /q opendqv.db
 for /d /r . %%d in (__pycache__) do @if exist "%%d" rmdir /s /q "%%d" 2>nul
 echo Cleanup complete. Repo is back to original state.
 echo.
@@ -246,12 +228,9 @@ exit /b 0
 :: ── Cleanup (fail) ───────────────────────────────────────────
 :cleanup_fail
 echo Cleaning up after failure...
-if exist .venv         rmdir /s /q .venv
-if exist .coverage     del /f /q .coverage
-if exist opendqv.db    del /f /q opendqv.db
-if exist test_run1.log del /f /q test_run1.log
-if exist test_run2.log del /f /q test_run2.log
-if exist test_run3.log del /f /q test_run3.log
+if exist .venv      rmdir /s /q .venv
+if exist .coverage  del /f /q .coverage
+if exist opendqv.db del /f /q opendqv.db
 for /d /r . %%d in (__pycache__) do @if exist "%%d" rmdir /s /q "%%d" 2>nul
 echo Cleanup complete.
 echo.
