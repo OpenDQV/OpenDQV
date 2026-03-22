@@ -1,10 +1,17 @@
 import atexit
+import asyncio
 import os
 import shutil
 import sys
 import tempfile
 
 import pytest
+
+# Windows: ProactorEventLoop (default on 3.8+) has subprocess-cleanup behaviour
+# that triggers a spurious KeyboardInterrupt through _pytest/subtests.py at
+# session teardown. SelectorEventLoop is safe here — all tests use sync TestClient.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # Ensure project root is on sys.path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
