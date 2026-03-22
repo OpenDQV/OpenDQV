@@ -334,7 +334,7 @@ def cmd_import_odcs(args):
         sys.exit(1)
 
     try:
-        raw = path.read_text()
+        raw = path.read_text(encoding="utf-8")
         contract_data = _yaml.safe_load(raw)
     except Exception as e:
         print(f"Error: Could not parse {path}: {e}", file=sys.stderr)
@@ -459,7 +459,7 @@ def cmd_contracts_import_dir(args):
             print(f"  [dry-run] {f.name}")
         else:
             try:
-                raw = _yaml.safe_load(f.read_text())
+                raw = _yaml.safe_load(f.read_text(encoding="utf-8"))
                 if raw:
                     print(f"  \u2713 {f.name}")
                     loaded += 1

@@ -439,7 +439,7 @@ class TestBuildSampleRecordsFromRules:
         contract_path = Path(__file__).resolve().parent.parent / "contracts" / "healthcare_patient.yaml"
         if not contract_path.exists():
             pytest.skip("healthcare_patient.yaml not present")
-        data = yaml.safe_load(contract_path.read_text())
+        data = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
         rules = data["contract"]["rules"]
         valid, invalid = build_sample_records_from_rules(rules)
         # blood_type and nhs_number should be valid examples, not "sample_value"

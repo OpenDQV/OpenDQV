@@ -492,7 +492,7 @@ class ContractRegistry:
     def _load_file(self, path: Path) -> Optional[DataContract]:
         """Parse a single contract YAML file."""
         try:
-            raw = yaml.safe_load(path.read_text())
+            raw = yaml.safe_load(path.read_text(encoding="utf-8"))
         except yaml.YAMLError as exc:
             # Surface line/column so authors can find and fix syntax errors quickly.
             mark = getattr(exc, "problem_mark", None)
@@ -662,7 +662,7 @@ class ContractRegistry:
         if path and path.exists():
             try:
                 import re
-                text = path.read_text()
+                text = path.read_text(encoding="utf-8")
                 # Replace an existing "  status: <value>" line inside the contract block.
                 new_text, n = re.subn(
                     r'^( +status: )\S+',
@@ -962,9 +962,9 @@ class ContractRegistry:
         # yaml.dump call, it will fail. Fall back to full_load in that case so
         # existing contracts can be migrated to safe format on next write.
         try:
-            raw = yaml.safe_load(path.read_text()) or {}
+            raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         except yaml.constructor.ConstructorError:
-            raw = yaml.full_load(path.read_text()) or {}
+            raw = yaml.full_load(path.read_text(encoding="utf-8")) or {}
         if "contract" in raw:
             # Use mode='json' to ensure enum values are serialised as plain strings,
             # not as Python-specific YAML tags (e.g. Severity.ERROR → 'error').
