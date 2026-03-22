@@ -2,12 +2,11 @@
 Rule model field behaviour tests — ACT-RMF series.
 
 Explicitly verifies that every Rule model field which claims to affect
-validation behaviour actually does so. Motivated by RT77 item 5:
-the rule model field audit found three gaps where fields were defined
-but had no test explicitly exercising their effect.
+validation behaviour actually does so. Three gaps were found where fields
+were defined but had no test explicitly exercising their effect.
 
 Gaps covered here:
-- format      (date_format rule) — used in validator but only spot-checked in RT79
+- format      (date_format rule) — used in validator but previously only spot-checked
 - cache_ttl   (HTTP lookup rule) — passed as parameter but cache TTL effect untested
 - lookup_auth_header (HTTP lookup) — passed to HTTP call but header presence untested
 """
@@ -21,9 +20,8 @@ from core.validator import validate_record
 class TestDateFormatField:
     """Explicitly verify that rule.format is tried before hardcoded fallbacks.
 
-    This is the RT77/RT79 Fix A: the format field existed on the model but
-    the validator ignored it and tried only 4 hardcoded formats. This test
-    would have caught that bug before it shipped.
+    The format field existed on the model but the validator previously ignored
+    it and tried only 4 hardcoded formats. This test locks in the correct behaviour.
     """
 
     def test_custom_format_accepts_matching_value(self):
@@ -57,7 +55,7 @@ class TestDateFormatField:
             format="%Y-%m-%d %H:%M:%S",
             severity="error", error_message="invalid timestamp",
         )
-        # This was the exact format that failed before the RT79 fix
+        # This was the exact format that previously failed
         result = validate_record({"created_at": "2026-03-21 09:00:00"}, [rule])
         assert result["valid"] is True
 

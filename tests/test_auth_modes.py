@@ -2,9 +2,9 @@
 Auth mode test matrix — ACT-AUTH series.
 
 Verifies that every security-sensitive endpoint behaves correctly in
-both AUTH_MODE=open and AUTH_MODE=token. The RT77 finding was that
-we tested auth-works and auth-blocks, but almost never tested the
-bypass — that in open mode, endpoints work without a token.
+both AUTH_MODE=open and AUTH_MODE=token. A gap was found where we tested
+auth-works and auth-blocks, but almost never tested the bypass — that in
+open mode, endpoints work without a token.
 
 The conftest hardcodes AUTH_MODE=token for all tests. This file patches
 config.AUTH_MODE per-test using unittest.mock.patch, which overrides
@@ -26,9 +26,9 @@ def _no_auth(client, method, url, **kwargs):
 # ── ACT-AUTH-001: /explain respects AUTH_MODE=open ───────────────────────────
 
 class TestExplainAuthMode:
-    """The RT77 bug: /explain returned 401 in AUTH_MODE=open because the
-    authorization check fired before the auth-mode check. Fixed in RT79 Fix B.
-    These tests lock in that behaviour so it can never regress."""
+    """/explain returned 401 in AUTH_MODE=open because the authorization check
+    fired before the auth-mode check. These tests lock in the correct behaviour
+    so it can never regress."""
 
     def test_explain_accessible_in_open_mode_without_token(self, client):
         """/explain must return 200 in AUTH_MODE=open without any token."""
