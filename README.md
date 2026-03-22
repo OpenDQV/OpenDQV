@@ -44,7 +44,7 @@ OpenDQV owns layer one. Your catalog handles layer two, your pipeline tools hand
 
 **Whether you're maintaining 400 outsourced stored procedures, 1,200 Great Expectations checks, or a folder of ad-hoc validation scripts** — OpenDQV replaces custom-check spaghetti with a single governed contract layer. One YAML file, one API, enforced everywhere, owned by your governance team.
 
-**Still running hundreds of outsourced stored procedures?** OpenDQV is the shift-left solution. Replace scattered validation logic with one version-controlled contract per entity. Generate Postgres triggers, SQL Server procedures, or Snowflake UDFs from the same YAML — and get maker-checker governance, a hash-chained audit trail, and Prometheus rejection metrics that your proc factory never had. See [docs/faq.md](docs/faq.md).
+**Still running hundreds of outsourced stored procedures?** OpenDQV is the shift-left solution. Replace scattered validation logic with one version-controlled contract per entity. Generate Snowflake UDFs, Salesforce Apex, or JavaScript from the same YAML — and get maker-checker governance, a hash-chained audit trail, and Prometheus rejection metrics that your proc factory never had. See [docs/faq.md](docs/faq.md).
 
 ### Compute cost reality
 
