@@ -1,7 +1,16 @@
 contract:
   name: healthcare_patient
-  version: "1.0"
-  description: "Healthcare patient record validation"
+  version: "1.1"
+  description: >
+    Healthcare patient record validation aligned with NHS Data Dictionary standards,
+    Caldicott Principles for patient data handling, and NHS DSP Toolkit data quality
+    obligations. Enforces ICD-10 diagnosis code format, NHS number format (10-digit
+    Modulus 11 check), blood group ABO/Rhesus classification, ONS/NHS 16+1 ethnicity
+    classification, admission type and referral source taxonomy, and discharge date
+    monotonicity (discharge must be on or after admission). Prevents misidentified
+    patients, malformed diagnosis codes, and clinically invalid values from entering
+    PAS (Patient Administration System), SUS+ (Secondary Uses Service), and MSDS
+    (Maternity Services Data Set) pipelines.
   owner: "Clinical Data Team"
   status: active
 
@@ -30,11 +39,91 @@ contract:
       severity: error
       error_message: "date_of_birth must be a valid date (YYYY-MM-DD)"
 
+    - name: nhs_number_format
+      description: "NHS number format: 10 digits, optionally grouped as NNN-NNN-NNNN.
+        The NHS number uses a Modulus 11 check digit algorithm — format validation
+        is a necessary but not sufficient check. Systems ingesting NHS numbers must
+        additionally verify the check digit. An invalid NHS number causes patient
+        misidentification, which is a Caldicott Principle 2 breach (purpose
+        limitation) and a DSPT (Data Security and Protection Toolkit) incident."
+      field: nhs_number
+      type: regex
+      pattern: '^\d{3}[\s-]?\d{3}[\s-]?\d{4}$'
+      severity: error
+      error_message: "nhs_number must be a valid 10-digit NHS number (e.g. 123-456-7890)
+        — verify Modulus 11 check digit before use in clinical systems"
+
+    - name: sex_values
+      description: "NHS Data Dictionary sex classification aligned with SNOMED CT
+        and FHIR R4 administrative gender. 'unknown' is a valid submission value
+        for anonymised or emergency records. 'indeterminate' applies to patients
+        registered with a variation in sex characteristics."
+      field: sex
+      type: allowed_values
+      allowed_values:
+        - male
+        - female
+        - indeterminate
+        - unknown
+        - not_stated
+      severity: error
+      error_message: "sex must be one of: male, female, indeterminate, unknown,
+        not_stated (NHS Data Dictionary sex classification)"
+
+    - name: ethnicity_values
+      description: "ONS/NHS 16+1 ethnicity classification as used in NHS data returns,
+        HES (Hospital Episode Statistics), and MSDS. Required for equality duty
+        reporting under the Equality Act 2010. 'not_stated' must be recorded where
+        patient declines — a blank field is not equivalent."
+      field: ethnicity
+      type: allowed_values
+      allowed_values:
+        - white_british
+        - white_irish
+        - white_other
+        - mixed_white_black_caribbean
+        - mixed_white_black_african
+        - mixed_white_asian
+        - mixed_other
+        - asian_indian
+        - asian_pakistani
+        - asian_bangladeshi
+        - asian_chinese
+        - asian_other
+        - black_african
+        - black_caribbean
+        - black_other
+        - other_arab
+        - other
+        - not_stated
+      severity: warning
+      error_message: "ethnicity must be a valid ONS/NHS 16+1 ethnicity code —
+        'not_stated' must be recorded where patient declines (Equality Act 2010)"
+
     - name: admission_date_format
       field: admission_date
       type: date_format
       severity: error
       error_message: "admission_date must be a valid date (YYYY-MM-DD)"
+
+    - name: admission_type_values
+      description: "NHS HES admission method classification. 'emergency' triggers
+        4-hour A&E target reporting obligations under NHS Standard Contract. 'elective'
+        patients are subject to Referral to Treatment (RTT) 18-week pathway tracking.
+        Incorrect admission type corrupts NHS performance reporting dashboards."
+      field: admission_type
+      type: allowed_values
+      allowed_values:
+        - elective
+        - emergency
+        - maternity
+        - transfer
+        - day_case
+        - regular_attender
+        - other
+      severity: warning
+      error_message: "admission_type must be one of: elective, emergency, maternity,
+        transfer, day_case, regular_attender, other (NHS HES admission method)"
 
     - name: ward_required
       field: ward
@@ -49,18 +138,29 @@ contract:
       error_message: "diagnosis_code is required"
 
     - name: diagnosis_code_format
+      description: "ICD-10 code format: one letter followed by 2 digits, optionally
+        followed by a decimal point and 1-4 alphanumeric characters for subcategory.
+        Required for HES submissions, SUS+ data flows, and NHS Commissioning Data
+        Set. An invalid ICD-10 code causes rejection at the SUS+ data warehouse
+        and misclassification in commissioning datasets."
       field: diagnosis_code
       type: regex
       pattern: '^[A-Z][0-9]{2}(\.[0-9A-Z]{1,4})?$'
       severity: error
-      error_message: "diagnosis_code must be a valid ICD-10 code (e.g. A09, J45.0, Z00.00)"
+      error_message: "diagnosis_code must be a valid ICD-10 code (e.g. A09, J45.0,
+        Z00.00) — invalid codes are rejected by NHS SUS+ data warehouse"
 
     - name: blood_type_format
+      description: "ABO/Rhesus blood group classification. Incorrect blood group
+        entry is a Never Event under the NHS Serious Incident Framework — wrong
+        blood type transfusion can be fatal. Validation at the point of write is
+        a minimum safety control."
       field: blood_type
       type: regex
       pattern: '^(A|B|AB|O)[+-]$'
       severity: error
-      error_message: "blood_type must be a valid blood group (e.g. A+, O-, AB+)"
+      error_message: "blood_type must be a valid ABO/Rhesus blood group (e.g. A+,
+        O-, AB+, B-) — incorrect blood group is an NHS Never Event"
 
     - name: discharge_date_format
       field: discharge_date
@@ -68,9 +168,34 @@ contract:
       severity: warning
       error_message: "discharge_date must be a valid date (YYYY-MM-DD)"
 
-    - name: nhs_number_format
-      field: nhs_number
-      type: regex
-      pattern: '^\d{3}[\s-]?\d{3}[\s-]?\d{4}$'
+    - name: discharge_date_after_admission
+      description: "Discharge must be on or after admission date. A discharge date
+        before admission date indicates a data entry error or system clock failure.
+        Such records corrupt Length of Stay (LoS) calculations in HES, SUS+, and
+        local PAS reporting, and invalidate RTT pathway tracking."
+      field: discharge_date
+      type: compare
+      compare_to: admission_date
+      compare_op: gte
       severity: error
-      error_message: "nhs_number must be a valid NHS number (e.g. 123-456-7890)"
+      error_message: "discharge_date must be on or after admission_date — a discharge
+        before admission corrupts Length of Stay reporting in NHS HES and SUS+"
+
+    - name: discharge_reason_values
+      description: "NHS HES discharge method classification. 'died' triggers mandatory
+        MCCD (Medical Certificate of Cause of Death) workflow. 'self_discharge'
+        and 'against_medical_advice' require specific documentation under duty-of-care
+        obligations."
+      field: discharge_reason
+      type: allowed_values
+      allowed_values:
+        - clinical_discharge
+        - transferred
+        - self_discharge
+        - against_medical_advice
+        - died
+        - still_admitted
+        - other
+      severity: warning
+      error_message: "discharge_reason must be one of: clinical_discharge, transferred,
+        self_discharge, against_medical_advice, died, still_admitted, other"

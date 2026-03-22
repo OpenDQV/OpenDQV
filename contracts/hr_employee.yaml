@@ -1,7 +1,15 @@
 contract:
   name: hr_employee
-  version: "1.0"
-  description: "HR employee record validation"
+  version: "1.1"
+  description: >
+    HR employee record validation aligned with UK employment law, HMRC RTI (Real
+    Time Information) payroll reporting requirements, and ICO guidance on employee
+    data under UK GDPR. Enforces email format, UK National Insurance number format
+    (HMRC prefix exclusion rules), contract type classification under the Employment
+    Rights Act 1996, employment status values, right-to-work classification (Immigration
+    Act 2014), salary currency, and salary anomaly detection. Prevents payroll
+    submission failures, right-to-work compliance gaps, and HMRC RTI rejection at
+    source.
   owner: "People Data Team"
   status: active
 
@@ -37,6 +45,20 @@ contract:
       severity: error
       error_message: "email must be a valid email address"
 
+    - name: ni_number_format
+      description: "UK National Insurance number format as validated by HMRC. Two
+        prefix letters (with invalid prefix pairs excluded: BG, GB, NK, KN, TN,
+        NT, ZZ; and D, F, I, Q, U, V excluded in positions 1 and 2), followed by
+        6 digits and a suffix letter A-D. Required for HMRC RTI payroll submissions
+        under the Income Tax (Pay As You Earn) Regulations 2003. An invalid NI
+        number causes RTI rejection and PAYE reconciliation failures."
+      field: ni_number
+      type: regex
+      pattern: '^(?!BG|GB|NK|KN|TN|NT|ZZ)[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z][0-9]{6}[A-D]$'
+      severity: error
+      error_message: "ni_number must be a valid UK National Insurance number
+        (e.g. AB123456C) — invalid NI numbers cause HMRC RTI payroll rejection"
+
     - name: department_required
       field: department
       type: not_empty
@@ -62,6 +84,33 @@ contract:
       severity: error
       error_message: "salary must be >= 0"
 
+    - name: salary_nmw_warning
+      description: "UK National Living Wage (NLW) as of April 2024 is £11.44/hour
+        for workers aged 21+. For a full-time employee (37.5 hours/week, 52 weeks),
+        the minimum annual salary is approximately £22,308. Salaries below this
+        threshold for full-time employees may indicate NMW/NLW non-compliance
+        under the National Minimum Wage Act 1998. Warning only — part-time and
+        apprentice roles may legitimately fall below this."
+      field: salary
+      type: min
+      min: 10000
+      severity: warning
+      error_message: "salary is below £10,000 — verify this is not a full-time
+        role that may be below National Living Wage (NLW) threshold (National
+        Minimum Wage Act 1998)"
+
+    - name: salary_currency_format
+      description: "ISO 4217 three-letter currency code. Required for international
+        payroll operations. Salary figures without explicit currency codes cause
+        silent misreporting in HRIS consolidation and cross-border compensation
+        benchmarking."
+      field: salary_currency
+      type: regex
+      pattern: '^[A-Z]{3}$'
+      severity: warning
+      error_message: "salary_currency must be a valid ISO 4217 three-letter code
+        (e.g. GBP, EUR, USD)"
+
     - name: contract_type_required
       field: contract_type
       type: not_empty
@@ -69,8 +118,66 @@ contract:
       error_message: "contract_type is required"
 
     - name: contract_type_valid
+      description: "Employment contract classification under the Employment Rights
+        Act 1996. 'zero_hours' workers have rights under the Workers (Predictable
+        Terms and Conditions) Act 2023 from September 2024. 'contractor' status
+        requires IR35 (off-payroll working) assessment under ITEPA 2003."
       field: contract_type
       type: allowed_values
-      allowed_values: [permanent, fixed_term, zero_hours, contractor, apprentice]
+      allowed_values:
+        - permanent
+        - fixed_term
+        - zero_hours
+        - contractor
+        - apprentice
+        - intern
+        - casual
+        - agency
       severity: error
-      error_message: "contract_type must be one of: permanent, fixed_term, zero_hours, contractor, apprentice"
+      error_message: "contract_type must be one of: permanent, fixed_term, zero_hours,
+        contractor, apprentice, intern, casual, agency"
+
+    - name: employment_status_values
+      description: "Employment lifecycle status. 'gardening_leave' and 'notice_period'
+        are legally significant states — employees in these states retain full
+        employment rights including confidentiality obligations and non-compete
+        enforceability. Systems must not revoke access prematurely."
+      field: employment_status
+      type: allowed_values
+      allowed_values:
+        - active
+        - on_leave
+        - maternity_leave
+        - paternity_leave
+        - sick_leave
+        - gardening_leave
+        - notice_period
+        - suspended
+        - terminated
+        - retired
+      severity: warning
+      error_message: "employment_status must be one of: active, on_leave,
+        maternity_leave, paternity_leave, sick_leave, gardening_leave,
+        notice_period, suspended, terminated, retired"
+
+    - name: right_to_work_values
+      description: "Right-to-work classification under the Immigration Act 2014
+        and Immigration, Asylum and Nationality Act 2006. Employers face a civil
+        penalty of up to £60,000 per illegal worker (as of 2024) if right-to-work
+        checks are not conducted. 'verified' requires a valid check reference number
+        or original document inspection record."
+      field: right_to_work_status
+      type: allowed_values
+      allowed_values:
+        - verified_british_irish
+        - verified_eu_settled
+        - verified_visa
+        - verified_share_code
+        - pending_verification
+        - not_required
+        - expired
+      severity: error
+      error_message: "right_to_work_status must be one of: verified_british_irish,
+        verified_eu_settled, verified_visa, verified_share_code, pending_verification,
+        not_required, expired — unverified employees expose the employer to civil
+        penalties up to £60,000 (Immigration Act 2014)"

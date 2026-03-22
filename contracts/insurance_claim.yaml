@@ -1,7 +1,17 @@
 contract:
   name: insurance_claim
-  version: "1.0"
-  description: "Insurance claim record validation"
+  version: "1.1"
+  description: >
+    Insurance claim record validation aligned with FCA ICOBS (Insurance Conduct
+    of Business Sourcebook), the Insurance Act 2015 (duty of fair presentation),
+    and Claims Management Regulation under the Financial Guidance and Claims Act
+    2018. Enforces claim date monotonicity (claim must be on or after incident),
+    claim type taxonomy, settlement status lifecycle, ISO 4217 currency, and fraud
+    indicator classification aligned with IFB (Insurance Fraud Bureau) IFED taxonomy.
+    Prevents claims with pre-incident claim dates, uncurrencied settlement amounts,
+    and missing assessor assignment from entering claims management system (CMS)
+    pipelines where FCA RMAR (Regular Reporting) and Lloyd's market data obligations
+    apply.
   owner: "Claims Data Team"
   status: active
 
@@ -30,6 +40,21 @@ contract:
       severity: error
       error_message: "claim_date must be a valid date (YYYY-MM-DD)"
 
+    - name: claim_date_after_incident
+      description: "Claim notification must be on or after the incident date. A
+        claim date before the incident date indicates a data entry error or potential
+        fraudulent pre-dating of the notification. Under the Insurance Act 2015,
+        the duty of fair presentation requires accurate notification timing —
+        incorrect dates may void coverage. Also a key FCA ICOBS fraud indicator."
+      field: claim_date
+      type: compare
+      compare_to: incident_date
+      compare_op: gte
+      severity: error
+      error_message: "claim_date must be on or after incident_date — a claim filed
+        before the incident indicates a data entry error or potential fraud
+        (Insurance Act 2015, FCA ICOBS 8)"
+
     - name: claimant_id_required
       field: claimant_id
       type: not_empty
@@ -43,11 +68,28 @@ contract:
       error_message: "claim_type is required"
 
     - name: claim_type_valid
+      description: "Insurance class of business taxonomy aligned with Lloyd's market
+        classifications and FCA RMAR reporting categories. 'cyber' is a standalone
+        category since 2017 following PRA/FCA cyber underwriting guidance."
       field: claim_type
       type: allowed_values
-      allowed_values: [property, liability, health, auto, life, travel, other]
+      allowed_values:
+        - property
+        - liability
+        - health
+        - auto
+        - life
+        - travel
+        - marine
+        - cyber
+        - professional_indemnity
+        - employers_liability
+        - business_interruption
+        - other
       severity: error
-      error_message: "claim_type must be one of: property, liability, health, auto, life, travel, other"
+      error_message: "claim_type must be one of: property, liability, health, auto,
+        life, travel, marine, cyber, professional_indemnity, employers_liability,
+        business_interruption, other"
 
     - name: claimed_amount_min
       field: claimed_amount
@@ -56,6 +98,18 @@ contract:
       severity: error
       error_message: "claimed_amount must be >= 0"
 
+    - name: currency_format
+      description: "ISO 4217 three-letter currency code. Required for Lloyd's market
+        reporting (bordereaux submissions) and FCA RMAR. Settlement amounts without
+        currency codes cause silent misreporting in solvency and reserving calculations
+        under Solvency II / UK Solvency rules."
+      field: currency
+      type: regex
+      pattern: '^[A-Z]{3}$'
+      severity: error
+      error_message: "currency must be a valid ISO 4217 three-letter code (e.g.
+        GBP, USD, EUR) — required for Lloyd's bordereaux and FCA RMAR reporting"
+
     - name: status_required
       field: status
       type: not_empty
@@ -63,11 +117,62 @@ contract:
       error_message: "status is required"
 
     - name: claim_status_valid
+      description: "Claims lifecycle status. 'reopened' is legally significant —
+        insurers must notify the FCA if a material proportion of claims are being
+        reopened, as this may indicate systemic claims handling failures under
+        FCA ICOBS 8.1. 'litigated' triggers mandatory legal expense tracking."
       field: status
       type: allowed_values
-      allowed_values: [submitted, under_review, approved, rejected, settled, withdrawn]
+      allowed_values:
+        - submitted
+        - under_review
+        - pending_information
+        - approved
+        - rejected
+        - settled
+        - partially_settled
+        - withdrawn
+        - reopened
+        - litigated
+        - fraud_referred
       severity: error
-      error_message: "status must be one of: submitted, under_review, approved, rejected, settled, withdrawn"
+      error_message: "status must be one of: submitted, under_review, pending_information,
+        approved, rejected, settled, partially_settled, withdrawn, reopened,
+        litigated, fraud_referred"
+
+    - name: excess_amount_min
+      description: "Policy excess (deductible) must be non-negative. A negative
+        excess value indicates a data entry error. Excess amount is deducted from
+        settlement — incorrect values directly cause incorrect claimant payment
+        and reserve misstatement."
+      field: excess_amount
+      type: min
+      min: 0
+      severity: warning
+      error_message: "excess_amount must be >= 0 — negative excess values cause
+        incorrect settlement calculation and reserve misstatement"
+
+    - name: fraud_indicator_values
+      description: "IFB (Insurance Fraud Bureau) and IFED (Insurance Fraud Enforcement
+        Department) fraud indicator classification. 'confirmed_fraud' triggers
+        mandatory referral to IFED and potential CUE (Claims and Underwriting
+        Exchange) database marker. 'ghost_broker' is a specific FCA-regulated fraud
+        type requiring separate reporting."
+      field: fraud_indicator
+      type: allowed_values
+      allowed_values:
+        - none
+        - low_risk
+        - medium_risk
+        - high_risk
+        - referred_to_siu
+        - confirmed_fraud
+        - ghost_broker
+        - organised_fraud_ring
+      severity: warning
+      error_message: "fraud_indicator must be one of: none, low_risk, medium_risk,
+        high_risk, referred_to_siu, confirmed_fraud, ghost_broker, organised_fraud_ring
+        (IFB/IFED fraud classification — confirmed_fraud requires IFED referral)"
 
     - name: assessor_id_required
       field: assessor_id

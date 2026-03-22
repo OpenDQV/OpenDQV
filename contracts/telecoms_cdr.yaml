@@ -1,7 +1,15 @@
 contract:
   name: telecoms_cdr
-  version: "1.0"
-  description: "Telecoms call detail record validation"
+  version: "1.1"
+  description: >
+    Telecoms Call Detail Record (CDR) validation aligned with Ofcom General Conditions
+    of Entitlement (GC), GSMA PRD IR.21 roaming data standards, and 3GPP TS 32.297
+    CDR file format specifications. Enforces E.164 MSISDN format (ITU-T E.164),
+    IMEI 15-digit format (GSMA IMEI specification), PLMN network code format (MCC
+    + MNC per ITU-T E.212), call end >= call start monotonicity, rating status
+    lifecycle, and roaming country ISO validation. Prevents billing disputes,
+    revenue leakage, and Ofcom compliance failures caused by malformed CDRs entering
+    mediation, rating, and NRTRDE (Near Real Time Roaming Data Exchange) pipelines.
   owner: "Network Data Team"
   status: active
 
@@ -18,12 +26,20 @@ contract:
       severity: error
       error_message: "msisdn is required"
 
-    - name: msisdn_format
+    - name: msisdn_e164_format
+      description: "ITU-T E.164 international phone number format: '+' followed by
+        country code (1-3 digits) and subscriber number, total 7-15 digits after
+        the '+'. E.164 is the mandatory format for CDR mediation, roaming clearing
+        (GSMA IR.21), and Ofcom number portability database (NPPD) lookups. A
+        malformed MSISDN causes CDR rejection in the mediation gateway and revenue
+        leakage in roaming settlement."
       field: msisdn
       type: regex
-      pattern: '^\+?[\d\s\-\(\)]{7,20}$'
+      pattern: '^\+[1-9]\d{6,14}$'
       severity: error
-      error_message: "msisdn must be a valid phone number"
+      error_message: "msisdn must be in E.164 format (e.g. +447911123456) —
+        malformed MSISDNs cause CDR mediation rejection and roaming settlement
+        failure (ITU-T E.164, GSMA IR.21)"
 
     - name: call_start_format
       field: call_start
@@ -39,12 +55,41 @@ contract:
       severity: error
       error_message: "call_end must be a valid datetime (YYYY-MM-DDTHH:MM:SS)"
 
+    - name: call_end_after_start
+      description: "Call end must be on or after call start. A CDR where call_end
+        precedes call_start indicates a network element clock synchronisation failure
+        (NTP drift), timezone conversion error, or data corruption. Such CDRs
+        produce negative duration values which corrupt billing calculations and
+        cause NRTRDE roaming data exchange rejections under GSMA IR.21."
+      field: call_end
+      type: compare
+      compare_to: call_start
+      compare_op: gte
+      severity: error
+      error_message: "call_end must be on or after call_start — negative duration
+        CDRs indicate NTP clock drift or timezone error and cause NRTRDE roaming
+        exchange rejection (GSMA IR.21)"
+
     - name: duration_seconds_min
       field: duration_seconds
       type: min
       min: 0
       severity: error
       error_message: "duration_seconds must be >= 0"
+
+    - name: imei_format
+      description: "GSMA IMEI (International Mobile Equipment Identity) — 15 decimal
+        digits. The first 8 digits form the TAC (Type Allocation Code, assigned
+        by GSMA); digits 9-14 are the serial number; digit 15 is a Luhn check
+        digit. IMEI validation is required for Ofcom EIR (Equipment Identity Register)
+        lookups to detect stolen/blacklisted devices under the Mobile Stolen Device
+        Database (MSDD). An invalid IMEI bypasses EIR checks silently."
+      field: imei
+      type: regex
+      pattern: '^\d{15}$'
+      severity: warning
+      error_message: "imei must be exactly 15 decimal digits (GSMA IMEI format,
+        e.g. 490154203237518) — invalid IMEI bypasses Ofcom EIR blacklist checking"
 
     - name: call_type_required
       field: call_type
@@ -53,17 +98,77 @@ contract:
       error_message: "call_type is required"
 
     - name: call_type_valid
+      description: "3GPP TS 32.297 CDR service type classification. 'roaming_voice'
+        and 'roaming_data' CDRs require NRTRDE exchange within 4 hours of call
+        end under GSMA IR.21. 'premium_rate' calls are subject to PSA (Phone-paid
+        Services Authority) Code of Practice and Ofcom GC17 billing obligations."
       field: call_type
       type: allowed_values
-      allowed_values: [voice, sms, data, mms, roaming_voice, roaming_data]
+      allowed_values:
+        - voice
+        - sms
+        - mms
+        - data
+        - roaming_voice
+        - roaming_sms
+        - roaming_data
+        - premium_rate
+        - emergency
+        - voip
       severity: error
-      error_message: "call_type must be one of: voice, sms, data, mms, roaming_voice, roaming_data"
+      error_message: "call_type must be one of: voice, sms, mms, data, roaming_voice,
+        roaming_sms, roaming_data, premium_rate, emergency, voip (3GPP TS 32.297
+        — roaming CDRs require NRTRDE within 4 hours per GSMA IR.21)"
 
-    - name: network_code_required
+    - name: network_code_plmn_format
+      description: "PLMN (Public Land Mobile Network) code format: MCC (Mobile
+        Country Code, 3 digits per ITU-T E.212) hyphen MNC (Mobile Network Code,
+        2-3 digits). e.g. 234-30 (UK EE), 234-20 (UK Three), 234-10 (UK O2).
+        Used for roaming partner identification in GSMA IR.21 data exchange and
+        Ofcom spectrum licence compliance. An invalid PLMN code prevents correct
+        roaming partner billing."
       field: network_code
-      type: not_empty
-      severity: error
-      error_message: "network_code is required"
+      type: regex
+      pattern: '^\d{3}-\d{2,3}$'
+      severity: warning
+      error_message: "network_code must be in PLMN format MCC-MNC (e.g. 234-30
+        for UK EE, 234-20 for UK Three) — invalid PLMN prevents roaming partner
+        identification (GSMA IR.21)"
+
+    - name: roaming_country_format
+      description: "ISO 3166-1 alpha-2 country code for the visited network country.
+        Required for NRTRDE roaming CDR exchange under GSMA IR.21 and for EU
+        Roaming Regulation (EU 531/2012) RLAH (Roam Like at Home) fair use policy
+        enforcement. Missing or invalid roaming country causes incorrect roaming
+        surcharge application."
+      field: roaming_country
+      type: regex
+      pattern: '^[A-Z]{2}$'
+      severity: warning
+      error_message: "roaming_country must be a 2-letter ISO 3166-1 alpha-2 country
+        code (e.g. DE, FR, ES) — required for GSMA IR.21 NRTRDE and EU Roaming
+        Regulation RLAH enforcement"
+
+    - name: rating_status_values
+      description: "CDR rating lifecycle status. 'unrated' CDRs in the billing
+        system represent potential revenue leakage — they must be resolved within
+        the billing cycle. 'fraud_suspect' CDRs must be forwarded to the Fraud
+        Management System (FMS) within 24 hours per GSMA FS.11 anti-fraud guidelines.
+        'disputed' CDRs are subject to Ofcom GC C5 complaint handling timelines."
+      field: rating_status
+      type: allowed_values
+      allowed_values:
+        - rated
+        - unrated
+        - error
+        - disputed
+        - fraud_suspect
+        - suppressed
+        - reprocessing
+      severity: warning
+      error_message: "rating_status must be one of: rated, unrated, error, disputed,
+        fraud_suspect, suppressed, reprocessing (unrated = revenue leakage risk;
+        fraud_suspect requires FMS referral within 24h per GSMA FS.11)"
 
     - name: charge_amount_min
       field: charge_amount
