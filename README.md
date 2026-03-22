@@ -491,16 +491,14 @@ contract:
     - name: status_valid
       field: status
       type: lookup
-      lookup_file: https://api.yourcompany.com/orders/statuses/active
-      cache_ttl: 300
+      lookup_file: ref/order_statuses.txt
       severity: error
       error_message: "status must be a recognised order status"
 
     - name: carrier_code_valid
       field: carrier_code
       type: lookup
-      lookup_file: https://api.yourcompany.com/carriers/active
-      cache_ttl: 600
+      lookup_file: ref/carriers.txt
       severity: error
       error_message: "carrier_code must be an active carrier"
 
@@ -512,6 +510,8 @@ contract:
       severity: error
       error_message: "amount must be between 0.01 and 999999"
 ```
+
+> **Lookup files** — `ref/order_statuses.txt` and `ref/carriers.txt` are included in the repo under `contracts/ref/`. Edit them to match your valid values. For dynamic lookups, `lookup_file` also accepts HTTP endpoints (e.g. `https://api.example.com/statuses`) with optional `cache_ttl` (seconds).
 
 ### Step 2: Reload contracts
 
@@ -1412,26 +1412,45 @@ location / {
 ```
 OpenDQV/
   api/
-    routes.py          # REST API endpoints
+    routes.py          # 50 REST endpoints (~2,400 lines)
     models.py          # Pydantic request/response models
     graphql_schema.py  # Strawberry GraphQL schema
   core/
-    validator.py       # Validation engine (single + DuckDB batch)
+    validator.py       # Validation engine (single-record + DuckDB batch)
     rule_parser.py     # Rule model and YAML parsing
-    contracts.py       # Contract registry, context merging
-    code_generator.py  # Push-down code generation (Apex/JS/Snowflake)
+    contracts.py       # Contract registry, YAML load/save, versioning
+    code_generator.py  # Push-down code generation (Apex/JS/Snowflake/SQL)
+    profiler.py        # Field-level data profiling
+    webhooks.py        # Lifecycle webhook dispatch
+    federation.py      # Multi-node contract federation
+    trace_log.py       # Per-record validation trace log
+    node_health.py     # Node health state machine
+    isolation_log.py   # Federation isolation audit log
+    quality_stats.py   # Validation quality statistics
+    worker_heartbeat.py# Gunicorn worker liveness tracking
+    onboarding.py      # Interactive setup wizard
+    importers/         # 8 format importers (GX, dbt, Soda, CSV, ODCS, CSVW, OTel, NDC)
   security/
-    auth.py            # JWT PAT authentication
+    auth.py            # JWT PAT auth, RBAC (6 roles)
   sdk/
-    client.py          # Python SDK (httpx-based)
+    client.py          # Sync Python SDK (httpx-based)
+    async_client.py    # Async Python SDK
+    local_validator.py # Zero-network local validation
   ui/
-    app.py             # Streamlit workbench (12 tabs)
-  contracts/           # YAML data contracts
-  tests/               # pytest suite (1,000+ tests)
+    app.py             # Streamlit governance workbench (~2,500 lines)
+  contracts/           # 42 YAML data contracts (22+ industry domains)
+  contracts/ref/       # Lookup reference files
+  postman/             # Postman collection + environment (all 50 endpoints)
+  tests/               # pytest suite (2,387+ tests, 39 test files)
+  docs/                # 76 markdown integration and operations guides
+  scripts/             # Demo seeder, smoke tests, perf tests, diagnostics
   monitoring.py        # Prometheus metrics + in-memory stats
-  config.py            # Environment variable configuration
+  config.py            # All configuration via environment variables
   main.py              # FastAPI app entry point
   mcp_server.py        # MCP server (Claude Desktop / Cursor integration)
+  docker-compose.yml         # Production stack
+  docker-compose.dev.yml     # Development stack (hot-reload API)
+  docker-compose.demo.yml    # Demo stack (ports 8080/8502, pre-seeded)
 ```
 
 ---
@@ -1439,7 +1458,7 @@ OpenDQV/
 ## Testing
 
 ```bash
-# Run all 1,000+ tests
+# Run all 2,387+ tests
 pytest tests/ -v
 
 # Via Docker
@@ -1468,7 +1487,6 @@ Potential areas for contribution and future development:
 
 - **More SDK languages** -- npm package, NuGet, Go client
 - **Custom rule types** -- Plugin system for user-defined validation functions
-- **REST-based lookup rules** -- `lookup_file: http://...` with configurable `cache_ttl`
 - **Distribution check rule** -- Validate that a field's value distribution matches an expected profile
 - **Validation result persistence** -- Pluggable sinks (Postgres, S3) for long-term audit trails
 - **Multi-parent federation** -- A node publishing to more than one parent simultaneously

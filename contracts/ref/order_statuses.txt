@@ -1,0 +1,8 @@
+pending
+confirmed
+processing
+shipped
+delivered
+cancelled
+returned
+refunded
