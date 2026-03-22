@@ -2,6 +2,18 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.3.1] - 2026-03-22
+
+### Developer Experience
+
+- **Postman collection** — `postman/OpenDQV.postman_collection.json` + `postman/OpenDQV.postman_environment.json`: 10 folders, all 50 endpoints, collection-level pre-request script for auto-auth, 3 environment variables (`base_url`, `auth_token`, `contract_name`)
+- **Demo Docker environment** — `docker compose -f docker-compose.demo.yml up -d` gives a pre-seeded environment on ports 8080/8502 in under 2 minutes; ~740 validation events across 7 contracts plus a full draft→review→active lifecycle demo
+- **Demo seeder** — `scripts/seed_demo_data.py`: idempotent, deterministic (seed 42), realistic UK data with deliberate failure injection
+- **`DEMO_MODE` env var** — startup banner when running the demo compose; no effect in standard deployments
+- **`docs/postman.md`** — import guide, 5-request quickstart, folder reference
+- **`docs/demo.md`** — launch guide, 5-step exploration path, reset and production migration instructions
+- **README Quick Start** — demo compose and Postman rows added at the top of the Quick Start section
+
 ## [1.3.0] - 2026-03-22
 
 ### Contracts
