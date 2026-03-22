@@ -8,6 +8,7 @@ Usage:
     python -m cli onboard
 """
 
+import ctypes
 import json
 import os
 import subprocess
@@ -18,6 +19,29 @@ import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+
+
+def _pid_alive(pid: int) -> bool:
+    """Return True if the process is running. Cross-platform.
+
+    On Unix, os.kill(pid, 0) checks liveness without sending a signal.
+    On Windows, signal 0 is CTRL_C_EVENT — sending it to the current process
+    raises KeyboardInterrupt. Use OpenProcess instead.
+    """
+    if sys.platform == "win32":
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        handle = ctypes.windll.kernel32.OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION, False, pid
+        )
+        if not handle:
+            return False
+        ctypes.windll.kernel32.CloseHandle(handle)
+        return True
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
 
 # ── Rich is optional — plain-text fallback if not installed ───────────────────
 try:
@@ -61,7 +85,8 @@ def _read_workbench_lock() -> "tuple[int, int] | None":
     try:
         data = json.loads(_WORKBENCH_LOCK.read_text())
         pid, port = int(data["pid"]), int(data["port"])
-        os.kill(pid, 0)   # raises OSError if process is dead
+        if not _pid_alive(pid):
+            return None
         return pid, port
     except Exception:
         return None
@@ -80,7 +105,8 @@ def _read_api_lock() -> "tuple[int, int] | None":
     try:
         data = json.loads(_API_LOCK.read_text())
         pid, port = int(data["pid"]), int(data["port"])
-        os.kill(pid, 0)   # raises OSError if process is dead
+        if not _pid_alive(pid):
+            return None
         return pid, port
     except Exception:
         return None
