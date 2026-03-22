@@ -1,10 +1,22 @@
 # Databricks Integration
 
-> **Last reviewed:** 2026-03-13.
+> **Last reviewed:** 2026-03-22.
 > Covers Databricks Runtime ≥14.x, Delta Lake ≥3.x, Databricks Asset Bundles.
 > For generic Spark deployments (EMR, Dataproc, HDInsight), see [`spark_integration.md`](spark_integration.md).
 
 OpenDQV integrates natively with the Databricks platform — Auto Loader ingestion, Delta Live Tables pipelines, Jobs/Asset Bundle workflows, Unity Catalog lineage, and multi-workspace federation. All approaches share the same pre-write validation pattern: validate before the Delta commit, quarantine rejects.
+
+> **Migration note:** Databricks acquired Neon (a Postgres-compatible serverless database). If your migration path includes Neon, the [Postgres trigger pattern](postgres_integration.md#approach-4--native-db-trigger-enforce-at-the-database-layer) applies directly. For Delta Lake, the `foreachBatch` pattern below is the Layer 1 equivalent — validate before the Delta commit, regardless of which tool is writing.
+
+## Which approach for your use case?
+
+| Use case | Recommended approach | Why |
+|----------|---------------------|-----|
+| Batch notebook / ETL | Approach 3 (Auto Loader foreachBatch) | Validates micro-batches before Delta write |
+| Scheduled Databricks Job | Approach 4 (Pre-task validation gate) | Fails the job before any data lands |
+| Continuous streaming pipeline | Approach 3 with `trigger(processingTime=...)` | Streaming validation with quarantine |
+| Delta Live Tables | Approach 5 (DLT + UDF expectation) | Native DLT integration |
+| Multi-workspace governance | Approach 7 (Federation-aware) | Routes to nearest OpenDQV instance |
 
 ---
 
@@ -337,9 +349,8 @@ clean_df = annotated_df.filter(col("_opendqv_valid") == True)
 | **Now** | Add `validate_batch` before every Delta write in batch jobs |
 | **Now** | Set `asset_id` to Unity Catalog three-level path for lineage linkage |
 | **Now** | Pass `run_id` / `batch_id` as `trace_id` for end-to-end correlation |
-| **Planned — based on community demand** | Switch Kafka → Delta pipelines to `foreachBatch` streaming validation |
-| **Planned — based on community demand** | Add OpenDQV validation task to Databricks Asset Bundle workflow definitions |
-| **Planned — based on community demand** | Databricks Partner Connect integration (planned) |
+| **Migration path** | Use `foreachBatch` to validate landing data before writing to Delta — removes stored-procedure DQ dependency and unblocks platform migrations |
+| **Community** | Databricks Partner Connect integration — community PR welcome |
 
 ---
 

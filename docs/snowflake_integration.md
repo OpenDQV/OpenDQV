@@ -1,10 +1,23 @@
 # Snowflake Integration
 
-> **Last reviewed:** 2026-03-13.
+> **Last reviewed:** 2026-03-22.
 > Covers `snowflake-connector-python v3.x`, `snowflake-sqlalchemy v1.x`, Snowpipe REST API, Snowflake External Functions.
 > [snowflake-connector-python on PyPI](https://pypi.org/project/snowflake-connector-python/)
 
 OpenDQV validates records before they reach Snowflake. Once a record lands in a Snowflake table it is part of your queryable data — bad records that slip through become query results, JOIN noise, and downstream model failures. Blocking at the write boundary is the cheapest fix point.
+
+> **Migration note:** Snowflake External Functions (Approach 3) call the OpenDQV API directly from SQL — no application code changes required. This is the governance-first pattern for Snowflake: any INSERT path is validated, regardless of which tool writes the data. It directly replaces stored-procedure DQ logic and unblocks migrations from legacy warehouse environments.
+
+## Which approach for your use case?
+
+| Use case | Recommended approach | Why |
+|----------|---------------------|-----|
+| Python ETL / data pipeline | Approach 1 (Python connector) | Fastest, validate before any Snowflake round-trip |
+| Snowpipe / file-based ingestion | Approach 2 (validate before staging) | Only clean files enter the ingest queue |
+| Governance-owned SQL enforcement | Approach 3 (External Function) | Validates from inside Snowflake SQL — any writer covered |
+| Event-driven / serverless | Approach 4 (Streams + Tasks) | Fully serverless within Snowflake, no external process |
+| Incremental / contract-change aware | Approach 5 (contract_hash) | Skip re-validation when contract is unchanged |
+| Multi-account governance | Approach 6 (Federation-aware) | Routes to nearest OpenDQV instance |
 
 ---
 
@@ -351,9 +364,9 @@ The DuckDB integration tests cover:
 |---|---|
 | **Now** | Add `validate_batch` before every Python connector `executemany` / Snowpipe staging call |
 | **Now** | Set `asset_id` to `snowflake://{account}/{database}/{schema}/{table}` for catalog linkage |
-| **Planned — based on community demand** | Create an External Function for SQL-level validation of landing tables |
-| **Planned — based on community demand** | Add Streams + Tasks for serverless event-driven validation within Snowflake |
-| **Planned — based on community demand** | Snowflake Native App packaging (planned) |
+| **Governance-first** | Approach 3 (External Function) — validates from SQL, any writer covered, unblocks migrations |
+| **Migration path** | Replace stored-procedure DQ with an External Function backed by an OpenDQV contract — platform becomes interchangeable |
+| **Community** | Snowflake Native App packaging — community PR welcome |
 
 ---
 
