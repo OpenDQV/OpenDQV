@@ -865,8 +865,8 @@ class TestCodeGeneratorRuleCoverage:
         code = generate_code([rule], target)
         # Extract just the rule body (strip header/wrapper boilerplate)
         # Any non-empty line referencing the field or containing a comment counts
-        lines = [l for l in code.splitlines()
-                 if "value" in l or "// " in l or "//NOTE" in l]
+        lines = [ln for ln in code.splitlines()
+                 if "value" in ln or "// " in ln or "//NOTE" in ln]
         assert len(lines) >= 1, (
             f"Rule type '{rule_type}' produces no output for target '{target}'. "
             f"Silent drops are correctness bugs — add a // TODO or // NOTE comment."
