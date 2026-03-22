@@ -436,7 +436,8 @@ class TestContractAuditLifecycle:
         Forks to a new draft version (99.0) and submits for review, generating
         a history entry. Returns (contract_name, editor_token).
         """
-        import requests as _req, json as _json
+        import requests as _req
+        import json as _json
 
         def _container_token(role):
             r = subprocess.run(
