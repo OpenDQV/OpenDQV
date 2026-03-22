@@ -840,7 +840,7 @@ class OnboardingWizard:
                 raise
 
             if HAS_RICH:
-                self.console.print(f"  [cyan]→[/cyan]  [dim]DRAFT[/dim] → [yellow]REVIEW[/yellow]   proposed by wizard-demo")
+                self.console.print("  [cyan]→[/cyan]  [dim]DRAFT[/dim] → [yellow]REVIEW[/yellow]   proposed by wizard-demo")
             else:
                 print("  →  DRAFT → REVIEW   proposed by wizard-demo")
 
@@ -860,7 +860,7 @@ class OnboardingWizard:
                 raise
 
             if HAS_RICH:
-                self.console.print(f"  [cyan]→[/cyan]  [yellow]REVIEW[/yellow] → [bold green]ACTIVE[/bold green]   approved by wizard-demo")
+                self.console.print("  [cyan]→[/cyan]  [yellow]REVIEW[/yellow] → [bold green]ACTIVE[/bold green]   approved by wizard-demo")
                 self.console.print()
                 self.console.print(
                     "  [dim]Every change is hash-chained and auditable. "
