@@ -218,6 +218,109 @@ CREATE INDEX ON quarantine.rejected_records (source_table, rejected_at DESC);
 
 ---
 
+## Approach 4 — Native DB Trigger: Enforce at the Database Layer
+
+This is the governance-first approach. A `BEFORE INSERT OR UPDATE` trigger calls the
+OpenDQV API directly from within Postgres. Bad records are blocked at the database
+layer — regardless of which application, ETL tool, or migration script is doing the
+writing. The governance team owns the YAML contract; the trigger is a one-time setup.
+
+> **Why this matters for Databricks and Snowflake migrations:**
+> Both platforms have made significant investments in Postgres compatibility (Databricks
+> via Neon, Snowflake via Postgres-compatible features). A trigger-enforced OpenDQV
+> contract moves with the data — the validation contract is not tied to the application
+> layer or any specific ETL process. This is the pattern that unblocks platform
+> migrations: replace the stored-procedure DQ logic with an OpenDQV contract, attach a
+> trigger, and the enforcement survives the migration intact.
+
+### Prerequisites
+
+Install the `http` extension (available on standard Postgres, Supabase, and most
+managed providers):
+
+```sql
+CREATE EXTENSION IF NOT EXISTS http;
+```
+
+### The trigger function
+
+```sql
+CREATE OR REPLACE FUNCTION opendqv_validate()
+RETURNS TRIGGER AS $$
+DECLARE
+  _response http_response;
+  _result   JSONB;
+  _contract TEXT := TG_ARGV[0];   -- passed as trigger argument
+  _url      TEXT := TG_ARGV[1];   -- OpenDQV API URL, e.g. 'http://opendqv:8000'
+BEGIN
+  SELECT * INTO _response
+  FROM http_post(
+    _url || '/api/v1/validate',
+    json_build_object('contract', _contract, 'record', row_to_json(NEW))::text,
+    'application/json'
+  );
+
+  IF _response.status != 200 THEN
+    RAISE EXCEPTION 'OpenDQV API unreachable (HTTP %): check your OpenDQV server', _response.status;
+  END IF;
+
+  _result := _response.content::JSONB;
+
+  IF NOT (_result->>'valid')::boolean THEN
+    RAISE EXCEPTION 'Validation failed: %', _result->'errors';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+### Attach to a table
+
+```sql
+-- Validates every INSERT and UPDATE against the 'customer' contract
+CREATE TRIGGER customer_opendqv_validate
+  BEFORE INSERT OR UPDATE ON customers
+  FOR EACH ROW
+  EXECUTE FUNCTION opendqv_validate('customer', 'http://opendqv:8000');
+```
+
+### Test it
+
+```sql
+-- This should pass
+INSERT INTO customers (name, email, age) VALUES ('Alice', 'alice@example.com', 30);
+
+-- This should be blocked with a validation error
+INSERT INTO customers (name, email, age) VALUES ('', 'not-an-email', -1);
+-- ERROR:  Validation failed: [{"field": "name", "message": "name is required"}, ...]
+```
+
+### What this unlocks
+
+- **Any writer is validated** — psycopg2, JDBC, dbt, pgloader, a migration script,
+  a manual `psql` session. It does not matter. The trigger fires before every write.
+- **Contract changes take effect immediately** — update the YAML, reload the registry
+  (`POST /api/v1/contracts/reload`), and the next INSERT is validated against the new
+  rules. No trigger redeployment required.
+- **The governance team governs** — they own the YAML. The database enforces it.
+  They are not writing triggers or stored procedures.
+
+### Async variant (Supabase / pg_net)
+
+For non-blocking validation (fire-and-forget logging rather than write blocking),
+use `pg_net` instead of `http`. Note: this does not block the INSERT — use it for
+audit logging only, not enforcement.
+
+```sql
+SELECT net.http_post(
+  url := 'http://opendqv:8000/api/v1/validate',
+  body := json_build_object('contract', 'customer', 'record', row_to_json(NEW))::jsonb
+);
+```
+
+---
+
 ## Limitations
 
 | Limitation | Detail |
@@ -232,10 +335,11 @@ CREATE INDEX ON quarantine.rejected_records (source_table, rejected_at DESC);
 
 | Phase | Action |
 |---|---|
-| **Now** | Add `validate_batch` before every `executemany` / bulk INSERT |
-| **Now** | Set `asset_id` to `postgres://{host}/{db}/{schema}/{table}` for catalog linkage |
-| **Planned — based on community demand** | Add Postgres-native trigger validation (plpython3u) for enforcement at the DB layer |
-| **Planned — based on community demand** | Postgres enterprise storage backend (contract history + federation log in Postgres) |
+| **Quick start** | Approach 1 — `validate_batch` before every `executemany` / bulk INSERT |
+| **Quick start** | Set `asset_id` to `postgres://{host}/{db}/{schema}/{table}` for catalog linkage |
+| **Governance-first** | Approach 4 — native DB trigger calling the OpenDQV API (enforcement at DB layer, any writer validated) |
+| **Platform migration** | Approach 4 trigger pattern unblocks Databricks/Snowflake migrations by removing the stored-procedure DQ dependency |
+| **Community** | Postgres enterprise storage backend (contract history + federation log in Postgres) — community PR welcome |
 
 ---
 
