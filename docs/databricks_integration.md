@@ -213,7 +213,7 @@ def orders_clean():
     )
 ```
 
-> **DLT performance note:** The UDF makes one HTTP call per row. For high-volume DLT pipelines, use `foreachBatch` (Approach 3) instead — it batches calls to OpenDQV rather than calling once per record.
+> **DLT performance note:** The UDF makes one HTTP call per row. For high-volume DLT pipelines, use `foreachBatch` (Approach 3) instead — it batches calls to OpenDQV rather than calling once per record. A single batch validation call for 10,000 rows is dramatically faster than 10,000 individual HTTP calls.
 
 ---
 

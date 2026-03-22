@@ -152,8 +152,12 @@ Snowflake External Functions allow SQL to call an external REST API. This enable
 
 ```sql
 -- 1. Create an API integration pointing at your OpenDQV instance
+-- AWS: API_PROVIDER = aws_api_gateway, API_AWS_ROLE_ARN = 'arn:aws:iam::...:role/snowflake-opendqv'
+-- Azure: API_PROVIDER = azure_api_management, AZURE_AD_APPLICATION_ID = '...'
+-- GCP: API_PROVIDER = google_api_gateway, GOOGLE_AUDIENCE = '...'
+-- See: https://docs.snowflake.com/en/sql-reference/sql/create-api-integration
 CREATE OR REPLACE API INTEGRATION opendqv_api
-    API_PROVIDER = aws_api_gateway          -- or azure_api_management / google_api_gateway
+    API_PROVIDER = aws_api_gateway
     API_AWS_ROLE_ARN = 'arn:aws:iam::...:role/snowflake-opendqv'
     ENABLED = true
     API_ALLOWED_PREFIXES = ('https://opendqv.your-domain.com/api/v1/');
