@@ -16,7 +16,7 @@ OpenDQV integrates natively with the Databricks platform — Auto Loader ingesti
 | Scheduled Databricks Job | Approach 2 (Pre-task validation gate) | Fails the job before any data lands |
 | Continuous streaming pipeline | Approach 1 with `trigger(processingTime=...)` | Streaming validation with quarantine |
 | Delta Live Tables | Approach 3 (DLT + UDF expectation) | Native DLT integration |
-| Multi-workspace governance | Approach 5 (Federation-aware) | Routes to nearest OpenDQV instance |
+| **Governance-first — any writer validated** | **Approach 1 (foreachBatch)** | **Validates before Delta commit regardless of source** |\n| Multi-workspace governance | Approach 5 (Federation-aware) | Routes to nearest OpenDQV instance |
 
 ---
 

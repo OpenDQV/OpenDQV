@@ -16,7 +16,7 @@ OpenDQV validates records before they reach Snowflake. Once a record lands in a 
 | Snowpipe / file-based ingestion | Approach 2 (validate before staging) | Only clean files enter the ingest queue |
 | Governance-owned SQL enforcement | Approach 3 (External Function) | Validates from inside Snowflake SQL — any writer covered |
 | Event-driven / serverless | Approach 4 (Streams + Tasks) | Fully serverless within Snowflake, no external process |
-| Incremental / contract-change aware | Approach 5 (contract_hash) | Skip re-validation when contract is unchanged |
+| Incremental / contract-change aware | Approach 5 (contract version) | Skip re-validation when contract is unchanged |
 | Multi-account governance | Approach 6 (Federation-aware) | Routes to nearest OpenDQV instance |
 
 ---
@@ -73,7 +73,9 @@ def load_records(records: list[dict], contract: str, table: str):
     ]
 
     if clean:
-        # Parameterised insert — avoids SQL injection
+        # NOTE: `table` and column names are interpolated into the SQL string —
+        # they must come from a trusted whitelist, never from user input.
+        # Values are parameterised (%s) and safe from injection.
         columns = ", ".join(clean[0].keys())
         placeholders = ", ".join(["%s"] * len(clean[0]))
         cur.executemany(
@@ -226,9 +228,9 @@ This pattern is fully serverless within Snowflake — no external consumer proce
 
 ---
 
-## Approach 5 — Incremental via `contract_hash`
+## Approach 5 — Incremental via Contract Version
 
-Store the current `contract_hash` in a Snowflake table and only re-validate landing data when the contract has changed.
+Store the current contract version in a Snowflake table and only re-validate landing data when the contract has changed.
 
 ```python
 import requests, os
@@ -347,7 +349,7 @@ The DuckDB integration tests cover:
 - The quarantine pattern
 - DuckDB `fetchdf()` → `to_dict("records")` roundtrip
 
-> **DuckDB vs. Snowflake UDF:** The Snowflake JS UDF (`opendqv_validate`) deploys the compiled rule logic into Snowflake for SQL-level validation. The local DuckDB path uses the Python `LocalValidator` instead. The validation logic is identical — the UDF is a push-down snapshot of the same rules.
+> **DuckDB vs. Snowflake External Function:** The Snowflake External Function (Approach 3) calls the OpenDQV API for SQL-level validation. The local DuckDB path uses `LocalValidator` instead — same validation logic, no API server required for local development.
 
 ---
 

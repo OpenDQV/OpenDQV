@@ -121,6 +121,8 @@ Use the following `asset_id` format for interoperability with common data catalo
 | Atlan | `default/{connection_name}/{database}/{schema}/{table}` |
 | Collibra | `{community}/{domain}/{asset_name}` |
 | PostgreSQL | `postgres://{host}/{database}/{schema}/{table}` |
+| Snowflake | `snowflake://{account}/{database}/{schema}/{table}` |
+| Databricks / Unity Catalog | `databricks://{workspace-host}/{catalog}/{schema}/{table}` |
 | Microsoft Purview | `{data_source_type}://{host}/{database}/{schema}/{table}` |
 | OpenMetadata | `{service}.{database}.{schema}.{table}` |
 
