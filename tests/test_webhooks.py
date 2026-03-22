@@ -172,7 +172,14 @@ class TestWebhookSchemas:
         assert VALIDATION_EVENT_SCHEMA["violations"]["type"] == "list"
         assert "field" in VALIDATION_EVENT_SCHEMA["violations"]["items"]
 
-    def test_new_fields_not_in_valid_events(self):
-        """Schema constants don't accidentally pollute VALID_EVENTS."""
+    def test_valid_events_set(self):
+        """VALID_EVENTS contains all expected event types including lifecycle events."""
         from core.webhooks import VALID_EVENTS
-        assert VALID_EVENTS == {"opendqv.validation.failed", "opendqv.validation.warning", "opendqv.batch.failed"}
+        assert VALID_EVENTS == {
+            "opendqv.validation.failed",
+            "opendqv.validation.warning",
+            "opendqv.batch.failed",
+            "opendqv.contract.submitted",
+            "opendqv.contract.approved",
+            "opendqv.contract.rejected",
+        }

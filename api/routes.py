@@ -997,6 +997,9 @@ async def submit_for_review(
         raise HTTPException(status_code=409, detail=str(e))
     if not contract:
         raise HTTPException(status_code=404, detail=f"Contract '{name}' v{version} not found")
+    await webhook_manager.notify("opendqv.contract.submitted", {
+        "contract": name, "version": version, "proposed_by": proposed_by,
+    })
     return {"status": "submitted", "contract": name, "version": version, "proposed_by": proposed_by}
 
 
@@ -1021,6 +1024,9 @@ async def approve_contract(
         raise HTTPException(status_code=409, detail=str(e))
     if not contract:
         raise HTTPException(status_code=404, detail=f"Contract '{name}' v{version} not found")
+    await webhook_manager.notify("opendqv.contract.approved", {
+        "contract": name, "version": version, "approved_by": approved_by,
+    })
     return {"status": "approved", "contract": name, "version": version, "approved_by": approved_by}
 
 
@@ -1046,6 +1052,9 @@ async def reject_contract(
         raise HTTPException(status_code=409, detail=str(e))
     if not contract:
         raise HTTPException(status_code=404, detail=f"Contract '{name}' v{version} not found")
+    await webhook_manager.notify("opendqv.contract.rejected", {
+        "contract": name, "version": version, "rejected_by": rejected_by, "reason": reason,
+    })
     return {"status": "rejected", "contract": name, "version": version, "rejected_by": rejected_by, "reason": reason}
 
 
