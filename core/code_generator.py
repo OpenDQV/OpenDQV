@@ -2,8 +2,9 @@
 Code generator — generates validation code for target platforms.
 
 Supports: Snowflake (JS UDF), Salesforce (Apex), JavaScript.
-Covers all rule types: regex, min, max, range, not_empty, min_length, max_length, date_format, unique.
+Covers: regex, min, max, range, not_empty, min_length, max_length, date_format, unique.
 
+Rule types not yet implemented emit a // TODO comment rather than being silently dropped.
 This is a "push-down" feature: deploy OpenDQV rules directly into source systems
 as a complement to the centralized API validation.
 """
@@ -128,6 +129,8 @@ def _generate_salesforce(rules: list, contract_name: str = "", contract_version:
             code += f"            if (row.get('{field}') != null && !Pattern.matches('{safe_pattern}', (String)row.get('{field}'))) {target_list}.add('{error}');\n"
         elif rtype == "min" and rule.get("min_value") is not None:
             code += f"            if (row.get('{field}') != null && (Decimal)row.get('{field}') < {rule['min_value']}) {target_list}.add('{error}');\n"
+        elif rtype == "max" and rule.get("max_value") is not None:
+            code += f"            if (row.get('{field}') != null && (Decimal)row.get('{field}') > {rule['max_value']}) {target_list}.add('{error}');\n"
         elif rtype == "range" and rule.get("min_value") is not None and rule.get("max_value") is not None:
             code += f"            if (row.get('{field}') != null) {{ Decimal val_{field} = (Decimal)row.get('{field}'); if (val_{field} < {rule['min_value']} || val_{field} > {rule['max_value']}) {target_list}.add('{error}'); }}\n"
         elif rtype == "not_empty":
@@ -138,6 +141,12 @@ def _generate_salesforce(rules: list, contract_name: str = "", contract_version:
             code += f"            if (row.get('{field}') != null) {{ try {{ Date.valueOf((String)row.get('{field}')); }} catch (Exception e) {{ {target_list}.add('{error}'); }} }}\n"
         elif rtype == "unique":
             code += f"            // Unique check for '{field}' requires full dataset\n"
+        elif rtype in ("required_if", "lookup", "compare", "date_diff", "checksum",
+                       "cross_field_range", "field_sum", "forbidden_if", "conditional_value",
+                       "ratio_check", "geospatial_bounds", "conditional_lookup", "allowed_values"):
+            code += f"            // NOTE: rule '{rule['name']}' (type='{rtype}') requires API validation — not implementable as push-down code\n"
+        else:
+            code += f"            // TODO: rule '{rule['name']}' (type='{rtype}') not implemented for this target\n"
 
         if (rule.get("min_age") is not None or rule.get("max_age") is not None) and field not in age_checked_fields:
             age_checked_fields.add(field)
@@ -221,6 +230,14 @@ def _js_rule_check(rule: dict, indent: str = "    ", age_checked: set = None) ->
         snippet += f"{indent}if (isNaN(Date.parse(row['{field}']))) errors.push('{error}');\n"
     elif rtype == "unique":
         snippet += f"{indent}// Unique check for '{field}' requires full dataset — implement via pre-scan\n"
+    elif rtype not in ("required_if", "lookup", "compare", "date_diff", "checksum",
+                       "cross_field_range", "field_sum", "forbidden_if", "conditional_value",
+                       "ratio_check", "geospatial_bounds", "conditional_lookup", "allowed_values"):
+        # Unknown rule type — emit explicit TODO rather than silently dropping
+        snippet += f"{indent}// TODO: rule '{rule['name']}' (type='{rtype}') not implemented for this target\n"
+    else:
+        # Known unsupported rule types — these require full-dataset or API context
+        snippet += f"{indent}// NOTE: rule '{rule['name']}' (type='{rtype}') requires API validation — not implementable as push-down code\n"
 
     # Age check — appended after type check for rules with min_age/max_age (once per field)
     if (rule.get("min_age") is not None or rule.get("max_age") is not None) and field not in age_checked:

@@ -2,6 +2,30 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.2.2] - 2026-03-22
+
+### Fixes
+
+- **Code generator — silent gap eliminated:** Rule types not implemented by a
+  generator target previously emitted nothing (silent drop). Now emit an explicit
+  `// NOTE: requires API validation` comment for known API-only types
+  (`required_if`, `lookup`, `compare`, `date_diff`, `checksum`, etc.) and a
+  `// TODO` comment for any unknown future types. Users deploying generated code
+  can now see exactly which rules are enforced and which require the live API.
+- **Salesforce generator — `max` rule missing:** The `max` rule type was implemented
+  in Snowflake and JS targets but silently dropped in Salesforce Apex. Fixed.
+- **Code generator docstring:** Removed false claim "Covers all rule types."
+
+### Tests
+
+- **58 new parametric tests:** `TestCodeGeneratorRuleCoverage` — every rule type
+  across all three targets (snowflake, salesforce, js) must produce at least one
+  line of output. Silent drops will now fail CI immediately.
+
+Suite: 2,242 passing, 24 skipped (+61 from generator coverage tests).
+
+---
+
 ## [1.2.1] - 2026-03-22
 
 ### UI
