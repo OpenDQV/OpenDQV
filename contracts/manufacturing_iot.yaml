@@ -1,7 +1,17 @@
 contract:
   name: manufacturing_iot
-  version: "1.0"
-  description: "Manufacturing IoT sensor data validation"
+  version: "1.1"
+  description: >
+    Manufacturing IoT sensor data validation aligned with IEC 62264 (ISA-95)
+    manufacturing operations management standards and Industry 4.0 data model
+    requirements. Enforces device operational status classification, device type
+    taxonomy (aligned with ISA-88 equipment hierarchy), physical measurement
+    bounds (temperature, pressure, humidity, vibration), alert severity levels,
+    and OEE (Overall Equipment Effectiveness) percentage validation. Prevents
+    out-of-range sensor readings, uncategorised device alerts, and invalid OEE
+    figures from entering MES (Manufacturing Execution Systems), SCADA historians,
+    and predictive maintenance pipelines where ISO 13374 (condition monitoring)
+    and ATEX zone safety obligations apply.
   owner: "Operations Data Team"
   status: active
 
@@ -12,6 +22,35 @@ contract:
       severity: error
       error_message: "device_id is required"
 
+    - name: device_type_values
+      description: "ISA-88/ISA-95 aligned device type classification for manufacturing
+        IoT assets. Correct device type enables automatic alert threshold selection,
+        maintenance schedule routing, and ATEX zone compliance checking. SCADA and
+        PLC devices have specific cybersecurity requirements under IEC 62443."
+      field: device_type
+      type: allowed_values
+      allowed_values:
+        - thermocouple
+        - rtd
+        - pressure_sensor
+        - flow_meter
+        - level_sensor
+        - vibration_sensor
+        - accelerometer
+        - load_cell
+        - vision_system
+        - barcode_scanner
+        - rfid_reader
+        - plc
+        - scada
+        - robot
+        - conveyor
+        - cnc
+        - other
+      severity: warning
+      error_message: "device_type must be a standard ISA-88 equipment type — use
+        one of the defined values for MES routing and ATEX compliance checking"
+
     - name: timestamp_format
       field: timestamp
       type: date_format
@@ -20,12 +59,18 @@ contract:
       error_message: "timestamp must be a valid datetime (YYYY-MM-DDTHH:MM:SS)"
 
     - name: temperature_range
+      description: "Physical temperature bounds for manufacturing environments.
+        -50°C covers cryogenic and cold-chain processes; 500°C covers furnace,
+        kiln, and autoclave monitoring. Readings outside this range indicate
+        sensor failure or measurement unit errors (e.g. Kelvin stored as Celsius)
+        requiring immediate investigation under ISO 13374 condition monitoring."
       field: temperature
       type: range
       min: -50
       max: 500
       severity: error
-      error_message: "temperature must be between -50 and 500"
+      error_message: "temperature must be between -50 and 500 — readings outside
+        this range indicate sensor failure or unit error (verify Celsius vs Kelvin)"
 
     - name: pressure_min
       field: pressure
@@ -33,6 +78,106 @@ contract:
       min: 0
       severity: error
       error_message: "pressure must be >= 0"
+
+    - name: pressure_anomaly
+      description: "Pressure readings above 1,000 bar (100 MPa) exceed the operating
+        range of virtually all industrial process equipment except ultra-high pressure
+        water cutting and specialized research equipment. Values above this threshold
+        indicate sensor failure, unit error (Pa stored as bar), or a safety-critical
+        overpressure event requiring immediate SCADA alert."
+      field: pressure
+      type: max
+      max: 1000
+      severity: warning
+      error_message: "pressure exceeds 1,000 bar — verify sensor calibration and
+        unit of measure. If genuine, this is a safety-critical overpressure event."
+
+    - name: humidity_range
+      description: "Relative humidity is bounded 0-100% by definition. Values
+        outside this range indicate sensor failure or calibration error. Humidity
+        > 85% triggers condensation risk in electronic enclosures per IEC 60068-2-78
+        and should trigger automated HVAC alerts in the building management system."
+      field: humidity_percent
+      type: range
+      min: 0
+      max: 100
+      severity: error
+      error_message: "humidity_percent must be between 0 and 100 — values outside
+        this range indicate sensor failure (humidity > 85% triggers IEC 60068
+        condensation risk threshold)"
+
+    - name: vibration_anomaly
+      description: "Vibration above 50 m/s² (approx. 5g) is above the ISO 10816
+        severity zone D threshold for most rotating machinery — indicating imminent
+        bearing or structural failure. Immediate maintenance intervention is required.
+        Values above 500 m/s² suggest sensor saturation or mounting failure."
+      field: vibration_ms2
+      type: max
+      max: 500
+      severity: warning
+      error_message: "vibration_ms2 exceeds 500 m/s² — verify sensor mounting
+        and calibration. Values above 50 m/s² indicate ISO 10816 severity zone D
+        (imminent machinery failure)"
+
+    - name: oee_percentage_range
+      description: "OEE (Overall Equipment Effectiveness) is a KPI bounded 0-100%.
+        World-class OEE is considered 85%+. Values above 100% are mathematically
+        impossible and indicate calculation errors in the MES or data entry mistakes.
+        An OEE of 0% with the machine running indicates a reporting failure."
+      field: oee_percentage
+      type: range
+      min: 0
+      max: 100
+      severity: warning
+      error_message: "oee_percentage must be between 0 and 100 — values above 100%
+        are impossible and indicate a calculation or data entry error"
+
+    - name: status_required
+      field: status
+      type: not_empty
+      severity: error
+      error_message: "status is required"
+
+    - name: status_values
+      description: "ISA-95 equipment operational state classification. 'fault' must
+        trigger an immediate maintenance work order in the CMMS (Computerised
+        Maintenance Management System). 'maintenance' indicates a planned downtime
+        event that should be excluded from OEE availability calculations."
+      field: status
+      type: allowed_values
+      allowed_values:
+        - running
+        - idle
+        - fault
+        - maintenance
+        - offline
+        - startup
+        - shutdown
+        - changeover
+        - cleaning
+      severity: error
+      error_message: "status must be one of: running, idle, fault, maintenance,
+        offline, startup, shutdown, changeover, cleaning (ISA-95 equipment
+        operational state — 'fault' must trigger CMMS work order)"
+
+    - name: alert_level_values
+      description: "Alert severity classification aligned with IEC 62682 (Management
+        of Alarm Systems for the Process Industries) priority levels. 'critical'
+        requires immediate operator response within 10 minutes. 'emergency' triggers
+        automatic process shutdown in SIL-rated safety systems."
+      field: alert_level
+      type: allowed_values
+      allowed_values:
+        - none
+        - informational
+        - warning
+        - high
+        - critical
+        - emergency
+      severity: warning
+      error_message: "alert_level must be one of: none, informational, warning,
+        high, critical, emergency (IEC 62682 alarm priority — critical requires
+        response within 10 minutes)"
 
     - name: line_id_required
       field: line_id
@@ -45,12 +190,6 @@ contract:
       type: not_empty
       severity: error
       error_message: "batch_number is required"
-
-    - name: status_required
-      field: status
-      type: not_empty
-      severity: error
-      error_message: "status is required"
 
     - name: location_required
       field: location
@@ -67,6 +206,21 @@ contract:
     - name: unit_of_measure_valid
       field: unit_of_measure
       type: allowed_values
-      allowed_values: [celsius, fahrenheit, kelvin, bar, psi, rpm, units]
+      allowed_values:
+        - celsius
+        - fahrenheit
+        - kelvin
+        - bar
+        - mbar
+        - psi
+        - pascal
+        - rpm
+        - ms2
+        - percent
+        - litres_per_min
+        - kg_per_hour
+        - units
       severity: error
-      error_message: "unit_of_measure must be one of: celsius, fahrenheit, kelvin, bar, psi, rpm, units"
+      error_message: "unit_of_measure must be one of: celsius, fahrenheit, kelvin,
+        bar, mbar, psi, pascal, rpm, ms2, percent, litres_per_min, kg_per_hour,
+        units"

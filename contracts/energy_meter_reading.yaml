@@ -1,7 +1,17 @@
 contract:
   name: energy_meter_reading
-  version: "1.0"
-  description: "Energy meter reading record validation"
+  version: "1.1"
+  description: >
+    Energy meter reading record validation aligned with Ofgem Smart Metering
+    Implementation Programme (SMIP), MOSL (Market Operator Services Limited) UK
+    energy market standards, and UK Finance metering code of practice. Enforces
+    MPAN (Meter Point Administration Number) 13-digit format for electricity and
+    MPRN (Meter Point Reference Number) 6-10 digit format for gas, read type
+    classification (actual/estimated/smart/customer), monotonic reading progression
+    (current register must be >= previous), anomaly detection on consumption values,
+    and supply type classification. Prevents billing disputes, energy theft masking,
+    and Ofgem settlement system rejections caused by invalid meter identifiers or
+    out-of-sequence readings.
   owner: "Smart Metering Data Team"
   status: active
 
@@ -11,6 +21,35 @@ contract:
       type: not_empty
       severity: error
       error_message: "meter_id is required"
+
+    - name: mpan_format
+      description: "MPAN (Meter Point Administration Number) — the 13-digit unique
+        identifier for electricity supply points in Great Britain, assigned by the
+        Distribution Network Operator (DNO). The first 2 digits are the profile
+        class; digits 3-5 are the meter time switch code; digits 6-8 are the line
+        loss factor class; digits 9-21 are the core MPAN. An invalid MPAN causes
+        rejection in the ECOES (Electricity Central Online Enquiry System) and
+        DCC (Data Communications Company) smart metering infrastructure."
+      field: mpan
+      type: regex
+      pattern: '^\d{13}$'
+      severity: warning
+      error_message: "mpan must be a 13-digit MPAN (Meter Point Administration
+        Number). e.g. 1012345678900 — invalid MPANs are rejected by ECOES and
+        DCC smart metering systems"
+
+    - name: mprn_format
+      description: "MPRN (Meter Point Reference Number) — the 6-10 digit unique
+        identifier for gas supply points in Great Britain, assigned by the gas
+        transporter. Used in Xoserve (UK Link) gas industry data flows and SMART
+        DCC gas metering registration. An invalid MPRN causes gas supply point
+        registration failure."
+      field: mprn
+      type: regex
+      pattern: '^\d{6,10}$'
+      severity: warning
+      error_message: "mprn must be a 6-10 digit MPRN (Meter Point Reference Number)
+        — invalid MPRNs cause Xoserve/UK Link gas data flow rejection"
 
     - name: reading_date_format
       field: reading_date
@@ -24,6 +63,59 @@ contract:
       min: 0
       severity: error
       error_message: "kwh_reading must be >= 0"
+
+    - name: kwh_reading_anomaly
+      description: "Residential electricity consumption above 100,000 kWh per reading
+        period is anomalous — UK average household annual consumption is ~2,700 kWh.
+        Even large industrial sites rarely exceed 50,000 kWh per reading cycle.
+        Values above 100,000 kWh suggest meter rollover, unit error (Wh stored
+        as kWh), or data entry mistake causing incorrect Ofgem settlement."
+      field: kwh_reading
+      type: max
+      max: 100000
+      severity: warning
+      error_message: "kwh_reading exceeds 100,000 kWh — verify for meter rollover,
+        unit error (Wh vs kWh), or data entry mistake. UK average annual household
+        consumption is ~2,700 kWh."
+
+    - name: current_reading_monotonic
+      description: "Electricity and gas meter registers increment monotonically —
+        the current register reading must be >= the previous reading. A lower
+        current reading indicates meter rollover (5-digit mechanical meters roll
+        at 99999), meter replacement, or a data entry error. All three cases require
+        explicit handling before Ofgem settlement to prevent negative consumption
+        calculation and incorrect billing."
+      field: kwh_reading
+      type: compare
+      compare_to: previous_reading
+      compare_op: gte
+      severity: error
+      error_message: "kwh_reading must be >= previous_reading — a lower current
+        reading indicates meter rollover, meter replacement, or data entry error.
+        All three cases must be resolved before Ofgem settlement submission."
+
+    - name: read_type_values
+      description: "Meter read type classification per Ofgem Smart Metering and
+        BSCP (Balancing and Settlement Code Procedures). 'estimated' reads cannot
+        be used for final billing settlement under Supply Licence Condition 21B.
+        'smart' reads from SMETS2 meters are the highest evidential quality and
+        are preferred for Ofgem settlement. 'initial' and 'final' reads are required
+        at the start and end of supply respectively."
+      field: read_type
+      type: allowed_values
+      allowed_values:
+        - actual
+        - estimated
+        - customer
+        - smart
+        - check
+        - initial
+        - final
+        - corrected
+      severity: error
+      error_message: "read_type must be one of: actual, estimated, customer, smart,
+        check, initial, final, corrected (Ofgem BSCP — estimated reads cannot be
+        used for final billing settlement)"
 
     - name: tariff_code_required
       field: tariff_code
@@ -50,18 +142,52 @@ contract:
       error_message: "meter_type is required"
 
     - name: meter_type_valid
+      description: "Energy supply type. 'heat' meters are used in district heating
+        networks under the Heat Network (Metering and Billing) Regulations 2014,
+        which require Ofgem to regulate heat networks from 2025 under the Energy
+        Act 2023."
       field: meter_type
       type: allowed_values
-      allowed_values: [electricity, gas, water, heat]
+      allowed_values:
+        - electricity
+        - gas
+        - heat
+        - solar_export
+        - ev_charger
       severity: error
-      error_message: "meter_type must be one of: electricity, gas, water, heat"
+      error_message: "meter_type must be one of: electricity, gas, heat, solar_export,
+        ev_charger"
 
     - name: reading_unit_valid
       field: reading_unit
       type: allowed_values
-      allowed_values: [kWh, m3, MJ, kVArh]
+      allowed_values:
+        - kWh
+        - m3
+        - MJ
+        - kVArh
+        - kW
       severity: error
-      error_message: "reading_unit must be one of: kWh, m3, MJ, kVArh"
+      error_message: "reading_unit must be one of: kWh, m3, MJ, kVArh, kW"
+
+    - name: supply_type_values
+      description: "Ofgem supply segment classification. 'i_c' (industrial and
+        commercial) sites above 100 MWh/year electricity or 293 MWh/year gas are
+        subject to different licence conditions and half-hourly settlement. Incorrect
+        supply type classification causes wrong settlement procedure application
+        in BSC (Balancing and Settlement Code) data flows."
+      field: supply_type
+      type: allowed_values
+      allowed_values:
+        - domestic
+        - sme
+        - i_c
+        - micro_generation
+        - unmetered
+      severity: warning
+      error_message: "supply_type must be one of: domestic, sme, i_c, micro_generation,
+        unmetered (Ofgem BSC — i_c sites above 100 MWh/year require half-hourly
+        settlement)"
 
     - name: previous_reading_min
       field: previous_reading

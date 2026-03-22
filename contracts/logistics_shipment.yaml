@@ -1,7 +1,15 @@
 contract:
   name: logistics_shipment
-  version: "1.0"
-  description: "Logistics shipment record validation"
+  version: "1.1"
+  description: >
+    Logistics shipment record validation aligned with ICC Incoterms 2020, UK HMRC
+    customs declaration requirements (post-Brexit CDS — Customs Declaration Service),
+    and HS (Harmonised System) tariff code standards (WCO, 6-digit minimum for
+    customs). Enforces ISO 3166-1 origin/destination country codes, Incoterms 2020
+    classification (11 terms replacing DAT with DPU), HS tariff code format, shipment
+    mode classification, ISO 4217 currency, and delivery date monotonicity (estimated
+    delivery must be on or after dispatch). Prevents customs declaration rejections,
+    incorrect duty calculation, and carrier SLA misreporting in WMS and TMS pipelines.
   owner: "Supply Chain Data Team"
   status: active
 
@@ -64,12 +72,112 @@ contract:
       severity: error
       error_message: "estimated_delivery must be a valid date (YYYY-MM-DD)"
 
+    - name: estimated_delivery_after_dispatch
+      description: "Estimated delivery must be on or after dispatch date. A delivery
+        date before dispatch indicates a data entry error or system timezone fault.
+        Such records corrupt carrier SLA reporting, OTIF (On Time In Full) KPIs,
+        and customer promise calculations in TMS and OMS systems."
+      field: estimated_delivery
+      type: compare
+      compare_to: dispatch_date
+      compare_op: gte
+      severity: error
+      error_message: "estimated_delivery must be on or after dispatch_date —
+        delivery before dispatch corrupts carrier SLA and OTIF reporting"
+
     - name: weight_kg_min
       field: weight_kg
       type: min
       min: 0
       severity: error
       error_message: "weight_kg must be >= 0"
+
+    - name: weight_kg_anomaly
+      description: "Shipments declared at > 50,000 kg (50 tonnes) via courier or
+        standard freight exceed the legal road vehicle payload limit in most
+        jurisdictions. Values above this threshold likely indicate unit errors
+        (grams stored as kg) or data entry mistakes causing incorrect freight
+        cost calculation and customs misdeclaration."
+      field: weight_kg
+      type: max
+      max: 50000
+      severity: warning
+      error_message: "weight_kg exceeds 50,000 kg — verify this is not a unit
+        error (grams stored as kg). Exceeds legal road payload limits in most
+        jurisdictions."
+
+    - name: incoterms_values
+      description: "ICC Incoterms 2020 — the 11 standard trade terms defining risk
+        and cost transfer between seller and buyer. DAT (Incoterms 2010) was
+        replaced by DPU (Delivered at Place Unloaded) in Incoterms 2020. Incorrect
+        Incoterms cause disputes over insurance liability, customs duty payment
+        responsibility, and cargo risk ownership."
+      field: incoterms
+      type: allowed_values
+      allowed_values:
+        - EXW
+        - FCA
+        - CPT
+        - CIP
+        - DAP
+        - DPU
+        - DDP
+        - FAS
+        - FOB
+        - CFR
+        - CIF
+      severity: warning
+      error_message: "incoterms must be a valid ICC Incoterms 2020 term: EXW, FCA,
+        CPT, CIP, DAP, DPU, DDP, FAS, FOB, CFR, CIF (note: DAT was replaced by
+        DPU in Incoterms 2020)"
+
+    - name: hs_code_format
+      description: "WCO Harmonised System tariff code. Minimum 6 digits (WCO
+        international standard). UK CDS customs declarations require 10 digits
+        (UK Trade Tariff). An invalid HS code causes customs declaration rejection,
+        incorrect duty rate application, and potential HMRC compliance investigation.
+        Post-Brexit, GB-EU shipments require correct HS classification for rules
+        of origin determination under the UK-EU Trade and Cooperation Agreement."
+      field: hs_code
+      type: regex
+      pattern: '^\d{6}(\d{2,4})?$'
+      severity: warning
+      error_message: "hs_code must be 6-10 numeric digits (WCO HS standard: 6
+        digits; UK CDS: 10 digits). e.g. 847130 or 8471300000 — incorrect HS
+        codes cause customs rejection and incorrect duty calculation"
+
+    - name: shipment_mode_values
+      description: "Transport mode classification aligned with UK HMRC CDS customs
+        declaration codes and IATA cargo classification. Mode affects applicable
+        Incoterms (sea-only terms FOB/CFR/CIF are not valid for air/road/rail),
+        insurance requirements, and carbon footprint reporting obligations under
+        UK SECR (Streamlined Energy and Carbon Reporting)."
+      field: shipment_mode
+      type: allowed_values
+      allowed_values:
+        - air
+        - sea
+        - road
+        - rail
+        - courier
+        - multimodal
+        - post
+      severity: warning
+      error_message: "shipment_mode must be one of: air, sea, road, rail, courier,
+        multimodal, post (note: FOB/CFR/CIF Incoterms are only valid for sea
+        and inland waterway)"
+
+    - name: currency_format
+      description: "ISO 4217 currency code for declared goods value. Required for
+        customs valuation under WTO Agreement on Customs Valuation (GATT Article
+        VII) and HMRC CDS declarations. Missing currency causes customs entry
+        rejection."
+      field: currency
+      type: regex
+      pattern: '^[A-Z]{3}$'
+      severity: warning
+      error_message: "currency must be a valid ISO 4217 three-letter code (e.g.
+        GBP, USD, EUR) — required for customs valuation declarations"
 
     - name: carrier_required
       field: carrier
@@ -92,6 +200,20 @@ contract:
     - name: shipment_status_valid
       field: status
       type: allowed_values
-      allowed_values: [pending, dispatched, in_transit, out_for_delivery, delivered, returned, cancelled]
+      allowed_values:
+        - pending
+        - collected
+        - dispatched
+        - in_transit
+        - customs_hold
+        - out_for_delivery
+        - delivery_attempted
+        - delivered
+        - returned
+        - lost
+        - damaged
+        - cancelled
       severity: error
-      error_message: "status must be one of: pending, dispatched, in_transit, out_for_delivery, delivered, returned, cancelled"
+      error_message: "status must be one of: pending, collected, dispatched,
+        in_transit, customs_hold, out_for_delivery, delivery_attempted, delivered,
+        returned, lost, damaged, cancelled"
