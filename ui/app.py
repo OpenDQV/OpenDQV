@@ -2080,8 +2080,8 @@ if section == "Webhooks":
 # ── Version History ──────────────────────────────────────────────────
 
 if section == "Version History":
-    st.header("Version History")
-    st.markdown("View contract version history, compare changes, and bump versions.")
+    st.header("Contract Audit & Lifecycle")
+    st.markdown("Full governance audit trail — who proposed, approved, or rejected each version, and when.")
 
     if not st.session_state.get("token"):
         st.warning("Set a PAT token in the sidebar to use version history features.")
@@ -2098,36 +2098,91 @@ if section == "Version History":
             vh_selected = st.selectbox("Contract", vh_contract_names, index=_vh_idx, key="vh_contract")
 
             if vh_selected:
-                # View History
-                st.subheader("Version History")
-                if st.button("View History", key="btn_view_history"):
+                # Governance Audit Trail
+                st.subheader("Governance Audit Trail")
+                if st.button("Load Audit Trail", key="btn_view_history"):
                     r_hist = api_get(f"/api/v1/contracts/{vh_selected}/history")
                     if r_hist and r_hist.status_code == 200:
                         history = r_hist.json().get("history", [])
                         if history:
-                            hist_rows = [
-                                {
-                                    "Version": h.get("version", ""),
-                                    "Status": h.get("status", ""),
-                                    "Source": h.get("source") or "manual",
-                                    "Proposed By": h.get("proposed_by") or "—",
-                                    "Reviewed By": h.get("reviewed_by") or "—",
-                                    "Description": h.get("description", ""),
-                                    "Owner": h.get("owner", ""),
-                                    "Rules": len(h.get("rules", [])),
-                                    "Node": h.get("opendqv_node_id", ""),
-                                    "Updated At": (h.get("updated_at") or "")[:19],
-                                }
-                                for h in history
-                            ]
-                            st.dataframe(pd.DataFrame(hist_rows), hide_index=True)
-                            st.caption(
-                                "**Source:** `mcp` = created by an AI agent via MCP tool, "
-                                "`manual` = created via REST API or YAML, "
-                                "`wizard` = created via Workbench onboarding flow."
-                            )
+                            # Status badge helper
+                            def _status_badge(s):
+                                return {"active": "🟢", "review": "🟡", "draft": "🔵", "archived": "🔴"}.get(s, "⚪") + f" {s.upper()}"
+
+                            # Hash chain validation
+                            import hashlib as _hl
+                            def _chain_ok(entries):
+                                prev = ""
+                                for e in entries:
+                                    if e.get("prev_hash", "") != prev:
+                                        return False
+                                    prev = e.get("entry_hash", "") or ""
+                                return True
+
+                            chain_valid = _chain_ok(history)
+                            if chain_valid:
+                                st.success("✅ Hash chain intact — audit trail has not been tampered with")
+                            else:
+                                st.error("❌ Hash chain BROKEN — audit trail integrity compromised")
+
+                            st.markdown("---")
+
+                            # Timeline view
+                            for i, h in enumerate(reversed(history)):
+                                status = h.get("status", "")
+                                version = h.get("version", "")
+                                updated = (h.get("updated_at") or "")[:19]
+                                proposed_by = h.get("proposed_by") or None
+                                proposed_at = (h.get("proposed_at") or "")[:19] or None
+                                approved_by = h.get("approved_by") or None
+                                rejected_by = h.get("rejected_by") or None
+                                rejected_at = (h.get("rejected_at") or "")[:19] or None
+                                rejection_reason = h.get("rejection_reason") or None
+                                rules_count = len(h.get("rules", []))
+
+                                with st.container():
+                                    col_badge, col_detail = st.columns([1, 4])
+                                    with col_badge:
+                                        st.markdown(f"### {_status_badge(status)}")
+                                        st.caption(f"v{version}")
+                                    with col_detail:
+                                        st.markdown(f"**Updated:** {updated} &nbsp;|&nbsp; **Rules:** {rules_count} &nbsp;|&nbsp; **Owner:** {h.get('owner') or '—'}")
+                                        # Governance trail for this entry
+                                        trail_parts = []
+                                        if proposed_by:
+                                            trail_parts.append(f"📤 **Proposed by** {proposed_by}" + (f" at {proposed_at}" if proposed_at else ""))
+                                        if approved_by:
+                                            trail_parts.append(f"✅ **Approved by** {approved_by}")
+                                        if rejected_by:
+                                            reason_str = f" — *{rejection_reason}*" if rejection_reason else ""
+                                            trail_parts.append(f"↩ **Rejected by** {rejected_by}" + (f" at {rejected_at}" if rejected_at else "") + reason_str)
+                                        if trail_parts:
+                                            st.markdown("  \n".join(trail_parts))
+                                        else:
+                                            st.caption("No maker-checker action recorded for this entry")
+                                        if h.get("description"):
+                                            st.caption(h["description"][:120] + ("…" if len(h.get("description","")) > 120 else ""))
+                                if i < len(history) - 1:
+                                    st.markdown("---")
+
+                            # Compact table view (collapsible)
+                            with st.expander("Raw history table"):
+                                hist_rows = [
+                                    {
+                                        "Version": h.get("version", ""),
+                                        "Status": h.get("status", ""),
+                                        "Proposed By": h.get("proposed_by") or "—",
+                                        "Approved By": h.get("approved_by") or "—",
+                                        "Rejected By": h.get("rejected_by") or "—",
+                                        "Rejection Reason": h.get("rejection_reason") or "—",
+                                        "Rules": len(h.get("rules", [])),
+                                        "Updated At": (h.get("updated_at") or "")[:19],
+                                    }
+                                    for h in history
+                                ]
+                                st.dataframe(pd.DataFrame(hist_rows), hide_index=True)
                         else:
-                            st.info("No version history recorded yet for this contract")
+                            st.info("No version history recorded yet for this contract.")
                     elif r_hist:
                         st.error(f"Failed to load history: {r_hist.status_code} — {r_hist.text}")
 
