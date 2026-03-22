@@ -40,7 +40,7 @@ OpenDQV is Layer 1. GE/Soda/dbt are Layer 3. They are designed to work together.
 
 This is still the reality in many large enterprises: an SI wrote 400+ PL/SQL or T-SQL procedures for data quality checks. No version control, no audit trail, no governance, no central ownership.
 
-OpenDQV replaces the entire proc factory with one version-controlled contract per entity. The same rules that run in the API can be generated as a Postgres trigger, SQL Server stored procedure, or Snowflake UDF — so you can migrate incrementally, one contract at a time, with no big-bang cutover required.
+OpenDQV replaces the entire proc factory with one version-controlled contract per entity. The same contract that enforces rules via API can also generate native code for systems that cannot make HTTP calls — currently Snowflake UDFs, Salesforce Apex, and JavaScript. Community-contributed generators for other platforms (Postgres, SQL Server, etc.) are welcome via PR. Migrate incrementally, one contract at a time, with no big-bang cutover required.
 
 The contract lifecycle (draft → review → active → archived) ensures every rule change is proposed, reviewed, and approved before it affects production — governance that legacy stored-procedure approaches rarely include out of the box.
 
@@ -52,7 +52,7 @@ Yes — and this is one of the most overlooked use cases.
 
 Enterprise cloud platform migrations frequently stall not because of technology, budget, or executive will — but because DQ logic is buried in hundreds of platform-specific stored procedures that only a small team understands. The procedures are hard to migrate, the knowledge is not documented, and the timeline slips.
 
-OpenDQV removes that dependency. Replace the stored procedures with portable YAML contracts once — and the underlying platform becomes interchangeable. The same contracts run via API, generate native Snowflake UDFs, Databricks-compatible logic, or Postgres triggers. The DQ layer no longer ties you to a specific warehouse.
+OpenDQV removes that dependency. Replace the stored procedures with portable YAML contracts once — and the underlying platform becomes interchangeable. The same contracts run via API or generate native Snowflake UDFs. The DQ layer no longer ties you to a specific warehouse.
 
 ---
 
