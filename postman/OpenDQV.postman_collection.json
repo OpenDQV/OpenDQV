@@ -1,0 +1,667 @@
+{
+  "info": {
+    "name": "OpenDQV API",
+    "description": "Complete API collection for OpenDQV — open-source, contract-driven data quality validation.\n\nImport this collection alongside **OpenDQV.postman_environment.json** and select the **OpenDQV Local** environment.\n\nFor AUTH_MODE=open (demo/dev): leave `auth_token` blank — all requests will succeed without a token.\nFor AUTH_MODE=token (production): generate a PAT via the Tokens folder and set `auth_token`.\n\nSee docs/postman.md for a step-by-step quickstart.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "opendqv-api-collection-v1"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000", "type": "string" },
+    { "key": "auth_token", "value": "", "type": "string" },
+    { "key": "contract_name", "value": "customer", "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{auth_token}}", "type": "string" }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-wire auth token from environment.",
+          "// In AUTH_MODE=open this is a no-op (empty string is fine).",
+          "const token = pm.environment.get('auth_token') || pm.collectionVariables.get('auth_token');",
+          "if (token) {",
+          "    pm.request.headers.upsert({ key: 'Authorization', value: 'Bearer ' + token });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Health & Status",
+      "description": "Liveness and Prometheus metrics. Start here to confirm the API is up.",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"] },
+            "description": "Returns node health state, auth_mode, and secret_key_insecure flag. Safe for unauthenticated callers — no sensitive data exposed by default."
+          }
+        },
+        {
+          "name": "Prometheus metrics",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/metrics", "host": ["{{base_url}}"], "path": ["metrics"] },
+            "description": "Prometheus text-format metrics: validation counts, latency histograms, worker heartbeat gauge. Scrape with Prometheus or view raw in browser."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Contracts",
+      "description": "Browse, inspect, explain, and manage YAML data contracts.",
+      "item": [
+        {
+          "name": "List all contracts",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/contracts",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "contracts"]
+            },
+            "description": "Returns all loaded contracts with their status (draft/review/active/archived), version, and rule count."
+          }
+        },
+        {
+          "name": "Get contract detail",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "contracts", "{{contract_name}}"]
+            },
+            "description": "Full contract definition including all rules, status, version, and metadata. Change `contract_name` in the environment to inspect any contract."
+          }
+        },
+        {
+          "name": "Explain contract (human-readable)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/explain",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "contracts", "{{contract_name}}", "explain"]
+            },
+            "description": "Returns a plain-English description of every rule in the contract. Useful for sharing with non-technical stakeholders — no YAML knowledge required."
+          }
+        },
+        {
+          "name": "Reload contracts from disk",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/contracts/reload",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "contracts", "reload"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "Forces a hot-reload of all YAML contracts from the contracts/ directory without restarting the service. Requires admin role."
+          }
+        },
+        {
+          "name": "Contract history",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/history",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "contracts", "{{contract_name}}", "history"]
+            },
+            "description": "Hash-chained audit trail of every change to this contract. Each entry includes who changed it, what changed, and a SHA-256 forward-link to the previous entry."
+          }
+        },
+        {
+          "name": "Contract quality trend",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/quality-trend",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "contracts", "{{contract_name}}", "quality-trend"],
+              "query": [{ "key": "days", "value": "7" }]
+            },
+            "description": "Daily pass/fail trend for this contract over the last N days. Use to spot data quality regressions before they become incidents."
+          }
+        },
+        {
+          "name": "Contract diff (version comparison)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/diff",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "contracts", "{{contract_name}}", "diff"],
+              "query": [
+                { "key": "from_version", "value": "1" },
+                { "key": "to_version", "value": "2" }
+              ]
+            },
+            "description": "Rule-level diff between two contract versions. Shows which rules were added, removed, or modified. Useful during contract governance review."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Validate — Single Record",
+      "description": "The hot path. POST a record and receive immediate pass/fail with per-field error messages.",
+      "item": [
+        {
+          "name": "Valid customer record",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/validate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "validate"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contract\": \"customer\",\n  \"record\": {\n    \"email\": \"alice.smith@example.com\",\n    \"name\": \"Alice Smith\",\n    \"phone\": \"+447700900123\",\n    \"age\": 34,\n    \"score\": 720,\n    \"date\": \"2024-06-15\",\n    \"username\": \"alice_smith\",\n    \"password\": \"Str0ng!Pass\",\n    \"loyalty_tier\": \"gold\"\n  }\n}"
+            },
+            "description": "Passes all customer contract rules. Response: `{\"valid\": true, \"errors\": [], \"warnings\": []}`"
+          }
+        },
+        {
+          "name": "Invalid customer record — the aha moment",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/validate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "validate"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contract\": \"customer\",\n  \"record\": {\n    \"email\": \"not-an-email\",\n    \"name\": \"\",\n    \"phone\": \"07911\",\n    \"age\": 200,\n    \"score\": 999,\n    \"date\": \"15-06-2024\",\n    \"username\": \"alice smith\",\n    \"password\": \"weak\",\n    \"loyalty_tier\": \"diamond\"\n  }\n}"
+            },
+            "description": "Fails multiple rules simultaneously. Response includes per-field error messages. This is the 'aha moment' — compare to what a post-load check catches vs what OpenDQV catches at write time."
+          }
+        },
+        {
+          "name": "Validate with context (extra metadata)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/validate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "validate"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contract\": \"customer\",\n  \"record\": {\n    \"email\": \"bob@example.com\",\n    \"name\": \"Bob Jones\",\n    \"age\": 29\n  },\n  \"context\": {\n    \"source_system\": \"salesforce\",\n    \"pipeline_run_id\": \"run-abc-123\",\n    \"env\": \"staging\"\n  }\n}"
+            },
+            "description": "The `context` object is passed through to the audit trail and webhook payloads. Use it to correlate validation events with your pipeline run IDs."
+          }
+        },
+        {
+          "name": "Salesforce Contact record",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/validate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "validate"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contract\": \"sf_contact\",\n  \"record\": {\n    \"FirstName\": \"Sarah\",\n    \"LastName\": \"Chen\",\n    \"Email\": \"sarah.chen@acme.com\",\n    \"Phone\": \"+442071234567\",\n    \"Title\": \"Head of Data\",\n    \"AccountName\": \"Acme Corp\",\n    \"MailingCountry\": \"GB\"\n  }\n}"
+            },
+            "description": "Validates a Salesforce-style Contact record. Note PascalCase field names matching the sf_contact contract."
+          }
+        },
+        {
+          "name": "Proof-of-play record (OOH media)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/validate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "validate"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contract\": \"proof_of_play\",\n  \"record\": {\n    \"panel_id\": \"LGM-UK-00042\",\n    \"market\": \"GB\",\n    \"panel_type\": \"digital_6sheet\",\n    \"impression_start\": \"2024-06-15T09:00:00Z\",\n    \"impression_end\": \"2024-06-15T09:15:00Z\",\n    \"revenue_gbp\": 125.50,\n    \"advertiser_id\": \"ADV-00099\"\n  }\n}"
+            },
+            "description": "Validates an out-of-home advertising proof-of-play record. Used by media owners to confirm digital billboard impressions before billing advertisers."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Validate — Batch",
+      "description": "Validate up to 10,000 records in a single call using DuckDB. Returns a summary plus per-record results.",
+      "item": [
+        {
+          "name": "Mixed batch (valid + invalid records)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/validate/batch",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "validate", "batch"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contract\": \"customer\",\n  \"records\": [\n    {\n      \"email\": \"alice@example.com\",\n      \"name\": \"Alice Smith\",\n      \"phone\": \"+447700900123\",\n      \"age\": 34,\n      \"score\": 720,\n      \"date\": \"2024-06-15\",\n      \"username\": \"alice_s\",\n      \"password\": \"Str0ng!Pass\",\n      \"loyalty_tier\": \"gold\"\n    },\n    {\n      \"email\": \"not-valid\",\n      \"name\": \"\",\n      \"age\": -1,\n      \"score\": 9999\n    },\n    {\n      \"email\": \"bob@example.com\",\n      \"name\": \"Bob Jones\",\n      \"phone\": \"+447700900456\",\n      \"age\": 29,\n      \"score\": 650,\n      \"date\": \"2024-03-01\",\n      \"username\": \"bob_j\",\n      \"password\": \"AnotherStr0ng!\",\n      \"loyalty_tier\": \"silver\"\n    }\n  ]\n}"
+            },
+            "description": "Response includes `summary.pass_count`, `summary.fail_count`, and per-record `results` with errors. Processed via DuckDB — significantly faster than N individual /validate calls."
+          }
+        },
+        {
+          "name": "Batch — file upload (note)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/validate/batch/file",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "validate", "batch", "file"],
+              "query": [{ "key": "contract", "value": "customer" }]
+            },
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Upload a CSV or NDJSON file here. Select your file in Postman using the 'Select Files' button."
+                }
+              ]
+            },
+            "description": "Upload a CSV or NDJSON file for batch validation. The contract is specified as a query parameter. Maximum file size: 100MB. Maximum rows: 10,000 (configurable via OPENDQV_MAX_BATCH_ROWS)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Contract Lifecycle",
+      "description": "Maker-checker governance: draft → review → active. Requires approver role for approve/reject.",
+      "item": [
+        {
+          "name": "Submit contract for review",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/submit-review",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "contracts", "{{contract_name}}", "submit-review"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "Transitions a DRAFT contract to REVIEW state. In AUTH_MODE=token this requires editor or admin role. A different user (approver role) must approve or reject."
+          }
+        },
+        {
+          "name": "Approve contract",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/approve",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "contracts", "{{contract_name}}", "approve"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "Transitions a REVIEW contract to ACTIVE state. Requires approver or admin role. Once ACTIVE the contract is immutable — rule mutations return 409."
+          }
+        },
+        {
+          "name": "Reject contract (back to draft)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/reject",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "contracts", "{{contract_name}}", "reject"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Missing regulatory reference in email rule error_message\"\n}"
+            },
+            "description": "Transitions a REVIEW contract back to DRAFT. Requires approver or admin role. Rejection reason is recorded in the audit trail."
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Code Generation",
+      "description": "Generate boilerplate validation code in your target language from a contract definition.",
+      "item": [
+        {
+          "name": "Generate Apex (Salesforce)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/generate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "contracts", "{{contract_name}}", "generate"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target\": \"apex\"\n}"
+            },
+            "description": "Generates a Salesforce Apex trigger/class that enforces the contract rules natively in your Salesforce org. Use the sf_contact contract for best results."
+          }
+        },
+        {
+          "name": "Generate JavaScript",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/generate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "contracts", "{{contract_name}}", "generate"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target\": \"javascript\"\n}"
+            },
+            "description": "Generates a JavaScript validation module compatible with Node.js and browser environments."
+          }
+        },
+        {
+          "name": "Generate Snowflake UDF",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/generate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "contracts", "{{contract_name}}", "generate"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target\": \"snowflake\"\n}"
+            },
+            "description": "Generates a Snowflake JavaScript UDF that enforces the contract rules inside Snowflake. Use with Snowflake External Functions or as a native UDF."
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Tokens",
+      "description": "Personal Access Token (PAT) management. Only relevant when AUTH_MODE=token.",
+      "item": [
+        {
+          "name": "Generate token",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/tokens/generate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tokens", "generate"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"validator\",\n  \"label\": \"postman-quickstart\"\n}"
+            },
+            "description": "Creates a PAT. Valid roles: admin, approver, editor, validator, auditor, reader. Copy the returned token into the `auth_token` environment variable. In AUTH_MODE=open this endpoint still works but the token is not required for other calls."
+          }
+        },
+        {
+          "name": "List tokens",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/tokens",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tokens"]
+            },
+            "description": "Lists all active PATs. Requires admin role. Shows label, role, creation time, and last-used time. Token values are never returned after generation."
+          }
+        },
+        {
+          "name": "Revoke token",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/v1/tokens/:token_id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tokens", ":token_id"],
+              "variable": [{ "key": "token_id", "value": "REPLACE_WITH_TOKEN_ID" }]
+            },
+            "description": "Permanently revokes a PAT by ID. Requires admin role. Revoked tokens are invalidated immediately."
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Import / Export",
+      "description": "Import contracts from Great Expectations, dbt tests, Soda checks, CSV schemas, or ODCS. Export to ODCS.",
+      "item": [
+        {
+          "name": "Import from Great Expectations",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/import/great-expectations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "import", "great-expectations"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"suite\": {\n    \"expectation_suite_name\": \"customer_suite\",\n    \"expectations\": [\n      {\n        \"expectation_type\": \"expect_column_values_to_not_be_null\",\n        \"kwargs\": { \"column\": \"email\" }\n      },\n      {\n        \"expectation_type\": \"expect_column_values_to_match_regex\",\n        \"kwargs\": { \"column\": \"email\", \"regex\": \"^[\\\\w.+-]+@[\\\\w-]+\\\\.[\\\\w.]+$\" }\n      }\n    ]\n  },\n  \"contract_name\": \"customer_from_gx\"\n}"
+            },
+            "description": "Converts a Great Expectations expectation suite into an OpenDQV contract. Supported expectation types: not_null, regex match, value range, accepted values."
+          }
+        },
+        {
+          "name": "Import from dbt tests",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/import/dbt",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "import", "dbt"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"schema\": {\n    \"models\": [\n      {\n        \"name\": \"orders\",\n        \"columns\": [\n          {\n            \"name\": \"order_id\",\n            \"tests\": [\"not_null\", \"unique\"]\n          },\n          {\n            \"name\": \"status\",\n            \"tests\": [\n              { \"accepted_values\": { \"values\": [\"pending\", \"shipped\", \"delivered\"] } }\n            ]\n          }\n        ]\n      }\n    ]\n  },\n  \"contract_name\": \"orders_from_dbt\"\n}"
+            },
+            "description": "Converts dbt schema.yml column tests into an OpenDQV contract. Supported tests: not_null, unique, accepted_values, relationships."
+          }
+        },
+        {
+          "name": "Import from Soda checks",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/import/soda",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "import", "soda"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"checks\": {\n    \"checks for orders\": [\n      { \"missing_count(order_id) = 0\": { \"name\": \"order_id must not be null\" } },\n      { \"invalid_count(status) = 0\": { \"valid values\": [\"pending\", \"shipped\", \"delivered\"] } }\n    ]\n  },\n  \"contract_name\": \"orders_from_soda\"\n}"
+            },
+            "description": "Converts Soda Core check YAML into an OpenDQV contract."
+          }
+        },
+        {
+          "name": "Import from CSV (column headers → not_empty rules)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/import/csv",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "import", "csv"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"columns\": [\"order_id\", \"customer_email\", \"amount\", \"status\", \"order_date\"],\n  \"contract_name\": \"orders_from_csv\"\n}"
+            },
+            "description": "Bootstrap a contract from a list of column names. Each column gets a not_empty rule. Useful as a starting point — edit the generated YAML to add domain-specific rules."
+          }
+        },
+        {
+          "name": "Export to ODCS",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/export/odcs",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "contracts", "{{contract_name}}", "export", "odcs"]
+            },
+            "description": "Exports a contract as Open Data Contract Standard (ODCS) YAML. Compatible with data catalogues that support the ODCS specification."
+          }
+        },
+        {
+          "name": "Import from ODCS",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/import/odcs",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "import", "odcs"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"odcs\": {\n    \"kind\": \"DataContract\",\n    \"apiVersion\": \"v3.0.0\",\n    \"id\": \"orders-contract\",\n    \"name\": \"Orders\",\n    \"schema\": [\n      { \"name\": \"order_id\", \"required\": true },\n      { \"name\": \"status\", \"enum\": [\"pending\", \"shipped\", \"delivered\"] }\n    ]\n  },\n  \"contract_name\": \"orders_from_odcs\"\n}"
+            },
+            "description": "Imports an Open Data Contract Standard (ODCS) document and converts it to an OpenDQV contract."
+          }
+        },
+        {
+          "name": "Import from CSVW",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/import/csvw",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "import", "csvw"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"csvw\": {\n    \"@context\": \"http://www.w3.org/ns/csvw\",\n    \"tableSchema\": {\n      \"columns\": [\n        { \"name\": \"order_id\", \"required\": true },\n        { \"name\": \"amount\", \"datatype\": { \"base\": \"decimal\", \"minimum\": 0 } }\n      ]\n    }\n  },\n  \"contract_name\": \"orders_from_csvw\"\n}"
+            },
+            "description": "Imports a W3C CSV on the Web (CSVW) table schema and converts it to an OpenDQV contract."
+          }
+        },
+        {
+          "name": "Import from NDC (Node Data Contract)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/import/ndc",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "import", "ndc"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ndc\": {\n    \"name\": \"orders\",\n    \"fields\": [\n      { \"name\": \"order_id\", \"type\": \"string\", \"required\": true },\n      { \"name\": \"status\", \"type\": \"string\", \"enum\": [\"pending\", \"shipped\"] }\n    ]\n  },\n  \"contract_name\": \"orders_from_ndc\"\n}"
+            },
+            "description": "Imports a Node Data Contract (NDC) schema definition."
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Monitoring & Registry",
+      "description": "Validation statistics, the contract registry, and node health metrics.",
+      "item": [
+        {
+          "name": "Validation statistics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "stats"]
+            },
+            "description": "Total validations, pass/fail counts, top failing contracts, and per-contract breakdown. This is the data the Streamlit Monitoring tab visualises."
+          }
+        },
+        {
+          "name": "Contract registry (all nodes)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/registry",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "registry"]
+            },
+            "description": "In federated deployments: shows the contract registry across all connected nodes. In standalone mode: returns the local node's contract inventory."
+          }
+        },
+        {
+          "name": "Registry item — single contract",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/registry/{{contract_name}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "registry", "{{contract_name}}"]
+            },
+            "description": "Returns registry metadata for a single contract: which nodes are serving it, their versions, and sync state."
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. GraphQL",
+      "description": "GraphQL interface for contract discovery and validation history queries. Also try the playground at {{base_url}}/graphql in your browser.",
+      "item": [
+        {
+          "name": "List contracts (GraphQL)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/graphql",
+              "host": ["{{base_url}}"],
+              "path": ["graphql"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"{ contracts { name status version ruleCount } }\"\n}"
+            },
+            "description": "Lists all contracts via GraphQL. Tip: open {{base_url}}/graphql in your browser for the interactive GraphiQL playground with schema explorer."
+          }
+        },
+        {
+          "name": "Validation history (GraphQL)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/graphql",
+              "host": ["{{base_url}}"],
+              "path": ["graphql"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"{ validationHistory(contract: \\\"customer\\\", limit: 10) { id contract valid errorCount timestamp } }\"\n}"
+            },
+            "description": "Retrieves recent validation events for a contract via GraphQL. Useful for building audit dashboards without polling the REST stats endpoint."
+          }
+        }
+      ]
+    }
+  ]
+}

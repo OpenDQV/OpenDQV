@@ -222,6 +222,11 @@ of write, before the data reaches your pipeline.
 
 ## Quick Start — pick your path
 
+| I want to... | Use this |
+|---|---|
+| **Kick the tyres — zero setup** | `cp .env.example .env && docker compose -f docker-compose.demo.yml up -d` → pre-seeded at http://localhost:8080 · [demo guide](docs/demo.md) |
+| **Explore every endpoint in Postman** | Import `postman/OpenDQV.postman_collection.json` + `postman/OpenDQV.postman_environment.json` → [Postman guide](docs/postman.md) |
+
 | I have... | Use this path |
 |-----------|---------------|
 | Neither / not sure where to start | → [Option 1: Complete Beginner](#option-1-complete-beginner) |
@@ -336,6 +341,10 @@ docker compose up -d
 **Other modes:**
 
 ```bash
+# Demo environment (pre-seeded data, AUTH_MODE=open, ports 8080/8502):
+# See docs/demo.md for a guided walkthrough.
+docker compose -f docker-compose.demo.yml up -d
+
 # Development overlay (live source reload — mounts your local code into the container):
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 

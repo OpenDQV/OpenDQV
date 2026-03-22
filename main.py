@@ -96,6 +96,14 @@ if _sec_issues:
 else:
     logger.info("AUTH_MODE=token — PAT authentication enabled.")
 
+if config.DEMO_MODE:
+    logger.warning("=" * 60)
+    logger.warning("  DEMO MODE — AUTH_MODE=open, pre-seeded data")
+    logger.warning("  API:  http://localhost:8080")
+    logger.warning("  Docs: http://localhost:8080/docs")
+    logger.warning("  UI:   http://localhost:8502")
+    logger.warning("=" * 60)
+
 # ── Initialize contract registry ─────────────────────────────────────
 registry = ContractRegistry(config.CONTRACTS_DIR)
 set_routes_registry(registry)

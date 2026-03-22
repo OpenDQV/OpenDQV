@@ -101,3 +101,7 @@ MAX_SSE_CONNECTIONS = int(os.environ.get("OPENDQV_MAX_SSE_CONNECTIONS", "50"))
 # true: /health returns full config details (auth_mode, maker_checker_enforced, worker counts).
 #       Enable only when /health is protected by network controls or reverse-proxy auth.
 HEALTH_DETAIL = os.environ.get("OPENDQV_HEALTH_DETAIL", "false").lower() == "true"
+
+# Demo mode — set by docker-compose.demo.yml to show a startup banner and confirm
+# the environment is intentionally pre-seeded and running with AUTH_MODE=open.
+DEMO_MODE: bool = os.environ.get("DEMO_MODE", "false").lower() == "true"

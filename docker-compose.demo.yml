@@ -1,0 +1,59 @@
+# OpenDQV Demo Environment
+#
+# Ports: API=8080, UI=8502 (avoids conflict with the standard docker-compose.yml on 8000/8501)
+# Auth:  AUTH_MODE=open — no token required. Intentional for evaluation.
+# Data:  The demo-seeder service runs once after the API is healthy and loads ~690 validation
+#        events across 6 contracts plus a full draft→review→active lifecycle demo.
+#
+# Usage:
+#   docker compose -f docker-compose.demo.yml up -d
+#
+# Reset (wipe all data and re-seed):
+#   docker compose -f docker-compose.demo.yml down -v
+#   docker compose -f docker-compose.demo.yml up -d
+#
+# Endpoints:
+#   API:  http://localhost:8080
+#   Docs: http://localhost:8080/docs
+#   UI:   http://localhost:8502
+
+services:
+  api:
+    extends:
+      file: docker-compose.yml
+      service: api
+    ports:
+      - "8080:8000"
+    environment:
+      AUTH_MODE: open
+      DEMO_MODE: "true"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 10s
+
+  demo-seeder:
+    image: ghcr.io/opendqv/opendqv:latest
+    depends_on:
+      api:
+        condition: service_healthy
+    command: python /app/scripts/seed_demo_data.py
+    environment:
+      OPENDQV_URL: http://api:8000
+      AUTH_MODE: open
+    volumes:
+      - ./scripts/seed_demo_data.py:/app/scripts/seed_demo_data.py:ro
+
+  ui:
+    extends:
+      file: docker-compose.yml
+      service: ui
+    ports:
+      - "8502:8501"
+    depends_on:
+      demo-seeder:
+        condition: service_completed_successfully
+    environment:
+      API_URL: http://api:8000
