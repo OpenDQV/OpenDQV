@@ -264,8 +264,7 @@ writing. The governance team owns the YAML contract; the trigger is a one-time s
 > migrations: replace the stored-procedure DQ logic with an OpenDQV contract, attach a
 > trigger, and the enforcement survives the migration intact.
 
-> **Verified:** tested end-to-end on `postgres:16-alpine` with `plpython3u`. Valid
-> records pass. Invalid records are blocked with field-level errors.
+> **Verified:** tested end-to-end on `postgres:16-alpine` with `plpython3u` (PL/Python untrusted). Valid records pass. Invalid records are blocked with field-level errors from the contract; the transaction rolls back on `plpy.error()`.
 
 ### Prerequisites — choose one
 
@@ -276,6 +275,12 @@ Postgres cannot make HTTP calls from core PL/pgSQL. You need one of:
 | **`plpython3u`** (recommended for self-hosted) | `apk add python3` (Alpine) or `apt install postgresql-plpython3` (Debian), then `CREATE EXTENSION plpython3u` | Standard Postgres, self-hosted |
 | **`pgsql-http`** (recommended for managed) | Install from [pramsey/pgsql-http](https://github.com/pramsey/pgsql-http), then `CREATE EXTENSION http` | Supabase, Neon, many managed providers |
 | **`pg_net`** | `CREATE EXTENSION pg_net` | Supabase, Neon — **async only, cannot block inserts** |
+
+**Cloud compatibility:**
+- **Self-hosted / Docker:** `apk add python3` (Alpine) or `apt install postgresql-plpython3-16` (Debian/Ubuntu)
+- **AWS RDS:** `plpython3u` requires `rds.enable_plpython3u = on` in a custom parameter group
+- **Supabase / Neon:** `plpython3u` and `pg_net` supported natively; `pgsql-http` available on Supabase
+- **Azure Database for PostgreSQL / GCP Cloud SQL:** check your provider's extension allowlist — PL/Python often requires explicit approval
 
 ### Option A — `plpython3u` (verified working)
 
