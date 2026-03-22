@@ -237,8 +237,8 @@ def test_date_format_rule_uses_parseable_strftime(filename, rule, contract):
 _KNOWN_TYPES = {
     "not_empty", "regex", "min", "max", "range", "min_length", "max_length",
     "date_format", "unique", "compare", "required_if", "forbidden_if",
-    "conditional_value", "lookup", "checksum", "cross_field_range", "field_sum",
-    "min_age", "max_age", "age_match", "date_diff", "ratio_check",
+    "conditional_value", "lookup", "allowed_values", "checksum", "cross_field_range",
+    "field_sum", "min_age", "max_age", "age_match", "date_diff", "ratio_check",
     "conditional_lookup", "geospatial_bounds",
 }
 

@@ -67,3 +67,10 @@ contract:
       type: not_empty
       severity: error
       error_message: "contract_type is required"
+
+    - name: contract_type_valid
+      field: contract_type
+      type: allowed_values
+      allowed_values: [permanent, fixed_term, zero_hours, contractor, apprentice]
+      severity: error
+      error_message: "contract_type must be one of: permanent, fixed_term, zero_hours, contractor, apprentice"

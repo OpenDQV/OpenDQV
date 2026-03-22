@@ -15,8 +15,9 @@ contract:
     - name: timestamp_format
       field: timestamp
       type: date_format
+      format: "%Y-%m-%dT%H:%M:%S"
       severity: error
-      error_message: "timestamp must be a valid date (YYYY-MM-DD)"
+      error_message: "timestamp must be a valid datetime (YYYY-MM-DDTHH:MM:SS)"
 
     - name: temperature_range
       field: temperature
@@ -62,3 +63,10 @@ contract:
       type: not_empty
       severity: error
       error_message: "operator_id is required"
+
+    - name: unit_of_measure_valid
+      field: unit_of_measure
+      type: allowed_values
+      allowed_values: [celsius, fahrenheit, kelvin, bar, psi, rpm, units]
+      severity: error
+      error_message: "unit_of_measure must be one of: celsius, fahrenheit, kelvin, bar, psi, rpm, units"

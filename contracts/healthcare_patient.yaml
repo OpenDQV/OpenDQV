@@ -48,6 +48,13 @@ contract:
       severity: error
       error_message: "diagnosis_code is required"
 
+    - name: diagnosis_code_format
+      field: diagnosis_code
+      type: regex
+      pattern: '^[A-Z][0-9]{2}(\.[0-9A-Z]{1,4})?$'
+      severity: error
+      error_message: "diagnosis_code must be a valid ICD-10 code (e.g. A09, J45.0, Z00.00)"
+
     - name: blood_type_format
       field: blood_type
       type: regex

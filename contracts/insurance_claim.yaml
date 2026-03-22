@@ -42,6 +42,13 @@ contract:
       severity: error
       error_message: "claim_type is required"
 
+    - name: claim_type_valid
+      field: claim_type
+      type: allowed_values
+      allowed_values: [property, liability, health, auto, life, travel, other]
+      severity: error
+      error_message: "claim_type must be one of: property, liability, health, auto, life, travel, other"
+
     - name: claimed_amount_min
       field: claimed_amount
       type: min
@@ -54,6 +61,13 @@ contract:
       type: not_empty
       severity: error
       error_message: "status is required"
+
+    - name: claim_status_valid
+      field: status
+      type: allowed_values
+      allowed_values: [submitted, under_review, approved, rejected, settled, withdrawn]
+      severity: error
+      error_message: "status must be one of: submitted, under_review, approved, rejected, settled, withdrawn"
 
     - name: assessor_id_required
       field: assessor_id
