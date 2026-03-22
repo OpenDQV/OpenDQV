@@ -187,6 +187,11 @@ class ContractHistoryEntry(BaseModel):
     prev_hash: Optional[str] = None
     entry_hash: Optional[str] = None
     approved_by: Optional[str] = None
+    proposed_by: Optional[str] = None
+    proposed_at: Optional[str] = None
+    rejected_by: Optional[str] = None
+    rejected_at: Optional[str] = None
+    rejection_reason: Optional[str] = None
     rules: list = Field(default_factory=list)
     contexts: dict = Field(default_factory=dict)
 

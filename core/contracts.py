@@ -337,7 +337,8 @@ class ContractHistory(ContractHistoryBackend):
         try:
             rows = conn.execute(
                 "SELECT version, status, description, owner, rules, contexts, "
-                "opendqv_node_id, updated_at, prev_hash, entry_hash, approved_by "
+                "opendqv_node_id, updated_at, prev_hash, entry_hash, approved_by, "
+                "proposed_by, proposed_at, rejected_by, rejected_at, rejection_reason "
                 "FROM contract_history WHERE contract_name = ? ORDER BY id",
                 (contract_name,),
             ).fetchall()
@@ -347,7 +348,8 @@ class ContractHistory(ContractHistoryBackend):
 
         history = []
         for version, status, description, owner, rules_json, contexts_json, \
-                opendqv_node_id, updated_at, prev_hash, entry_hash, approved_by in rows:
+                opendqv_node_id, updated_at, prev_hash, entry_hash, approved_by, \
+                proposed_by, proposed_at, rejected_by, rejected_at, rejection_reason in rows:
             history.append({
                 "version": version,
                 "status": status,
@@ -360,6 +362,11 @@ class ContractHistory(ContractHistoryBackend):
                 "prev_hash": prev_hash,
                 "entry_hash": entry_hash,
                 "approved_by": approved_by,
+                "proposed_by": proposed_by,
+                "proposed_at": proposed_at,
+                "rejected_by": rejected_by,
+                "rejected_at": rejected_at,
+                "rejection_reason": rejection_reason,
             })
         return history
 
