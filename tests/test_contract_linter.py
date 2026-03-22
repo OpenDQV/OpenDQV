@@ -29,7 +29,7 @@ def _load_all_contracts():
     """Return list of (filename, contract_dict) for every YAML in contracts/."""
     results = []
     for path in sorted(_contracts_dir.glob("*.yaml")):
-        raw = yaml.safe_load(path.read_text())
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
         if raw:
             results.append((path.name, raw))
     return results

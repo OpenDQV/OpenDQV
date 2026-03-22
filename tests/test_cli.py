@@ -198,7 +198,7 @@ class TestCLIImportODCS:
         odcs_file = tmp_path / "test.yaml"
         odcs_file.write_text(yaml.dump(SAMPLE_ODCS))
         self._run_import(tmp_path, odcs_file)
-        parsed = yaml.safe_load((tmp_path / "cli_test_contract.yaml").read_text())
+        parsed = yaml.safe_load((tmp_path / "cli_test_contract.yaml").read_text(encoding="utf-8"))
         assert "contract" in parsed
         assert isinstance(parsed["contract"]["rules"], list)
 
@@ -255,7 +255,7 @@ class TestCLIExportODCS:
         out_file = tmp_path / "customer_odcs.yaml"
         run("export-odcs", "customer", "--output", str(out_file))
         assert out_file.exists()
-        parsed = yaml.safe_load(out_file.read_text())
+        parsed = yaml.safe_load(out_file.read_text(encoding="utf-8"))
         assert parsed["apiVersion"] == "v3.1.0"
 
     def test_export_odcs_missing_contract_exits_nonzero(self):
@@ -287,7 +287,7 @@ class TestCLIExportDBT:
         r = run("export-dbt", "customer", "--output", str(out_file))
         assert r.returncode == 0
         assert out_file.exists()
-        parsed = yaml.safe_load(out_file.read_text())
+        parsed = yaml.safe_load(out_file.read_text(encoding="utf-8"))
         assert parsed["version"] == 2
 
     def test_export_dbt_unknown_contract_exits_nonzero(self):
