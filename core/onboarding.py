@@ -804,6 +804,77 @@ class OnboardingWizard:
 
     # ── API calls ─────────────────────────────────────────────────────────────
 
+    def _demo_governance(self, entity: str) -> None:
+        """Demonstrate the draft → review → active governance lifecycle.
+
+        Shows the maker-checker workflow in the first 90 seconds.
+        Silently skips if the API is in token mode (auth required).
+        """
+        try:
+            # Get the current version
+            req = urllib.request.Request(
+                f"{self._base_url}/api/v1/contracts/{entity}",
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=5) as r:
+                detail = json.loads(r.read())
+            version = detail.get("version", "1.0")
+            status = detail.get("status", "draft")
+
+            if status != "draft":
+                return  # already active or archived — skip demo
+
+            # Submit for review
+            submit_payload = json.dumps({"proposed_by": "wizard-demo"}).encode()
+            req = urllib.request.Request(
+                f"{self._base_url}/api/v1/contracts/{entity}/{version}/submit-review",
+                data=submit_payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                urllib.request.urlopen(req, timeout=5)
+            except urllib.error.HTTPError as e:
+                if e.code == 401 or e.code == 403:
+                    return  # auth required — skip governance demo silently
+                raise
+
+            if HAS_RICH:
+                self.console.print(f"  [cyan]→[/cyan]  [dim]DRAFT[/dim] → [yellow]REVIEW[/yellow]   proposed by wizard-demo")
+            else:
+                print("  →  DRAFT → REVIEW   proposed by wizard-demo")
+
+            # Approve
+            approve_payload = json.dumps({"approved_by": "wizard-demo"}).encode()
+            req = urllib.request.Request(
+                f"{self._base_url}/api/v1/contracts/{entity}/{version}/approve",
+                data=approve_payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                urllib.request.urlopen(req, timeout=5)
+            except urllib.error.HTTPError as e:
+                if e.code == 401 or e.code == 403:
+                    return
+                raise
+
+            if HAS_RICH:
+                self.console.print(f"  [cyan]→[/cyan]  [yellow]REVIEW[/yellow] → [bold green]ACTIVE[/bold green]   approved by wizard-demo")
+                self.console.print()
+                self.console.print(
+                    "  [dim]Every change is hash-chained and auditable. "
+                    "In production, proposal and approval require different roles (editor / approver).[/dim]"
+                )
+            else:
+                print("  →  REVIEW → ACTIVE   approved by wizard-demo")
+                print()
+                print("  Every change is hash-chained and auditable.")
+                print("  In production, proposal and approval require different roles (editor / approver).")
+
+        except Exception:
+            pass  # governance demo is a nice-to-have — never block the wizard
+
     def _reload(self) -> None:
         try:
             req = urllib.request.Request(
@@ -1138,6 +1209,15 @@ class OnboardingWizard:
             return self.result
 
         self._show_results(valid_rec, valid_res, invalid_rec, invalid_res)
+
+        # ── Governance lifecycle demo ──────────────────────────────────────────
+        if HAS_RICH:
+            self.console.print()
+            self.console.print("  [bold white]Governance lifecycle (draft → review → active):[/bold white]")
+        else:
+            print()
+            print("  Governance lifecycle (draft → review → active):")
+        self._demo_governance(entity)
 
         elapsed = time.time() - self.start
         self.result.elapsed = elapsed
