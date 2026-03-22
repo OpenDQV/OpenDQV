@@ -23,6 +23,45 @@ echo   OpenDQV Windows Test Runner
 echo ============================================================
 echo.
 
+:: ── Pre-flight: Disk space check (need ~2GB free on C:) ──────
+for /f "tokens=3" %%s in ('dir /-c C:\ 2^>nul ^| findstr /i "bytes free"') do set FREE_BYTES=%%s
+:: Strip commas — Windows dir output uses locale-specific separators
+set FREE_BYTES=!FREE_BYTES:,=!
+:: Check if >= 2,000,000,000 bytes free (2GB)
+:: Use string length comparison on the number — 2GB = 10 digits minimum
+set "MIN_DIGITS=2000000000"
+if not defined FREE_BYTES (
+    echo WARNING: Could not determine free disk space. Proceeding anyway.
+    echo   Ensure at least 2GB free on C: before continuing.
+    echo.
+    goto :disk_ok
+)
+:: Compare numerically via length then value
+set LEN_FREE=0
+set TMPSTR=!FREE_BYTES!
+:count_loop
+if "!TMPSTR!"=="" goto :count_done
+set TMPSTR=!TMPSTR:~1!
+set /a LEN_FREE+=1
+goto :count_loop
+:count_done
+set LEN_MIN=10
+if !LEN_FREE! LSS !LEN_MIN! goto :disk_fail
+if !LEN_FREE! EQU !LEN_MIN! if "!FREE_BYTES!" LSS "!MIN_DIGITS!" goto :disk_fail
+goto :disk_ok
+
+:disk_fail
+echo WARNING: Low disk space detected.
+echo   Free space: approximately !FREE_BYTES! bytes
+echo   Required:   at least 2,000,000,000 bytes (2GB)
+echo.
+echo   The dependency install may fail with "No space left on device".
+echo   Free up disk space before continuing.
+echo.
+set /p CONTINUE="Continue anyway? (y/N): "
+if /i "!CONTINUE!" NEQ "y" exit /b 1
+
+:disk_ok
 :: ── Pre-flight: Python check ─────────────────────────────────
 where python >nul 2>&1
 if errorlevel 1 (
