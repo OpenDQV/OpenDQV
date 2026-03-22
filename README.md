@@ -44,6 +44,29 @@ OpenDQV owns layer one. Your catalog handles layer two, your pipeline tools hand
 
 **Whether you're maintaining 400 outsourced stored procedures, 1,200 Great Expectations checks, or a folder of ad-hoc validation scripts** — OpenDQV replaces custom-check spaghetti with a single governed contract layer. One YAML file, one API, enforced everywhere, owned by your governance team.
 
+### Compute cost reality
+
+Modern data warehouses charge almost entirely for **compute** — Snowflake credits, Databricks DBUs, Redshift slots, BigQuery slots. Storage is cheap; running anything is expensive.
+
+Traditional data quality approaches all consume that compute *inside* the warehouse:
+
+- Stored procedures run on every load or trigger
+- dbt tests scan tables during CI/CD or scheduled jobs
+- Great Expectations / Soda / Monte Carlo profile and validate data *after* it lands
+- Even "light" monitoring keeps warehouses awake or spins up new clusters for checks
+
+DQ/observability/testing is routinely one of the **top consumers** of warehouse compute in mature data environments — right alongside ETL and BI workloads.
+
+**OpenDQV flips this dynamic.** Because enforcement happens at write time via API or generated UDF/trigger:
+
+- Bad records are rejected **before** they ever reach the warehouse
+- You pay only for tiny, sub-second validation calls
+- Clean data lands — no downstream scans, no reprocessing loops, no "run the full DQ suite again" jobs
+
+No full-table scans. No re-runs. Just clean data and dramatically lower DQ-related compute spend.
+
+**Stop paying warehouse compute to discover problems that never should have landed.**
+
 ---
 
 ![OpenDQV demo — invalid record rejected, valid record accepted, 422 returned with per-field errors](docs/demo.gif)

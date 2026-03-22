@@ -2110,7 +2110,6 @@ if section == "Version History":
                                 return {"active": "🟢", "review": "🟡", "draft": "🔵", "archived": "🔴"}.get(s, "⚪") + f" {s.upper()}"
 
                             # Hash chain validation
-                            import hashlib as _hl
                             def _chain_ok(entries):
                                 prev = ""
                                 for e in entries:
