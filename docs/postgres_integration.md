@@ -1,6 +1,6 @@
 # Postgres Integration
 
-> **Last reviewed:** 2026-03-17.
+> **Last reviewed:** 2026-03-22.
 
 ![OpenDQV + Postgres — validate before INSERT, route rejects to quarantine table](demo_postgres.gif)
 
@@ -10,6 +10,16 @@
 > For the Postgres storage backend (enterprise tier), see `core/storage.py`.
 
 OpenDQV validates records before they reach Postgres. The pattern is simple: validate at the application layer before every INSERT, route clean records to the target table, and route rejected records to a quarantine table. No Postgres extensions required.
+
+## Which approach for your use case?
+
+| Use case | Recommended approach | Why |
+|----------|---------------------|-----|
+| Python app / ETL writes | Approach 1 (LocalValidator) | No network dependency, fastest, no DB changes |
+| Microservice / REST API | Approach 3 (FastAPI `@guard`) | Cleanest integration at the API boundary |
+| Running OpenDQV API server | Approach 2 (SDK client) | Centralised governance, one contract update applies everywhere |
+| Governance-owned enforcement — any writer validated | Approach 4 (DB trigger) | Blocks writes from psycopg2, JDBC, dbt, migration scripts, manual psql — all of them |
+| Batch load with full audit trail | Approach 1 + quarantine table | Complete record of what passed and what was rejected |
 
 ---
 
@@ -216,6 +226,27 @@ CREATE TABLE quarantine.rejected_records (
 CREATE INDEX ON quarantine.rejected_records (source_table, rejected_at DESC);
 ```
 
+**Reviewing rejected records:**
+
+```sql
+-- Most recent rejections across all tables
+SELECT source_table, rejected_at, record_json, errors_json
+FROM quarantine.rejected_records
+ORDER BY rejected_at DESC
+LIMIT 50;
+
+-- Rejection summary by field and rule
+SELECT
+    err->>'field'   AS field,
+    err->>'rule'    AS rule,
+    err->>'message' AS message,
+    COUNT(*)        AS occurrences
+FROM quarantine.rejected_records,
+     jsonb_array_elements(errors_json) AS err
+GROUP BY 1, 2, 3
+ORDER BY occurrences DESC;
+```
+
 ---
 
 ## Approach 4 — Native DB Trigger: Enforce at the Database Layer
@@ -255,29 +286,47 @@ CREATE OR REPLACE FUNCTION opendqv_validate()
 RETURNS TRIGGER AS $$
 import urllib.request, urllib.error, json
 
-contract = TD['args'][0]   -- contract name, passed as trigger argument
-url      = TD['args'][1]   -- OpenDQV API URL
+contract = TD['args'][0]    # contract name, e.g. 'banking_transaction'
+url      = TD['args'][1]    # OpenDQV API URL, e.g. 'http://opendqv:8000'
 record   = {k: (str(v) if v is not None else None) for k, v in TD['new'].items()}
 
+# Token: set via GUC (see token note below) or inject at deploy time
+token = plpy.execute("SELECT current_setting('app.opendqv_token', true)")[0]['current_setting']
+headers = {'Content-Type': 'application/json'}
+if token:
+    headers['Authorization'] = 'Bearer ' + token
+
 payload = json.dumps({'contract': contract, 'record': record}).encode()
-req = urllib.request.Request(
-    url + '/api/v1/validate',
-    data=payload,
-    headers={'Content-Type': 'application/json'}
-)
+req = urllib.request.Request(url + '/api/v1/validate', data=payload, headers=headers)
 try:
     with urllib.request.urlopen(req, timeout=5) as resp:
         result = json.loads(resp.read())
         if not result.get('valid', False):
             errors = result.get('errors', [])
-            raise Exception('OpenDQV validation failed: ' + json.dumps(errors))
+            plpy.error('OpenDQV validation failed: ' + json.dumps(errors))
 except urllib.error.HTTPError as e:
-    raise Exception('OpenDQV API error: ' + str(e.code))
+    plpy.error('OpenDQV API error: ' + str(e.code))
 except urllib.error.URLError as e:
-    raise Exception('OpenDQV unreachable: ' + str(e.reason))
+    # Fail-closed: block the INSERT if OpenDQV is unreachable
+    # Change to `plpy.warning(...)` + `return "OK"` for fail-open behaviour
+    plpy.error('OpenDQV unreachable: ' + str(e.reason))
 return 'OK'
-$$ LANGUAGE plpython3u;
+$$ LANGUAGE plpython3u SECURITY DEFINER;
+-- SECURITY DEFINER: runs as the function owner (keeps token access controlled)
 ```
+
+> **Token management:** Never hard-code tokens. Set via a Postgres GUC parameter:
+> ```sql
+> -- Set once per session or in postgresql.conf / ALTER SYSTEM
+> SELECT set_config('app.opendqv_token', 'your-pat-token', false);
+> ```
+> In production use AWS Secrets Manager, HashiCorp Vault, or your cloud provider's
+> secret store, and inject at application startup.
+
+> **Fail-open vs fail-closed:** The example above is fail-closed — if OpenDQV is
+> unreachable, the INSERT is blocked. To fail-open (allow the INSERT and log the
+> error instead), replace `plpy.error(...)` in the `URLError` handler with
+> `plpy.warning(...)` and `return "OK"`. Choose based on your risk tolerance.
 
 ### Option B — `pgsql-http` (for managed Postgres / Supabase / Neon)
 
