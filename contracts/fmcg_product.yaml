@@ -1,7 +1,15 @@
 contract:
   name: fmcg_product
-  version: "1.0"
-  description: "FMCG product sales record validation"
+  version: "1.1"
+  description: >
+    FMCG (Fast-Moving Consumer Goods) product sales record validation. Enforces
+    GS1 GTIN barcode format (8, 12, or 13-digit numeric product identifiers used
+    across UK and global retail supply chains), ISO 3166-1 alpha-2 country of origin,
+    ISO 4217 currency codes, and product category taxonomy aligned with GS1 Global
+    Product Classification (GPC). Prevents invalid product codes, uncategorised
+    products, and ambiguous pricing records from entering retailer EDI, POS, and
+    category management systems. Pack unit standardisation prevents unit-of-measure
+    mismatches in NPD and promotional analysis pipelines.
   owner: "Consumer Goods Data Team"
   status: active
 
@@ -12,17 +20,69 @@ contract:
       severity: error
       error_message: "product_code is required"
 
+    - name: product_code_gtin_format
+      description: "GS1 GTIN (Global Trade Item Number) format. GTIN-8 (8 digits,
+        EAN-8, used for small packs), GTIN-12 (12 digits, UPC-A, US market), GTIN-13
+        (13 digits, EAN-13, UK/EU standard retail barcode), GTIN-14 (14 digits,
+        ITF-14, used on outer cases and pallets). All digits must be numeric. The
+        final digit is a check digit computed via Luhn-adjacent GS1 algorithm."
+      field: product_code
+      type: regex
+      pattern: '^[0-9]{8}$|^[0-9]{12}$|^[0-9]{13}$|^[0-9]{14}$'
+      severity: error
+      error_message: "product_code must be a valid GS1 GTIN: 8, 12, 13, or 14
+        numeric digits (EAN-8, UPC-A, EAN-13, or ITF-14). e.g. 5000112548167"
+
     - name: brand_required
       field: brand
       type: not_empty
       severity: error
       error_message: "brand is required"
 
+    - name: brand_max_length
+      description: "GS1 product data standards cap brand name at 70 characters for
+        EDI and catalogue exchange. Values exceeding this will be truncated in retailer
+        systems."
+      field: brand
+      type: max_length
+      max: 70
+      severity: warning
+      error_message: "brand exceeds 70 characters — will be truncated in GS1 EDI
+        and retailer catalogue systems"
+
     - name: category_required
       field: category
       type: not_empty
       severity: error
       error_message: "category is required"
+
+    - name: category_values
+      description: "GS1 Global Product Classification (GPC) top-level segment taxonomy
+        for FMCG. Standardised categories enable cross-retailer planogram alignment,
+        Nielsen/IRI category benchmarking, and promotional lift analysis."
+      field: category
+      type: allowed_values
+      allowed_values:
+        - food_and_beverage
+        - fresh_produce
+        - dairy_and_eggs
+        - meat_and_seafood
+        - bakery
+        - frozen
+        - beverages_alcoholic
+        - beverages_non_alcoholic
+        - snacks_and_confectionery
+        - health_and_beauty
+        - household_cleaning
+        - baby_and_child
+        - pet_care
+        - personal_care
+        - vitamins_and_supplements
+        - tobacco
+        - other
+      severity: warning
+      error_message: "category should be a standard GS1 GPC segment — use one of
+        the defined values for cross-retailer compatibility"
 
     - name: unit_price_min
       field: unit_price
@@ -31,12 +91,47 @@ contract:
       severity: error
       error_message: "unit_price must be >= 0"
 
+    - name: currency_format
+      description: "ISO 4217 three-letter currency code. Required on all price fields
+        for multi-market FMCG operations. Mixed-currency records without explicit
+        codes cause silent misreporting in P&L and promotional ROI calculations."
+      field: currency
+      type: regex
+      pattern: '^[A-Z]{3}$'
+      severity: error
+      error_message: "currency must be a valid ISO 4217 three-letter code (e.g.
+        GBP, EUR, USD)"
+
     - name: units_sold_min
       field: units_sold
       type: min
       min: 0
       severity: error
       error_message: "units_sold must be >= 0"
+
+    - name: pack_unit_values
+      description: "Standardised unit-of-measure for pack size. Prevents free-text
+        entry (e.g. 'grams', 'Grams', 'g.') that causes mismatches in NPD weight
+        analysis, promotional comparison, and ESG reporting on packaging material."
+      field: pack_unit
+      type: allowed_values
+      allowed_values:
+        - g
+        - kg
+        - ml
+        - l
+        - units
+        - cl
+        - oz
+        - lb
+        - sheets
+        - pairs
+        - tablets
+        - capsules
+        - sachets
+      severity: warning
+      error_message: "pack_unit must be a standard unit: g, kg, ml, l, units, cl,
+        oz, lb, sheets, pairs, tablets, capsules, sachets"
 
     - name: store_id_required
       field: store_id
@@ -56,3 +151,15 @@ contract:
       min: 0
       severity: error
       error_message: "shelf_life_days must be >= 0"
+
+    - name: country_of_origin_format
+      description: "ISO 3166-1 alpha-2 two-letter country code. Required for country-of-origin
+        labelling under UK Food Information Regulations 2014 and EU FIR 1169/2011
+        for beef, pork, lamb, poultry, fish, honey, olive oil, and fruit/vegetables.
+        Also required for customs declarations post-Brexit under UK Global Tariff."
+      field: country_of_origin
+      type: regex
+      pattern: '^[A-Z]{2}$'
+      severity: warning
+      error_message: "country_of_origin must be a 2-letter ISO 3166-1 alpha-2 country
+        code (e.g. GB, DE, FR, US) — required for UK/EU food labelling regulations"

@@ -1,7 +1,12 @@
 contract:
   name: automotive_vehicle
-  version: '1.0'
-  description: Automotive vehicle record validation
+  version: '1.1'
+  description: >
+    Automotive vehicle record validation. Enforces ISO 3779 VIN format (17-character
+    Vehicle Identification Number, excluding ambiguous characters I, O, Q), UK vehicle
+    registration plate format, and domain-specific allowed values for fuel type,
+    transmission, and body type. Prevents sentinel/placeholder VINs and malformed
+    registration numbers from entering vehicle data pipelines.
   owner: Automotive Data Team
   status: active
   rules:
@@ -11,6 +16,18 @@ contract:
     field: vin
     severity: error
     error_message: vin is required
+    inherited: false
+    negate: false
+    all_of: false
+  - name: vin_format
+    description: 'ISO 3779 — 17 alphanumeric characters, excludes I, O, Q to prevent
+      transcription errors. Standard adopted by all major vehicle manufacturers globally.'
+    type: regex
+    field: vin
+    pattern: '^[A-HJ-NPR-Z0-9]{17}$'
+    severity: error
+    error_message: "vin must be a valid 17-character VIN (ISO 3779) — characters I,\
+      \ O and Q are not permitted (e.g. WBA3A5C55DF596249)"
     inherited: false
     negate: false
     all_of: false
@@ -53,6 +70,19 @@ contract:
     inherited: false
     negate: false
     all_of: false
+  - name: mileage_km_anomaly
+    description: 'Vehicles with mileage > 500,000 km are likely data entry errors
+      or odometer fraud indicators. Warning only — legitimate high-mileage fleet
+      vehicles exist.'
+    type: max
+    field: mileage_km
+    max: 500000.0
+    severity: warning
+    error_message: "mileage_km exceeds 500,000 km — verify this is not a data entry\
+      \ error or odometer rollover"
+    inherited: false
+    negate: false
+    all_of: false
   - name: fuel_type_required
     description: ''
     type: not_empty
@@ -62,12 +92,90 @@ contract:
     inherited: false
     negate: false
     all_of: false
+  - name: fuel_type_values
+    description: 'Permitted fuel types aligned with DVLA vehicle registration categories
+      and OLEV/OZEV classification for grant eligibility and emission zone compliance.'
+    type: allowed_values
+    field: fuel_type
+    allowed_values:
+    - petrol
+    - diesel
+    - electric
+    - hybrid_petrol
+    - hybrid_diesel
+    - plug_in_hybrid_petrol
+    - plug_in_hybrid_diesel
+    - hydrogen
+    - lpg
+    - mild_hybrid_petrol
+    - mild_hybrid_diesel
+    severity: error
+    error_message: "fuel_type must be one of: petrol, diesel, electric, hybrid_petrol,\
+      \ hybrid_diesel, plug_in_hybrid_petrol, plug_in_hybrid_diesel, hydrogen, lpg,\
+      \ mild_hybrid_petrol, mild_hybrid_diesel"
+    inherited: false
+    negate: false
+    all_of: false
   - name: registration_required
     description: ''
     type: not_empty
     field: registration
     severity: error
     error_message: registration is required
+    inherited: false
+    negate: false
+    all_of: false
+  - name: registration_uk_format
+    description: 'UK current-style registration plate format (post-September 2001):
+      two letters (DVLA area code) + two digits (year identifier) + three letters
+      (random). e.g. AB12 CDE. Older prefix/suffix formats generate a warning only
+      as they remain legally valid.'
+    type: regex
+    field: registration
+    pattern: '^[A-Z]{2}[0-9]{2}\s?[A-Z]{3}$'
+    severity: warning
+    error_message: "registration does not match current UK plate format (AB12 CDE)\
+      \ — verify if this is a legacy prefix/suffix plate or personalised registration"
+    inherited: false
+    negate: false
+    all_of: false
+  - name: transmission_values
+    description: 'Standard transmission type classification used across DVLA, RAC,
+      and fleet management systems.'
+    type: allowed_values
+    field: transmission
+    allowed_values:
+    - manual
+    - automatic
+    - semi_automatic
+    - cvt
+    - single_speed
+    severity: warning
+    error_message: "transmission must be one of: manual, automatic, semi_automatic,\
+      \ cvt, single_speed"
+    inherited: false
+    negate: false
+    all_of: false
+  - name: body_type_values
+    description: 'Vehicle body type classification aligned with DVLA V5C categories
+      and HPI/CAP vehicle appraisal standards.'
+    type: allowed_values
+    field: body_type
+    allowed_values:
+    - saloon
+    - hatchback
+    - estate
+    - suv
+    - coupe
+    - convertible
+    - mpv
+    - van
+    - pickup
+    - minibus
+    - motorhome
+    severity: warning
+    error_message: "body_type must be one of: saloon, hatchback, estate, suv, coupe,\
+      \ convertible, mpv, van, pickup, minibus, motorhome"
     inherited: false
     negate: false
     all_of: false

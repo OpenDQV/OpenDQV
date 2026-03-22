@@ -1,7 +1,15 @@
 contract:
   name: agriculture_batch
-  version: 1.0-draft.176
-  description: Agriculture crop batch record validation
+  version: '1.1'
+  description: >
+    Agriculture crop batch record validation for supply chain traceability and food
+    safety pipelines. Enforces UK crop type taxonomy aligned with AHDB (Agriculture
+    and Horticulture Development Board) classification, food safety certification
+    scheme validation (Red Tractor, LEAF Marque, Organic, Rainforest Alliance,
+    Fairtrade), ISO 3166-1 country of origin for single-origin traceability under
+    UK Food Information Regulations 2014, and yield anomaly detection. Supports
+    GlobalG.A.P. chain-of-custody traceability requirements and DEFRA cross-compliance
+    audit records.
   owner: Agri Supply Chain Data Team
   status: active
   rules:
@@ -29,6 +37,46 @@ contract:
     field: crop_type
     severity: error
     error_message: crop_type is required
+    inherited: false
+    negate: false
+    all_of: false
+  - name: crop_type_values
+    description: 'UK arable and horticultural crop taxonomy aligned with AHDB crop
+      classification and DEFRA June Agricultural Survey categories. Standardised
+      crop codes are required for AHDB levy collection, cross-compliance reporting,
+      and supply chain EDI with processors and retailers.'
+    type: allowed_values
+    field: crop_type
+    allowed_values:
+    - wheat
+    - winter_wheat
+    - spring_wheat
+    - barley
+    - winter_barley
+    - spring_barley
+    - oats
+    - rye
+    - triticale
+    - maize
+    - oilseed_rape
+    - sunflower
+    - linseed
+    - sugar_beet
+    - potato
+    - field_bean
+    - pea
+    - soybean
+    - carrot
+    - onion
+    - lettuce
+    - brassica
+    - soft_fruit
+    - top_fruit
+    - grass_silage
+    - other
+    severity: warning
+    error_message: 'crop_type should be a standard AHDB/DEFRA crop classification
+      — use one of the defined values for levy and cross-compliance reporting compatibility'
     inherited: false
     negate: false
     all_of: false
@@ -78,6 +126,62 @@ contract:
     min: 0.0
     severity: error
     error_message: yield_kg_per_hectare must be >= 0
+    inherited: false
+    negate: false
+    all_of: false
+  - name: yield_kg_per_hectare_anomaly
+    description: 'UK wheat yield records above 20,000 kg/ha (20 t/ha) exceed the
+      current world record (16.79 t/ha, Lincolnshire 2015). Values above this threshold
+      indicate unit errors (e.g. total batch weight stored as per-hectare yield)
+      or data entry mistakes that will corrupt AHDB yield benchmarking data.'
+    type: max
+    field: yield_kg_per_hectare
+    max: 20000.0
+    severity: warning
+    error_message: 'yield_kg_per_hectare exceeds 20,000 kg/ha — verify this is not
+      a unit error (total batch weight stored as per-hectare yield). UK record is
+      16,790 kg/ha (Lincolnshire, 2015)'
+    inherited: false
+    negate: false
+    all_of: false
+  - name: certification_status_values
+    description: 'Food safety and sustainability certification scheme values. Red
+      Tractor is the baseline UK farm assurance standard. LEAF Marque and Organic
+      carry premium channel requirements. Fairtrade applies to imported commodity
+      crops. Certification must be verifiable against scheme body member databases
+      for supply chain audit purposes.'
+    type: allowed_values
+    field: certification_status
+    allowed_values:
+    - red_tractor
+    - leaf_marque
+    - organic_soil_association
+    - organic_of_g
+    - rainforest_alliance
+    - fairtrade
+    - global_gap
+    - brc_farm
+    - none
+    severity: warning
+    error_message: 'certification_status must be a recognised scheme: red_tractor,
+      leaf_marque, organic_soil_association, organic_of_g, rainforest_alliance,
+      fairtrade, global_gap, brc_farm, none'
+    inherited: false
+    negate: false
+    all_of: false
+  - name: country_of_origin_format
+    description: 'ISO 3166-1 alpha-2 country code. Required for country-of-origin
+      labelling under UK Food Information Regulations 2014 for beef, lamb, pork,
+      poultry, fish, honey, olive oil, and fresh/frozen fruit and vegetables. Also
+      required for post-Brexit customs declarations under the UK Global Tariff and
+      DEFRA import/export certificates.'
+    type: regex
+    field: country_of_origin
+    pattern: '^[A-Z]{2}$'
+    severity: warning
+    error_message: 'country_of_origin must be a 2-letter ISO 3166-1 alpha-2 country
+      code (e.g. GB, FR, ES) — required for UK Food Information Regulations 2014
+      country-of-origin labelling'
     inherited: false
     negate: false
     all_of: false

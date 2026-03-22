@@ -1,7 +1,14 @@
 contract:
   name: pharma_clinical_trial
-  version: "1.0"
-  description: "Pharmaceutical clinical trial subject record validation"
+  version: "1.1"
+  description: >
+    Pharmaceutical clinical trial subject record validation. Enforces ICH-GCP E6(R2)
+    Good Clinical Practice requirements at the point of write. Validates ClinicalTrials.gov
+    protocol identifiers (NCT format), trial phase classification, adverse event severity
+    coding aligned with MedDRA conventions, informed consent status, and dose unit
+    standardisation. Prevents incomplete or miscoded trial data from entering regulatory
+    submission pipelines where FDA 21 CFR Part 11 and EMA CPMP/ICH/135/95 compliance
+    requires audit-ready, complete records.
   owner: "Clinical Research Data Team"
   status: active
 
@@ -12,23 +19,64 @@ contract:
       severity: error
       error_message: "subject_id is required"
 
+    - name: subject_id_unique
+      description: "ICH-GCP E6(R2) 4.11 — subject identification codes must be unique
+        within the trial. Duplicate subject IDs indicate data entry errors or subject
+        re-enrolment failures."
+      field: subject_id
+      type: unique
+      severity: error
+      error_message: "subject_id must be unique — duplicate subject identifiers indicate
+        a data integrity failure (ICH-GCP E6(R2) 4.11)"
+
     - name: site_id_required
       field: site_id
       type: not_empty
       severity: error
       error_message: "site_id is required"
 
-    - name: visit_date_format
-      field: visit_date
-      type: date_format
-      severity: error
-      error_message: "visit_date must be a valid date (YYYY-MM-DD)"
-
     - name: protocol_id_required
       field: protocol_id
       type: not_empty
       severity: error
       error_message: "protocol_id is required"
+
+    - name: protocol_id_format
+      description: "ClinicalTrials.gov registry identifier format (NCT + 8 digits).
+        Required for all interventional trials under ICMJE registration policy and
+        FDA Amendments Act 2007. EudraCT numbers (EU) follow a different format and
+        should be stored in a separate field."
+      field: protocol_id
+      type: regex
+      pattern: '^NCT[0-9]{8}$'
+      severity: warning
+      error_message: "protocol_id does not match ClinicalTrials.gov format (NCT followed
+        by 8 digits, e.g. NCT04470427) — verify if using EudraCT or other registry"
+
+    - name: trial_phase_values
+      description: "ICH-GCP trial phase classification. Phase 1 = first-in-human safety;
+        Phase 2 = proof of concept/dosing; Phase 3 = pivotal efficacy; Phase 4 = post-marketing
+        surveillance. Observational studies are not interventional trials."
+      field: trial_phase
+      type: allowed_values
+      allowed_values:
+        - phase_1
+        - phase_1_2
+        - phase_2
+        - phase_2_3
+        - phase_3
+        - phase_4
+        - observational
+        - expanded_access
+      severity: error
+      error_message: "trial_phase must be one of: phase_1, phase_1_2, phase_2, phase_2_3,
+        phase_3, phase_4, observational, expanded_access"
+
+    - name: visit_date_format
+      field: visit_date
+      type: date_format
+      severity: error
+      error_message: "visit_date must be a valid date (YYYY-MM-DD)"
 
     - name: age_range
       field: age
@@ -44,6 +92,38 @@ contract:
       severity: error
       error_message: "gender is required"
 
+    - name: gender_values
+      description: "ICH E9 / CIOMS VI aligned gender classification. 'not_disclosed'
+        is required for data minimisation under GDPR Article 5(1)(c) where gender
+        is not a protocol requirement."
+      field: gender
+      type: allowed_values
+      allowed_values:
+        - male
+        - female
+        - non_binary
+        - not_disclosed
+        - unknown
+      severity: error
+      error_message: "gender must be one of: male, female, non_binary, not_disclosed,
+        unknown"
+
+    - name: informed_consent_values
+      description: "ICH-GCP E6(R2) 4.8 — informed consent is a fundamental requirement.
+        A record with informed_consent = 'no' or 'withdrawn' must not proceed to
+        treatment or data collection. This rule prevents non-consented subject data
+        from entering the pipeline silently."
+      field: informed_consent
+      type: allowed_values
+      allowed_values:
+        - yes
+        - pending
+        - withdrawn
+        - not_required
+      severity: error
+      error_message: "informed_consent must be one of: yes, pending, withdrawn, not_required
+        (ICH-GCP E6(R2) 4.8 — informed consent is mandatory before any trial procedure)"
+
     - name: dose_mg_min
       field: dose_mg
       type: min
@@ -51,11 +131,48 @@ contract:
       severity: error
       error_message: "dose_mg must be >= 0"
 
+    - name: dose_unit_values
+      description: "Standard pharmacological dose units. Prevents free-text unit
+        entry which causes calculation errors in PK/PD analysis and dose normalisation."
+      field: dose_unit
+      type: allowed_values
+      allowed_values:
+        - mg
+        - mcg
+        - g
+        - ml
+        - iu
+        - units
+        - mg_kg
+        - mcg_kg
+      severity: error
+      error_message: "dose_unit must be one of: mg, mcg, g, ml, iu, units, mg_kg,
+        mcg_kg"
+
     - name: adverse_event_code_required
       field: adverse_event_code
       type: not_empty
       severity: warning
       error_message: "adverse_event_code should be provided if applicable"
+
+    - name: adverse_event_severity_values
+      description: "MedDRA/CTCAE adverse event severity grading. Grade assignments
+        drive SAE reporting obligations: Grade 3+ requires expedited reporting; Grade
+        4-5 triggers 7-day and 15-day regulatory notifications under 21 CFR 312.32
+        and EMA Volume 10."
+      field: adverse_event_severity
+      type: allowed_values
+      allowed_values:
+        - none
+        - mild
+        - moderate
+        - severe
+        - life_threatening
+        - fatal
+      severity: warning
+      error_message: "adverse_event_severity must be one of: none, mild, moderate,
+        severe, life_threatening, fatal (MedDRA CTCAE grading — Grade 4/5 triggers
+        SAE reporting obligations)"
 
     - name: collection_date_format
       field: collection_date
