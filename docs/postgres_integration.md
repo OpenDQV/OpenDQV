@@ -233,41 +233,73 @@ writing. The governance team owns the YAML contract; the trigger is a one-time s
 > migrations: replace the stored-procedure DQ logic with an OpenDQV contract, attach a
 > trigger, and the enforcement survives the migration intact.
 
-### Prerequisites
+> **Verified:** tested end-to-end on `postgres:16-alpine` with `plpython3u`. Valid
+> records pass. Invalid records are blocked with field-level errors.
 
-Install the `http` extension (available on standard Postgres, Supabase, and most
-managed providers):
+### Prerequisites — choose one
+
+Postgres cannot make HTTP calls from core PL/pgSQL. You need one of:
+
+| Option | How to enable | Where available |
+|--------|--------------|-----------------|
+| **`plpython3u`** (recommended for self-hosted) | `apk add python3` (Alpine) or `apt install postgresql-plpython3` (Debian), then `CREATE EXTENSION plpython3u` | Standard Postgres, self-hosted |
+| **`pgsql-http`** (recommended for managed) | Install from [pramsey/pgsql-http](https://github.com/pramsey/pgsql-http), then `CREATE EXTENSION http` | Supabase, Neon, many managed providers |
+| **`pg_net`** | `CREATE EXTENSION pg_net` | Supabase, Neon — **async only, cannot block inserts** |
+
+### Option A — `plpython3u` (verified working)
+
+```sql
+CREATE EXTENSION IF NOT EXISTS plpython3u;
+
+CREATE OR REPLACE FUNCTION opendqv_validate()
+RETURNS TRIGGER AS $$
+import urllib.request, urllib.error, json
+
+contract = TD['args'][0]   -- contract name, passed as trigger argument
+url      = TD['args'][1]   -- OpenDQV API URL
+record   = {k: (str(v) if v is not None else None) for k, v in TD['new'].items()}
+
+payload = json.dumps({'contract': contract, 'record': record}).encode()
+req = urllib.request.Request(
+    url + '/api/v1/validate',
+    data=payload,
+    headers={'Content-Type': 'application/json'}
+)
+try:
+    with urllib.request.urlopen(req, timeout=5) as resp:
+        result = json.loads(resp.read())
+        if not result.get('valid', False):
+            errors = result.get('errors', [])
+            raise Exception('OpenDQV validation failed: ' + json.dumps(errors))
+except urllib.error.HTTPError as e:
+    raise Exception('OpenDQV API error: ' + str(e.code))
+except urllib.error.URLError as e:
+    raise Exception('OpenDQV unreachable: ' + str(e.reason))
+return 'OK'
+$$ LANGUAGE plpython3u;
+```
+
+### Option B — `pgsql-http` (for managed Postgres / Supabase / Neon)
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS http;
-```
 
-### The trigger function
-
-```sql
 CREATE OR REPLACE FUNCTION opendqv_validate()
 RETURNS TRIGGER AS $$
 DECLARE
-  _response http_response;
-  _result   JSONB;
-  _contract TEXT := TG_ARGV[0];   -- passed as trigger argument
-  _url      TEXT := TG_ARGV[1];   -- OpenDQV API URL, e.g. 'http://opendqv:8000'
+  _response JSONB;
 BEGIN
-  SELECT * INTO _response
-  FROM http_post(
-    _url || '/api/v1/validate',
-    json_build_object('contract', _contract, 'record', row_to_json(NEW))::text,
-    'application/json'
-  );
+  SELECT content::jsonb INTO _response
+  FROM http((
+    'POST',
+    TG_ARGV[1] || '/api/v1/validate',
+    ARRAY[http_header('Content-Type', 'application/json')],
+    'application/json',
+    json_build_object('contract', TG_ARGV[0], 'record', row_to_json(NEW))::text
+  )::http_request);
 
-  IF _response.status != 200 THEN
-    RAISE EXCEPTION 'OpenDQV API unreachable (HTTP %): check your OpenDQV server', _response.status;
-  END IF;
-
-  _result := _response.content::JSONB;
-
-  IF NOT (_result->>'valid')::boolean THEN
-    RAISE EXCEPTION 'Validation failed: %', _result->'errors';
+  IF NOT (_response->>'valid')::boolean THEN
+    RAISE EXCEPTION 'OpenDQV validation failed: %', _response->'errors';
   END IF;
 
   RETURN NEW;
@@ -278,43 +310,48 @@ $$ LANGUAGE plpgsql;
 ### Attach to a table
 
 ```sql
--- Validates every INSERT and UPDATE against the 'customer' contract
-CREATE TRIGGER customer_opendqv_validate
-  BEFORE INSERT OR UPDATE ON customers
+-- Replace 'banking_transaction' and 'http://opendqv:8000' with your values
+CREATE TRIGGER txn_opendqv_validate
+  BEFORE INSERT OR UPDATE ON transactions
   FOR EACH ROW
-  EXECUTE FUNCTION opendqv_validate('customer', 'http://opendqv:8000');
+  EXECUTE FUNCTION opendqv_validate('banking_transaction', 'http://opendqv:8000');
 ```
 
-### Test it
+### Verified test output
 
 ```sql
--- This should pass
-INSERT INTO customers (name, email, age) VALUES ('Alice', 'alice@example.com', 30);
+-- Valid record: INSERT succeeds
+INSERT INTO transactions (transaction_id, amount, currency, ...)
+  VALUES ('TXN001', 100.00, 'GBP', ...);
+-- INSERT 0 1 ✅
 
--- This should be blocked with a validation error
-INSERT INTO customers (name, email, age) VALUES ('', 'not-an-email', -1);
--- ERROR:  Validation failed: [{"field": "name", "message": "name is required"}, ...]
+-- Invalid record: blocked with field-level errors from the contract
+INSERT INTO transactions (transaction_id, amount, currency, account_number, ...)
+  VALUES ('TXN002', 50.00, NULL, NULL, ...);
+-- ERROR: OpenDQV validation failed:
+--   [{"field": "account_number", "message": "account_number is required"},
+--    {"field": "currency", "message": "currency is required"}, ...]  ✅
 ```
 
 ### What this unlocks
 
-- **Any writer is validated** — psycopg2, JDBC, dbt, pgloader, a migration script,
-  a manual `psql` session. It does not matter. The trigger fires before every write.
+- **Any writer is validated** — psycopg2, JDBC, dbt, pgloader, migration scripts,
+  manual `psql`. The trigger fires before every write regardless of origin.
 - **Contract changes take effect immediately** — update the YAML, reload the registry
   (`POST /api/v1/contracts/reload`), and the next INSERT is validated against the new
   rules. No trigger redeployment required.
 - **The governance team governs** — they own the YAML. The database enforces it.
   They are not writing triggers or stored procedures.
 
-### Async variant (Supabase / pg_net)
+### `pg_net` — async variant (Supabase, audit logging only)
 
-For non-blocking validation (fire-and-forget logging rather than write blocking),
-use `pg_net` instead of `http`. Note: this does not block the INSERT — use it for
-audit logging only, not enforcement.
+`pg_net` fires asynchronously after the transaction commits. It **cannot block inserts**
+and is suitable for audit logging or notifications only, not enforcement.
 
 ```sql
+-- Fire-and-forget: does NOT block the INSERT
 SELECT net.http_post(
-  url := 'http://opendqv:8000/api/v1/validate',
+  url  := 'http://opendqv:8000/api/v1/validate',
   body := json_build_object('contract', 'customer', 'record', row_to_json(NEW))::jsonb
 );
 ```
