@@ -130,6 +130,12 @@ class Rule(BaseModel):
     #   condition: {field: region, value: EU}                    → apply rule only in EU
     condition: Optional[dict] = None
 
+    # Inline allowed values — type: allowed_values
+    # Validates that the field value is one of the listed values.
+    # Avoids the need for a separate lookup file for short, stable lists.
+    # type: allowed_values  allowed_values: [active, inactive, pending]
+    allowed_values: Optional[list] = None
+
     # File-based or REST-based lookup — value must appear in a reference list.
     # type: lookup  lookup_file: /path/to/ids.txt          (local file, one value per line)
     # type: lookup  lookup_file: https://host/endpoint     (HTTP GET, JSON array or newline-delimited)
@@ -240,6 +246,12 @@ class Rule(BaseModel):
             else:
                 expanded = _BUILTIN_PATTERNS.get(self.pattern, self.pattern)
                 self.compiled_pattern = re.compile(expanded)
+        if self.type == "allowed_values" and not self.allowed_values:
+            logger.warning(
+                "Rule '%s' (type=allowed_values) has no allowed_values list — it will skip validation. "
+                "Add an allowed_values field with a list of permitted values.",
+                self.name,
+            )
         if self.type == "lookup" and not self.lookup_file:
             logger.warning(
                 "Rule '%s' (type=lookup) has no lookup_file — it will skip validation. "

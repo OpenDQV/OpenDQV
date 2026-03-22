@@ -19,7 +19,14 @@ import httpx
 logger = logging.getLogger(__name__)
 
 # Supported event types
-VALID_EVENTS = {"opendqv.validation.failed", "opendqv.validation.warning", "opendqv.batch.failed"}
+VALID_EVENTS = {
+    "opendqv.validation.failed",
+    "opendqv.validation.warning",
+    "opendqv.batch.failed",
+    "opendqv.contract.submitted",   # DRAFT → REVIEW
+    "opendqv.contract.approved",    # REVIEW → ACTIVE
+    "opendqv.contract.rejected",    # REVIEW → DRAFT
+}
 
 # Canonical webhook event payload schemas.
 # routes.py MUST include all fields marked required=True when calling notify().

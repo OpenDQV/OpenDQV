@@ -493,6 +493,18 @@ def _check_rule(value, rule: Rule, record: Optional[dict] = None) -> Optional[st
                 return rule.error_message
         return None
 
+    if rule.type == "allowed_values":
+        # Value must be one of an inline list — no external file needed.
+        # A missing / null field silently passes — use not_empty to enforce presence.
+        if not rule.allowed_values:
+            return None
+        if value is None:
+            return None
+        allowed = [str(v) for v in rule.allowed_values]
+        if str(value) not in allowed:
+            return rule.error_message
+        return None
+
     if rule.type == "lookup":
         # Value must appear in a reference list — local file or HTTP endpoint.
         # A missing / null field silently passes — use not_empty to enforce presence.
@@ -728,7 +740,7 @@ def _check_rule(value, rule: Rule, record: Optional[dict] = None) -> Optional[st
 
     if rule.type not in ("not_empty", "regex", "min", "max", "range", "min_length",
                           "max_length", "date_format", "unique", "compare",
-                          "required_if", "lookup", "checksum", "cross_field_range",
+                          "required_if", "lookup", "allowed_values", "checksum", "cross_field_range",
                           "field_sum", "forbidden_if", "conditional_value",
                           "date_diff", "ratio_check", "conditional_lookup",
                           "geospatial_bounds", "age_match"):
@@ -1171,6 +1183,14 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
             )
             for r in con.execute(query, {"trigger_val": trigger_value}).fetchall():
                 failing.add(r[0])
+
+    elif rule.type == "allowed_values" and rule.allowed_values:
+        allowed = {str(v) for v in rule.allowed_values}
+        for idx in range(len(df)):
+            val = df[field].iloc[idx]
+            if val is not None and not (isinstance(val, float) and pd.isna(val)):
+                if str(val) not in allowed:
+                    failing.add(idx)
 
     elif rule.type == "lookup" and rule.lookup_file:
         try:
