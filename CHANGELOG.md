@@ -2,6 +2,83 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.3.0] - 2026-03-22
+
+### Contracts
+
+Seventeen contracts upgraded from thin/weak presence checklists to production-grade
+with deep domain-specific validation and regulatory commentary. AI team contract audit
+(Opus) identified 14 of 40 domain contracts still as presence checklists post-v1.2.3.
+This release clears the backlog completely — the contract portfolio is now 0 thin/weak.
+
+**Bottom 5 upgraded (Weak/Thin → Solid):**
+
+- **`automotive_vehicle`** — ISO 3779 VIN regex (17-char, excludes I/O/Q), DVLA
+  fuel_type / transmission / body_type allowed_values, UK registration format,
+  500k km anomaly warning
+- **`pharma_clinical_trial`** — ClinicalTrials.gov NCT regex, ICH-GCP trial_phase
+  values, CTCAE adverse_event_severity, informed_consent, dose_unit, subject_id
+  uniqueness
+- **`financial_trade`** — ISIN regex (ISO 6166), LEI regex (ISO 17442), trade_side
+  values, MiFID II instrument_type taxonomy, CSDR settlement_status, settlement_date
+  ≥ trade_date compare
+- **`fmcg_product`** — GTIN-8/12/13/14 barcode regex, GS1 GPC category taxonomy,
+  ISO 4217 currency, pack_unit standardisation, ISO 3166-1 country_of_origin
+  (UK Food Information Regulations 2014)
+- **`water_utility_reading`** — MOSL meter_status and read_type values (estimated
+  reads invalid for billing disputes), Ofwat PR24 1,000 m3 anomaly warning,
+  current ≥ previous monotonic compare
+
+**Honourable mentions upgraded (Weak/Thin → Solid):**
+
+- **`media_content`** — EIDR content_type taxonomy, BBFC/PEGI age rating, ISO 639-1
+  language (AVMS Directive), ISO 3166-1 rights_territory, 24h duration anomaly
+- **`technology_event`** — Segment Spec event_type taxonomy, platform values, UUID
+  v4 event_id format, semver sdk_version validation
+- **`agriculture_batch`** — AHDB crop_type taxonomy, certification scheme values
+  (Red Tractor / LEAF Marque / Rainforest Alliance / Fairtrade / GlobalG.A.P.),
+  ISO 3166-1 country_of_origin, yield anomaly warning
+- **`retail_product`** — GTIN barcode regex, GS1 UK department taxonomy, ISO 4217
+  currency, product_status lifecycle values, POS name max_length
+- **`real_estate_property`** — RICS property_type taxonomy, EPC A-G values with
+  MEES Regulations 2018 context, council_tax_band A-I, tenure values, listing_status
+
+**Solid → Production-grade upgrades:**
+
+- **`healthcare_patient`** — NHS 16+1 ethnicity, sex values (NHS Data Dictionary),
+  HES admission_type, discharge_date ≥ admission_date compare, discharge_reason,
+  blood_type annotated as NHS Never Event
+- **`hr_employee`** — HMRC NI number regex (prefix exclusion rules), NMW/NLW salary
+  warning, ISO 4217 salary_currency, employment_status lifecycle, right_to_work_status
+  (Immigration Act 2014, £60k penalty context)
+- **`insurance_claim`** — claim_date ≥ incident_date compare (Insurance Act 2015),
+  ISO 4217 currency, IFB/IFED fraud_indicator taxonomy, excess_amount, extended
+  claim_type including cyber, extended status values
+- **`logistics_shipment`** — ICC Incoterms 2020 (DAT correctly replaced by DPU),
+  HS tariff code regex (UK CDS), shipment_mode values, ISO 4217 currency,
+  estimated_delivery ≥ dispatch compare, weight anomaly, extended status values
+- **`manufacturing_iot`** — ISA-88/ISA-95 device_type taxonomy, ISA-95 status
+  values, IEC 62682 alert_level, humidity 0-100% range, vibration ISO 10816 anomaly,
+  OEE 0-100% bounds, pressure anomaly, extended unit_of_measure
+- **`energy_meter_reading`** — MPAN 13-digit regex (ECOES/DCC), MPRN 6-10 digit
+  regex (Xoserve), Ofgem BSCP read_type values, kWh anomaly, current ≥ previous
+  compare, Ofgem BSC supply_type, extended meter_type (solar_export, ev_charger)
+- **`telecoms_cdr`** — ITU-T E.164 MSISDN regex, GSMA IMEI 15-digit format, PLMN
+  MCC-MNC format, call_end ≥ call_start compare, rating_status lifecycle,
+  roaming_country ISO 3166-1, extended call_type (premium_rate, emergency)
+
+### Fixes
+
+- Remove extraneous `f` prefix from two string literals in `core/onboarding.py`
+  (ruff F541)
+- Rename ambiguous variable `l` → `ln` in `tests/test_core.py` (ruff E741)
+
+### Tests
+
+2,383 passing (was 2,261 in v1.2.3) — 122 new tests from upgraded contracts.
+
+---
+
 ## [1.2.3] - 2026-03-22
 
 ### Features
