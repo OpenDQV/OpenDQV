@@ -13,8 +13,8 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12229/badge)](https://www.bestpractices.dev/projects/12229)
 [![Coverage](https://codecov.io/gh/OpenDQV/OpenDQV/branch/main/graph/badge.svg)](https://codecov.io/gh/OpenDQV/OpenDQV)
 
-| [Docs](docs/) | [Quickstart](docs/quickstart.md) | [Benchmark](docs/benchmark_throughput.md) | [Rules Reference](docs/rules/) | [Salesforce](docs/salesforce_integration.md) | [Ethos](docs/ethos.md) |
-|---|---|---|---|---|---|
+| [Docs](docs/) | [Quickstart](docs/quickstart.md) | [Benchmark](docs/benchmark_throughput.md) | [Rules Reference](docs/rules/) | [Salesforce](docs/salesforce_integration.md) | [Ethos](docs/ethos.md) | [FAQ](docs/faq.md) |
+|---|---|---|---|---|---|---|
 
 **OpenDQV — the validation bouncer that stops bad data at the door.**
 
