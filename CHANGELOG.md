@@ -2,6 +2,36 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.2.1] - 2026-03-22
+
+### UI
+
+- **Governance Audit Trail** — "Version History" tab renamed "Contract Audit &
+  Lifecycle". Now shows hash chain integrity banner (✅ intact / ❌ broken),
+  timeline view with proposed-by / approved-by / rejected-by / rejection-reason
+  per entry, and raw history table in collapsible expander. All governance fields
+  were already stored in the DB; this release surfaces them.
+
+### Documentation
+
+- **`docs/faq.md`** — new FAQ covering: LLM/Claude scripts vs OpenDQV, GE/Soda/dbt
+  comparison, outsourced stored procedures, Databricks/Snowflake migrations, catalog
+  complementarity, production readiness, and quickstart. Linked from nav bar.
+- **README** — compute cost reality section, governance moat in first 200 words,
+  shift-left solution framing, FAQ nav link.
+
+### Fixes
+
+- `core/contracts.py` + `core/storage.py`: `get_history()` now returns
+  `proposed_by`, `proposed_at`, `rejected_by`, `rejected_at`, `rejection_reason`
+- `api/models.py`: `ContractHistoryEntry` exposes all governance fields
+- `tests/test_e2e.py`: `TestContractAuditLifecycle` — 7 Playwright E2E tests
+- Lint: split import (E401) and unused hashlib import (F401) fixed
+
+Suite: 2,181 passing, 24 skipped.
+
+---
+
 ## [1.2.0] - 2026-03-21
 
 ### Contracts
