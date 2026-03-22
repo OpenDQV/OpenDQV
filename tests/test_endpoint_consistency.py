@@ -6,7 +6,7 @@ must return 422 for an unknown context. This test family is parametrised over
 every such endpoint so that when a new one is added, the developer must either
 add it to the list below or make a conscious decision to exclude it.
 
-Motivation: RT77 Fix C — /validate/batch/file was missing the UnknownContextError
+Motivation: /validate/batch/file was missing the UnknownContextError
 try/except that existed on the other two validate endpoints. It was found by
 code review after external stress-testing, not by our own tests.
 

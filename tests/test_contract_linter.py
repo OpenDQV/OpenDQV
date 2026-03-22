@@ -7,7 +7,7 @@ it claims. A regex rule without a pattern is a no-op. A lookup rule without a
 lookup_file skips silently. These tests catch that category of mistake before
 it ships.
 
-Motivation: RT77 — customer.yaml valid_email rule had no pattern, silently
+Motivation: a bug where customer.yaml valid_email rule had no pattern, silently
 accepting all values including invalid emails. 1,000+ tests passed; the bug
 shipped. A linter at load time would have caught it.
 """
@@ -109,7 +109,7 @@ def test_regex_rule_has_pattern(filename, rule, contract):
     """Every regex rule must have a non-empty pattern field.
 
     A regex rule without a pattern is a no-op that always fails every record.
-    This was the root cause of the customer.yaml valid_email bug (RT77 Fix D).
+    This was the root cause of the customer.yaml valid_email bug.
     """
     rule_name = rule.get("name", "<unnamed>")
     assert rule.get("pattern"), (

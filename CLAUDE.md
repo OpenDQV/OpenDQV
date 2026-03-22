@@ -101,7 +101,7 @@ States: `draft` → `review` → `active` | `archived`
 - `docker-compose.dev.yml` does NOT mount `ui/` — rebuild required after `ui/app.py` changes
 - Token generation in smoke tests: `docker compose exec` (live container DB), not `run --rm`
 
-### Windows portability (verified RT96 — Python 3.13.12, real hardware)
+### Windows portability (verified on Python 3.13.12, real hardware)
 - **File encoding** — always pass `encoding="utf-8"` to `read_text()` and `write_text()` on any YAML or text file. Windows defaults to cp1252 which cannot decode bytes like `0x81` or encode characters like `→` (U+2192).
 - **PID liveness** — never use `os.kill(pid, 0)` to check if a process is alive. On Windows, signal 0 is `CTRL_C_EVENT` — it sends Ctrl+C to the target process, causing `KeyboardInterrupt`. Use `_pid_alive()` from `core/onboarding.py` instead (uses `OpenProcess` on Windows, `os.kill` on Unix).
 - **Shell tools** — `tee`, `fuser`, and other Unix utilities are not available on Windows. Do not use them in scripts intended to run cross-platform.

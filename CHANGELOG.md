@@ -4,9 +4,9 @@ All notable changes to OpenDQV are documented here.
 
 ## [1.3.2] - 2026-03-22
 
-### Windows Compatibility (RT96 — Python 3.13.12, real hardware benchmark)
+### Windows Compatibility (Python 3.13.12, verified on real hardware)
 
-- **Windows test runner** — `scripts/windows_test.bat`: 3-run benchmark (matching RT72 Pi 400 methodology), pre-flight disk space + Python 3.11+ checks, UTF-8 mode, summary block with per-run timing, full cleanup. Verified: 2387 passed, 6 skipped, ~4:48 per run
+- **Windows test runner** — `scripts/windows_test.bat`: 3-run benchmark, pre-flight disk space + Python 3.11+ checks, UTF-8 mode, summary block with per-run timing, full cleanup. Verified: 2387 passed, 6 skipped, ~4:48 per run on Python 3.13.12
 - **UTF-8 encoding** — explicit `encoding="utf-8"` on all `read_text()` / `write_text()` calls touching YAML files across `core/contracts.py`, `core/onboarding.py`, `cli.py`, and test files. Windows defaults to cp1252 which cannot decode bytes outside ASCII range
 - **PID liveness check** — replaced `os.kill(pid, 0)` with `_pid_alive()` helper in `core/onboarding.py` and `_pid_exists()` in `core/worker_heartbeat.py`. On Windows, signal 0 is `CTRL_C_EVENT` — calling `os.kill(os.getpid(), 0)` in tests sent Ctrl+C to the pytest process, causing consistent `KeyboardInterrupt` at test ~1902
 - **Session file path** — replaced hardcoded `/tmp/.opendqv_session` with `tempfile.gettempdir()` in `core/onboarding.py`, `ui/app.py`, and test. `/tmp/` does not exist on Windows
@@ -406,7 +406,7 @@ Suite: 1,780 passing, 25 skipped (no new tests — contract-only additions).
   Verifies regex rules have patterns, lookup rules have files, checksum
   rules have algorithms, compare rules have operands, date_format explicit
   formats are valid strftime, all rule types are known. A regression of the
-  RT77 Fix D (`customer.yaml` no-op email rule) would now be caught.
+  a regression of the `customer.yaml` no-op email rule would now be caught.
 - **Endpoint consistency** (`tests/test_endpoint_consistency.py`) — unknown
   context → 422 parametrised across all 6 context-accepting endpoints.
   Adding a new endpoint without updating the list breaks the suite visibly.
@@ -415,7 +415,7 @@ Suite: 1,780 passing, 25 skipped (no new tests — contract-only additions).
   `lookup_auth_header`. Locks in that each field has the effect the model
   promises.
 - **Auth mode matrix** (`tests/test_auth_modes.py`) — tests `/explain` in
-  `AUTH_MODE=open` without a token (RT79 Fix B regression lock), open-mode
+  `AUTH_MODE=open` without a token (regression lock), open-mode
   bypass on key endpoints, token-mode enforcement. Tests the bypass, not
   just the block.
 - **DB isolation** (`tests/conftest.py`) — test DB now uses a fresh temp
@@ -423,7 +423,7 @@ Suite: 1,780 passing, 25 skipped (no new tests — contract-only additions).
   snapshots between runs.
 - **Smoke test Part 4** (`scripts/run_smoke_tests.sh`) — verifies
   `PYTHON=python3.11 bash install.sh` works on a machine where `python3`
-  is not in PATH (RT79 Fix E regression lock).
+  is not in PATH (regression lock).
 
 ---
 

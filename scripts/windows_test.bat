@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 :: ============================================================
 ::  OpenDQV Windows Test Runner
-::  3-run benchmark suite — mirrors the RT72 Pi 400 methodology
+::  3-run benchmark suite
 ::
 ::  Usage: windows_test.bat
 ::  Requirements: Python 3.11+ on PATH, internet access (pip)
@@ -221,7 +221,7 @@ if exist opendqv.db del /f /q opendqv.db
 for /d /r . %%d in (__pycache__) do @if exist "%%d" rmdir /s /q "%%d" 2>nul
 echo Cleanup complete. Repo is back to original state.
 echo.
-echo Report these Run 1/2/3 times in RT96.
+echo Done. Note the Run 1/2/3 times above for your records.
 echo.
 exit /b 0
 
