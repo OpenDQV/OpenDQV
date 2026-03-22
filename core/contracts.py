@@ -678,7 +678,7 @@ class ContractRegistry:
                         text,
                         flags=re.MULTILINE,
                     )
-                path.write_text(new_text)
+                path.write_text(new_text, encoding="utf-8")
                 logger.info("Wrote status=%s back to %s", status.value, path.name)
             except Exception as exc:
                 logger.warning("Could not write status back to YAML for %s: %s", name, exc)
@@ -783,7 +783,7 @@ class ContractRegistry:
         )
 
         path = self.contracts_dir / f"{name}.yaml"
-        path.write_text(self._contract_to_yaml(contract))
+        path.write_text(self._contract_to_yaml(contract), encoding="utf-8")
 
         if name not in self._contracts:
             self._contracts[name] = {}
@@ -976,7 +976,7 @@ class ContractRegistry:
             # ACT-047-02: persist the version field (may have been updated by draft patch counter).
             raw["contract"]["version"] = contract.version
         tmp = path.with_suffix(".yaml.tmp")
-        tmp.write_text(yaml.safe_dump(raw, default_flow_style=False, allow_unicode=True, sort_keys=False))
+        tmp.write_text(yaml.safe_dump(raw, default_flow_style=False, allow_unicode=True, sort_keys=False), encoding="utf-8")
         tmp.replace(path)
 
     def get_rules_with_context(self, contract: DataContract, context: Optional[str] = None) -> list[Rule]:

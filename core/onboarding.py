@@ -1159,7 +1159,7 @@ class OnboardingWizard:
                     yaml_content = generate_contract_yaml(entity, fields)
 
             self.contracts_dir.mkdir(exist_ok=True)
-            contract_path.write_text(yaml_content)
+            contract_path.write_text(yaml_content, encoding="utf-8")
             self.result.contract_path = contract_path
             self._ok(f"Written: contracts/{entity}.yaml ({len(fields)} rules)")
 
