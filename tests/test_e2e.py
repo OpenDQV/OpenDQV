@@ -346,3 +346,174 @@ class TestIndustrySetupWizard:
                     f"Expected 'Keep these industries active' multiselect. Labels: {labels}"
                 return
         pytest.skip("Industry setup expander not found")
+
+
+class TestContractAuditLifecycle:
+    """Tests for the Version History / Contract Audit & Lifecycle tab."""
+
+    def _navigate_to_version_history(self, page):
+        """Navigate to the Version History section via sidebar radio."""
+        sidebar = page.locator("[data-testid='stSidebar']")
+        sidebar.locator("text=Version History").click()
+        page.wait_for_timeout(2000)
+
+    def _load_audit_trail(self, page):
+        """Navigate to Version History, then click Load Audit Trail for the default contract."""
+        self._navigate_to_version_history(page)
+        page.locator("button", has_text="Load Audit Trail").click()
+        page.wait_for_timeout(3000)
+
+    def test_audit_header_visible(self, workbench):
+        """Contract Audit & Lifecycle heading appears after navigating to Version History."""
+        self._navigate_to_version_history(workbench)
+        heading = workbench.locator("text=Contract Audit & Lifecycle")
+        assert heading.count() >= 1, "Contract Audit & Lifecycle heading not found"
+
+    def test_contract_selector_exists(self, workbench):
+        """A selectbox for choosing a contract is visible on the audit tab."""
+        self._navigate_to_version_history(workbench)
+        selectboxes = workbench.locator("[data-testid='stSelectbox']")
+        assert selectboxes.count() >= 1, "No contract selector selectbox found on Version History tab"
+
+    def test_load_audit_trail_button_exists(self, workbench):
+        """The Load Audit Trail button is present on the audit tab."""
+        self._navigate_to_version_history(workbench)
+        btn = workbench.locator("button", has_text="Load Audit Trail")
+        assert btn.count() >= 1, "Load Audit Trail button not found"
+
+    def test_load_audit_trail_responds(self, workbench):
+        """Clicking Load Audit Trail produces a response — banner or info message.
+
+        A fresh stack has no history (history is written when lifecycle operations
+        occur). On empty history the UI shows st.info; on populated history it shows
+        the hash-chain banner (st.success or st.error). Either proves the button
+        works and the API is reachable.
+        """
+        self._load_audit_trail(workbench)
+        success = workbench.locator("[data-testid='stSuccess']").count()
+        error = workbench.locator("[data-testid='stError']").count()
+        info = workbench.locator("[data-testid='stAlert']").count()
+        assert (success + error + info) >= 1, (
+            "Expected any response after clicking Load Audit Trail "
+            "(hash chain banner, error, or no-history info message)"
+        )
+
+    @staticmethod
+    def _container_token(project_root: str, role: str = "editor") -> str:
+        """Generate a token with the given role inside the running API container."""
+        import json as _json
+        username = f"e2e-{role}"
+        result = subprocess.run(
+            ["docker", "compose", "exec", "api", "python", "-c",
+             f"from security.auth import create_pat; import json; "
+             f"print(json.dumps(create_pat('{username}', role='{role}')))"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return _json.loads(result.stdout.strip())["token"]
+
+    @staticmethod
+    def _set_workbench_token(page, token: str) -> None:
+        """Expand the Developer tools sidebar expander and set the PAT token."""
+        sidebar = page.locator("[data-testid='stSidebar']")
+        # Expand the Developer tools expander (collapsed by default)
+        dev_expander = sidebar.locator("[data-testid='stExpander']").filter(has_text="Developer tools")
+        if dev_expander.count() > 0:
+            dev_expander.click()
+            page.wait_for_timeout(500)
+        # Fill the PAT token input (first text input in Developer tools expander)
+        token_input = sidebar.locator("[data-testid='stTextInput']").first
+        token_input.locator("input").fill(token)
+        sidebar.locator("button", has_text="Set Token").click()
+        page.wait_for_timeout(1000)
+
+    @staticmethod
+    def _seed_history(base: str, project_root: str) -> tuple:
+        """Seed audit history for agriculture_batch (default contract at index 0).
+
+        Forks to a new draft version (99.0) and submits for review, generating
+        a history entry. Returns (contract_name, editor_token).
+        """
+        import requests as _req, json as _json
+
+        def _container_token(role):
+            r = subprocess.run(
+                ["docker", "compose", "exec", "api", "python", "-c",
+                 f"from security.auth import create_pat; import json; "
+                 f"print(json.dumps(create_pat('e2e-{role}2', role='{role}')))"],
+                cwd=project_root, capture_output=True, text=True, check=True,
+            )
+            return _json.loads(r.stdout.strip())["token"]
+
+        admin_h = {"Authorization": f"Bearer {_container_token('admin')}"}
+        editor_token = _container_token("editor")
+        editor_h = {"Authorization": f"Bearer {editor_token}"}
+
+        contract = "agriculture_batch"
+        # Bump to draft version 99.0 (idempotent — 409 if already exists)
+        _req.post(
+            f"{base}/api/v1/contracts/{contract}/version",
+            params={"new_version": "99.0"},
+            headers=admin_h,
+        )
+        # Submit draft for review (writes a history entry)
+        _req.post(
+            f"{base}/api/v1/contracts/{contract}/99.0/submit-review",
+            json={"proposed_by": "e2e-test"},
+            headers=editor_h,
+        )
+        return contract, editor_token
+
+    def _load_audit_trail_authenticated(self, page, token: str) -> None:
+        """Set token, navigate to Version History, and click Load Audit Trail.
+
+        More robust than _load_audit_trail: waits for the button to be visible
+        after each navigation step to handle Streamlit reruns from token setting.
+        """
+        self._set_workbench_token(page, token)
+        page.wait_for_timeout(2000)  # allow Streamlit rerun from token set to finish
+        self._navigate_to_version_history(page)
+        # Wait explicitly for the button to appear after navigation
+        btn = page.locator("button", has_text="Load Audit Trail")
+        btn.wait_for(state="visible", timeout=10000)
+        btn.click()
+        page.wait_for_timeout(5000)  # allow API call + Streamlit rerender
+
+    def test_audit_trail_with_history(self, workbench, api_server):
+        """When history exists the hash-chain banner and status badges are visible."""
+        project_root = str(__file__).replace("/tests/test_e2e.py", "")
+        _, editor_token = self._seed_history(api_server, project_root)
+
+        self._load_audit_trail_authenticated(workbench, editor_token)
+
+        content = workbench.locator("[data-testid='stMainBlockContainer']").inner_text() or ""
+        # Streamlit 1.40+ uses stAlert for all alert types (success, error, info, warning)
+        alerts = workbench.locator("[data-testid='stAlert']").count()
+        assert alerts >= 1, (
+            f"Hash chain banner (stAlert) not shown. Visible text: {content[:400]}"
+        )
+        badges = [b for b in ["\U0001f7e2", "\U0001f535", "\U0001f7e1", "\U0001f534"] if b in content]
+        assert len(badges) >= 1, f"No status badges in: {content[:400]}"
+
+    def test_raw_history_expander_exists_with_history(self, workbench, api_server):
+        """Raw history table expander is present when history exists."""
+        project_root = str(__file__).replace("/tests/test_e2e.py", "")
+        _, editor_token = self._seed_history(api_server, project_root)
+
+        self._load_audit_trail_authenticated(workbench, editor_token)
+
+        expanders = workbench.locator("[data-testid='stExpander']").all_text_contents()
+        raw_found = any("Raw history table" in e for e in expanders)
+        assert raw_found, (
+            f"'Raw history table' expander not found. Expanders: {expanders}"
+        )
+
+    def test_audit_tab_does_not_crash(self, workbench):
+        """Version History section loads without a Streamlit Python exception."""
+        self._navigate_to_version_history(workbench)
+        # Streamlit renders exceptions with a heading containing "Error"
+        # and a data-testid="stException" element
+        exceptions = workbench.locator("[data-testid='stException']").count()
+        assert exceptions == 0, "Streamlit rendered a Python exception on the Version History tab"
