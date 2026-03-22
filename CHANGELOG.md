@@ -2,6 +2,28 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.3.2] - 2026-03-22
+
+### Windows Compatibility (RT96 — Python 3.13.12, real hardware benchmark)
+
+- **Windows test runner** — `scripts/windows_test.bat`: 3-run benchmark (matching RT72 Pi 400 methodology), pre-flight disk space + Python 3.11+ checks, UTF-8 mode, summary block with per-run timing, full cleanup. Verified: 2387 passed, 6 skipped, ~4:48 per run
+- **UTF-8 encoding** — explicit `encoding="utf-8"` on all `read_text()` / `write_text()` calls touching YAML files across `core/contracts.py`, `core/onboarding.py`, `cli.py`, and test files. Windows defaults to cp1252 which cannot decode bytes outside ASCII range
+- **PID liveness check** — replaced `os.kill(pid, 0)` with `_pid_alive()` helper in `core/onboarding.py` and `_pid_exists()` in `core/worker_heartbeat.py`. On Windows, signal 0 is `CTRL_C_EVENT` — calling `os.kill(os.getpid(), 0)` in tests sent Ctrl+C to the pytest process, causing consistent `KeyboardInterrupt` at test ~1902
+- **Session file path** — replaced hardcoded `/tmp/.opendqv_session` with `tempfile.gettempdir()` in `core/onboarding.py`, `ui/app.py`, and test. `/tmp/` does not exist on Windows
+- **Null byte path check** — `_check_lookup_path_safe()` now explicitly rejects null bytes. Linux pathlib raises `ValueError` automatically; Windows Python 3.13 does not
+- **Windows event loop** — `tests/conftest.py` sets `WindowsSelectorEventLoopPolicy` on Windows. `ProactorEventLoop` (default on Windows 3.8+) triggers spurious `KeyboardInterrupt` through pytest internals
+- **`asyncio_mode = "auto"`** — added to `pyproject.toml` pytest config for pytest-asyncio 0.23+ compatibility
+- **CLAUDE.md** — Windows portability rules section added for AI teammates
+
+### Documentation & Repository
+
+- **README roadmap** — removed "REST-based lookup rules" from future work (fully implemented since v1.x with `cache_ttl`, thread-safe HTTP cache, auth header support)
+- **README Quick Start** — replaced `https://api.yourcompany.com/` placeholder URLs with working local `ref/order_statuses.txt` and `ref/carriers.txt` lookups; added note that HTTP endpoints are also supported
+- **README Project Structure** — updated to reflect actual layout: 42 contracts, 2387+ tests, `postman/`, all core modules, demo compose
+- **`contracts/ref/order_statuses.txt`** + **`contracts/ref/carriers.txt`** — new lookup ref files for the Quick Start walkthrough
+
+---
+
 ## [1.3.1] - 2026-03-22
 
 ### Developer Experience
