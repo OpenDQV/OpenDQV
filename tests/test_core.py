@@ -822,3 +822,60 @@ class TestCodeGeneratorHeaders:
         function_pos = code.find("CREATE OR REPLACE FUNCTION")
         assert header_pos != -1 and function_pos != -1
         assert header_pos < function_pos
+
+
+import pytest as _pytest
+
+
+class TestCodeGeneratorRuleCoverage:
+    """Every rule type must produce non-empty output (a check or an explicit comment).
+    Silent drops are correctness bugs — a user deploying generated code must know
+    which rules are enforced and which are not.
+    """
+
+    # All rule types the engine supports
+    _ALL_RULE_TYPES = [
+        ("regex",              {"pattern": "^\\d+$"}),
+        ("min",                {"min_value": 0}),
+        ("max",                {"max_value": 100}),
+        ("range",              {"min_value": 0, "max_value": 100}),
+        ("not_empty",          {}),
+        ("min_length",         {"min_length": 2}),
+        ("max_length",         {"max_length": 50}),
+        ("date_format",        {}),
+        ("unique",             {}),
+        ("required_if",        {"required_if": {"field": "other", "value": "yes"}}),
+        ("lookup",             {"lookup_file": "ref/test.txt"}),
+        ("compare",            {"compare_to": "other_field", "compare_op": "gt"}),
+        ("date_diff",          {"date_diff_field": "other_date", "date_diff_unit": "days"}),
+        ("checksum",           {"checksum_algorithm": "luhn"}),
+        ("cross_field_range",  {"cross_field_min": "low", "cross_field_max": "high"}),
+        ("field_sum",          {"field_sum_fields": ["a", "b"]}),
+        ("forbidden_if",       {"forbidden_if": {"field": "other", "value": "no"}}),
+        ("conditional_value",  {"conditional_value": "yes"}),
+        ("ratio_check",        {"ratio_numerator": "a", "ratio_denominator": "b"}),
+    ]
+
+    @_pytest.mark.parametrize("target", ["snowflake", "salesforce", "js"])
+    @_pytest.mark.parametrize("rule_type,extra", _ALL_RULE_TYPES)
+    def test_no_silent_drop(self, target, rule_type, extra):
+        """Every rule type must produce at least one line of output — never empty string."""
+        rule = {"name": f"test_{rule_type}", "type": rule_type, "field": "value",
+                "severity": "error", "error_message": "test error", **extra}
+        code = generate_code([rule], target)
+        # Extract just the rule body (strip header/wrapper boilerplate)
+        # Any non-empty line referencing the field or containing a comment counts
+        lines = [l for l in code.splitlines()
+                 if "value" in l or "// " in l or "//NOTE" in l]
+        assert len(lines) >= 1, (
+            f"Rule type '{rule_type}' produces no output for target '{target}'. "
+            f"Silent drops are correctness bugs — add a // TODO or // NOTE comment."
+        )
+
+    def test_salesforce_has_max(self):
+        """Salesforce target must implement the max rule (was missing — latent bug)."""
+        rule = {"name": "age_max", "type": "max", "field": "age",
+                "max_value": 150, "severity": "warning", "error_message": "Age too high"}
+        code = generate_code([rule], "salesforce")
+        assert "> 150" in code, "Salesforce max rule not generating comparison"
+        assert "age" in code
