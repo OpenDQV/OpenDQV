@@ -28,14 +28,16 @@ contract:
     - name: call_start_format
       field: call_start
       type: date_format
+      format: "%Y-%m-%dT%H:%M:%S"
       severity: error
-      error_message: "call_start must be a valid date (YYYY-MM-DD)"
+      error_message: "call_start must be a valid datetime (YYYY-MM-DDTHH:MM:SS)"
 
     - name: call_end_format
       field: call_end
       type: date_format
+      format: "%Y-%m-%dT%H:%M:%S"
       severity: error
-      error_message: "call_end must be a valid date (YYYY-MM-DD)"
+      error_message: "call_end must be a valid datetime (YYYY-MM-DDTHH:MM:SS)"
 
     - name: duration_seconds_min
       field: duration_seconds
@@ -49,6 +51,13 @@ contract:
       type: not_empty
       severity: error
       error_message: "call_type is required"
+
+    - name: call_type_valid
+      field: call_type
+      type: allowed_values
+      allowed_values: [voice, sms, data, mms, roaming_voice, roaming_data]
+      severity: error
+      error_message: "call_type must be one of: voice, sms, data, mms, roaming_voice, roaming_data"
 
     - name: network_code_required
       field: network_code

@@ -50,6 +50,20 @@ contract:
       severity: error
       error_message: "transaction_type is required"
 
+    - name: transaction_type_valid
+      field: transaction_type
+      type: allowed_values
+      allowed_values: [debit, credit, transfer, payment, refund, fee]
+      severity: error
+      error_message: "transaction_type must be one of: debit, credit, transfer, payment, refund, fee"
+
+    - name: account_number_min_length
+      field: account_number
+      type: min_length
+      min: 6
+      severity: error
+      error_message: "account_number must be at least 6 characters"
+
     - name: merchant_id_required
       field: merchant_id
       type: not_empty

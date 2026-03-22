@@ -25,6 +25,13 @@ contract:
       severity: error
       error_message: "origin_country must be at least 2 characters"
 
+    - name: origin_country_iso_format
+      field: origin_country
+      type: regex
+      pattern: '^[A-Z]{2}$'
+      severity: error
+      error_message: "origin_country must be a valid ISO 3166-1 alpha-2 code (e.g. GB, US, DE)"
+
     - name: destination_country_required
       field: destination_country
       type: not_empty
@@ -37,6 +44,13 @@ contract:
       min: 2
       severity: error
       error_message: "destination_country must be at least 2 characters"
+
+    - name: destination_country_iso_format
+      field: destination_country
+      type: regex
+      pattern: '^[A-Z]{2}$'
+      severity: error
+      error_message: "destination_country must be a valid ISO 3166-1 alpha-2 code (e.g. GB, US, DE)"
 
     - name: dispatch_date_format
       field: dispatch_date
@@ -74,3 +88,10 @@ contract:
       type: not_empty
       severity: error
       error_message: "status is required"
+
+    - name: shipment_status_valid
+      field: status
+      type: allowed_values
+      allowed_values: [pending, dispatched, in_transit, out_for_delivery, delivered, returned, cancelled]
+      severity: error
+      error_message: "status must be one of: pending, dispatched, in_transit, out_for_delivery, delivered, returned, cancelled"

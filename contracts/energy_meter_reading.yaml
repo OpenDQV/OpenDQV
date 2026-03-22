@@ -49,6 +49,20 @@ contract:
       severity: error
       error_message: "meter_type is required"
 
+    - name: meter_type_valid
+      field: meter_type
+      type: allowed_values
+      allowed_values: [electricity, gas, water, heat]
+      severity: error
+      error_message: "meter_type must be one of: electricity, gas, water, heat"
+
+    - name: reading_unit_valid
+      field: reading_unit
+      type: allowed_values
+      allowed_values: [kWh, m3, MJ, kVArh]
+      severity: error
+      error_message: "reading_unit must be one of: kWh, m3, MJ, kVArh"
+
     - name: previous_reading_min
       field: previous_reading
       type: min
