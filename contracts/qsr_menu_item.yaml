@@ -1,6 +1,6 @@
 contract:
   name: qsr_menu_item
-  version: "1.0"
+  version: "1.1"
   description: >
     Natasha's Law (Food Information (Amendment) (England) Regulations 2019)
     compliance contract for Pre-Packed for Direct Sale (PPDS) menu items.
@@ -303,8 +303,17 @@ contract:
 
     # Sulphite concentration: when sulphites are present, record the ppm level.
     # Declaration is only required above 10ppm under UK food information law.
-    # This rule fires only when contains_sulphites = true and enforces min 10ppm
-    # (recording a value below 10ppm indicates the declaration threshold is not met).
+    # required_if forces the field to be present when sulphites are declared;
+    # the min rule then enforces the statutory 10ppm threshold.
+    - name: sulphites_ppm_required_if_sulphites
+      field: sulphites_ppm
+      type: required_if
+      required_if:
+        field: contains_sulphites
+        value: "true"
+      severity: error
+      error_message: "sulphites_ppm is required when contains_sulphites is true — record the concentration in ppm (must be >= 10, the statutory declaration threshold)"
+
     - name: sulphites_ppm_min
       field: sulphites_ppm
       type: min
@@ -333,5 +342,6 @@ contract:
     - name: ppds_review_date_format
       field: ppds_review_date
       type: date_format
+      format: "%Y-%m-%d"
       severity: error
-      error_message: "ppds_review_date must be a valid date (YYYY-MM-DD)"
+      error_message: "ppds_review_date must be a valid ISO 8601 date (YYYY-MM-DD) — required for FSA audit trail"
