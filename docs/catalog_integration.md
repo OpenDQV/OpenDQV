@@ -14,6 +14,7 @@ convention — see [`docs/index.md`](index.md) for the cross-catalog URN table.
 | Atlan | [`atlan_integration.md`](atlan_integration.md) |
 | Collibra | [`collibra_integration.md`](collibra_integration.md) |
 | OpenMetadata | [`openmetadata_integration.md`](openmetadata_integration.md) |
+| Marmot | [`marmot_integration.md`](marmot_integration.md) |
 
 ## Related
 
