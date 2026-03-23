@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── TREE VIEW ─────────────────────────────────────────────────────── -->
+    <record id="view_gdpr_processing_record_tree" model="ir.ui.view">
+        <field name="name">gdpr.processing.record.tree</field>
+        <field name="model">gdpr.processing.record</field>
+        <field name="arch" type="xml">
+            <tree string="ROPA Entries" decoration-warning="not dpo_review_date">
+                <field name="name"/>
+                <field name="controller_name"/>
+                <field name="processing_purpose"/>
+                <field name="lawful_basis"/>
+                <field name="special_category_data"/>
+                <field name="international_transfer"/>
+                <field name="dpo_reviewed_by"/>
+                <field name="dpo_review_date"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ── FORM VIEW ─────────────────────────────────────────────────────── -->
+    <record id="view_gdpr_processing_record_form" model="ir.ui.view">
+        <field name="name">gdpr.processing.record.form</field>
+        <field name="model">gdpr.processing.record</field>
+        <field name="arch" type="xml">
+            <form string="GDPR Article 30 Processing Record">
+                <header/>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name" string="Record ID"/>
+                        <h1><field name="name" placeholder="e.g. ROPA-2025-001"/></h1>
+                    </div>
+
+                    <group string="Controller">
+                        <field name="controller_name"/>
+                    </group>
+
+                    <group string="Processing Activity">
+                        <field name="processing_purpose"/>
+                        <field name="lawful_basis"/>
+                        <field name="data_categories"/>
+                        <field name="data_subjects"/>
+                        <field name="recipients"/>
+                        <field name="retention_period"/>
+                    </group>
+
+                    <!-- Consent fields — shown when lawful_basis = consent -->
+                    <group string="Consent Details"
+                           attrs="{'invisible': [('lawful_basis', '!=', 'consent')]}">
+                        <field name="consent_mechanism"/>
+                        <field name="consent_timestamp"/>
+                        <field name="withdrawal_mechanism"/>
+                    </group>
+
+                    <!-- LIA fields — shown when lawful_basis = legitimate_interests -->
+                    <group string="Legitimate Interests Assessment"
+                           attrs="{'invisible': [('lawful_basis', '!=', 'legitimate_interests')]}">
+                        <field name="lia_completed"/>
+                        <field name="lia_date"
+                               attrs="{'invisible': [('lia_completed', '=', False)]}"/>
+                    </group>
+
+                    <!-- Special category data -->
+                    <group string="Special Category Data (Article 9)">
+                        <field name="special_category_data"/>
+                        <field name="special_category_basis"
+                               attrs="{'invisible': [('special_category_data', '=', False)],
+                                       'required': [('special_category_data', '=', True)]}"/>
+                        <field name="special_category_types"
+                               attrs="{'invisible': [('special_category_data', '=', False)],
+                                       'required': [('special_category_data', '=', True)]}"/>
+                    </group>
+
+                    <!-- International transfers -->
+                    <group string="International Transfers (Articles 44–49)">
+                        <field name="international_transfer"/>
+                        <field name="transfer_safeguard"
+                               attrs="{'invisible': [('international_transfer', '=', False)],
+                                       'required': [('international_transfer', '=', True)]}"/>
+                    </group>
+
+                    <!-- DPO audit trail -->
+                    <group string="DPO Compliance Review">
+                        <field name="dpo_reviewed_by"/>
+                        <field name="dpo_review_date"/>
+                    </group>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── SEARCH VIEW ───────────────────────────────────────────────────── -->
+    <record id="view_gdpr_processing_record_search" model="ir.ui.view">
+        <field name="name">gdpr.processing.record.search</field>
+        <field name="model">gdpr.processing.record</field>
+        <field name="arch" type="xml">
+            <search string="Search ROPA">
+                <field name="name"/>
+                <field name="controller_name"/>
+                <field name="lawful_basis"/>
+                <filter string="Special Category Data" name="special_category"
+                        domain="[('special_category_data', '=', True)]"/>
+                <filter string="International Transfers" name="international"
+                        domain="[('international_transfer', '=', True)]"/>
+                <filter string="Consent Basis" name="consent"
+                        domain="[('lawful_basis', '=', 'consent')]"/>
+                <filter string="Awaiting DPO Review" name="no_dpo_review"
+                        domain="[('dpo_review_date', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Lawful Basis" name="group_lawful_basis"
+                            context="{'group_by': 'lawful_basis'}"/>
+                    <filter string="Controller" name="group_controller"
+                            context="{'group_by': 'controller_name'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ── ACTION ────────────────────────────────────────────────────────── -->
+    <record id="action_gdpr_processing_record" model="ir.actions.act_window">
+        <field name="name">Processing Records (ROPA)</field>
+        <field name="res_model">gdpr.processing.record</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_gdpr_processing_record_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Add your first ROPA entry
+            </p>
+            <p>
+                Record your Article 30 UK GDPR processing activities here.
+                Each entry is validated by OpenDQV before saving — lawful basis,
+                data categories, retention period, and all conditional fields must
+                be complete.
+            </p>
+        </field>
+    </record>
+
+</odoo>
