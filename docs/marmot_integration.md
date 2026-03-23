@@ -323,6 +323,123 @@ This is the **governance-first** integration pattern: no scheduled jobs, no ETL 
 
 ---
 
+## Approach 5 — Contract as Lineage Node
+
+Most data lineage tools draw the graph *after* data moves:
+
+```
+Source system → dbt model → Warehouse table → Dashboard
+```
+
+OpenDQV enforces at the **write boundary** — at every arrow in that graph. This approach makes OpenDQV contracts visible inside Marmot's lineage view, so governance teams can see not just where data flows but **what rules it had to satisfy to cross each boundary**.
+
+### What it looks like
+
+```
+Postgres (source)
+    │
+    │  every INSERT validated against customer_master v1.2 ✓
+    ▼
+[OpenDQV contract: customer_master]   ← visible in Marmot lineage
+    │  contract_hash: a3f9...  status: active
+    │  12 rules  last_validated: 2026-03-23T14:32:00Z
+    ▼
+Snowflake (analytics.public.customers)
+    │
+    ▼
+Dashboard
+```
+
+Each contract node carries: contract name, version, hash, status, rule count, and last validation timestamp. Any data that reached the warehouse passed through that checkpoint.
+
+### How it works
+
+No new OpenDQV internals are needed. The pattern uses `asset_id`, the Marmot assets API, and a `opendqv.validation.passed` webhook to keep the lineage node current.
+
+**Step 1 — Register the contract as a Marmot lineage asset**
+
+```python
+# pip install requests
+import requests
+
+OPENDQV_URL = "http://localhost:8000"
+OPENDQV_TOKEN = "<OPENDQV_TOKEN>"
+MARMOT_URL = "http://marmot.internal"
+MARMOT_TOKEN = "<MARMOT_API_TOKEN>"
+
+contract = requests.get(
+    f"{OPENDQV_URL}/api/v1/contracts/customer_master",
+    headers={"Authorization": f"Bearer {OPENDQV_TOKEN}"},
+).json()
+
+lineage_node = {
+    "name": f"OpenDQV: {contract['name']}",
+    "type": "validation_contract",
+    "description": (
+        f"OpenDQV contract enforced at the write boundary for this asset. "
+        f"Version {contract.get('version')} · {len(contract.get('rules', []))} rules · "
+        f"Status: {contract.get('status')}"
+    ),
+    "metadata": {
+        "contract_name":    contract["name"],
+        "contract_version": contract.get("version", ""),
+        "contract_hash":    contract.get("contract_hash", ""),
+        "contract_status":  contract.get("status", ""),
+        "rule_count":       str(len(contract.get("rules", []))),
+        "opendqv_url":      f"{OPENDQV_URL}/api/v1/contracts/{contract['name']}",
+    },
+    "tags": ["opendqv", "write-time-enforcement", f"v{contract.get('version', 'unknown')}"],
+}
+
+resp = requests.post(
+    f"{MARMOT_URL}/api/v1/assets",
+    json=lineage_node,
+    headers={
+        "Authorization": f"Bearer {MARMOT_TOKEN}",
+        "Content-Type": "application/json",
+    },
+)
+print(f"Registered lineage node: {resp.status_code}")
+```
+
+**Step 2 — Link the contract node between source and destination assets in Marmot lineage**
+
+Once the contract node exists as a Marmot asset, use Marmot's lineage API to insert it between the source and destination assets:
+
+```
+source_asset → contract_node → destination_asset
+```
+
+Refer to Marmot's lineage endpoint (`/api/v1/lineage`) in your instance's Swagger UI for the exact edge creation payload.
+
+**Step 3 — Keep the node current with a webhook**
+
+Register an OpenDQV webhook for `opendqv.contract.updated` to refresh the Marmot lineage node whenever the contract version or hash changes:
+
+```bash
+curl -s -X POST http://localhost:8000/api/v1/webhooks \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $OPENDQV_TOKEN" \
+  -d '{
+    "url": "http://your-receiver:9000/webhooks/marmot-lineage",
+    "events": ["opendqv.contract.updated", "opendqv.contract.activated"],
+    "secret": "your-webhook-secret"
+  }'
+```
+
+### Why this matters
+
+| Without Approach 5 | With Approach 5 |
+|---|---|
+| Marmot lineage shows data movement | Marmot lineage shows data movement **and** the validation checkpoint it passed through |
+| "This data came from Postgres" | "This data came from Postgres and satisfied `customer_master` v1.2 (12 rules, hash a3f9...)" |
+| Governance is implicit | Governance is **visible and auditable** in the lineage graph |
+| Contract version unknown at query time | Contract version pinned to every lineage edge |
+
+This is the pattern that closes the loop between write-time enforcement (OpenDQV) and discovery/lineage (Marmot) — making the bouncer visible at the door in every diagram your governance team draws.
+
+---
+
 ## Incremental Sync with `contract_hash`
 
 Avoid pushing unchanged contracts by persisting the last-seen hash in a local state file. Add this wrapper around any of the approaches above.
