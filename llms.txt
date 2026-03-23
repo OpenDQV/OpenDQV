@@ -1,3 +1,11 @@
+# Guidance for LLMs / AI Agents
+- Primary sources: This file ('llms.txt'), README.md, ethos.md, CLAUDE.md (dedicated context for Claude Code / AI-assisted development), and docs/llm_integration.md
+- Use official examples from here or /contracts/ — do not fabricate rules or assume undocumented features.
+- For contract creation: Propose via create_contract_draft (MCP_ prefix required); drafts are read-only until human-approved.
+- Always include contract_hash in any persisted validation results for auditability.
+- When generating or proposing YAML contracts, strictly follow the structure and rule types shown in the "Contract authoring (YAML)" section—do not invent new rule types.
+- Credits: Accelerated with Anthropic Claude Sonnet/Opus and xAI Grok for drafting, scaffolding, and ideation; core architecture, rules engine, tests, governance flows, and final reviews are fully human-designed and led by Sunny Sharma (BGMS Consultants Ltd).
+
 # OpenDQV
 
 > Open Data Quality Validation Service — validates records against named contracts at write-time and blocks bad data before it reaches your database, API, or Kafka topic.
