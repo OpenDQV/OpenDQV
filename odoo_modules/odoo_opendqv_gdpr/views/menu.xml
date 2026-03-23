@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem id="menu_gdpr_root"
+              name="GDPR"
+              sequence="90"/>
+
+    <menuitem id="menu_gdpr_ropa"
+              name="Article 30 ROPA"
+              parent="menu_gdpr_root"
+              action="action_gdpr_processing_record"
+              sequence="10"/>
+
+</odoo>
