@@ -293,5 +293,5 @@ it at `Dish.clean()` before the record reaches the database.
 - Reference files: `contracts/ref/allergen_boolean.txt`, `allergen_gluten_cereals.txt`,
   `allergen_tree_nut_types.txt`, `qsr_item_categories.txt`
 - AllerEasy: [allereasy.co.uk](https://www.allereasy.co.uk/) — open-source Django allergen management
-- UK legislation: [food.gov.uk/business-guidance/natashas-law](https://www.food.gov.uk/business-guidance/natashas-law)
+- UK legislation: [food.gov.uk/business-guidance/natashas-law](https://www.food.gov.uk/business-guidance/introduction-to-allergen-labelling-changes-ppds)
 - EU FIC: Regulation (EU) No 1169/2011
