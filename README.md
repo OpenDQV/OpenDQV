@@ -247,10 +247,9 @@ of write, before the data reaches your pipeline.
 > - **Linux:** type `python3 --version` in a terminal. To install: `sudo apt install python3.11` (Ubuntu/Debian).
 
 1. **Download the ZIP:**
-   👉 [OpenDQV-v1.0.7.zip](https://github.com/OpenDQV/OpenDQV/archive/refs/tags/v1.0.7.zip)
-   *(or [browse all releases](https://github.com/OpenDQV/OpenDQV/releases))*
+   👉 [Latest release](https://github.com/OpenDQV/OpenDQV/releases/latest) — scroll down to **Assets** and click **Source code (zip)**
 
-2. **Unzip it** somewhere you can find it (your Desktop is fine). You should see a folder called `OpenDQV-1.0.7` or similar.
+2. **Unzip it** somewhere you can find it (your Desktop is fine). You should see a folder called `OpenDQV-X.Y.Z` where X.Y.Z is the version number.
 
 3. **Install and run:**
 
@@ -258,10 +257,10 @@ of write, before the data reaches your pipeline.
 
    **Mac** — open Spotlight (⌘ Space), search for "Terminal", and open it. Then type:
    ```bash
-   cd ~/Desktop/OpenDQV-1.0.7
+   cd ~/Desktop/OpenDQV-X.Y.Z
    bash install.sh
    ```
-   *(replace `Desktop/OpenDQV-1.0.7` with wherever you unzipped it)*
+   *(replace `Desktop/OpenDQV-X.Y.Z` with the actual folder name and wherever you unzipped it)*
 
    **Linux** — open a terminal, navigate to the unzipped folder, and run:
    ```bash
