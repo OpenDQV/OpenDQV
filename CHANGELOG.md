@@ -2,6 +2,17 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.4.0] - 2026-03-23
+
+### Martyn's Law — Pretix event ticketing integration
+
+- **`pretix_event` contract** — 26-rule Martyn's Law compliance contract for [Pretix](https://pretix.eu) (open-source AGPL v3 event ticketing platform). Enforces expected attendance (min: 200), duty tier declaration (standard/enhanced), evacuation/invacuation/lockdown procedures, pre-event staff briefing, enhanced-duty fields (Senior Responsible Person, SIA notification reference, Terrorism Protection Plan), and a compliance audit trail — all at the point of write via a Django `pre_save` signal and OpenDQV's `LocalValidator` SDK
+- **`docs/integrations/pretix.md`** — full integration guide: the structural gap (Pretix has no capacity field or emergency procedure model), 14 new nullable fields, `pre_save` signal implementation, zero breaking changes, opt-in via `ENABLE_OPENDQV_VALIDATION=true`
+- **`docs/integrations/martyns-law-compliance.md`** — OSS project integrations table added; Pretix cross-reference
+- **`examples/pretix/`** — starter contract + valid standard event, valid enhanced event, invalid missing procedures samples
+
+---
+
 ## [1.3.3] - 2026-03-23
 
 ### Natasha's Law — qsr_menu_item contract fixes
