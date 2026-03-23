@@ -197,4 +197,4 @@ If you are integrating OpenDQV directly with a POS or custom recipe management s
 - Contract: `contracts/allereasy_dish.yaml`
 - Contract: `contracts/qsr_menu_item.yaml`
 - Natasha's Law guide: [docs/integrations/natasha-law-compliance.md](natasha-law-compliance.md)
-- UK legislation: [food.gov.uk/business-guidance/natashas-law](https://www.food.gov.uk/business-guidance/natashas-law)
+- UK legislation: [food.gov.uk/business-guidance/natashas-law](https://www.food.gov.uk/business-guidance/introduction-to-allergen-labelling-changes-ppds)
