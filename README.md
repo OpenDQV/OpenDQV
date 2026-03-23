@@ -352,8 +352,8 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 # Requires SECRET_KEY to be set in .env — deployment will refuse to start without it.
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
-# Pull a specific version:
-docker pull ghcr.io/opendqv/opendqv:1.0.7
+# Pull the latest version:
+docker pull ghcr.io/opendqv/opendqv:latest
 
 # Build from source instead (if you've modified the code):
 docker compose up -d --build
