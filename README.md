@@ -12,6 +12,7 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12229/badge)](https://www.bestpractices.dev/projects/12229)
 [![Coverage](https://codecov.io/gh/OpenDQV/OpenDQV/branch/main/graph/badge.svg)](https://codecov.io/gh/OpenDQV/OpenDQV)
+[![Links](https://github.com/OpenDQV/OpenDQV/actions/workflows/link-check.yml/badge.svg)](https://github.com/OpenDQV/OpenDQV/actions/workflows/link-check.yml)
 [![Postman Collection](https://img.shields.io/badge/Postman-collection-orange?logo=postman)](https://github.com/OpenDQV/OpenDQV/tree/main/postman)
 
 | [Docs](docs/) | [Quickstart](docs/quickstart.md) | [Benchmark](docs/benchmark_throughput.md) | [Rules Reference](docs/rules/) | [Salesforce](docs/salesforce_integration.md) | [Postgres](docs/postgres_integration.md) | [Databricks](docs/databricks_integration.md) | [Snowflake](docs/snowflake_integration.md) | [Ethos](docs/ethos.md) | [FAQ](docs/faq.md) |

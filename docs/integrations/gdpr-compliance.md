@@ -223,6 +223,6 @@ python -m cli validate gdpr_dsar_request '{
 
 ## ICO guidance references
 
-- [UK GDPR Article 30 — Records of processing activities](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/documentation/what-do-we-need-to-document/)
+- [UK GDPR Article 30 — Records of processing activities](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/documentation/what-do-we-need-to-document-under-article-30-of-the-gdpr/)
 - [Right of access (Article 15)](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/individual-rights/right-of-access/)
-- [Responding to a subject access request](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/individual-rights/right-of-access/how-do-we-respond-to-a-subject-access-request/)
+- [Responding to a subject access request](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/individual-rights/right-of-access/what-should-we-consider-when-responding-to-a-request/)

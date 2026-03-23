@@ -38,6 +38,9 @@ jobs:
             --exclude "^https://github\.com/OpenDQV/OpenDQV/actions"
             --exclude "^https://codecov\.io"
             --exclude "file://"
+            --exclude "fda\.gov"
+            --exclude "sia\.homeoffice\.gov\.uk"
+            --exclude "securityscorecards\.dev/#/"
             '**/*.md'
           fail: true
         env:
