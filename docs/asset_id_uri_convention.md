@@ -29,7 +29,7 @@ opendqv://<catalog>/<domain>/<entity>[/<subentity>][?version=<semver>]
 
 | Segment        | Description |
 |---------------|-------------|
-| `catalog`     | The catalog system: `collibra`, `datahub`, `atlan`, `alation`, `openmetadata`, `local` |
+| `catalog`     | The catalog system: `collibra`, `datahub`, `atlan`, `alation`, `openmetadata`, `marmot`, `local` |
 | `domain`      | Business domain owning the data: `finance`, `customer`, `product`, `logistics`, etc. |
 | `entity`      | The dataset, table, or topic name |
 | `subentity`   | Optional: sub-table, partition, or stream topic |
@@ -42,6 +42,7 @@ opendqv://collibra/finance/settlements/daily_batch
 opendqv://datahub/customer/crm_contacts
 opendqv://atlan/product/inventory_snapshots?version=1.2
 opendqv://openmetadata/logistics/shipment_events
+opendqv://marmot/customer/crm_contacts
 opendqv://local/marketing/email_campaigns
 ```
 

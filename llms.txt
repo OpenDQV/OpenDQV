@@ -133,7 +133,7 @@ OpenDQV is the **write-time** layer. It blocks records before they enter any sys
 | Streaming gate | Kafka (validate before committing offset) |
 | Warehouse gate | Snowflake (Python connector, External Function, Snowpipe) |
 | Lakehouse gate | Databricks / Spark (Delta Lake, Structured Streaming, DLT) |
-| Governance catalog | Collibra, DataHub, Atlan, OpenMetadata |
+| Governance catalog | Collibra, DataHub, Atlan, OpenMetadata, Marmot |
 
 ## Integration guides
 
@@ -154,6 +154,7 @@ OpenDQV is the **write-time** layer. It blocks records before they enter any sys
 - `docs/datahub_integration.md` — sync contracts to DataHub via Python SDK
 - `docs/atlan_integration.md` — sync contracts to Atlan
 - `docs/openmetadata_integration.md` — sync contracts to OpenMetadata
+- `docs/marmot_integration.md` — sync contracts to Marmot; webhook quality tagging; MCP bridge
 - `docs/importers.md` — import from GX, dbt, Soda, CSV, ODCS, CSVW, OTel, NDC
 - `docs/webhooks.md` — webhook events (`opendqv.validation.failed`, `opendqv.validation.warning`, `opendqv.batch.failed`); payload schema
 
