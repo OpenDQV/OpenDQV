@@ -2,6 +2,18 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.3.3] - 2026-03-23
+
+### Natasha's Law — qsr_menu_item contract fixes
+
+Two compliance gaps in the `qsr_menu_item` contract (Natasha's Law / PPDS enforcement) closed:
+
+- **`sulphites_ppm` now required when sulphites declared** — added `required_if: {field: contains_sulphites, value: "true"}` rule. Previously, if `contains_sulphites = "true"` but `sulphites_ppm` was absent, the `min: 10` threshold check silently never fired — a record could pass validation with sulphites declared but no concentration recorded
+- **`ppds_review_date` now enforces ISO 8601 format** — added `format: "%Y-%m-%d"` to the `date_format` rule. Previously any parseable date (including `"03/21/2026"`) was accepted; FSA audit requirements demand unambiguous ISO 8601 dates
+- Contract version bumped: `1.0` → `1.1`
+
+---
+
 ## [1.3.2] - 2026-03-22
 
 ### Windows Compatibility (Python 3.13.12, verified on real hardware)
