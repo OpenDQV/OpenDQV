@@ -41,6 +41,7 @@ jobs:
             --exclude "fda\.gov"
             --exclude "sia\.homeoffice\.gov\.uk"
             --exclude "securityscorecards\.dev/#/"
+            --exclude "claude\.ai"
             '**/*.md'
           fail: true
         env:
