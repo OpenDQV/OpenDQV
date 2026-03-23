@@ -64,7 +64,7 @@ postgres = ["psycopg2-binary"]
 pytest = "^8.0"
 pytest-asyncio = "^0.23"
 pytest-cov = "^4.0"
-pytest-playwright = "^0.4"
+pytest-playwright = ">=0.4,<0.8"
 ruff = "^0.4"
 mcp = ">=1.0.0"
 
