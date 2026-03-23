@@ -39,7 +39,7 @@ A mature data governance programme operates across three layers, each with a dis
 | Layer | Purpose | Tools |
 |---|---|---|
 | **1. Write-time enforcement** | Prevent bad data from entering any system | **OpenDQV** |
-| **2. Catalog / governance / stewardship** | Ownership, glossary, lineage, policy, stewardship workflows | Alation, Atlan, Collibra, Purview, DataHub |
+| **2. Catalog / governance / stewardship** | Ownership, glossary, lineage, policy, stewardship workflows | Alation, Atlan, Collibra, Purview, DataHub, Marmot |
 | **3. Pipeline testing / observability** | Detect drift, freshness issues, residual quality after ingestion | Great Expectations, Soda Core, dbt tests, Monte Carlo |
 
 OpenDQV owns layer one. Your catalog handles layer two, your pipeline tools handle layer three. OpenDQV is the bouncer — nothing else. The Layer 3 teams tell you how bad it got; OpenDQV stops it before it lands.
@@ -230,7 +230,7 @@ of write, before the data reaches your pipeline.
 - **Not a semantic layer** — it does not define business meaning or ontology mappings
 - **Not an SLA monitor** — it does not track or alert on service level obligations
 - **Not a lineage tracker** — it does not model upstream data dependencies
-- **Not a replacement for Collibra, DataHub, Atlan, or Purview** — it complements them. A governance team running Atlan or Collibra for stewardship should think of OpenDQV as the enforcement layer that sits upstream of everything their catalog manages — it ensures the data being governed was clean before it arrived.
+- **Not a replacement for Collibra, DataHub, Atlan, Purview, or Marmot** — it complements them. A governance team running Atlan, Collibra, or Marmot for stewardship should think of OpenDQV as the enforcement layer that sits upstream of everything their catalog manages — it ensures the data being governed was clean before it arrived.
 
 - **Not a data profiler or drift monitor** — it does not monitor data distributions over time or detect schema drift. For that, use [Great Expectations](https://greatexpectations.io), [Soda](https://www.soda.io), or [Evidently](https://evidentlyai.com). The built-in `profile_records()` function generates *suggested validation rules* from a sample of records — a one-time bootstrapping aid, not a monitoring system.
 
@@ -1569,12 +1569,13 @@ Only a subset of docs appear in the sections above. Full index:
 - [docs/montecarlo_integration.md](docs/montecarlo_integration.md) — Trace log shipping; webhook correlation; asset_id bridge
 
 *Data catalogs*
-- [docs/catalog_integration.md](docs/catalog_integration.md) — Catalog integration index (DataHub, Atlan, Collibra, Purview, OpenMetadata)
+- [docs/catalog_integration.md](docs/catalog_integration.md) — Catalog integration index (DataHub, Atlan, Collibra, Purview, OpenMetadata, Marmot)
 - [docs/collibra_integration.md](docs/collibra_integration.md) — Contract sync; DQ scores; workflow triggers; rule-level mapping
 - [docs/purview_integration.md](docs/purview_integration.md) — Azure Purview: custom attributes; quality scores; Event Hub webhook
 - [docs/datahub_integration.md](docs/datahub_integration.md) — Sync contracts to DataHub via Python SDK
 - [docs/atlan_integration.md](docs/atlan_integration.md) — Sync contracts to Atlan
 - [docs/openmetadata_integration.md](docs/openmetadata_integration.md) — Sync contracts to OpenMetadata
+- [docs/marmot_integration.md](docs/marmot_integration.md) — Sync contracts to Marmot; webhook quality tagging; MCP bridge
 
 *Other*
 - [docs/webhooks.md](docs/webhooks.md) — Webhook events, payload schema, retry behaviour
