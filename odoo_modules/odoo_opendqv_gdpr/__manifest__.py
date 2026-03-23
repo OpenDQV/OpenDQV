@@ -19,11 +19,11 @@ Validation is powered by OpenDQV (https://github.com/OpenDQV/OpenDQV) and the
 ``gdpr_processing_record`` contract. Enable by installing opendqv and setting
 ``ENABLE_OPENDQV_VALIDATION=true``.
 
-Zero breaking changes. Fully opt-in. MIT licensed.
+Zero breaking changes. Fully opt-in. LGPL-3 licensed.
     """,
     'author': 'Sunny Sharma / OpenDQV',
     'website': 'https://github.com/OpenDQV/OpenDQV',
-    'license': 'MIT',
+    'license': 'LGPL-3',
     'depends': ['base', 'mail'],
     'data': [
         'security/ir.model.access.csv',
