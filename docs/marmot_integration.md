@@ -1,7 +1,9 @@
 # Marmot Integration Guide
 
 > **Marmot version:** This guide targets Marmot v0.x (MIT, https://github.com/marmotdata/marmot).
-> Verify endpoint paths against your Marmot instance's Swagger UI (`/swagger/index.html`) before deploying.
+> Verify all Marmot API endpoint paths and request payloads against your instance's Swagger UI
+> (`/swagger/index.html`) before deploying — Marmot is pre-1.0 and field names may differ.
+> OpenDQV webhook event names are verified against `core/webhooks.py`.
 
 OpenDQV and Marmot serve complementary roles: OpenDQV validates data at the write boundary and governs contracts; Marmot provides data discovery, lineage visualisation, and asset cataloging across your estate. Neither replaces the other — together they close the governance loop from "what data do we have?" to "is it valid before it lands?"
 
@@ -414,7 +416,7 @@ Refer to Marmot's lineage endpoint (`/api/v1/lineage`) in your instance's Swagge
 
 **Step 3 — Keep the node current with a webhook**
 
-Register an OpenDQV webhook for `opendqv.contract.updated` to refresh the Marmot lineage node whenever the contract version or hash changes:
+Register an OpenDQV webhook for `opendqv.contract.approved` to refresh the Marmot lineage node whenever a contract is promoted to ACTIVE:
 
 ```bash
 curl -s -X POST http://localhost:8000/api/v1/webhooks \
@@ -422,7 +424,7 @@ curl -s -X POST http://localhost:8000/api/v1/webhooks \
   -H "Authorization: Bearer $OPENDQV_TOKEN" \
   -d '{
     "url": "http://your-receiver:9000/webhooks/marmot-lineage",
-    "events": ["opendqv.contract.updated", "opendqv.contract.activated"],
+    "events": ["opendqv.contract.approved"],
     "secret": "your-webhook-secret"
   }'
 ```
