@@ -175,4 +175,4 @@ an accountability anchor.
 - Reference files: `contracts/ref/companies_house_roles.txt`,
   `contracts/ref/companies_house_id_verification_methods.txt`
 - UK legislation: [legislation.gov.uk — Economic Crime and Corporate Transparency Act 2023](https://www.legislation.gov.uk/ukpga/2023/56)
-- Companies House identity verification: [companieshouse.gov.uk](https://www.gov.uk/guidance/companies-house-identity-verification)
+- Companies House identity verification: [companieshouse.gov.uk](https://www.gov.uk/guidance/verify-your-identity-for-companies-house)
