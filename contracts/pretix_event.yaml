@@ -1,0 +1,237 @@
+contract:
+  name: pretix_event
+  version: "1.0"
+  description: >
+    Martyn's Law (Terrorism (Protection of Premises) Act 2025) compliance audit
+    trail contract for Pretix event records. Pretix (pretix/pretix, AGPL v3) is a
+    widely deployed open-source event ticketing platform with no venue capacity field
+    and no emergency procedure data model. This contract enforces that every qualifying
+    Pretix event (200+ expected attendance) has documented evacuation, invacuation,
+    and lockdown procedures with a pre-event staff briefing and a timestamped compliance
+    review — closing the structural gap before the record is saved.
+    Named after Martyn Hett (1987–2017), killed in the Manchester Arena attack.
+    See docs/opendqv-integration.md for integration guide.
+  owner: "Pretix"
+  status: active
+
+  rules:
+
+    # ── EVENT IDENTITY ────────────────────────────────────────────────────────
+    # Maps to existing Pretix Event model fields: name and slug.
+    - name: event_name_required
+      field: event_name
+      type: not_empty
+      severity: error
+      error_message: "event_name is required — maps to Pretix Event.name"
+
+    - name: event_slug_required
+      field: event_slug
+      type: not_empty
+      severity: error
+      error_message: "event_slug is required — maps to Pretix Event.slug (unique event identifier)"
+
+    # ── EXPECTED ATTENDANCE ───────────────────────────────────────────────────
+    # Pretix tracks ticket quotas per tier but has no single expected_attendance
+    # integer. This field is added by the OpenDQV integration and represents the
+    # organiser's declared expected total attendance — the primary trigger for
+    # Martyn's Law scope (200+) and tier determination (standard/enhanced).
+    - name: expected_attendance_required
+      field: expected_attendance
+      type: not_empty
+      severity: error
+      error_message: "expected_attendance is required — Martyn's Law applies to qualifying events with an expected attendance of 200 or more (Terrorism (Protection of Premises) Act 2025)"
+
+    - name: expected_attendance_minimum
+      field: expected_attendance
+      type: min
+      min: 200
+      severity: error
+      error_message: "expected_attendance must be >= 200 — Martyn's Law applies only to qualifying events with 200 or more persons expected to attend"
+
+    # ── DUTY TIER DECLARATION ─────────────────────────────────────────────────
+    # Operator declares; contract enforces tier-conditional completeness.
+    # Standard duty: 200–799 expected attendance.
+    # Enhanced duty: 800+ expected attendance.
+    - name: duty_tier_required
+      field: duty_tier
+      type: not_empty
+      severity: error
+      error_message: "duty_tier is required — declare 'standard' (200–799 expected attendance) or 'enhanced' (800+ expected attendance)"
+
+    - name: duty_tier_valid
+      field: duty_tier
+      type: lookup
+      lookup_file: ref/martyns_law_duty_tiers.txt
+      severity: error
+      error_message: "duty_tier must be 'standard' or 'enhanced'"
+
+    # ── STANDARD DUTY — ALL QUALIFYING EVENTS ────────────────────────────────
+    # Every qualifying event (200+) must have documented evacuation, invacuation
+    # (shelter-in-place), and lockdown procedures specific to the event site and
+    # layout. All staff and volunteers must be briefed on those procedures before
+    # the event opens. Pretix has none of these fields — they are added by the
+    # OpenDQV integration PR to the Event model.
+
+    - name: evacuation_procedure_documented_required
+      field: evacuation_procedure_documented
+      type: not_empty
+      severity: error
+      error_message: "evacuation_procedure_documented must be declared (true or false) — a documented evacuation procedure is required for all qualifying events under Martyn's Law (Terrorism (Protection of Premises) Act 2025)"
+
+    - name: evacuation_procedure_documented_valid
+      field: evacuation_procedure_documented
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "evacuation_procedure_documented must be 'true' or 'false'"
+
+    - name: invacuation_procedure_documented_required
+      field: invacuation_procedure_documented
+      type: not_empty
+      severity: error
+      error_message: "invacuation_procedure_documented must be declared (true or false) — a shelter-in-place (invacuation) procedure is required for all qualifying events under Martyn's Law"
+
+    - name: invacuation_procedure_documented_valid
+      field: invacuation_procedure_documented
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "invacuation_procedure_documented must be 'true' or 'false'"
+
+    - name: lockdown_procedure_documented_required
+      field: lockdown_procedure_documented
+      type: not_empty
+      severity: error
+      error_message: "lockdown_procedure_documented must be declared (true or false) — a lockdown procedure is required for all qualifying events under Martyn's Law"
+
+    - name: lockdown_procedure_documented_valid
+      field: lockdown_procedure_documented
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "lockdown_procedure_documented must be 'true' or 'false'"
+
+    - name: staff_briefing_completed_required
+      field: staff_briefing_completed
+      type: not_empty
+      severity: error
+      error_message: "staff_briefing_completed must be declared (true or false) — all staff and volunteers must be briefed on the emergency procedures before the event opens (Martyn's Law)"
+
+    - name: staff_briefing_completed_valid
+      field: staff_briefing_completed
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: "staff_briefing_completed must be 'true' or 'false'"
+
+    # When briefing is confirmed complete, the date must be recorded.
+    - name: staff_briefing_date_required_if_completed
+      field: staff_briefing_date
+      type: required_if
+      required_if:
+        field: staff_briefing_completed
+        value: "true"
+      severity: error
+      error_message: "staff_briefing_date is required when staff_briefing_completed is true — record the date the pre-event staff briefing was completed"
+
+    - name: staff_briefing_date_format
+      field: staff_briefing_date
+      type: date_format
+      condition:
+        field: staff_briefing_completed
+        value: "true"
+      severity: error
+      error_message: "staff_briefing_date must be a valid date (YYYY-MM-DD)"
+
+    # ── ENHANCED DUTY — REQUIRED WHEN duty_tier = enhanced ───────────────────
+    # Qualifying events with an expected attendance of 800+ are subject to
+    # enhanced duty. For events, the SIA obligation is notification (not
+    # registration — registration applies to permanent premises). A Terrorism
+    # Protection Plan specific to the event must be prepared and reviewed.
+
+    - name: senior_responsible_person_required_if_enhanced
+      field: senior_responsible_person
+      type: required_if
+      required_if:
+        field: duty_tier
+        value: "enhanced"
+      severity: error
+      error_message: "senior_responsible_person is required for enhanced-duty events — Martyn's Law mandates a named Senior Responsible Person for qualifying events with 800+ expected attendance (Terrorism (Protection of Premises) Act 2025)"
+
+    - name: senior_responsible_person_role_required_if_enhanced
+      field: senior_responsible_person_role
+      type: required_if
+      required_if:
+        field: duty_tier
+        value: "enhanced"
+      severity: error
+      error_message: "senior_responsible_person_role is required for enhanced-duty events — record the organisational role of the Senior Responsible Person"
+
+    # Events notify the SIA rather than register (registration applies to permanent
+    # premises). Record the notification reference number.
+    - name: sia_notification_reference_required_if_enhanced
+      field: sia_notification_reference
+      type: required_if
+      required_if:
+        field: duty_tier
+        value: "enhanced"
+      severity: error
+      error_message: "sia_notification_reference is required for enhanced-duty events — qualifying events with 800+ expected attendance must notify the Security Industry Authority (SIA); record the notification reference"
+
+    - name: terrorism_protection_plan_documented_required_if_enhanced
+      field: terrorism_protection_plan_documented
+      type: required_if
+      required_if:
+        field: duty_tier
+        value: "enhanced"
+      severity: error
+      error_message: "terrorism_protection_plan_documented is required for enhanced-duty events — a formal Terrorism Protection Plan specific to this event is mandated for qualifying events with 800+ expected attendance (Terrorism (Protection of Premises) Act 2025)"
+
+    - name: terrorism_protection_plan_documented_valid
+      field: terrorism_protection_plan_documented
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      condition:
+        field: duty_tier
+        value: "enhanced"
+      severity: error
+      error_message: "terrorism_protection_plan_documented must be 'true' or 'false'"
+
+    - name: terrorism_protection_plan_review_date_required_if_ttp_documented
+      field: terrorism_protection_plan_review_date
+      type: required_if
+      required_if:
+        field: terrorism_protection_plan_documented
+        value: "true"
+      severity: error
+      error_message: "terrorism_protection_plan_review_date is required when terrorism_protection_plan_documented is true — record the date the plan was last reviewed"
+
+    - name: terrorism_protection_plan_review_date_format
+      field: terrorism_protection_plan_review_date
+      type: date_format
+      condition:
+        field: terrorism_protection_plan_documented
+        value: "true"
+      severity: error
+      error_message: "terrorism_protection_plan_review_date must be a valid date (YYYY-MM-DD)"
+
+    # ── COMPLIANCE AUDIT TRAIL ────────────────────────────────────────────────
+    # Records who reviewed the compliance record and when. Required for
+    # demonstrating due diligence in the event of an SIA inspection or incident.
+    - name: compliance_reviewed_by_required
+      field: compliance_reviewed_by
+      type: not_empty
+      severity: error
+      error_message: "compliance_reviewed_by is required — record who verified the compliance declarations before the Pretix event record was saved"
+
+    - name: compliance_review_date_required
+      field: compliance_review_date
+      type: not_empty
+      severity: error
+      error_message: "compliance_review_date is required — record the date the compliance review was completed"
+
+    - name: compliance_review_date_format
+      field: compliance_review_date
+      type: date_format
+      severity: error
+      error_message: "compliance_review_date must be a valid date (YYYY-MM-DD)"
