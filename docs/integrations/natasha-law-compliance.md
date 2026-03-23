@@ -1,6 +1,6 @@
 # Natasha's Law — QSR Allergen Compliance
 
-> **Last reviewed:** 2026-03-21.
+> **Last reviewed:** 2026-03-23.
 
 Natasha's Law (The Food Information (Amendment) (England) Regulations 2019, in force
 1 October 2021) requires food businesses that prepare and sell food on the same premises
@@ -119,6 +119,15 @@ Sulphur dioxide and sulphites only require declaration above 10ppm. The contract
 enforces this with a conditional `min` rule:
 
 ```yaml
+- name: sulphites_ppm_required_if_sulphites
+  field: sulphites_ppm
+  type: required_if
+  required_if:
+    field: contains_sulphites
+    value: "true"
+  severity: error
+  error_message: "sulphites_ppm is required when contains_sulphites is true — record the concentration in ppm (must be >= 10)"
+
 - name: sulphites_ppm_min
   field: sulphites_ppm
   type: min
@@ -130,9 +139,9 @@ enforces this with a conditional `min` rule:
   error_message: "sulphites_ppm must be >= 10 — sulphites only require declaration above the 10ppm statutory threshold"
 ```
 
-If `contains_sulphites` is `"false"`, the `sulphites_ppm` field is optional and the
-rule does not fire. If `contains_sulphites` is `"true"`, `sulphites_ppm` must be
-provided and must be ≥ 10.
+If `contains_sulphites` is `"false"`, `sulphites_ppm` is optional and neither rule
+fires. If `contains_sulphites` is `"true"`, `sulphites_ppm` is **required** (first
+rule) and must be ≥ 10 (second rule).
 
 ---
 
@@ -260,12 +269,29 @@ declarations at the time of review.
 
 ---
 
+## Django / AllerEasy integration
+
+For food businesses using [AllerEasy](https://www.allereasy.co.uk/) — the open-source
+Django allergen management tool — OpenDQV provides a complementary enforcement layer
+via the `allereasy_dish` contract and `LocalValidator` SDK.
+
+AllerEasy stores allergens as a ManyToMany relationship, which means a dish can be
+published without the allergen field ever being touched. The `allereasy_dish` contract
+adds a three-field audit trail (review confirmed, reviewed by, review date) and enforces
+it at `Dish.clean()` before the record reaches the database.
+
+**See:** [docs/integrations/allereasy.md](allereasy.md) for the full Django setup guide.
+
+---
+
 ## Related resources
 
-- Contract: `contracts/qsr_menu_item.yaml`
+- Contract: `contracts/qsr_menu_item.yaml` — 14 boolean allergen fields (REST API / bulk validation)
+- Contract: `contracts/allereasy_dish.yaml` — allergen review audit trail (Django LocalValidator)
 - Starter contract: `examples/qsr/qsr_menu_item.yaml`
 - Sample records: `examples/qsr/`
 - Reference files: `contracts/ref/allergen_boolean.txt`, `allergen_gluten_cereals.txt`,
   `allergen_tree_nut_types.txt`, `qsr_item_categories.txt`
+- AllerEasy: [allereasy.co.uk](https://www.allereasy.co.uk/) — open-source Django allergen management
 - UK legislation: [food.gov.uk/business-guidance/natashas-law](https://www.food.gov.uk/business-guidance/natashas-law)
 - EU FIC: Regulation (EU) No 1169/2011

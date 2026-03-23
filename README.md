@@ -623,7 +623,7 @@ OpenDQV ships 43 production-ready industry contracts in `contracts/` covering ag
 
 > **UK Online Safety Act (Ofcom enforcement from January 2026):** The `social_media_age_compliance` contract demonstrates age assurance patterns required by the UK Online Safety Act 2023: 13-year age gate, age/DOB consistency check (`age_match` rule), identity verification method tracking, and verification timestamp audit trail.
 
-> **Natasha's Law (in force 1 October 2021):** The `qsr_menu_item` contract enforces explicit allergen declaration for Pre-Packed for Direct Sale (PPDS) food at the point of write. All 14 major allergens are mandatory fields — omission is structurally impossible and triggers a 422 before the record enters the system. See [docs/integrations/natasha-law-compliance.md](docs/integrations/natasha-law-compliance.md).
+> **Natasha's Law (in force 1 October 2021):** The `qsr_menu_item` contract enforces explicit allergen declaration for Pre-Packed for Direct Sale (PPDS) food at the point of write. All 14 major allergens are mandatory fields — omission is structurally impossible and triggers a 422 before the record enters the system. The `allereasy_dish` contract extends this for [AllerEasy](https://www.allereasy.co.uk/) (open-source Django allergen management), adding a timestamped review audit trail enforced in `Dish.clean()` via the `LocalValidator` SDK. See [docs/integrations/natasha-law-compliance.md](docs/integrations/natasha-law-compliance.md) and [docs/integrations/allereasy.md](docs/integrations/allereasy.md).
 
 > **Martyn's Law (Royal Assent 3 April 2025):** The `martyns_law_venue` contract enforces terrorism preparedness compliance for venues and events with a capacity of 200 or more. Enhanced-duty venues (800+) must declare a named Senior Responsible Person, SIA registration number, and Terrorism Protection Plan — omission triggers a 422 before the record enters the system. Named after Martyn Hett (1987–2017), killed in the Manchester Arena attack. See [docs/integrations/martyns-law-compliance.md](docs/integrations/martyns-law-compliance.md).
 
@@ -1523,7 +1523,11 @@ Only a subset of docs appear in the sections above. Full index:
 **Import & Export**
 - [docs/importers.md](docs/importers.md) — All 8 import formats (GX, dbt, Soda, CSV, ODCS, CSVW, OTel, NDC)
 
-**Integrations**
+***Integrations**
+
+*Food safety & hospitality*
+- [docs/integrations/natasha-law-compliance.md](docs/integrations/natasha-law-compliance.md) — Natasha's Law PPDS enforcement: 14 mandatory allergen fields, `qsr_menu_item` contract
+- [docs/integrations/allereasy.md](docs/integrations/allereasy.md) — AllerEasy (Django): allergen review audit trail via `LocalValidator` in `Dish.clean()`
 
 *Data quality tools*
 - [docs/dbt_integration.md](docs/dbt_integration.md) — Bidirectional import/export with dbt schema.yml
