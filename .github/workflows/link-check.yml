@@ -1,0 +1,52 @@
+name: Link Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**.md"
+  pull_request:
+    paths:
+      - "**.md"
+  schedule:
+    # Weekly on Monday at 08:00 UTC — catches external URLs that go dead
+    # after docs are written (e.g. government guidance pages being renamed)
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+
+jobs:
+  link-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >
+            --verbose
+            --no-progress
+            --timeout 30
+            --retry-wait-time 5
+            --max-retries 3
+            --exclude "localhost"
+            --exclude "127\.0\.0\.1"
+            --exclude "0\.0\.0\.0"
+            --exclude "opendqv:8000"
+            --exclude "api\.yourcompany\.com"
+            --exclude "grafana\.internal"
+            --exclude "^https://github\.com/OpenDQV/OpenDQV/actions"
+            --exclude "^https://codecov\.io"
+            --exclude "file://"
+            '**/*.md'
+          fail: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create issue on scheduled failure
+        if: failure() && github.event_name == 'schedule'
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "Dead links found in documentation"
+          content-filepath: ./lychee/out.md
+          labels: documentation, automated
