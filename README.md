@@ -109,24 +109,38 @@ OpenDQV is the bouncer at the door for your enterprise data. Source systems (Sal
 **The core insight:** A `422` at the point of write changes behaviour. A data quality report three weeks later does not. Every system that calls OpenDQV before writing data creates a real-time feedback loop — developers and data producers see failures immediately and fix them upstream. This is why rejection rates drop over time: the tool changes the incentive, not just the outcome.
 
 ```
-  Source Systems              OpenDQV                    Result
-  ================      ==================      ====================
+  Callers                     OpenDQV                      Results
+  ================      ======================      ====================
 
   Salesforce ----+
   SAP -----------+      +------------------+
   Dynamics ------+----->|  Validation API  |----> valid: true/false
-  Oracle --------+      |  (ephemeral)     |      + per-field errors
-  Postgres ------+      +--------+---------+      + severity levels
-  Web forms -----+               |
-  ETL pipelines -+        +------+------+
-                          |  Contracts  |
-                          |   (YAML)    |
-                          +------+------+
+  Oracle --------+      |  (REST / batch)  |      per-field errors
+  Web forms -----+      +--------+---------+      severity levels
+  ETL pipelines -+               |                webhooks on events
+
+  Django clean()-+      +--------+---------+
+  Python scripts +----->|  LocalValidator  |
+  Pandas / ETL --+      |  (in-process SDK)|
+                        +--------+---------+
                                  |
-                          +------+------+
-                          |  Contexts   |
-                          | per-system  |
-                          +-------------+
+  Claude Desktop +      +--------+---------+
+  Cursor --------+----->|   MCP Server     |
+  LLM agents ----+      |  (AI-native)     |
+                        +--------+---------+
+                                 |
+               +-----------------+-----------------+
+               |                                   |
+  Importers -> +-------------+         +-----------+-------+
+  dbt schema   |  Contracts  |         | Code Generator    |
+  GX suites    |   (YAML)    |         | dbt / GX / ODCS   |
+  Soda checks  |             |         | Snowflake SQL      |
+  ODCS / CSV   | Governance: |         +-------------------+
+  CSVW / NDC   | lifecycle   |
+               | RBAC        |
+               | audit trail |
+               | contexts    |
+               +-------------+
 ```
 
 ---
