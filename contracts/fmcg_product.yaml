@@ -12,6 +12,7 @@ contract:
     mismatches in NPD and promotional analysis pipelines.
   owner: "Consumer Goods Data Team"
   status: active
+  asset_id: urn:opendqv:fmcg_product
 
   rules:
     - name: product_code_required

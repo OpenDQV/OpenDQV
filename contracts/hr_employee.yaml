@@ -12,6 +12,7 @@ contract:
     source.
   owner: "People Data Team"
   status: active
+  asset_id: urn:opendqv:hr_employee
 
   rules:
     - name: employee_id_required

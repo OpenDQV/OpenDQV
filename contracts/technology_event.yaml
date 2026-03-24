@@ -12,6 +12,7 @@ contract:
     behavioural data collection.
   owner: "Product Analytics Team"
   status: active
+  asset_id: urn:opendqv:technology_event
 
   rules:
     - name: event_id_required

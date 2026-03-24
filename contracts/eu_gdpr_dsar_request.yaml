@@ -13,6 +13,7 @@ contract:
     of data subject rights (Articles 12–22).
   owner: "Data Protection Team"
   status: active
+  asset_id: urn:opendqv:eu_gdpr_dsar_request
 
   rules:
 

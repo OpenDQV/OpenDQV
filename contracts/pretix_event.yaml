@@ -13,6 +13,7 @@ contract:
     See docs/opendqv-integration.md for integration guide.
   owner: "Pretix"
   status: active
+  asset_id: urn:opendqv:pretix_event
 
   rules:
 

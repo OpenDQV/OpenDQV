@@ -13,6 +13,7 @@ contract:
     water efficiency misreporting under Environment Agency obligations.
   owner: "Water Utility Data Team"
   status: active
+  asset_id: urn:opendqv:water_utility_reading
 
   rules:
     - name: meter_id_required

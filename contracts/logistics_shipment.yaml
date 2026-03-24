@@ -12,6 +12,7 @@ contract:
     incorrect duty calculation, and carrier SLA misreporting in WMS and TMS pipelines.
   owner: "Supply Chain Data Team"
   status: active
+  asset_id: urn:opendqv:logistics_shipment
 
   rules:
     - name: shipment_id_required

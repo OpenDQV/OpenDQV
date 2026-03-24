@@ -4,6 +4,7 @@ contract:
   description: "Banking transaction record validation"
   owner: "Payments Data Team"
   status: active
+  asset_id: urn:opendqv:banking_transaction
 
   rules:
     - name: transaction_id_required

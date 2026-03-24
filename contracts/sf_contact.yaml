@@ -4,6 +4,7 @@ contract:
   description: "Salesforce Contact — data quality validation for CRM contact records"
   owner: "Sunny Sharma"
   status: active
+  asset_id: urn:opendqv:sf_contact
 
   rules:
     - name: first_name_required

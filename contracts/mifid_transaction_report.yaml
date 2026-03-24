@@ -14,6 +14,7 @@ contract:
     on trading venues and systematic internalisers under Article 70 MiFID II.
   owner: "Regulatory Reporting Team"
   status: active
+  asset_id: urn:opendqv:mifid_transaction_report
 
   rules:
 

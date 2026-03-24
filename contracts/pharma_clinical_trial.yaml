@@ -11,6 +11,7 @@ contract:
     requires audit-ready, complete records.
   owner: "Clinical Research Data Team"
   status: active
+  asset_id: urn:opendqv:pharma_clinical_trial
 
   rules:
     - name: subject_id_required

@@ -13,6 +13,7 @@ contract:
     (Maternity Services Data Set) pipelines.
   owner: "Clinical Data Team"
   status: active
+  asset_id: urn:opendqv:healthcare_patient
 
   rules:
     - name: patient_id_required

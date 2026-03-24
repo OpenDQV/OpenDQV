@@ -12,6 +12,7 @@ contract:
     food services.
   owner: "Food Safety Data Team"
   status: active
+  asset_id: urn:opendqv:ppds_menu_item
 
   rules:
 

@@ -12,6 +12,7 @@ contract:
     audit records.
   owner: Agri Supply Chain Data Team
   status: active
+  asset_id: urn:opendqv:agriculture_batch
   rules:
   - name: batch_id_required
     description: ''

@@ -13,6 +13,7 @@ contract:
     databases, and HM Land Registry submission pipelines.
   owner: "Property Data Team"
   status: active
+  asset_id: urn:opendqv:real_estate_property
 
   rules:
     - name: property_id_required

@@ -12,6 +12,7 @@ contract:
     before they enter a building management system.
   owner: "Building Safety Data Team"
   status: active
+  asset_id: urn:opendqv:building_safety_golden_thread
 
   rules:
 

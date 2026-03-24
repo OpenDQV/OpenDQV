@@ -11,6 +11,7 @@ contract:
     duty applies at 800+ expected attendance.
   owner: "Public Safety Data Team"
   status: active
+  asset_id: urn:opendqv:martyns_law_event
 
   rules:
 

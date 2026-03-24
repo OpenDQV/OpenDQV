@@ -12,6 +12,7 @@ contract:
     order management and execution records prior to ARM submission.
   owner: "Trading Data Team"
   status: active
+  asset_id: urn:opendqv:financial_trade
 
   rules:
     - name: trade_id_required

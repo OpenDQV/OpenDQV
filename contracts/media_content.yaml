@@ -12,6 +12,7 @@ contract:
     obligations apply.
   owner: "Content Data Team"
   status: active
+  asset_id: urn:opendqv:media_content
 
   rules:
     - name: content_id_required
