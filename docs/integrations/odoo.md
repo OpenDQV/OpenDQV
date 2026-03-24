@@ -164,5 +164,5 @@ App Store listing: *(pending submission)*
 
 - Module: `odoo_modules/odoo_opendqv_gdpr/`
 - Contract: `contracts/gdpr_processing_record.yaml`
-- UK GDPR Article 30: [ico.org.uk — Documentation](https://ico.org.uk/for-organisations/guide-to-data-protection/guide-to-the-general-data-protection-regulation-gdpr/accountability-and-governance/documentation/)
+- UK GDPR Article 30: [ico.org.uk — Documentation](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/documentation/what-do-we-need-to-document-under-article-30-of-the-gdpr/)
 - OpenDQV GDPR guide: [docs/integrations/gdpr-compliance.md](gdpr-compliance.md)
