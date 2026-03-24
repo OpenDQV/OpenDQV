@@ -2,6 +2,23 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.5.2] - 2026-03-24
+
+### Features
+
+- **Marmot lineage diagrams** — `scripts/push_quality_lineage.py` pushes OpenLineage
+  COMPLETE RunEvents to Marmot for all active contracts, populating interactive lineage
+  diagrams showing `[source asset] → [validate:<contract>] → [Marmot asset]`. Includes
+  pass_rate, fail_count, and top failing rules per contract in the run facets. Direct
+  lineage stitching via `POST /api/v1/lineage/direct` bridges OpenLineage MRNs to
+  existing OpenDQV Marmot assets.
+- **`asset_id` on all 44 contracts** — every active contract now carries
+  `asset_id: urn:opendqv:<name>` for upstream lineage anchoring. Previously only 3
+  contracts had this field.
+- **`marmot_proxy.py`** — stdio-to-HTTP bridge enabling Claude Desktop (Mac) to connect
+  to Marmot's MCP server. Claude Desktop only supports stdio MCP configs; the proxy
+  bridges to Marmot's HTTP endpoint. API key and URL configurable via env vars.
+
 ## [1.5.1] - 2026-03-24
 
 ### Maintenance
