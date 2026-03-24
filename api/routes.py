@@ -64,7 +64,7 @@ from .models import (
     ExplainErrorResponse,
     ContractHistoryResponse, ContractDiffResponse, ContractReloadResponse,
 )
-from core.explainer import explain_rule
+from core.explainer import explain_rule, quick_fix
 
 logger = logging.getLogger(__name__)
 
@@ -257,6 +257,17 @@ def _mask_errors(errors: list, mask_mode: str = None) -> list:
     return result
 
 
+def _add_suggested_fixes(errors: list, rules: list) -> list:
+    """Enrich error dicts with suggested_fix from the rule type. Non-blocking."""
+    rule_type_map = {r.name: r.type for r in rules}
+    result = []
+    for e in errors:
+        rule_type = rule_type_map.get(e.get("rule", ""), "")
+        fix = quick_fix(rule_type, e.get("message", "")) if rule_type else None
+        result.append({**e, "suggested_fix": fix})
+    return result
+
+
 def set_registry(reg: ContractRegistry):
     global registry
     registry = reg
@@ -371,15 +382,16 @@ async def validate_single(
         contract.name, contract.version, body.context or "default",
         result["valid"], len(result["errors"]), len(result["warnings"]), elapsed_ms,
     )
-    stats.record(
-        contract=contract.name, context=body.context, valid=result["valid"],
-        error_count=len(result["errors"]), warning_count=len(result["warnings"]),
-        latency_ms=elapsed_ms, errors=result["errors"], mode="single",
-    )
-    heartbeat.record_validation(contract.name, contract.version)
+    if not body.dry_run:
+        stats.record(
+            contract=contract.name, context=body.context, valid=result["valid"],
+            error_count=len(result["errors"]), warning_count=len(result["warnings"]),
+            latency_ms=elapsed_ms, errors=result["errors"], mode="single",
+        )
+        heartbeat.record_validation(contract.name, contract.version)
 
     # Webhook notifications (fire-and-forget)
-    if not result["valid"]:
+    if not result["valid"] and not body.dry_run:
         await webhook_manager.notify("opendqv.validation.failed", {
             "contract": contract.name,
             "contract_version": contract.version,
@@ -410,8 +422,8 @@ async def validate_single(
     return ValidateResponse(
         valid=result["valid"],
         record_id=body.record_id,
-        errors=[FieldErrorResponse(**e) for e in _mask_errors(result["errors"])],
-        warnings=[FieldErrorResponse(**w) for w in _mask_errors(result["warnings"])],
+        errors=[FieldErrorResponse(**e) for e in _mask_errors(_add_suggested_fixes(result["errors"], rules))],
+        warnings=[FieldErrorResponse(**w) for w in _mask_errors(_add_suggested_fixes(result["warnings"], rules))],
         contract=contract.name,
         version=contract.version,
         owner=contract.owner or "",
@@ -419,6 +431,7 @@ async def validate_single(
         contract_hash=_contract_hash,
         owner_team=contract.owner_team,
         validated_at=datetime.now(timezone.utc).isoformat(),
+        latency_ms=round(elapsed_ms, 1),
         agent_id=body.agent_id,
     )
 
@@ -487,47 +500,48 @@ async def validate_batch_endpoint(
         result["summary"]["total"], result["summary"]["passed"],
         result["summary"]["failed"], elapsed_ms,
     )
-    # Record stats for each row in the batch
-    for r in result["results"]:
-        stats.record(
-            contract=contract.name, context=body.context, valid=r["valid"],
-            error_count=len(r["errors"]), warning_count=len(r["warnings"]),
-            latency_ms=elapsed_ms / max(len(result["results"]), 1),
-            errors=r["errors"], mode="batch",
-        )
-    heartbeat.record_validation(contract.name, contract.version)
-
-    # Webhook notification for batch failures (fire-and-forget)
-    if result["summary"]["failed"] > 0:
-        failed_errors = []
+    if not body.dry_run:
+        # Record stats for each row in the batch
         for r in result["results"]:
-            if not r["valid"]:
-                failed_errors.extend(r["errors"])
-        await webhook_manager.notify("opendqv.batch.failed", {
-            "contract": contract.name,
-            "contract_version": contract.version,
-            "opendqv_node_id": config.OPENDQV_NODE_ID,
-            "context": body.context,
-            "total": result["summary"]["total"],
-            "passed": result["summary"]["passed"],
-            "failed": result["summary"]["failed"],
-            "error_count": len(failed_errors),
-            "violations": failed_errors[:50],  # cap to avoid huge payloads
-        })
+            stats.record(
+                contract=contract.name, context=body.context, valid=r["valid"],
+                error_count=len(r["errors"]), warning_count=len(r["warnings"]),
+                latency_ms=elapsed_ms / max(len(result["results"]), 1),
+                errors=r["errors"], mode="batch",
+            )
+        heartbeat.record_validation(contract.name, contract.version)
 
-    # Record quality stats for trend endpoint (best-effort, non-blocking)
-    try:
-        _quality_stats.record_batch(
-            contract_name=contract.name,
-            contract_version=contract.version,
-            context=body.context,
-            total=result["summary"]["total"],
-            passed=result["summary"]["passed"],
-            failed=result["summary"]["failed"],
-            rule_failure_counts=result["summary"].get("rule_failure_counts", {}),
-        )
-    except Exception:
-        logger.exception("quality_stats.record_batch failed — non-blocking")
+        # Webhook notification for batch failures (fire-and-forget)
+        if result["summary"]["failed"] > 0:
+            failed_errors = []
+            for r in result["results"]:
+                if not r["valid"]:
+                    failed_errors.extend(r["errors"])
+            await webhook_manager.notify("opendqv.batch.failed", {
+                "contract": contract.name,
+                "contract_version": contract.version,
+                "opendqv_node_id": config.OPENDQV_NODE_ID,
+                "context": body.context,
+                "total": result["summary"]["total"],
+                "passed": result["summary"]["passed"],
+                "failed": result["summary"]["failed"],
+                "error_count": len(failed_errors),
+                "violations": failed_errors[:50],  # cap to avoid huge payloads
+            })
+
+        # Record quality stats for trend endpoint (best-effort, non-blocking)
+        try:
+            _quality_stats.record_batch(
+                contract_name=contract.name,
+                contract_version=contract.version,
+                context=body.context,
+                total=result["summary"]["total"],
+                passed=result["summary"]["passed"],
+                failed=result["summary"]["failed"],
+                rule_failure_counts=result["summary"].get("rule_failure_counts", {}),
+            )
+        except Exception:
+            logger.exception("quality_stats.record_batch failed — non-blocking")
 
     # ACT-038-05: include contract hash (entry_hash from hash chain) for audit evidence
     _contract_hash = _get_contract_hash(contract.name)
@@ -538,8 +552,8 @@ async def validate_batch_endpoint(
             BatchResultItem(
                 index=r["index"],
                 valid=r["valid"],
-                errors=[FieldErrorResponse(**e) for e in _mask_errors(r["errors"])],
-                warnings=[FieldErrorResponse(**w) for w in _mask_errors(r["warnings"])],
+                errors=[FieldErrorResponse(**e) for e in _mask_errors(_add_suggested_fixes(r["errors"], rules))],
+                warnings=[FieldErrorResponse(**w) for w in _mask_errors(_add_suggested_fixes(r["warnings"], rules))],
             )
             for r in result["results"]
         ],
@@ -549,6 +563,7 @@ async def validate_batch_endpoint(
         engine_version=config.ENGINE_VERSION,
         contract_hash=_contract_hash,
         validated_at=datetime.now(timezone.utc).isoformat(),
+        latency_ms=round(elapsed_ms, 1),
         agent_id=body.agent_id,
     )
 

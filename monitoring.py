@@ -91,6 +91,7 @@ class ValidationStats:
         self.field_errors = defaultdict(int)  # (contract, field, rule) -> count
         self.severity_counts = defaultdict(int)  # (contract, severity) -> count
         self.started_at = datetime.now(timezone.utc)
+        self._latencies: list = []  # recent latency values for percentile computation
 
     def record(self, contract: str, context: str, valid: bool, error_count: int,
                warning_count: int, latency_ms: float, errors: list = None, mode: str = "single",
@@ -113,6 +114,11 @@ class ValidationStats:
             # Track severity counts
             for e in (errors or []):
                 self.severity_counts[(contract, e.get("severity", "error"))] += 1
+
+            # Track latency for percentile computation (ring buffer, last 1000)
+            self._latencies.append(round(latency_ms, 1))
+            if len(self._latencies) > 1000:
+                self._latencies = self._latencies[-1000:]
 
             # Append to history (ring buffer)
             self.history.append({
@@ -170,6 +176,7 @@ class ValidationStats:
                     key=lambda x: x["count"], reverse=True,
                 )[:20],
                 "recent_history": list(self.history[-50:]),
+                "latency": self._latency_stats(),
                 "dimensions": {
                     "by_severity": {
                         "error": sum(v for (c, sev), v in self.severity_counts.items() if sev == "error"),
@@ -182,6 +189,24 @@ class ValidationStats:
                     "review_count": 0,
                 },
             }
+
+
+    def _latency_stats(self) -> dict:
+        """Compute avg/p50/p95/p99 from recent latency values. Called under self._lock."""
+        if not self._latencies:
+            return {"avg_ms": None, "p50_ms": None, "p95_ms": None, "p99_ms": None, "sample_size": 0}
+        sorted_lat = sorted(self._latencies)
+        n = len(sorted_lat)
+        def _pct(p):
+            idx = max(0, int(n * p / 100) - 1)
+            return round(sorted_lat[idx], 1)
+        return {
+            "avg_ms": round(sum(sorted_lat) / n, 1),
+            "p50_ms": _pct(50),
+            "p95_ms": _pct(95),
+            "p99_ms": _pct(99),
+            "sample_size": n,
+        }
 
 
 # Singleton instance

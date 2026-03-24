@@ -406,6 +406,47 @@ def _conditional_value(field: str, must_equal) -> dict:
     }
 
 
+def quick_fix(rule_type: str, error_message: str = "") -> str:
+    """Return a concise one-line fix hint for a rule type.
+
+    Used to populate suggested_fix on FieldErrorResponse — lets agents
+    self-correct without a separate explain_error round trip.
+    """
+    _fixes = {
+        "not_empty": "Provide a non-empty value.",
+        "email": "Use a valid email address, e.g. user@example.com",
+        "date_format": "Use ISO 8601 format: YYYY-MM-DD (e.g. 2026-03-24)",
+        "min": "Increase the value to meet the minimum threshold.",
+        "max": "Decrease the value to stay within the maximum.",
+        "range": "Set a value within the allowed numeric range.",
+        "min_length": "Provide a longer string value.",
+        "max_length": "Shorten the string value.",
+        "regex": "Check the expected format in the error message and match it exactly.",
+        "enum": "Use one of the allowed values listed in the error message.",
+        "lookup": "Value must exactly match an entry in the reference list (case-sensitive).",
+        "allowed_values": "Use one of the allowed values listed in the error message.",
+        "required_if": "This field is required given the current value of another field — provide a non-empty value.",
+        "forbidden_if": "Remove or null out this field given the current state of the record.",
+        "checksum": "Check the identifier for transcription errors — the check digit is invalid.",
+        "unique": "Remove duplicate values — this field must be unique across all records in the batch.",
+        "compare": "Adjust the value so it satisfies the cross-field comparison in the error message.",
+        "cross_field_range": "Set a value that falls between the referenced min and max fields.",
+        "field_sum": "Ensure the fields sum to the required total.",
+        "min_age": "Use a date of birth far enough in the past to meet the minimum age requirement.",
+        "max_age": "Use a date of birth recent enough to meet the maximum age requirement.",
+        "conditional_value": "Set this field to the required value given the current record state.",
+        "age_match": "Check that the age field matches the date of birth.",
+    }
+    hint = _fixes.get(rule_type)
+    if hint:
+        return hint
+    # Fall back to the first sentence of the error_message if available
+    if error_message:
+        sentence = error_message.split(".")[0].split(" — ")[0]
+        return sentence[:120] if len(sentence) > 120 else sentence
+    return f"Review the '{rule_type}' rule constraint in the contract."
+
+
 def _generic(field: str, rule_type: str, error_message: str) -> dict:
     return {
         "rule_type": rule_type,
