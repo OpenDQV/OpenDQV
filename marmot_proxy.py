@@ -3,12 +3,13 @@
 Marmot MCP stdio proxy.
 Bridges Claude Desktop's stdio transport to Marmot's HTTP MCP endpoint.
 """
+import os
 import sys
 import json
 import httpx
 
-MARMOT_URL = "http://192.168.1.160:8080/api/v1/mcp"
-API_KEY = "lozlsLIzgGyydZcDe9dp_d5M15kHhYhMnFx_KzQ8iBE="
+MARMOT_URL = os.environ.get("MARMOT_URL", "http://192.168.1.160:8080") + "/api/v1/mcp"
+API_KEY = os.environ.get("MARMOT_API_KEY", "")
 
 
 def parse_sse(text: str) -> list[str]:
