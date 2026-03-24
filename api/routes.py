@@ -851,7 +851,7 @@ async def get_quality_trend(
     to populate trend data.
     """
     # Verify contract exists
-    _get_contract_or_404(name)
+    c = _get_contract_or_404(name)
 
     points = _quality_stats.get_trend(name, days=days, context=context)
     return QualityTrendResponse(
