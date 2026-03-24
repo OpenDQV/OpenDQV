@@ -18,6 +18,7 @@ class ValidateRequest(BaseModel):
     context: Optional[str] = Field(None, description="Context override (e.g. 'kids_app', 'salesforce')")
     record_id: Optional[str] = Field(None, description="Caller's correlation ID for tracking")
     agent_id: Optional[str] = Field(None, description="Caller identity — AI agent name, service name, or team. Echoed in response for session correlation.")
+    dry_run: bool = Field(False, description="If true, validate without recording results in quality metrics. Use for testing and demos.")
 
     model_config = {
         "json_schema_extra": {
@@ -37,6 +38,7 @@ class FieldErrorResponse(BaseModel):
     rule: str = Field(..., description="The rule name that failed, as defined in the contract YAML")
     message: str = Field(..., description="Human-readable description of the failure")
     severity: str = Field(..., description="Blocking level: 'error' prevents the record from being accepted; 'warning' is informational only")
+    suggested_fix: Optional[str] = Field(None, description="Concise actionable fix hint — use to self-correct and resubmit without a separate explain_error call")
 
 
 class ValidateResponse(BaseModel):
@@ -58,6 +60,7 @@ class ValidateResponse(BaseModel):
     )
     owner_team: Optional[str] = None
     validated_at: Optional[str] = Field(None, description="ISO 8601 UTC timestamp of validation — use for time-series correlation with quality metrics")
+    latency_ms: Optional[float] = Field(None, description="Server-side validation latency in milliseconds")
     agent_id: Optional[str] = Field(None, description="Echo of caller's agent_id — for session and caller attribution")
 
 
@@ -70,6 +73,7 @@ class BatchValidateRequest(BaseModel):
     version: str = Field("latest", description="Contract version or 'latest'")
     context: Optional[str] = Field(None, description="Context override")
     agent_id: Optional[str] = Field(None, description="Caller identity — AI agent name, service name, or team. Echoed in response for session correlation.")
+    dry_run: bool = Field(False, description="If true, validate without recording results in quality metrics. Use for testing and demos.")
 
     model_config = {
         "json_schema_extra": {
@@ -116,6 +120,7 @@ class BatchValidateResponse(BaseModel):
     engine_version: str = Field("", description="OpenDQV engine version — for regulatory audit trails")
     contract_hash: Optional[str] = Field(None, description="SHA-256 hash of the contract ruleset at validation time")
     validated_at: Optional[str] = Field(None, description="ISO 8601 UTC timestamp of batch validation — use for time-series correlation with quality metrics")
+    latency_ms: Optional[float] = Field(None, description="Server-side batch validation latency in milliseconds (total wall-clock time for the batch)")
     agent_id: Optional[str] = Field(None, description="Echo of caller's agent_id — for session and caller attribution")
 
 

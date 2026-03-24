@@ -2,6 +2,24 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.5.5] - 2026-03-24
+
+### Features
+
+- **`latency_ms` on validate responses** — server-side validation latency in milliseconds
+  on every `/validate` and `/validate/batch` response. Enables latency monitoring and SLA tracking.
+- **`suggested_fix` on validation errors** — each `FieldErrorResponse` now includes a concise
+  one-liner fix hint. Allows AI agents and downstream consumers to self-correct without a
+  separate `/explain_error` call.
+- **`dry_run` flag on `/validate` and `/validate/batch`** — pass `dry_run: true` to validate
+  without recording results in quality metrics, stats, or triggering webhooks. Use for testing
+  and demo calls.
+- **Latency histogram in `/stats`** — `latency` field with `avg_ms`, `p50_ms`, `p95_ms`,
+  `p99_ms`, and `sample_size` computed from the last 1,000 validations.
+
+Remaining items from Mac Claude's feature wishlist after live MCP demo. All four items
+identified during real integration use.
+
 ## [1.5.4] - 2026-03-24
 
 ### Features
