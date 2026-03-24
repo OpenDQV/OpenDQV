@@ -38,6 +38,8 @@ def inject_provider_filter(request: dict) -> dict:
         args = request["params"].setdefault("arguments", {})
         if not args.get("providers"):
             args["providers"] = ["opendqv"]
+        if not args.get("limit"):
+            args["limit"] = 100
     return request
 
 
