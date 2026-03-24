@@ -232,6 +232,15 @@ async def list_tools() -> list[types.Tool]:
                         "type": "string",
                         "description": "Optional per-system context override (e.g. 'salesforce', 'kids_app'). Omit for default rules.",
                     },
+                    "agent_id": {
+                        "type": "string",
+                        "description": "Your agent name or service identity — echoed in the response for attribution and session correlation.",
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "If true, validate without recording results in quality metrics. Use for testing.",
+                        "default": False,
+                    },
                 },
                 "required": ["contract", "record"],
             },
@@ -258,6 +267,15 @@ async def list_tools() -> list[types.Tool]:
                     "context": {
                         "type": "string",
                         "description": "Optional per-system context override.",
+                    },
+                    "agent_id": {
+                        "type": "string",
+                        "description": "Your agent name or service identity — echoed in the response for attribution.",
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "If true, validate without recording results in quality metrics. Use for testing.",
+                        "default": False,
                     },
                 },
                 "required": ["contract", "records"],
@@ -437,6 +455,10 @@ async def _tool_validate_record(args: dict) -> list[types.TextContent]:
         payload = {"contract": contract_name, "record": record}
         if context:
             payload["context"] = context
+        if args.get("agent_id"):
+            payload["agent_id"] = args["agent_id"]
+        if args.get("dry_run"):
+            payload["dry_run"] = True
         resp = _remote_client.post("/api/v1/validate?allow_draft=true", json=payload)
         resp.raise_for_status()
         return [types.TextContent(type="text", text=resp.text)]
@@ -470,6 +492,10 @@ async def _tool_validate_batch(args: dict) -> list[types.TextContent]:
         context = args.get("context")
         if context:
             payload["context"] = context
+        if args.get("agent_id"):
+            payload["agent_id"] = args["agent_id"]
+        if args.get("dry_run"):
+            payload["dry_run"] = True
         resp = _remote_client.post("/api/v1/validate/batch?allow_draft=true", json=payload)
         resp.raise_for_status()
         return [types.TextContent(type="text", text=resp.text)]
@@ -782,6 +808,7 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
             "pass_rate": pass_rate,
             "failed": total_fail,
             "top_failing_rules": top_rules,
+            "latency": summary.get("latency", {}),
             "catalog_hint": f"marmot:assets/{cname}",
             "governance_tip": governance_tip if total_val > 0 else "No validation data recorded yet for this contract.",
         }
