@@ -308,20 +308,51 @@ validation failures in the last 24 hours. Top failing rule: email_format."
       }
     },
     "marmot": {
-      "command": "<marmot-mcp-command>",
-      "env": {
-        "MARMOT_URL": "http://marmot.internal",
-        "MARMOT_TOKEN": "<MARMOT_TOKEN>"
-      }
+      "type": "streamable-http",
+      "url": "http://marmot.internal/api/v1/mcp",
+      "headers": { "X-API-Key": "<MARMOT_API_KEY>" }
     }
   }
 }
 ```
 
-> See Marmot's MCP documentation for the correct server command and configuration.
+> **Status (2026-03-24):** Marmot v0.7 ships its own MCP server at
+> `{marmot_host}/api/v1/mcp` (streamable-http transport, `X-API-Key` header auth).
+> The full dual-MCP bridge is live and tested — see
+> `scripts/test_marmot_integration.py` for the smoke test (22 checks, all passing).
+>
 > See OpenDQV's MCP guide (`docs/mcp.md`) for full tool listing.
 
 This is the **governance-first** integration pattern: no scheduled jobs, no ETL pipelines — AI agents compose both tools on demand.
+
+### Remote access from another machine (e.g. MacBook Pro → Linux API)
+
+The OpenDQV MCP server runs in **remote mode** when `OPENDQV_MCP_API_URL` is set —
+it proxies all tool calls to a central API instead of loading contracts locally.
+This means the MCP server can run on a laptop with no OpenDQV contracts installed.
+
+```json
+{
+  "mcpServers": {
+    "opendqv": {
+      "command": "python3",
+      "args": ["/path/to/OpenDQV/mcp_server.py"],
+      "env": {
+        "OPENDQV_AGENT_IDENTITY": "your.email@example.com",
+        "OPENDQV_MCP_API_URL": "http://<linux-ip>:8000"
+      }
+    },
+    "marmot": {
+      "type": "streamable-http",
+      "url": "http://<linux-ip>:8080/api/v1/mcp",
+      "headers": { "X-API-Key": "<your-marmot-api-key>" }
+    }
+  }
+}
+```
+
+On Mac: `pip install mcp httpx` — only two dependencies needed for remote mode.
+Find your Linux IP: `ip route get 1 | awk '{print $7; exit}'`
 
 ---
 
@@ -549,8 +580,9 @@ Both MCP servers must be registered in your agent's config:
       "env": {"OPENDQV_AGENT_IDENTITY": "your.email@example.com"}
     },
     "marmot": {
-      "command": "marmot",
-      "args": ["mcp", "--url", "http://localhost:8080"]
+      "type": "streamable-http",
+      "url": "http://localhost:8080/api/v1/mcp",
+      "headers": { "X-API-Key": "<your-marmot-api-key>" }
     }
   }
 }
