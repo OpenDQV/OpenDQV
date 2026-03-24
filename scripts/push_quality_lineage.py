@@ -103,12 +103,7 @@ def build_run_event(contract: dict, stats: dict) -> dict:
                 }
             },
         },
-        "inputs": [
-            {
-                "namespace": "opendqv",
-                "name": asset_id,
-            }
-        ],
+        "inputs": [],   # no stubs — upstream link via asset_id in run facets only
         "outputs": [],  # handled by stitch_direct_lineage to avoid stub duplication
     }
 
