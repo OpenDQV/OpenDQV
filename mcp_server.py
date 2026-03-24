@@ -92,6 +92,8 @@ from core.contracts import ContractRegistry
 from core.validator import validate_record as _validate_record, validate_batch as _validate_batch
 from core.explainer import explain_rule
 from core.rule_parser import ContractStatus, Rule as _Rule
+from monitoring import stats as _stats
+from core.quality_stats import QualityStats as _QualityStats
 
 # ── Governance tips ───────────────────────────────────────────────────
 _GOVERNANCE_TIPS: dict[str, str] = {
@@ -166,6 +168,7 @@ _DRAFT_RATE_WINDOW = 3600.0   # per hour (seconds)
 
 # ── Contract registry (local mode) ────────────────────────────────────
 _registry = ContractRegistry(config.CONTRACTS_DIR)
+_quality_stats = _QualityStats(config.DB_PATH)
 
 # ── Remote mode (enterprise) ───────────────────────────────────────────
 # When OPENDQV_MCP_API_URL is set, all tool calls are proxied to the central
@@ -324,6 +327,30 @@ async def list_tools() -> list[types.Tool]:
             },
         ),
         types.Tool(
+            name="get_quality_metrics",
+            description=(
+                "Return aggregate rejection metrics for one or all contracts. "
+                "Includes pass_rate, failed count, top_failing_rules, and a catalog_hint field "
+                "for chaining to Marmot or other catalog MCP servers. "
+                "Call this to assess data quality health before deciding whether to route a "
+                "pipeline or alert an owner."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "contract": {
+                        "type": "string",
+                        "description": "Contract name. Omit to get metrics for all contracts.",
+                    },
+                    "window_hours": {
+                        "type": "integer",
+                        "default": 24,
+                        "description": "Look-back window in hours. Used as a label only.",
+                    },
+                },
+            },
+        ),
+        types.Tool(
             name="create_contract_draft",
             description=(
                 "Create a DRAFT data contract for a domain not yet covered by existing contracts. "
@@ -393,6 +420,8 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             return await _tool_explain_error(arguments)
         elif name == "create_contract_draft":
             return await _tool_create_contract_draft(arguments)
+        elif name == "get_quality_metrics":
+            return await _tool_get_quality_metrics(arguments)
         else:
             return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
     except Exception as exc:
@@ -694,6 +723,85 @@ async def _tool_create_contract_draft(args: dict) -> list[types.TextContent]:
             f"after a human approves it.{remote_reload_note}"
         ),
     }, default=str))]
+
+
+async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
+    contract_name = args.get("contract", "")
+    window_hours = args.get("window_hours", 24)
+    governance_tip = (
+        "Pass this contract's asset_id to your catalog MCP server to retrieve "
+        "lineage and ownership context."
+    )
+
+    if _remote_client:
+        resp = _remote_client.get("/api/v1/stats")
+        resp.raise_for_status()
+        summary = resp.json()
+    else:
+        summary = _stats.get_summary()
+
+    by_contract = summary.get("by_contract", {})
+    if contract_name:
+        by_contract = {k: v for k, v in by_contract.items() if k.startswith(f"{contract_name}:")}
+    top_fields = summary.get("top_failing_fields", [])
+
+    contracts_to_process = (
+        {contract_name} if contract_name
+        else {k.split(":")[0] for k in by_contract.keys()}
+    )
+
+    result = []
+    for cname in contracts_to_process:
+        contract_keys = [k for k in by_contract.keys() if k.startswith(f"{cname}:")]
+        total_pass = sum(by_contract[k]["pass"] for k in contract_keys)
+        total_fail = sum(by_contract[k]["fail"] for k in contract_keys)
+        total_val = total_pass + total_fail
+        pass_rate = round(total_pass / total_val, 4) if total_val > 0 else 1.0
+        top_rules = [
+            {"rule": f["rule"], "field": f["field"], "failures": f["count"]}
+            for f in top_fields if f["contract"] == cname
+        ][:5]
+        if not _remote_client:
+            try:
+                trend = _quality_stats.get_trend(cname, days=1)
+                if trend and trend[0].get("top_failing_rules"):
+                    for rule, count in trend[0]["top_failing_rules"].items():
+                        existing = next((tr for tr in top_rules if tr["rule"] == rule), None)
+                        if existing:
+                            existing["failures"] = max(existing["failures"], count)
+                        else:
+                            top_rules.append({"rule": rule, "field": "", "failures": count})
+                    top_rules.sort(key=lambda x: x["failures"], reverse=True)
+                    top_rules = top_rules[:5]
+            except Exception:
+                pass
+        entry = {
+            "contract": cname,
+            "window_hours": window_hours,
+            "total_validations": total_val,
+            "pass_rate": pass_rate,
+            "failed": total_fail,
+            "top_failing_rules": top_rules,
+            "catalog_hint": f"marmot:assets/{cname}",
+            "governance_tip": governance_tip if total_val > 0 else "No validation data recorded yet for this contract.",
+        }
+        if total_val > 0 or contract_name:
+            result.append(entry)
+
+    if contract_name and not result:
+        result.append({
+            "contract": contract_name,
+            "window_hours": window_hours,
+            "total_validations": 0,
+            "pass_rate": 1.0,
+            "failed": 0,
+            "top_failing_rules": [],
+            "catalog_hint": f"marmot:assets/{contract_name}",
+            "governance_tip": "No validation data recorded yet for this contract.",
+        })
+
+    output = result[0] if (contract_name and result) else result
+    return [types.TextContent(type="text", text=json.dumps(output, default=str))]
 
 
 # ── Entry point ───────────────────────────────────────────────────────

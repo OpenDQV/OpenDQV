@@ -174,17 +174,17 @@ The same contract also ships with `pip install opendqv` in
 
 ---
 
-## OpenDQV vs qsr_menu_item
+## OpenDQV vs ppds_menu_item
 
 OpenDQV ships two Natasha's Law contracts. They address different integration points:
 
 | Contract | Use case | Integration pattern |
 |----------|----------|---------------------|
-| `qsr_menu_item` | POS systems, custom apps, REST API validation | 14 boolean allergen fields, `POST /api/v1/validate` |
+| `ppds_menu_item` | POS systems, custom apps, REST API validation | 14 boolean allergen fields, `POST /api/v1/validate` |
 | `allereasy_dish` | AllerEasy Django app | Audit trail fields, `LocalValidator` in `Dish.clean()` |
 
 If you are integrating OpenDQV directly with a POS or custom recipe management system
-(not AllerEasy), use `qsr_menu_item`. See
+(not AllerEasy), use `ppds_menu_item`. See
 [docs/integrations/natasha-law-compliance.md](natasha-law-compliance.md).
 
 ---
@@ -195,6 +195,6 @@ If you are integrating OpenDQV directly with a POS or custom recipe management s
 - AllerEasy GitHub: [github.com/rhcompbuilds/Allereasy](https://github.com/rhcompbuilds/Allereasy)
 - Integration PR: [github.com/rhcompbuilds/Allereasy/pull/1](https://github.com/rhcompbuilds/Allereasy/pull/1)
 - Contract: `contracts/allereasy_dish.yaml`
-- Contract: `contracts/qsr_menu_item.yaml`
+- Contract: `contracts/ppds_menu_item.yaml`
 - Natasha's Law guide: [docs/integrations/natasha-law-compliance.md](natasha-law-compliance.md)
 - UK legislation: [food.gov.uk/business-guidance/natashas-law](https://www.food.gov.uk/business-guidance/introduction-to-allergen-labelling-changes-ppds)

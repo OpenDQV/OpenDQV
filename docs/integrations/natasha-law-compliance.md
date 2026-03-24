@@ -62,7 +62,7 @@ The enforcement model is structural, not advisory:
 Operator enters menu item
           │
           ▼
-POST /api/v1/validate/qsr_menu_item
+POST /api/v1/validate/ppds_menu_item
           │
           ├── contains_celery missing?       → 422 (not_empty)
           ├── contains_peanuts missing?      → 422 (not_empty)
@@ -100,7 +100,7 @@ The risk asymmetry is severe — a false negative on an allergen declaration can
 
 ## Contract rules summary
 
-The `qsr_menu_item` contract applies the following rule types:
+The `ppds_menu_item` contract applies the following rule types:
 
 | Pattern | Rules |
 |---------|-------|
@@ -170,7 +170,7 @@ def validate_menu_item(record: dict) -> dict:
     Raises ValueError if the record fails validation.
     """
     resp = httpx.post(
-        f"{OPENDQV_URL}/api/v1/validate/qsr_menu_item",
+        f"{OPENDQV_URL}/api/v1/validate/ppds_menu_item",
         json=record,
         headers={"Authorization": f"Bearer {OPENDQV_TOKEN}"},
         timeout=5.0,
@@ -217,7 +217,7 @@ validate_menu_item(new_item)  # raises on failure, returns result on success
 from sdk import OpenDQVClient
 
 client = OpenDQVClient(OPENDQV_URL, token=OPENDQV_TOKEN)
-result = client.validate("qsr_menu_item", new_item)
+result = client.validate("ppds_menu_item", new_item)
 
 if not result.valid:
     for error in result.errors:
@@ -249,7 +249,7 @@ Northern Ireland. The same 14 allergens apply across all four nations.
 
 **EU equivalent:** Food Information to Consumers Regulation (EU) No 1169/2011 (FIC)
 applies in all EU member states and covers the same 14 allergens with broadly
-equivalent labelling requirements. The `qsr_menu_item` contract is compliant with FIC
+equivalent labelling requirements. The `ppds_menu_item` contract is compliant with FIC
 as well as Natasha's Law.
 
 ---
@@ -286,10 +286,10 @@ it at `Dish.clean()` before the record reaches the database.
 
 ## Related resources
 
-- Contract: `contracts/qsr_menu_item.yaml` — 14 boolean allergen fields (REST API / bulk validation)
+- Contract: `contracts/ppds_menu_item.yaml` — 14 boolean allergen fields (REST API / bulk validation)
 - Contract: `contracts/allereasy_dish.yaml` — allergen review audit trail (Django LocalValidator)
-- Starter contract: `examples/qsr/qsr_menu_item.yaml`
-- Sample records: `examples/qsr/`
+- Starter contract: `examples/ppds/ppds_menu_item.yaml`
+- Sample records: `examples/ppds/`
 - Reference files: `contracts/ref/allergen_boolean.txt`, `allergen_gluten_cereals.txt`,
   `allergen_tree_nut_types.txt`, `qsr_item_categories.txt`
 - AllerEasy: [allereasy.co.uk](https://www.allereasy.co.uk/) — open-source Django allergen management

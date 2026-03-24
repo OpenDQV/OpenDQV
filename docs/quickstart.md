@@ -80,8 +80,8 @@ Take a moment to explore. Each rule has a plain-English description of what it c
 
 #### Option A — No code (workbench)
 
-1. In the sidebar, click **Validate Record**
-2. Select the `customer` contract from the dropdown
+1. In the sidebar, click **Validate**
+2. Select **Single record** mode, then select the `customer` contract from the dropdown
 3. Paste this sample JSON into the input box:
 
 ```json

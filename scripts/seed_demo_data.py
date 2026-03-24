@@ -132,11 +132,11 @@ def seed_customer(n: int = 200):
             "name": random_name() if valid or i % 7 != 2 else "",
             "phone": uk_phone() if valid else bad_phone(),
             "age": random.randint(18, 85) if valid else random.choice([200, -1, 999]),
-            "score": random.randint(300, 850) if valid else random.choice([9999, -50]),
+            "score": random.randint(0, 100) if valid else random.choice([9999, -50]),
             "date": random_date() if valid else "15-06-2024",
             "username": f"user_{random.randint(1000, 9999)}",
             "password": "Str0ngP@ss!" if valid else "weak",
-            "loyalty_tier": random.choice(["bronze", "silver", "gold", "platinum"]) if valid
+            "loyalty_tier": random.choice(["bronze", "silver", "gold", "standard"]) if valid
                            else "diamond",
         }
         post("/api/v1/validate", {"contract": "customer", "record": record})
@@ -158,6 +158,7 @@ def seed_sf_contact(n: int = 100):
             "Phone": uk_phone() if valid else bad_phone(),
             "Title": random.choice(titles),
             "AccountName": f"Acme {random.choice(['Corp', 'Ltd', 'Inc', 'GmbH'])}",
+            "Birthdate": random_date(365 * 40) if valid else "not-a-date",
             "MailingCountry": random.choice(countries) if valid else "UK",  # UK not valid ISO 3166
         }
         post("/api/v1/validate", {"contract": "sf_contact", "record": record})

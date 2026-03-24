@@ -34,6 +34,8 @@ services:
       - .env
     environment:
       - API_URL=http://api:8000
+      # Optional: set MARMOT_URL to enable one-click deep-links in the Quality & Catalog workbench tab
+      # - MARMOT_URL=http://marmot:8080
     depends_on:
       api:
         condition: service_healthy
