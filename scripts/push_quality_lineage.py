@@ -109,12 +109,7 @@ def build_run_event(contract: dict, stats: dict) -> dict:
                 "name": asset_id,
             }
         ],
-        "outputs": [
-            {
-                "namespace": "opendqv",
-                "name": name,
-            }
-        ],
+        "outputs": [],  # handled by stitch_direct_lineage to avoid stub duplication
     }
 
 
