@@ -1204,7 +1204,12 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
                 valid_values = _load_lookup_set(rule.lookup_file, rule.lookup_field or "")
             for idx in range(len(df)):
                 val = df[field].iloc[idx]
-                if val is None or (isinstance(val, float) and pd.isna(val)) or str(val) not in valid_values:
+                if val is None or (isinstance(val, float) and pd.isna(val)):
+                    failing.add(idx)
+                elif rule.all_of and isinstance(val, list):
+                    if any(str(item) not in valid_values for item in val):
+                        failing.add(idx)
+                elif str(val) not in valid_values:
                     failing.add(idx)
         except (FileNotFoundError, KeyError, OSError, RuntimeError) as exc:
             logger.warning("lookup rule '%s' skipped (infrastructure error, not failing batch): %s", rule.name, exc)
