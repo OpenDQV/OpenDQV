@@ -523,15 +523,81 @@ contract:
 
 ---
 
+## Approach 6 — MCP Composition (Agent-Native)
+
+Both OpenDQV and Marmot expose MCP servers. An AI agent can compose them without any integration code — just two MCP connections and a prompt.
+
+### What the agent does
+
+1. Calls `opendqv:get_quality_metrics("customer")` → gets `pass_rate`, `top_failing_rules`, and `catalog_hint: "marmot:assets/customer"`
+2. Reads the `catalog_hint` field
+3. Calls `marmot:get_asset("customer")` → gets owner, lineage, downstream assets
+4. Reports: which rules are failing, who owns the asset, what systems are at risk
+
+No webhook. No cron job. No custom Python. Just the agent composing both tools.
+
+### Setup
+
+Both MCP servers must be registered in your agent's config:
+
+```json
+{
+  "mcpServers": {
+    "opendqv": {
+      "command": "python",
+      "args": ["/path/to/OpenDQV/mcp_server.py"],
+      "env": {"OPENDQV_AGENT_IDENTITY": "your.email@example.com"}
+    },
+    "marmot": {
+      "command": "marmot",
+      "args": ["mcp", "--url", "http://localhost:8080"]
+    }
+  }
+}
+```
+
+### Example agent prompts
+
+**Daily quality health check:**
+```
+Using the opendqv MCP server, call get_quality_metrics for all contracts.
+For any contract with pass_rate below 0.95:
+  1. Read the catalog_hint field.
+  2. Call the marmot MCP server's get_asset tool with the asset name from catalog_hint.
+  3. Report the asset owner, failing rule names, and how many downstream assets depend on it.
+Format the output as a markdown table sorted by pass_rate ascending.
+```
+
+**Incident triage:**
+```
+The "banking_transaction" contract is showing elevated rejections.
+1. Call opendqv:get_quality_metrics("banking_transaction") — get the top failing rules.
+2. Call opendqv:explain_error for each failing rule to understand the remediation.
+3. Call marmot:get_asset using catalog_hint to find who owns this asset.
+4. Draft a Slack message to the owner summarising: rejection count, top rules, and fix suggestions.
+```
+
+### What each layer contributes
+
+| Layer | Tool | Contributes |
+|-------|------|-------------|
+| Layer 1 — enforcement | `opendqv:get_quality_metrics` | Pass rate, top_failing_rules, rejection counts, catalog_hint |
+| Layer 2 — catalog | `marmot:get_asset` | Owner, description, lineage edges, downstream assets |
+| Layer 3 — observability | GX / Soda / Monte Carlo | Post-load trend anomalies |
+
+This is the primary integration path for teams using AI agents. No deployment step required — both servers are already available if you have OpenDQV and Marmot installed.
+
+---
+
 ## Recommended Integration Path
 
 | Phase | Action |
 |---|---|
 | **Now** | Run Approach 1 as a cron job (daily) to push contract metadata to Marmot |
 | **Now** | Set `asset_id` on contracts to Marmot asset URIs for linked assets |
+| **Now (agent users)** | Configure Approach 6 (MCP composition) if your team uses Claude Desktop or Cursor |
 | **Planned** | Add incremental sync (hash-based) to reduce API call volume |
 | **Planned** | Deploy Approach 2 (webhook receiver) for real-time failure tagging |
-| **Planned** | Configure Approach 4 (MCP) if your team uses Claude Desktop or Cursor |
 
 ---
 

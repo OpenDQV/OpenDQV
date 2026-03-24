@@ -1,47 +1,15 @@
-# =============================================================================
-# OpenDQV QSR Menu Item — Natasha's Law (PPDS) Compliance Contract
-# =============================================================================
-# Purpose   : Enforce explicit declaration of all 14 major allergens for
-#             Pre-Packed for Direct Sale (PPDS) food items at the point of
-#             write — before the item is labelled or served.
-# Law       : The Food Information (Amendment) (England) Regulations 2019
-#             ("Natasha's Law"), in force 1 October 2021.
-#             Scotland / Wales / NI: equivalent national regulations.
-#             EU equivalent: Food Information to Consumers Reg 1169/2011 (FIC).
-# Scope     : Any Quick Service Restaurant (QSR)
-#             that prepares and sells food on the same premises: sandwich shops,
-#             bakeries, coffee shops, delis, fast food chains, canteens.
-# Version   : 1.0.0
-# =============================================================================
-#
-# WHY 14 SEPARATE BOOLEAN FIELDS?
-#   The only way to enforce Natasha's Law's *obligation to declare* is to make
-#   each of the 14 allergens a mandatory field. An array approach can validate
-#   the values you provide but cannot detect dangerous omissions — if "peanuts"
-#   is missing from a list, OpenDQV cannot know whether it was intentionally
-#   excluded or accidentally forgotten. The boolean model makes omission
-#   structurally impossible: a missing field is a 422 error.
-#
-# HOW TO USE:
-#   1. Load this contract: POST /api/v1/contracts (name: "qsr_menu_item")
-#      Or copy to your contracts/ directory and restart the service.
-#   2. Validate a record:  POST /api/v1/validate/qsr_menu_item
-#   3. Batch validate:     POST /api/v1/validate/qsr_menu_item/batch
-#   4. Sample records:     examples/qsr/
-#
-# REQUIRED REFERENCE FILES (place in contracts/ref/):
-#   ref/allergen_boolean.txt        — true, false
-#   ref/allergen_gluten_cereals.txt — wheat, rye, barley, oats, spelt, kamut
-#   ref/allergen_tree_nut_types.txt — almonds, hazelnuts, walnuts, cashews, ...
-#   ref/qsr_item_categories.txt     — sandwich, wrap, hot_food, pastry, ...
-
 contract:
-  name: qsr_menu_item
-  version: "1.0.0"
+  name: ppds_menu_item
+  version: "1.1"
   description: >
-    Natasha's Law PPDS allergen compliance contract for QSR menu items.
-    Enforces explicit yes/no declaration of all 14 major UK food allergens at
-    the point of write. Omitting any allergen field blocks the record with a 422.
+    Natasha's Law (Food Information (Amendment) (England) Regulations 2019)
+    compliance contract for Pre-Packed for Direct Sale (PPDS) menu items.
+    Enforces explicit declaration of all 14 major allergens at the point of write —
+    before the item is labelled or served. Every allergen field is mandatory;
+    omission is structurally impossible and triggers a 422 before the record enters
+    the system. Applies to any food business making Pre-Packed for Direct Sale food
+    on the same premises — QSRs, cafés, bakeries, delis, school canteens, and hospital
+    food services.
   owner: "Food Safety Data Team"
   status: active
 
@@ -52,7 +20,7 @@ contract:
       field: item_id
       type: not_empty
       severity: error
-      error_message: "item_id is required"
+      error_message: "item_id is required — every PPDS menu item must be uniquely identifiable"
 
     - name: item_name_required
       field: item_name
@@ -100,14 +68,18 @@ contract:
       severity: error
       error_message: "ingredients_text must not exceed 2000 characters"
 
-    # ── ALLERGEN DECLARATIONS (all 14 are mandatory) ─────────────────────────
-    # Each field must be "true" or "false". Missing any field = 422 error.
+    # ── ALLERGEN DECLARATIONS (14 mandatory fields) ──────────────────────────
+    # Each of the 14 major allergens controlled under UK food information law
+    # (Regulation (EU) No 1169/2011 as retained in UK law) must be explicitly
+    # declared as "true" or "false". Omission of any field blocks the record.
+    # This is the structural enforcement of Natasha's Law: you cannot submit
+    # a PPDS record without answering every allergen question.
 
     - name: contains_celery_required
       field: contains_celery
       type: not_empty
       severity: error
-      error_message: "contains_celery must be declared (true or false)"
+      error_message: "contains_celery must be declared (true or false) — Natasha's Law requires explicit allergen declaration"
 
     - name: contains_celery_valid
       field: contains_celery
@@ -120,7 +92,7 @@ contract:
       field: contains_gluten
       type: not_empty
       severity: error
-      error_message: "contains_gluten must be declared (true or false)"
+      error_message: "contains_gluten must be declared (true or false) — cereals containing gluten (wheat, rye, barley, oats) are a controlled allergen"
 
     - name: contains_gluten_valid
       field: contains_gluten
@@ -263,7 +235,7 @@ contract:
       field: contains_sulphites
       type: not_empty
       severity: error
-      error_message: "contains_sulphites must be declared (true or false)"
+      error_message: "contains_sulphites must be declared (true or false) — sulphur dioxide / sulphites are a controlled allergen above 10ppm"
 
     - name: contains_sulphites_valid
       field: contains_sulphites
@@ -286,6 +258,9 @@ contract:
       error_message: "contains_tree_nuts must be 'true' or 'false'"
 
     # ── CONDITIONAL SUB-FIELDS ───────────────────────────────────────────────
+    # Gluten cereal type: when gluten is present, the specific cereal(s) must
+    # be identified. UK food law requires naming the specific gluten-containing
+    # cereal (e.g. "wheat" not just "gluten"). Comma-separated list accepted.
     - name: gluten_cereal_types_required_if_gluten
       field: gluten_cereal_types
       type: required_if
@@ -293,7 +268,7 @@ contract:
         field: contains_gluten
         value: "true"
       severity: error
-      error_message: "gluten_cereal_types is required when contains_gluten is true — specify cereal(s): wheat, rye, barley, oats, spelt, kamut"
+      error_message: "gluten_cereal_types is required when contains_gluten is true — specify the cereal(s): wheat, rye, barley, oats, spelt, or kamut"
 
     - name: gluten_cereal_types_valid
       field: gluten_cereal_types
@@ -306,6 +281,8 @@ contract:
       severity: error
       error_message: "gluten_cereal_types must only contain: wheat, rye, barley, oats, spelt, kamut"
 
+    # Tree nut type: when tree nuts are present, the specific nut(s) must be
+    # named. EU FIC Reg 1169/2011 (as retained) requires nut type specificity.
     - name: tree_nut_types_required_if_tree_nuts
       field: tree_nut_types
       type: required_if
@@ -313,7 +290,7 @@ contract:
         field: contains_tree_nuts
         value: "true"
       severity: error
-      error_message: "tree_nut_types is required when contains_tree_nuts is true — specify nut(s): almonds, hazelnuts, walnuts, cashews, pecans, brazil_nuts, pistachios, macadamia, queensland_nuts"
+      error_message: "tree_nut_types is required when contains_tree_nuts is true — specify the nut(s): almonds, hazelnuts, walnuts, cashews, pecans, brazil_nuts, pistachios, macadamia, queensland_nuts"
 
     - name: tree_nut_types_valid
       field: tree_nut_types
@@ -326,6 +303,19 @@ contract:
       severity: error
       error_message: "tree_nut_types must only contain recognised tree nut types"
 
+    # Sulphite concentration: when sulphites are present, record the ppm level.
+    # Declaration is only required above 10ppm under UK food information law.
+    # required_if forces the field to be present when sulphites are declared;
+    # the min rule then enforces the statutory 10ppm threshold.
+    - name: sulphites_ppm_required_if_sulphites
+      field: sulphites_ppm
+      type: required_if
+      required_if:
+        field: contains_sulphites
+        value: "true"
+      severity: error
+      error_message: "sulphites_ppm is required when contains_sulphites is true — record the concentration in ppm (must be >= 10, the statutory declaration threshold)"
+
     - name: sulphites_ppm_min
       field: sulphites_ppm
       type: min
@@ -334,14 +324,16 @@ contract:
         field: contains_sulphites
         value: "true"
       severity: error
-      error_message: "sulphites_ppm must be >= 10 — sulphites only require declaration above the 10ppm statutory threshold"
+      error_message: "sulphites_ppm must be >= 10 when contains_sulphites is true — sulphites only require declaration above the 10ppm statutory threshold"
 
     # ── PPDS AUDIT TRAIL ─────────────────────────────────────────────────────
+    # Records who reviewed the allergen information and when. Required to
+    # demonstrate due diligence in the event of an allergen incident or FSA audit.
     - name: ppds_reviewed_by_required
       field: ppds_compliant_reviewed_by
       type: not_empty
       severity: error
-      error_message: "ppds_compliant_reviewed_by is required — record who verified allergen declarations before the item was labelled or served"
+      error_message: "ppds_compliant_reviewed_by is required — record who verified the allergen declarations before the item was labelled or served"
 
     - name: ppds_review_date_required
       field: ppds_review_date
@@ -352,5 +344,6 @@ contract:
     - name: ppds_review_date_format
       field: ppds_review_date
       type: date_format
+      format: "%Y-%m-%d"
       severity: error
-      error_message: "ppds_review_date must be a valid date (YYYY-MM-DD)"
+      error_message: "ppds_review_date must be a valid ISO 8601 date (YYYY-MM-DD) — required for FSA audit trail"

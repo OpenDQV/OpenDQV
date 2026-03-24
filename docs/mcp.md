@@ -120,6 +120,12 @@ Once connected, the agent will see these tools:
 | `validate_batch` | Validate multiple records in one call; returns per-row results and a summary |
 | `explain_error` | Get a plain-English explanation of a rule failure with valid/invalid examples |
 
+Observability tools:
+
+| Tool | What it does |
+|------|--------------|
+| `get_quality_metrics` | Return rejection rates and top failing rules per contract, with a `catalog_hint` for chaining to Marmot or any catalog MCP server |
+
 Write tools:
 
 | Tool | What it does |
@@ -287,3 +293,45 @@ Tool: validate_record(
 A human submits the contract for review via the API and approves it. Once ACTIVE, the contract appears in `list_contracts()` for all agents — no code change required on the agent side.
 
 > The contract name (`MCP_my_app_users`) stays the same across DRAFT → REVIEW → ACTIVE, so agent code written against the DRAFT works unchanged in production.
+
+---
+
+## MCP composition — chaining OpenDQV with a catalog
+
+Because both OpenDQV and catalog tools like [Marmot](https://github.com/marmotdata/marmot) expose MCP servers, an agent can compose them natively. The `get_quality_metrics` tool includes a `catalog_hint` field that tells agents which asset to look up next.
+
+### How it works
+
+```
+Agent
+  ├─ opendqv:get_quality_metrics("customer")
+  │     → { pass_rate: 0.94, failed: 85, catalog_hint: "marmot:assets/customer" }
+  └─ marmot:get_asset("customer")          ← agent uses catalog_hint
+        → { owner: "...", lineage: [...], downstream_assets: [...] }
+```
+
+No integration code required. Both servers are already running. The agent reads the `catalog_hint` and calls the appropriate catalog tool.
+
+### Example agent prompt
+
+```
+You have access to two MCP servers: opendqv and marmot.
+
+1. Call opendqv:get_quality_metrics for the "customer" contract.
+2. Read the catalog_hint field from the result.
+3. If pass_rate is below 0.95, call marmot:get_asset using the asset name
+   from catalog_hint to find the asset owner.
+4. Summarise: which rules are failing, who owns the asset, and what
+   downstream assets are at risk.
+```
+
+### What each server contributes
+
+| Layer | Tool | Contributes |
+|-------|------|-------------|
+| Layer 1 — write-time | `opendqv:get_quality_metrics` | Pass rate, failing rules, rejection counts |
+| Layer 2 — catalog | `marmot:get_asset` (or DataHub / Atlan equivalent) | Owner, lineage, downstream assets |
+
+OpenDQV stays pure enforcement. The catalog stays pure governance. The agent composes them at runtime.
+
+For a full walkthrough including webhook quality tagging and the MCP bridge approach, see [`docs/marmot_integration.md`](marmot_integration.md).

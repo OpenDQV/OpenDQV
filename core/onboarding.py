@@ -296,7 +296,7 @@ _TEMPLATE_LABELS: dict[str, str] = {
     "telecoms_cdr":             "Telecoms               — call detail records, CDR",
     "travel_booking":           "Travel & Hospitality   — bookings, PNR",
     "universal_benchmark":      "Universal Benchmark    — performance & load testing",
-    "qsr_menu_item":            "QSR / Food Safety      — Natasha's Law PPDS allergen compliance",
+    "ppds_menu_item":           "QSR / Food Safety      — Natasha's Law PPDS allergen compliance",
     "martyns_law_venue":        "Public Safety / Venues — Martyn's Law terrorism preparedness",
     "martyns_law_event":        "Public Safety / Events — Martyn's Law qualifying events",
     "building_safety_golden_thread": "Building Safety        — Golden Thread, higher-risk buildings",

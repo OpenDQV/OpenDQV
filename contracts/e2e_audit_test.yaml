@@ -3,7 +3,7 @@ contract:
   version: '1.0'
   description: E2E audit trail test contract
   owner: e2e
-  status: draft
+  status: active
   rules:
     - name: id_required
       field: id

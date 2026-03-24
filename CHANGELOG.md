@@ -2,6 +2,59 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.5.0] - 2026-03-24
+
+### Workbench UX Overhaul
+
+- **Grouped sidebar navigation** — replaced flat radio with sectioned button nav:
+  CORE (Contracts, Validate, Monitoring, Audit Trail), INTEGRATIONS (Catalogs & AI,
+  Integration Guide, Code Export, Webhooks, Federation), CONTRACT TOOLS (Import Rules,
+  Profiler, CLI Guide)
+- **Validate** — "Validate Record" and "Validate Batch" merged into a single section
+  with a mode toggle; sample JSON generation is now explicit opt-in (button), not
+  auto-reset on contract change
+- **Audit Trail** — "Version History" renamed to "Audit Trail"
+- **Catalogs & AI** — "Catalog & Agents" renamed; Marmot onboarding message rewritten
+  with context (what Marmot is, what you gain, concrete next step); `urn:opendqv:*`
+  asset IDs show "OpenDQV Internal ID" instead of "Catalog: Custom"; asset_id
+  optionality explained in caption
+- **Profiler** — "Rule Profiler" renamed to "Profiler" (sidebar) / "Data Profiler" (header)
+- **Monitoring** — bar chart fixed (red Fail / blue Pass, wide-format DataFrame);
+  Refresh button moved to bottom of section; charts rendered before tables
+- **Acronym display** — `_display_name()` helper with `_ACRONYMS` dict corrects
+  `.title()` mangling: Qsr→QSR, Gdpr→GDPR, Fmcg→FMCG, Hipaa→HIPAA, Dora→DORA,
+  Mifid→MiFID, Sox→SOX, Eu→EU, and more
+- **Domain labels** — `_contract_domain()` now applies `_ACRONYMS`; new entries:
+  `martyns→"Martyn's Law"`, `allereasy→"AllerEasy"`, `ppds→"Natasha's Law / PPDS"`
+
+### Contract Rename — qsr_menu_item → ppds_menu_item
+
+- **`ppds_menu_item`** — contract renamed from `qsr_menu_item`. PPDS (Pre-Packed for
+  Direct Sale) is the correct legal scope: Natasha's Law applies to any food business
+  making food on the same premises it is sold — not only QSRs. Cafés, bakeries, delis,
+  school canteens, and hospital food services all fall in scope. Zero breaking change
+  (no external users at time of rename)
+- Contract description updated to reflect full PPDS scope beyond QSR
+- `contracts/ppds_menu_item.yaml`, `examples/ppds/ppds_menu_item.yaml`,
+  `core/onboarding.py`, `README.md`, `docs/integrations/natasha-law-compliance.md`,
+  `docs/integrations/allereasy.md` all updated; `examples/qsr/` folder renamed to
+  `examples/ppds/`
+
+### Demo Data
+
+- **`scripts/seed_demo_data.py`** — fixed three bugs causing 0% validation pass rate:
+  `score` field used range 300–850 (contract enforces 0–100); `loyalty_tier` included
+  "platinum" (not in `ref/loyalty_tiers.txt`); `sf_contact` records missing `Birthdate`
+  (a severity:error rule). Seeded data now produces a realistic pass/fail split
+
+### Tests
+
+- **`tests/test_e2e.py`** — Playwright navigation updated for new sidebar button UI:
+  `_navigate_to_version_history` now clicks `button[Audit Trail]`; heading assertion
+  updated to "Contract Audit Trail"
+
+---
+
 ## [1.4.0] - 2026-03-23
 
 ### Martyn's Law — Pretix event ticketing integration
@@ -15,9 +68,9 @@ All notable changes to OpenDQV are documented here.
 
 ## [1.3.3] - 2026-03-23
 
-### Natasha's Law — qsr_menu_item contract fixes
+### Natasha's Law — ppds_menu_item contract fixes
 
-Two compliance gaps in the `qsr_menu_item` contract (Natasha's Law / PPDS enforcement) closed:
+Two compliance gaps in the `ppds_menu_item` contract (Natasha's Law / PPDS enforcement) closed:
 
 - **`sulphites_ppm` now required when sulphites declared** — added `required_if: {field: contains_sulphites, value: "true"}` rule. Previously, if `contains_sulphites = "true"` but `sulphites_ppm` was absent, the `min: 10` threshold check silently never fired — a record could pass validation with sulphites declared but no concentration recorded
 - **`ppds_review_date` now enforces ISO 8601 format** — added `format: "%Y-%m-%d"` to the `date_format` rule. Previously any parseable date (including `"03/21/2026"`) was accepted; FSA audit requirements demand unambiguous ISO 8601 dates
@@ -382,7 +435,7 @@ Suite: 1,780 passing, 25 skipped (no new tests — contract-only additions).
 
 ### Contracts
 
-- **`qsr_menu_item`** — Natasha's Law (Food Information (Amendment) (England)
+- **`ppds_menu_item`** — Natasha's Law (Food Information (Amendment) (England)
   Regulations 2019) allergen compliance contract for Pre-Packed for Direct Sale
   (PPDS) food. All 14 major allergens are mandatory fields — omission triggers a
   422 before the record enters the system. 49 rules. New reference files:
