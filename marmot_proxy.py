@@ -23,6 +23,24 @@ def parse_sse(text: str) -> list[str]:
     return results
 
 
+def inject_provider_filter(request: dict) -> dict:
+    """Inject providers=["opendqv"] into discover_data calls.
+
+    Prevents OpenLineage job nodes and input stubs from appearing in
+    catalog discovery — they exist for lineage only, not as catalog assets.
+    Marmot v0.1.0 has no native 'hidden from catalog' flag (known gap,
+    raised as contribution opportunity).
+    """
+    if (
+        request.get("method") == "tools/call"
+        and request.get("params", {}).get("name") == "discover_data"
+    ):
+        args = request["params"].setdefault("arguments", {})
+        if not args.get("providers"):
+            args["providers"] = ["opendqv"]
+    return request
+
+
 def main():
     client = httpx.Client(timeout=30.0)
 
@@ -35,6 +53,8 @@ def main():
             request = json.loads(raw_line)
         except json.JSONDecodeError:
             continue
+
+        request = inject_provider_filter(request)
 
         try:
             response = client.post(
