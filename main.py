@@ -7,6 +7,12 @@ Like a bouncer at the door — bad data doesn't get in.
 
 import logging
 from contextlib import asynccontextmanager
+from importlib.metadata import version as _pkg_version, PackageNotFoundError
+
+try:
+    APP_VERSION = _pkg_version("opendqv")
+except PackageNotFoundError:
+    APP_VERSION = "1.5.0"
 
 from fastapi import FastAPI
 from slowapi import _rate_limit_exceeded_handler
@@ -52,7 +58,7 @@ app = FastAPI(
         "Source systems call /api/v1/validate before writing data. "
         "Bad data is blocked at the door."
     ),
-    version="1.5.0",
+    version=APP_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
@@ -147,7 +153,7 @@ def _maker_checker_enforced() -> bool:
 async def root():
     return {
         "service": "OpenDQV",
-        "version": "1.5.0",
+        "version": APP_VERSION,
         "status": "ready",
         "auth_mode": config.AUTH_MODE,
         "maker_checker_enforced": _maker_checker_enforced(),
