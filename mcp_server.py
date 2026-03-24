@@ -25,7 +25,7 @@ Install MCP extra:
 Register in Claude Desktop (~/.claude/claude_desktop_config.json):
   {
     "mcpServers": {
-      "opendqv": {
+      "OpenDQV": {
         "command": "python",
         "args": ["/path/to/OpenDQV/mcp_server.py"],
         "env": {
@@ -36,7 +36,7 @@ Register in Claude Desktop (~/.claude/claude_desktop_config.json):
   }
 
 Register in Cursor (Settings → MCP → Add Server):
-  Name: opendqv
+  Name: OpenDQV
   Command: python /path/to/OpenDQV/mcp_server.py
 
 Note: The path to mcp_server.py must be an absolute path and is machine-specific.
