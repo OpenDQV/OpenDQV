@@ -52,6 +52,31 @@ LITESTREAM_REPLICATION_AGE = Gauge(
 # Initialise to -1 (not configured) — updated by Litestream health check if present.
 LITESTREAM_REPLICATION_AGE.set(-1)
 
+REJECTION_RATE = Gauge(
+    "opendqv_rejection_rate",
+    "Current rejection rate (0.0-1.0) per contract",
+    ["contract"],
+)
+BATCH_SIZE = Histogram(
+    "opendqv_batch_size",
+    "Number of records per batch validation call",
+    ["contract"],
+    buckets=[1, 10, 50, 100, 500, 1000, 5000, 10000],
+)
+FAILURES_BY_SEVERITY = Counter(
+    "opendqv_failures_by_severity_total",
+    "Validation failures by severity level",
+    ["contract", "severity"],
+)
+DRAFT_CONTRACT_COUNT = Gauge(
+    "opendqv_draft_contract_count",
+    "Number of contracts currently in DRAFT status",
+)
+ACTIVE_CONTRACT_COUNT = Gauge(
+    "opendqv_active_contract_count",
+    "Number of contracts currently in ACTIVE status",
+)
+
 
 # ── In-memory stats for dashboard (no external DB needed) ────────────
 
@@ -64,10 +89,12 @@ class ValidationStats:
         self.history = []  # list of validation event dicts
         self.totals = defaultdict(lambda: {"pass": 0, "fail": 0, "errors": 0, "warnings": 0})
         self.field_errors = defaultdict(int)  # (contract, field, rule) -> count
+        self.severity_counts = defaultdict(int)  # (contract, severity) -> count
         self.started_at = datetime.now(timezone.utc)
 
     def record(self, contract: str, context: str, valid: bool, error_count: int,
-               warning_count: int, latency_ms: float, errors: list = None, mode: str = "single"):
+               warning_count: int, latency_ms: float, errors: list = None, mode: str = "single",
+               batch_size: int = 0):
         ctx = context or "none"
         with self._lock:
             # Update totals
@@ -82,6 +109,10 @@ class ValidationStats:
             # Track field-level errors
             for e in (errors or []):
                 self.field_errors[(contract, e.get("field", "?"), e.get("rule", "?"))] += 1
+
+            # Track severity counts
+            for e in (errors or []):
+                self.severity_counts[(contract, e.get("severity", "error"))] += 1
 
             # Append to history (ring buffer)
             self.history.append({
@@ -105,6 +136,19 @@ class ValidationStats:
                 contract=contract, context=ctx,
                 field=e.get("field", "?"), rule=e.get("rule", "?"),
             ).inc()
+        # Update rejection rate gauge for this contract
+        _contract_keys = [k for k in self.totals if k.startswith(f"{contract}:")]
+        _c_pass = sum(self.totals[k]["pass"] for k in _contract_keys)
+        _c_fail = sum(self.totals[k]["fail"] for k in _contract_keys)
+        _c_total = _c_pass + _c_fail
+        if _c_total > 0:
+            REJECTION_RATE.labels(contract=contract).set(_c_fail / _c_total)
+        for e in (errors or []):
+            FAILURES_BY_SEVERITY.labels(
+                contract=contract, severity=e.get("severity", "error")
+            ).inc()
+        if batch_size > 0:
+            BATCH_SIZE.labels(contract=contract).observe(batch_size)
 
     def get_summary(self) -> dict:
         with self._lock:
@@ -126,11 +170,32 @@ class ValidationStats:
                     key=lambda x: x["count"], reverse=True,
                 )[:20],
                 "recent_history": list(self.history[-50:]),
+                "dimensions": {
+                    "by_severity": {
+                        "error": sum(v for (c, sev), v in self.severity_counts.items() if sev == "error"),
+                        "warning": sum(v for (c, sev), v in self.severity_counts.items() if sev == "warning"),
+                    },
+                },
+                "governance": {
+                    "draft_count": 0,
+                    "active_count": 0,
+                    "review_count": 0,
+                },
             }
 
 
 # Singleton instance
 stats = ValidationStats()
+
+
+def update_contract_counts(draft: int, active: int, review: int = 0) -> None:
+    """Update Prometheus gauges for contract lifecycle counts.
+
+    Call this from api/routes.py on startup and after any contract
+    lifecycle change (create, activate, archive).
+    """
+    DRAFT_CONTRACT_COUNT.set(draft)
+    ACTIVE_CONTRACT_COUNT.set(active)
 
 
 class MetricsMiddleware(BaseHTTPMiddleware):

@@ -94,7 +94,7 @@ Claude Desktop config (`~/.claude/claude_desktop_config.json`):
 }
 ```
 
-MCP tools exposed: `validate_record`, `validate_batch`, `list_contracts`, `get_contract`, `explain_error`, `create_contract_draft`
+MCP tools exposed: `validate_record`, `validate_batch`, `list_contracts`, `get_contract`, `explain_error`, `create_contract_draft`, `get_quality_metrics`
 
 Agents can bootstrap new contracts via `create_contract_draft` when no matching contract exists. Names must start with `MCP_`. Drafts are testable immediately and require human approval before going ACTIVE.
 

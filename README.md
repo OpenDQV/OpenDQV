@@ -620,7 +620,7 @@ contract:
 | `sf_lead` | Salesforce Lead — 16 validation criteria with lead-specific checks | `web_form`, `trade_show`, `partner_referral` | — |
 | `proof_of_play` | **Reference contract: OOH advertising impression validation** | `billing`, `operations` | Cross-field rules, conditional constraints, context-aware billing thresholds |
 | `social_media_age_compliance` | UK Online Safety Act / Ofcom age assurance — 13+ age gate, DOB consistency, identity verification audit trail | — | `age_match` rule, identity verification lookup, verification timestamp |
-| `qsr_menu_item` | Natasha's Law (PPDS) allergen compliance — all 14 major allergens must be explicitly declared before a QSR menu item is saved or labelled | — | 14 mandatory boolean fields, `required_if` for gluten/tree-nut type, sulphite threshold, audit trail |
+| `ppds_menu_item` | Natasha's Law (PPDS) allergen compliance — all 14 major allergens must be explicitly declared before a QSR menu item is saved or labelled | — | 14 mandatory boolean fields, `required_if` for gluten/tree-nut type, sulphite threshold, audit trail |
 | `martyns_law_venue` | Martyn's Law (Terrorism (Protection of Premises) Act 2025) — venue terrorism preparedness compliance, two-tier (standard/enhanced), mandatory SRP and SIA registration for 800+ capacity venues | — | Two-tier `required_if` enforcement, capacity minimum, enhanced-duty field gate, audit trail |
 | `martyns_law_event` | Martyn's Law — qualifying events (temporary/one-off, 200+ expected attendance). Organiser-centric; SIA notification not registration; staff briefing not training; time-bounded with start/end dates | — | Distinct from venue contract: `sia_notification_reference` not `sia_registration_number`; event dates required |
 | `pretix_event` | Martyn's Law — [Pretix](https://pretix.eu) event ticketing platform integration. Enforces expected_attendance, duty tier, evacuation/invacuation/lockdown procedures, staff briefing, and compliance audit trail at the point of write | — | Pretix-specific: `expected_attendance` field (Pretix has no native capacity field); `pre_save` signal via LocalValidator; see [docs/integrations/pretix.md](docs/integrations/pretix.md) |
@@ -639,7 +639,7 @@ OpenDQV ships 44 production-ready industry contracts in `contracts/` covering ag
 
 > **UK Online Safety Act (Ofcom enforcement from January 2026):** The `social_media_age_compliance` contract demonstrates age assurance patterns required by the UK Online Safety Act 2023: 13-year age gate, age/DOB consistency check (`age_match` rule), identity verification method tracking, and verification timestamp audit trail.
 
-> **Natasha's Law (in force 1 October 2021):** The `qsr_menu_item` contract enforces explicit allergen declaration for Pre-Packed for Direct Sale (PPDS) food at the point of write. All 14 major allergens are mandatory fields — omission is structurally impossible and triggers a 422 before the record enters the system. The `allereasy_dish` contract extends this for [AllerEasy](https://www.allereasy.co.uk/) (open-source Django allergen management), adding a timestamped review audit trail enforced in `Dish.clean()` via the `LocalValidator` SDK. See [docs/integrations/natasha-law-compliance.md](docs/integrations/natasha-law-compliance.md) and [docs/integrations/allereasy.md](docs/integrations/allereasy.md).
+> **Natasha's Law (in force 1 October 2021):** The `ppds_menu_item` contract enforces explicit allergen declaration for Pre-Packed for Direct Sale (PPDS) food at the point of write. All 14 major allergens are mandatory fields — omission is structurally impossible and triggers a 422 before the record enters the system. The `allereasy_dish` contract extends this for [AllerEasy](https://www.allereasy.co.uk/) (open-source Django allergen management), adding a timestamped review audit trail enforced in `Dish.clean()` via the `LocalValidator` SDK. See [docs/integrations/natasha-law-compliance.md](docs/integrations/natasha-law-compliance.md) and [docs/integrations/allereasy.md](docs/integrations/allereasy.md).
 
 > **Martyn's Law (Royal Assent 3 April 2025):** The `martyns_law_venue` and `martyns_law_event` contracts enforce terrorism preparedness compliance for venues and events with a capacity of 200 or more. Enhanced-duty premises (800+) must declare a named Senior Responsible Person, SIA registration/notification reference, and Terrorism Protection Plan — omission triggers a 422 before the record enters the system. The `pretix_event` contract extends this for [Pretix](https://pretix.eu) (open-source event ticketing), adding a compliance audit trail enforced via a `pre_save` signal and the `LocalValidator` SDK. Named after Martyn Hett (1987–2017), killed in the Manchester Arena attack. See [docs/integrations/martyns-law-compliance.md](docs/integrations/martyns-law-compliance.md) and [docs/integrations/pretix.md](docs/integrations/pretix.md).
 
@@ -991,6 +991,7 @@ OpenDQV includes a built-in [Model Context Protocol (MCP)](docs/mcp.md) server, 
 | `get_contract` | Fetch a contract's full rule set |
 | `explain_error` | Get plain-English remediation for a failed rule |
 | `create_contract_draft` | Propose a new DRAFT contract (requires `MCP_` name prefix) |
+| `get_quality_metrics` | Return pass rate, top failing rules, and a `catalog_hint` for chaining to Marmot or any catalog MCP server |
 
 **Write guardrails:** Agent-created contracts are always saved as `DRAFT` and cannot enter production without human approval via the REVIEW workflow (`submit-review` → `approve`). This ensures AI-generated contracts never bypass the maker-checker process.
 
@@ -1112,21 +1113,21 @@ All importers return stats (total, imported, skipped) and a list of skipped item
 
 ## Streamlit Workbench
 
-A developer/governance UI with 12 tabs:
+A developer/governance UI with 12 sections:
 
-| Tab | Purpose |
-|-----|---------|
+| Section | Purpose |
+|---------|---------|
 | **Contracts** | Browse contracts, view rules, manage lifecycle (draft/review/active/archived) |
-| **Validate Record** | Test single records interactively with any contract + context |
-| **Validate Batch** | Test multiple records at once, see per-row results |
-| **Monitoring** | Contracts pending review, MCP-generated drafts awaiting action, health indicators |
+| **Validate** | Test single records or batches interactively with any contract + context |
+| **Monitoring** | Live validation pass/fail rates, top failing fields, recent activity |
+| **Audit Trail** | Contract version history, hash-chain integrity, governance approvals |
+| **Catalogs & AI** | External catalog deep-links (Marmot, DataHub, Atlan) + MCP agent prompts |
 | **Integration Guide** | Generate ready-to-paste code snippets for every platform |
 | **Code Export** | Generate embedded validation code (push-down mode) |
-| **Import Rules** | Import contracts from GX, dbt, Soda, Monte Carlo, or Data Contract CLI in the browser |
+| **Import Rules** | Import contracts from GX, dbt, Soda, Monte Carlo, or Data Contract CLI |
 | **Profiler** | Analyze a sample dataset and auto-generate a suggested contract |
 | **Webhooks** | Register and manage HTTP webhooks for validation events |
 | **Federation** | Node health, federation status, and event log for the OpenDQV network layer |
-| **Version History** | View contract version history, diff versions, bump version numbers |
 | **CLI Guide** | Command-line reference and usage examples |
 
 ```bash
@@ -1542,7 +1543,7 @@ Only a subset of docs appear in the sections above. Full index:
 ***Integrations**
 
 *Food safety & hospitality*
-- [docs/integrations/natasha-law-compliance.md](docs/integrations/natasha-law-compliance.md) — Natasha's Law PPDS enforcement: 14 mandatory allergen fields, `qsr_menu_item` contract
+- [docs/integrations/natasha-law-compliance.md](docs/integrations/natasha-law-compliance.md) — Natasha's Law PPDS enforcement: 14 mandatory allergen fields, `ppds_menu_item` contract
 - [docs/integrations/allereasy.md](docs/integrations/allereasy.md) — AllerEasy (Django): allergen review audit trail via `LocalValidator` in `Dish.clean()`
 
 *Data quality tools*

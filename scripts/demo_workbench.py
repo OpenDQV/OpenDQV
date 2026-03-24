@@ -73,11 +73,11 @@ def capture(page) -> list[tuple[Path, int]]:
         page.keyboard.press("Escape")
         page.wait_for_timeout(400)
 
-    # ── 4. Navigate to Validate Record ────────────────────────────────────────
-    page.locator("text=Validate Record").first.click()
+    # ── 4. Navigate to Validate ────────────────────────────────────────────────
+    page.locator("[data-testid='stSidebar']").locator("button", has_text="Validate").click()
     page.wait_for_load_state("networkidle", timeout=10000)
     page.wait_for_timeout(2000)
-    shots.append((_shot(page, "04_validate_record"), 40))
+    shots.append((_shot(page, "04_validate"), 40))
 
     # ── 5. Navigate to Monitoring ─────────────────────────────────────────────
     page.locator("text=Monitoring").first.click()

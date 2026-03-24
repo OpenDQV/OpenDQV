@@ -42,7 +42,7 @@ from core.importers.otel import import_otel, otel_to_yaml
 from core.importers.ndc import import_ndc, ndc_to_yaml
 from core.profiler import profile_records
 from security.auth import get_current_user, get_current_role, create_pat, revoke_pat, revoke_by_username, list_tokens
-from monitoring import stats
+from monitoring import stats, update_contract_counts
 from core.webhooks import WebhookManager
 from core.worker_heartbeat import heartbeat
 from core.federation import FederationLog
@@ -2139,7 +2139,65 @@ async def unregister_webhook(
 @_default_limit
 async def get_stats(request: Request, user=Depends(get_current_user)):
     """Get validation statistics for the monitoring dashboard."""
-    return stats.get_summary()
+    result = stats.get_summary()
+    contracts = registry.list_contracts()
+    draft_count = sum(1 for c in contracts if c["status"] == "draft")
+    active_count = sum(1 for c in contracts if c["status"] == "active")
+    review_count = sum(1 for c in contracts if c["status"] == "review")
+    result["governance"] = {
+        "draft_count": draft_count,
+        "active_count": active_count,
+        "review_count": review_count,
+    }
+    update_contract_counts(draft=draft_count, active=active_count, review=review_count)
+    return result
+
+
+@router.get("/rejection-summary")
+@_default_limit
+async def get_rejection_summary(
+    request: Request,
+    limit: int = Query(10, ge=1, le=50, description="Max number of contracts to return"),
+    user=Depends(get_current_user),
+):
+    """Top failing contracts and rules over the in-memory validation window.
+
+    Returns contracts sorted by rejection rate (worst first), each with
+    total validations, failure count, pass rate, and top failing rules.
+    """
+    summary = stats.get_summary()
+    by_contract = summary["by_contract"]
+    top_fields = summary["top_failing_fields"]
+
+    # Aggregate by contract name (strip :context suffix)
+    contract_stats = {}
+    for key, data in by_contract.items():
+        contract_name = key.split(":")[0]
+        if contract_name not in contract_stats:
+            contract_stats[contract_name] = {"pass": 0, "fail": 0}
+        contract_stats[contract_name]["pass"] += data["pass"]
+        contract_stats[contract_name]["fail"] += data["fail"]
+
+    result = []
+    for contract_name, _cdata in contract_stats.items():
+        total = _cdata["pass"] + _cdata["fail"]
+        if total == 0:
+            continue
+        pass_rate = round(_cdata["pass"] / total, 4)
+        top_rules = [
+            {"rule": f["rule"], "field": f["field"], "failures": f["count"]}
+            for f in top_fields if f["contract"] == contract_name
+        ][:5]
+        result.append({
+            "contract": contract_name,
+            "total_validations": total,
+            "failed": _cdata["fail"],
+            "pass_rate": pass_rate,
+            "top_failing_rules": top_rules,
+        })
+
+    result.sort(key=lambda x: x["pass_rate"])
+    return result[:limit]
 
 
 # ── Federation API (OSS skeleton) ─────────────────────────────────────

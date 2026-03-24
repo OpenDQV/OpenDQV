@@ -48,34 +48,33 @@ st.set_page_config(
 # highlight the selected item with the brand teal.
 st.markdown("""
 <style>
-/* ── Sidebar nav menu ─────────────────────────────────────── */
+/* ── Sidebar nav buttons ───────────────────────────────────── */
 
-/* Remove the default radio button circle */
-section[data-testid="stSidebar"] div[data-testid="stRadio"] label > div:first-child {
-    display: none !important;
-}
-
-/* Each nav item: full-width, padded, rounded */
-section[data-testid="stSidebar"] div[data-testid="stRadio"] label {
-    display: flex !important;
-    align-items: center !important;
+/* Reset all nav buttons to plain text style */
+section[data-testid="stSidebar"] .stButton button {
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: inherit !important;
+    font-size: 0.9rem !important;
+    font-weight: 400 !important;
     padding: 0.45rem 0.85rem !important;
     border-radius: 0.4rem !important;
     margin-bottom: 1px !important;
-    cursor: pointer !important;
     width: 100% !important;
+    text-align: left !important;
     transition: background-color 0.15s ease !important;
-    font-size: 0.9rem !important;
 }
 
 /* Hover state */
-section[data-testid="stSidebar"] div[data-testid="stRadio"] label:hover {
+section[data-testid="stSidebar"] .stButton button:hover {
     background-color: rgba(0, 180, 216, 0.12) !important;
     color: #00b4d8 !important;
 }
 
-/* Selected item — teal highlight matching brand */
-section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) {
+/* Active / primary button — teal highlight matching brand */
+section[data-testid="stSidebar"] .stButton button[kind="primary"],
+section[data-testid="stSidebar"] .stButton button[data-testid="baseButton-primary"] {
     background-color: rgba(0, 180, 216, 0.18) !important;
     color: #00b4d8 !important;
     font-weight: 600 !important;
@@ -83,20 +82,9 @@ section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:chec
     padding-left: calc(0.85rem - 3px) !important;
 }
 
-/* Tighten the gap between radio items */
-section[data-testid="stSidebar"] div[data-testid="stRadio"] > div {
-    gap: 0 !important;
-}
-
-/* "Navigate" label — make it a small section header */
-section[data-testid="stSidebar"] div[data-testid="stRadio"] > label {
-    font-size: 0.72rem !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.08em !important;
-    text-transform: uppercase !important;
-    opacity: 0.55 !important;
-    margin-bottom: 4px !important;
-    padding-left: 0.85rem !important;
+/* Tighten gap between button items */
+section[data-testid="stSidebar"] .stButton {
+    margin-bottom: 0 !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -234,20 +222,38 @@ if "known_contracts" not in st.session_state:
 
 _SECTIONS = [
     "Contracts",
-    "Validate Record",
-    "Validate Batch",
+    "Validate",
     "Monitoring",
+    "Audit Trail",
+    "Catalogs & AI",
     "Integration Guide",
     "Code Export",
     "Import Rules",
     "Profiler",
     "Webhooks",
     "Federation",
-    "Version History",
     "CLI Guide",
 ]
 
-section = st.sidebar.radio("Navigate", _SECTIONS, key="section", label_visibility="collapsed")
+_NAV_GROUPS = {
+    "CORE": ["Contracts", "Validate", "Monitoring", "Audit Trail"],
+    "INTEGRATIONS": ["Catalogs & AI", "Integration Guide", "Code Export", "Webhooks", "Federation"],
+    "CONTRACT TOOLS": ["Import Rules", "Profiler", "CLI Guide"],
+}
+
+for _grp_label, _grp_items in _NAV_GROUPS.items():
+    st.sidebar.markdown(f"<p style='font-size:0.7rem;font-weight:700;color:#888;letter-spacing:0.08em;margin:6px 0 0'>{_grp_label}</p>", unsafe_allow_html=True)
+    for _item in _grp_items:
+        if st.sidebar.button(
+            _item,
+            key=f"nav_btn_{_item}",
+            use_container_width=True,
+            type="primary" if st.session_state["section"] == _item else "secondary",
+        ):
+            st.session_state["section"] = _item
+            st.rerun()
+
+section = st.session_state["section"]
 
 # ── Sidebar 3: Developer tools ────────────────────────────────────────
 st.sidebar.markdown("---")
@@ -350,23 +356,44 @@ if _warn_open or _warn_secret:
 
 # Domain label mapping — cleans up the prefix-derived industry names
 _DOMAIN_LABELS = {
-    "sf":        "Salesforce",
-    "consumer":  "Consumer Goods",
-    "financial": "Financial Services",
-    "hr":        "HR / People",
-    "proof":     "Media / AdTech",
-    "public":    "Public Sector",
-    "real":      "Real Estate",
-    "universal": "Cross-Industry",
-    "books":     "Publishing",
+    "sf":         "Salesforce",
+    "consumer":   "Consumer Goods",
+    "financial":  "Financial Services",
+    "hr":         "HR / People",
+    "proof":      "Media / AdTech",
+    "public":     "Public Sector",
+    "real":       "Real Estate",
+    "universal":  "Cross-Industry",
+    "books":      "Publishing",
+    "martyns":    "Martyn's Law",
+    "allereasy":  "AllerEasy",
+    "ppds":       "Natasha's Law / PPDS",
 }
 
 def _contract_domain(name: str) -> str:
     prefix = name.split("_")[0]
-    return _DOMAIN_LABELS.get(prefix, prefix.title())
+    if prefix in _DOMAIN_LABELS:
+        return _DOMAIN_LABELS[prefix]
+    titled = prefix.title()
+    return _ACRONYMS.get(titled, titled)
+
+# Known acronyms that Python's str.title() mangles (e.g. "qsr" → "Qsr" instead of "QSR")
+_ACRONYMS = {
+    "Qsr": "QSR", "Gdpr": "GDPR", "Dsar": "DSAR", "Fmcg": "FMCG",
+    "Hipaa": "HIPAA", "Dora": "DORA", "Ict": "ICT", "Sox": "SOX",
+    "Mifid": "MiFID", "Iot": "IoT", "Cdr": "CDR", "Hr": "HR",
+    "Sf": "SF", "E2e": "E2E", "Eu": "EU", "Uk": "UK", "Ndc": "NDC",
+    "Ndc": "NDC", "Csv": "CSV", "Api": "API", "Nhs": "NHS",
+}
+
+def _display_name(contract_name: str) -> str:
+    """Convert snake_case contract name to a human-readable display name, preserving known acronyms."""
+    words = contract_name.replace("_", " ").title().split()
+    return " ".join(_ACRONYMS.get(w, w) for w in words)
 
 if section == "Contracts":
-    st.subheader("Data Contracts")
+    st.header("Manage Data Contracts")
+    st.markdown("Browse and manage validation contracts by status, owner, or industry.")
 
     # Fetch all contracts first so domain list is available for the filter multiselect
     r = api_get("/api/v1/contracts", params={"include_all": "true"})
@@ -523,7 +550,7 @@ if section == "Contracts":
             if _draft_contracts:
                 for _dc in _draft_contracts:
                     st.warning(
-                        f"⚠️ **{_dc['name'].replace('_', ' ').title()}** is in **DRAFT** status. "
+                        f"⚠️ **{_display_name(_dc['name'])}** is in **DRAFT** status. "
                         f"Validation requests are being served using the current ruleset. "
                         f"Promote to Active when ready for production.",
                         icon=None,
@@ -538,7 +565,7 @@ if section == "Contracts":
             )
             _default_idx = _name_list.index(_preselect) if _preselect in _name_list else 0
             selected = st.selectbox("View contract detail", _name_list, index=_default_idx,
-                                    format_func=lambda x: x.replace("_", " ").title())
+                                    format_func=_display_name)
             if selected:
                 st.session_state["active_contract"] = selected
                 detail_r = api_get(f"/api/v1/contracts/{selected}")
@@ -553,7 +580,7 @@ if section == "Contracts":
                     }.get(_status_val, _status_val.upper())
 
                     st.markdown("---")
-                    st.subheader(detail["name"].replace("_", " ").title())
+                    st.subheader(_display_name(detail["name"]))
                     st.caption(f"v{detail['version']}  ·  {detail['description']}  ·  owner: {detail.get('owner') or '—'}")
                     st.markdown(f"Status: {status_badge}")
                     if detail.get("contexts"):
@@ -985,184 +1012,146 @@ def _build_sample_record(rules: list) -> dict:
     return sample
 
 
-# ── Validate Record ──────────────────────────────────────────────────
+# ── Validate ─────────────────────────────────────────────────────────
 
-if section == "Validate Record":
-    st.subheader("Validate Single Record")
-    st.markdown("Test a single record against a data contract — the primary use case.")
+if section == "Validate":
+    st.header("Validate Data")
+    st.markdown("Test records against a data contract — single record or batch.")
 
-    col1, col2 = st.columns(2)
+    # ── Shared inputs ──
+    _val_contracts_r = api_get("/api/v1/contracts")
+    _val_contract_names = sorted([c["name"] for c in _val_contracts_r.json()]) if _val_contracts_r and _val_contracts_r.status_code == 200 else []
+    _val_default = st.session_state.get("active_contract", "customer")
+    _val_default_idx = _val_contract_names.index(_val_default) if _val_default in _val_contract_names else 0
+
+    col1, col2, col3 = st.columns([3, 1, 1])
     with col1:
-        contract_name = st.text_input("Contract", value=st.session_state.get("active_contract", "customer"), key="single_contract")
-        context = st.text_input("Context (optional)", value="", key="single_context")
+        val_contract = st.selectbox("Contract", _val_contract_names, index=_val_default_idx, key="val_contract")
     with col2:
-        version = st.text_input("Version", value="latest", key="single_version")
-        record_id = st.text_input("Record ID (optional)", value="", key="single_record_id")
-
-    # Auto-detect DRAFT status: look up the contract and enable allow_draft automatically.
-    _single_is_draft = False
-    if contract_name:
-        _cr = api_get(f"/api/v1/contracts/{contract_name}", params={"version": version or "latest"})
-        if _cr and _cr.status_code == 200:
-            _single_is_draft = _cr.json().get("status", "") == "draft"
-
-    if _single_is_draft:
-        st.info("Contract is in **DRAFT** status — allow_draft automatically enabled for authoring.")
-        allow_draft = True
-    else:
-        allow_draft = st.checkbox("Allow DRAFT contracts (for testing)", value=False, key="single_allow_draft")
-
-    # Build sample JSON from the contract's actual rules (updates when contract changes)
-    _sample_record = {}
-    if _cr and _cr.status_code == 200:
-        _sample_record = _build_sample_record(_cr.json().get("rules", []))
-    _sample_default = json.dumps(_sample_record, indent=2) if _sample_record else '{}'
-
-    record_json = st.text_area(
-        "Record (JSON)",
-        value=_sample_default,
-        height=250,
-        key=f"record_json_{contract_name}",
-    )
-
-    if st.button("Validate", key="validate_single"):
-        try:
-            body = {
-                "record": json.loads(record_json),
-                "contract": contract_name,
-                "version": version,
-            }
-            if context:
-                body["context"] = context
-            if record_id:
-                body["record_id"] = record_id
-
-            params = {}
-            if allow_draft:
-                params["allow_draft"] = "true"
-
-            r = api_post("/api/v1/validate", json=body, params=params)
-            if r and r.status_code == 200:
-                result = r.json()
-                _errors = result.get("errors", [])
-                _warnings = result.get("warnings", [])
-                _is_valid = result["valid"]
-
-                # Pass/fail badge
-                if _is_valid:
-                    st.success(f"✓ PASS — valid against **{result['contract']}** v{result['version']}")
-                else:
-                    st.error(f"✗ FAIL — {len(_errors)} error(s)  |  contract: **{result['contract']}** v{result['version']}")
-
-                # Metric strip
-                _m1, _m2, _m3 = st.columns(3)
-                _m1.metric("Result", "PASS" if _is_valid else "FAIL")
-                _m2.metric("Errors", len(_errors))
-                _m3.metric("Warnings", len(_warnings))
-
-                if result.get("owner"):
-                    st.caption(f"Contract owner: {result['owner']}")
-
-                # Error detail in expander (auto-expanded on fail)
-                if _errors:
-                    with st.expander(f"{len(_errors)} blocking error(s)", expanded=True):
-                        st.dataframe(pd.DataFrame(_errors), hide_index=True, use_container_width=True)
-
-                # Warnings in expander (collapsed by default)
-                if _warnings:
-                    with st.expander(f"{len(_warnings)} warning(s)", expanded=False):
-                        st.dataframe(pd.DataFrame(_warnings), hide_index=True, use_container_width=True)
-            elif r:
-                st.error(f"API error: {r.status_code} — {r.text}")
-        except json.JSONDecodeError:
-            st.error("Invalid JSON in record field")
-
-# ── Validate Batch ───────────────────────────────────────────────────
-
-if section == "Validate Batch":
-    st.subheader("Validate Batch")
-    st.markdown("Test multiple records at once — uses DuckDB for performance.")
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        batch_contract = st.text_input("Contract", value=st.session_state.get("active_contract", "customer"), key="batch_contract")
-    with col2:
-        batch_version = st.text_input("Version", value="latest", key="batch_version")
+        val_version = st.text_input("Version", value="latest", key="val_version")
     with col3:
-        batch_context = st.text_input("Context (optional)", value="salesforce", key="batch_context")
+        val_context = st.text_input("Context (optional)", value="", key="val_context")
+
+    val_record_id = st.text_input("Record ID (optional)", value="", key="val_record_id", help="Echoed in the response for traceability")
 
     # Auto-detect DRAFT status
-    _batch_is_draft = False
-    if batch_contract:
-        _bcr = api_get(f"/api/v1/contracts/{batch_contract}", params={"version": batch_version or "latest"})
-        if _bcr and _bcr.status_code == 200:
-            _batch_is_draft = _bcr.json().get("status", "") == "draft"
-
-    if _batch_is_draft:
-        st.info("Contract is in **DRAFT** status — allow_draft automatically enabled for authoring.")
-        batch_allow_draft = True
+    _val_cr = api_get(f"/api/v1/contracts/{val_contract}", params={"version": val_version or "latest"}) if val_contract else None
+    _val_is_draft = _val_cr and _val_cr.status_code == 200 and _val_cr.json().get("status", "") == "draft"
+    if _val_is_draft:
+        st.info("Contract is in **DRAFT** status — allow_draft automatically enabled.")
+        val_allow_draft = True
     else:
-        batch_allow_draft = st.checkbox("Allow DRAFT contracts (for testing)", value=False, key="batch_allow_draft")
+        val_allow_draft = st.checkbox("Allow DRAFT contracts (for testing)", value=False, key="val_allow_draft")
 
-    batch_json = st.text_area(
-        "Records (JSON array)",
-        value='[\n  {"email": "alice@example.com", "age": 25, "name": "Alice", "id": "1"},\n  {"email": "bad-email", "age": 15, "name": "", "id": "1"}\n]',
-        height=200,
-    )
+    st.markdown("---")
 
-    if st.button("Validate Batch", key="validate_batch"):
+    # ── Mode toggle ──
+    val_mode = st.radio("Validation mode", ["Single record", "Batch"], horizontal=True, key="val_mode")
+    st.caption("Single record: validate one JSON object.  Batch: validate a JSON array — uses DuckDB for performance.")
+
+    # ── JSON input — key tied to mode only, never to contract ──
+    _textarea_key = "val_textarea_single" if val_mode == "Single record" else "val_textarea_batch"
+    if _textarea_key not in st.session_state:
+        st.session_state[_textarea_key] = "{}" if val_mode == "Single record" else "[]"
+
+    if st.button("Generate sample for this contract", key="val_gen_sample"):
+        if _val_cr and _val_cr.status_code == 200:
+            _rules = _val_cr.json().get("rules", [])
+            if val_mode == "Single record":
+                st.session_state[_textarea_key] = json.dumps(_build_sample_record(_rules), indent=2)
+            else:
+                _rec = _build_sample_record(_rules)
+                st.session_state[_textarea_key] = json.dumps([_rec, _rec], indent=2)
+            st.rerun()
+        else:
+            st.warning("Could not load contract rules to generate sample.")
+
+    _label = "Record (JSON)" if val_mode == "Single record" else "Records (JSON array)"
+    val_json = st.text_area(_label, height=220, key=_textarea_key)
+
+    # ── Validate button ──
+    if st.button("Validate", key="val_submit", type="primary"):
         try:
-            body = {
-                "records": json.loads(batch_json),
-                "contract": batch_contract,
-                "version": batch_version,
-            }
-            if batch_context:
-                body["context"] = batch_context
-            params = {"allow_draft": "true"} if batch_allow_draft else {}
-            r = api_post("/api/v1/validate/batch", json=body, params=params)
-            if r and r.status_code == 200:
-                result = r.json()
-                summary = result["summary"]
-
-                if result.get("owner"):
-                    st.caption(f"Contract owner: {result['owner']}")
-
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Total", summary["total"])
-                c2.metric("Passed", summary["passed"])
-                c3.metric("Failed", summary["failed"])
-                c4.metric("Errors", summary["error_count"])
-
-                # Rule failure breakdown — most impactful rules first
-                rule_counts = summary.get("rule_failure_counts", {})
-                if rule_counts:
-                    st.markdown("**Rule failure breakdown** (most impactful first):")
-                    sorted_rules = sorted(rule_counts.items(), key=lambda x: x[1], reverse=True)
-                    st.table(pd.DataFrame(sorted_rules, columns=["Rule", "Records failing"]))
-
-                st.markdown("---")
-                for item in result["results"]:
-                    status = "PASS" if item["valid"] else "FAIL"
-                    with st.expander(f"Record {item['index']}: {status}"):
-                        if item["errors"]:
-                            st.table(pd.DataFrame(item["errors"]))
-                        if item["warnings"]:
-                            st.table(pd.DataFrame(item["warnings"]))
-                        if not item["errors"] and not item["warnings"]:
-                            st.success("All checks passed")
-            elif r:
-                st.error(f"API error: {r.status_code} — {r.text}")
+            parsed = json.loads(val_json)
         except json.JSONDecodeError:
-            st.error("Invalid JSON in records field")
+            st.error("Invalid JSON — check your input.")
+            parsed = None
+
+        if parsed is not None:
+            _val_params = {"allow_draft": "true"} if val_allow_draft else {}
+
+            if val_mode == "Single record":
+                _body = {"record": parsed, "contract": val_contract, "version": val_version}
+                if val_context:
+                    _body["context"] = val_context
+                if val_record_id:
+                    _body["record_id"] = val_record_id
+                _r = api_post("/api/v1/validate", json=_body, params=_val_params)
+                if _r and _r.status_code == 200:
+                    _res = _r.json()
+                    _errs = _res.get("errors", [])
+                    _warns = _res.get("warnings", [])
+                    _ok = _res["valid"]
+                    if _ok:
+                        st.success(f"✓ PASS — valid against **{_res['contract']}** v{_res['version']}")
+                    else:
+                        st.error(f"✗ FAIL — {len(_errs)} error(s)  |  contract: **{_res['contract']}** v{_res['version']}")
+                    _m1, _m2, _m3 = st.columns(3)
+                    _m1.metric("Result", "PASS" if _ok else "FAIL")
+                    _m2.metric("Errors", len(_errs))
+                    _m3.metric("Warnings", len(_warns))
+                    if _res.get("owner"):
+                        st.caption(f"Contract owner: {_res['owner']}")
+                    if _errs:
+                        with st.expander(f"{len(_errs)} blocking error(s)", expanded=True):
+                            st.dataframe(pd.DataFrame(_errs), hide_index=True, use_container_width=True)
+                    if _warns:
+                        with st.expander(f"{len(_warns)} warning(s)", expanded=False):
+                            st.dataframe(pd.DataFrame(_warns), hide_index=True, use_container_width=True)
+                elif _r:
+                    st.error(f"API error: {_r.status_code} — {_r.text}")
+
+            else:  # Batch
+                _body = {"records": parsed, "contract": val_contract, "version": val_version}
+                if val_context:
+                    _body["context"] = val_context
+                _r = api_post("/api/v1/validate/batch", json=_body, params=_val_params)
+                if _r and _r.status_code == 200:
+                    _res = _r.json()
+                    _sum = _res["summary"]
+                    if _res.get("owner"):
+                        st.caption(f"Contract owner: {_res['owner']}")
+                    _c1, _c2, _c3, _c4 = st.columns(4)
+                    _c1.metric("Total", _sum["total"])
+                    _c2.metric("Passed", _sum["passed"])
+                    _c3.metric("Failed", _sum["failed"])
+                    _c4.metric("Errors", _sum["error_count"])
+                    _rule_counts = _sum.get("rule_failure_counts", {})
+                    if _rule_counts:
+                        st.markdown("**Rule failure breakdown** (most impactful first):")
+                        st.table(pd.DataFrame(
+                            sorted(_rule_counts.items(), key=lambda x: x[1], reverse=True),
+                            columns=["Rule", "Records failing"],
+                        ))
+                    st.markdown("---")
+                    for _item in _res["results"]:
+                        _status = "PASS" if _item["valid"] else "FAIL"
+                        with st.expander(f"Record {_item['index']}: {_status}"):
+                            if _item["errors"]:
+                                st.table(pd.DataFrame(_item["errors"]))
+                            if _item["warnings"]:
+                                st.table(pd.DataFrame(_item["warnings"]))
+                            if not _item["errors"] and not _item["warnings"]:
+                                st.success("All checks passed")
+                elif _r:
+                    st.error(f"API error: {_r.status_code} — {_r.text}")
 
 # ── Integration Guide ────────────────────────────────────────────────
 
 if section == "Integration Guide":
-    st.subheader("Integration Guide")
+    st.header("Integration Guide")
     st.markdown(
-        "Generate ready-to-use code snippets for source system administrators. "
-        "Select a contract, customize the sample payload, and copy the snippet."
+        "Help source teams integrate with OpenDQV — generate tokens, customise sample payloads, and copy ready-to-use code snippets."
     )
 
     # Contract selection
@@ -1529,11 +1518,8 @@ if (isValid) {{
 # ── Code Export ──────────────────────────────────────────────────────
 
 if section == "Code Export":
-    st.subheader("Code Export (Push-Down Mode)")
-    st.markdown(
-        "Generate validation logic to deploy **inside** source systems. "
-        "This embeds the rules directly — useful when the source system can't make HTTP calls."
-    )
+    st.header("Code Export (Push-Down Mode)")
+    st.markdown("Embed validation rules directly into source systems as generated code — useful when the system can't make HTTP calls.")
 
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -1560,8 +1546,8 @@ if section == "Code Export":
 # ── Monitoring ───────────────────────────────────────────────────────
 
 if section == "Monitoring":
-    st.subheader("Monitoring Dashboard")
-    st.markdown("Real-time validation metrics since last API restart.")
+    st.header("Monitoring Dashboard")
+    st.markdown("Track validation metrics and system health in real-time.")
 
     if st.button("Refresh", key="refresh_stats"):
         pass  # Streamlit reruns on button click
@@ -1609,58 +1595,29 @@ if section == "Monitoring":
             c4.metric("Pass Rate", f"{data['pass_rate']}%")
             c5.metric("Uptime", f"{uptime_hrs:.1f}h")
 
-            # ── Per contract/context breakdown ──
-            st.markdown("---")
-            st.markdown("### By Contract & Context")
-            by_contract = data.get("by_contract", {})
-            if by_contract:
-                rows = []
-                for key, vals in by_contract.items():
-                    contract, context = key.split(":", 1) if ":" in key else (key, "none")
-                    t = vals["pass"] + vals["fail"]
-                    rate = round(vals["pass"] / t * 100, 1) if t > 0 else 0
-                    rows.append({
-                        "Contract": contract,
-                        "Context": context,
-                        "Pass": vals["pass"],
-                        "Fail": vals["fail"],
-                        "Total": t,
-                        "Pass Rate": f"{rate}%",
-                        "Errors": vals["errors"],
-                        "Warnings": vals["warnings"],
-                    })
-                st.dataframe(pd.DataFrame(rows), hide_index=True)
-
-            # ── Top failing fields ──
-            top_fields = data.get("top_failing_fields", [])
-            if top_fields:
-                st.markdown("### Top Failing Fields")
-                st.dataframe(
-                    pd.DataFrame(top_fields).rename(columns={
-                        "contract": "Contract", "field": "Field", "rule": "Rule", "count": "Failures"
-                    }),
-                    hide_index=True,
-                )
-
-            # ── Recent history chart ──
+            # ── Recent history chart (charts first for glanceability) ──
             history = data.get("recent_history", [])
             if history:
+                st.markdown("---")
                 st.markdown("### Recent Validations")
                 hist_df = pd.DataFrame(history)
                 hist_df["ts"] = pd.to_datetime(hist_df["ts"])
                 hist_df["result"] = hist_df["valid"].map({True: "Pass", False: "Fail"})
 
-                # Results over time
                 chart_data = hist_df.groupby(["result"]).size().reset_index(name="count")
                 col1, col2 = st.columns(2)
                 with col1:
                     st.markdown("**Pass vs Fail**")
-                    st.bar_chart(chart_data.set_index("result")["count"])
+                    _mon_counts = chart_data.set_index("result")["count"]
+                    _mon_wide = pd.DataFrame({
+                        "Fail": [_mon_counts.get("Fail", 0)],
+                        "Pass": [_mon_counts.get("Pass", 0)],
+                    }, index=[""])
+                    st.bar_chart(_mon_wide, color=["#EF5350", "#2196F3"])
                 with col2:
                     st.markdown("**Latency (ms)**")
                     st.line_chart(hist_df.set_index("ts")["latency_ms"])
 
-                # Raw history table
                 with st.expander("Raw validation log"):
                     st.caption(
                         "`mode` = `single` (one-record call) or `batch` (multi-record call). "
@@ -1671,16 +1628,140 @@ if section == "Monitoring":
                         hist_df[["ts", "contract", "context", "result", "errors", "warnings", "latency_ms", "mode"]].sort_values("ts", ascending=False),
                         hide_index=True,
                     )
+
+            # ── Per contract/context breakdown (detail — collapsed by default) ──
+            st.markdown("---")
+            by_contract = data.get("by_contract", {})
+            if by_contract:
+                with st.expander("By Contract & Context", expanded=False):
+                    rows = []
+                    for key, vals in by_contract.items():
+                        contract, context = key.split(":", 1) if ":" in key else (key, "none")
+                        t = vals["pass"] + vals["fail"]
+                        rate = round(vals["pass"] / t * 100, 1) if t > 0 else 0
+                        rows.append({
+                            "Contract": contract,
+                            "Context": context,
+                            "Pass": vals["pass"],
+                            "Fail": vals["fail"],
+                            "Total": t,
+                            "Pass Rate": f"{rate}%",
+                            "Errors": vals["errors"],
+                            "Warnings": vals["warnings"],
+                        })
+                    st.dataframe(pd.DataFrame(rows), hide_index=True)
+
+            # ── Top failing fields (detail — collapsed by default) ──
+            top_fields = data.get("top_failing_fields", [])
+            if top_fields:
+                with st.expander("Top Failing Fields", expanded=False):
+                    st.dataframe(
+                        pd.DataFrame(top_fields).rename(columns={
+                            "contract": "Contract", "field": "Field", "rule": "Rule", "count": "Failures"
+                        }),
+                        hide_index=True,
+                    )
+
+            # Bottom Refresh button so users don't scroll back to top
+            st.markdown("---")
+            if st.button("Refresh", key="refresh_stats_bottom"):
+                pass
+
     elif r:
         st.error(f"Failed to load stats: {r.status_code} — {r.text}")
+
+# ── Catalogs & AI ─────────────────────────────────────────────────────
+
+if section == "Catalogs & AI":
+    st.header("Catalog Links & AI Prompts")
+    st.markdown("Link contracts to data catalogs for traceability and generate AI agent prompts for faster governance.")
+
+    _qc_tab3, _qc_tab4 = st.tabs(["Catalog Connections", "AI Prompt Builder"])
+
+    with _qc_tab3:
+        _qc_marmot_url = os.environ.get("MARMOT_URL", "")
+        _qc_r3 = api_get("/api/v1/contracts")
+        if _qc_r3 and _qc_r3.status_code == 200:
+            _qc_catalog_contracts = [c for c in _qc_r3.json() if c.get("asset_id")]
+            st.caption(
+                "Only contracts with an `asset_id` field appear here — it's optional and only needed "
+                "when a data asset for this contract exists in an external catalog (Marmot, DataHub, Atlan, etc.). "
+                f"Showing {len(_qc_catalog_contracts)} of {len(_qc_r3.json())} contracts."
+            )
+            if not _qc_catalog_contracts:
+                st.info("No external catalog links configured yet. Add an `asset_id` to your contract YAML to connect with data catalogs like Marmot or DataHub for better traceability.")
+            else:
+                for _qc_c in _qc_catalog_contracts:
+                    st.markdown(f"**{_qc_c['name']}** v{_qc_c['version']} ({_qc_c['status']})")
+                    _qc_asset_id = _qc_c["asset_id"]
+                    if _qc_asset_id.startswith(("opendqv://marmot/", "marmot://")):
+                        _qc_catalog_type = "Marmot"
+                        if _qc_marmot_url:
+                            _qc_asset_name = _qc_asset_id.rstrip("/").split("/")[-1]
+                            st.link_button(f"Open in Marmot ↗", f"{_qc_marmot_url}/assets/{_qc_asset_name}")
+                        else:
+                            st.code(_qc_asset_id)
+                            st.caption(f"Catalog: {_qc_catalog_type}")
+                    elif _qc_asset_id.startswith("urn:li:"):
+                        st.code(_qc_asset_id)
+                        st.caption("Catalog: DataHub")
+                    elif _qc_asset_id.startswith("alation://"):
+                        st.code(_qc_asset_id)
+                        st.caption("Catalog: Atlan")
+                    elif _qc_asset_id.startswith("https://"):
+                        st.link_button("Open ↗", _qc_asset_id)
+                    elif _qc_asset_id.startswith("urn:opendqv:"):
+                        st.code(_qc_asset_id)
+                        st.caption("OpenDQV Internal ID — update asset_id in your contract YAML to link to an external catalog")
+                    else:
+                        st.code(_qc_asset_id)
+                        st.caption("OpenDQV Internal ID")
+                if not _qc_marmot_url:
+                    st.info(
+                        "Marmot is a lightweight, open-source data catalog built in Go, using Git for metadata management. "
+                        "Connect it to OpenDQV for seamless one-click access to your data assets and lineage. "
+                        "Set the `MARMOT_URL` environment variable to your Marmot instance URL to get started."
+                    )
+        else:
+            st.error("Could not load contracts from API.")
+
+    with _qc_tab4:
+        st.markdown("### MCP Composition Prompts")
+        st.markdown(
+            "Copy-paste these into Claude Desktop or any MCP-compatible agent "
+            "with both OpenDQV and Marmot servers registered."
+        )
+        st.markdown("**Daily quality health check:**")
+        st.code(
+            "Using the opendqv MCP server, call get_quality_metrics for all contracts.\n"
+            "For any contract with pass_rate below 0.95:\n"
+            "  1. Read the catalog_hint field.\n"
+            "  2. Call the marmot MCP server's get_asset tool with the asset name from catalog_hint.\n"
+            "  3. Report the asset owner, failing rule names, and how many downstream assets depend on it.\n"
+            "Format the output as a markdown table sorted by pass_rate ascending.",
+            language=None,
+        )
+        st.markdown("**Incident triage:**")
+        st.code(
+            'The "{contract_name}" contract is showing elevated rejections.\n'
+            '1. Call opendqv:get_quality_metrics("{contract_name}") — get the top failing rules.\n'
+            "2. Call opendqv:explain_error for each failing rule to understand the remediation.\n"
+            "3. Call marmot:get_asset using catalog_hint to find who owns this asset.\n"
+            "4. Draft a message to the owner summarising: rejection count, top rules, and fix suggestions.",
+            language=None,
+        )
+        st.caption("Requires both OpenDQV and Marmot MCP servers registered in your agent client.")
+        st.markdown(
+            "See [docs/mcp.md](https://github.com/OpenDQV/OpenDQV/blob/main/docs/mcp.md) for setup instructions."
+        )
 
 # ── Import Rules ─────────────────────────────────────────────────────
 
 if section == "Import Rules":
     st.header("Import Rules")
-    st.markdown("Import validation rules from external tools into OpenDQV contracts.")
+    st.markdown("Convert external validation rules from dbt, Great Expectations, Soda, and more into OpenDQV contracts.")
 
-    with st.expander("Great Expectations", expanded=False):
+    with st.expander("Import from Great Expectations", expanded=False):
         st.markdown("Paste a Great Expectations expectation suite JSON.")
         gx_json = st.text_area(
             "GX Suite JSON",
@@ -1718,7 +1799,7 @@ if section == "Import Rules":
             else:
                 st.warning("Paste a GX suite JSON first")
 
-    with st.expander("dbt", expanded=False):
+    with st.expander("Import from dbt", expanded=False):
         st.markdown("Paste a dbt `schema.yml` file. Each model becomes a separate contract.")
         dbt_yaml_input = st.text_area(
             "dbt schema.yml",
@@ -1747,7 +1828,7 @@ if section == "Import Rules":
             else:
                 st.warning("Paste a dbt schema.yml first")
 
-    with st.expander("Soda", expanded=False):
+    with st.expander("Import from Soda", expanded=False):
         st.markdown("Paste Soda Core checks YAML. Each dataset becomes a contract.")
         soda_yaml_input = st.text_area(
             "Soda Checks YAML",
@@ -1776,7 +1857,7 @@ if section == "Import Rules":
             else:
                 st.warning("Paste Soda checks YAML first")
 
-    with st.expander("CSV", expanded=False):
+    with st.expander("Import from CSV", expanded=False):
         st.markdown(
             "Paste CSV rules with columns: `field, rule_type, value, severity, error_message`."
         )
@@ -1808,7 +1889,7 @@ if section == "Import Rules":
             else:
                 st.warning("Paste CSV content first")
 
-    with st.expander("ODCS 3.1 (Open Data Contract Standard)", expanded=False):
+    with st.expander("Import / Export ODCS 3.1 (Open Data Contract Standard)", expanded=False):
         st.markdown(
             "Import an [ODCS 3.1](https://bitol-io.github.io/open-data-contract-standard/) contract "
             "(OpenMetadata, Soda, Monte Carlo, Data Contract CLI) or export any OpenDQV contract to ODCS format."
@@ -1890,11 +1971,8 @@ if section == "Import Rules":
 # ── Profiler ─────────────────────────────────────────────────────────
 
 if section == "Profiler":
-    st.header("Rule Profiler")
-    st.markdown(
-        "Paste a sample of your data as a JSON array. "
-        "OpenDQV will analyse each field and generate a suggested contract."
-    )
+    st.header("Data Profiler")
+    st.markdown("Analyse sample data to auto-generate a validation contract — paste a JSON array and OpenDQV infers the rules. Aim for 50–100 records for best results.")
 
     profile_input = st.text_area(
         "JSON records (list of dicts)",
@@ -1906,7 +1984,7 @@ if section == "Profiler":
     with col1:
         prof_contract_name = st.text_input("Contract name", value="profiled", key="prof_name")
     with col2:
-        prof_save = st.checkbox("Save as contract", value=False, key="prof_save")
+        prof_save = st.checkbox("Save as contract", value=True, key="prof_save")
 
     if st.button("Analyze", key="btn_profile"):
         if profile_input.strip():
@@ -2005,7 +2083,7 @@ if section == "Profiler":
 
 if section == "Webhooks":
     st.header("Webhooks")
-    st.markdown("Register HTTP webhooks to receive event notifications from OpenDQV.")
+    st.markdown("Set up HTTP notifications so your systems are alerted instantly when validation events occur — failures, warnings, or batch errors.")
 
     if not st.session_state.get("token"):
         st.warning("Set a PAT token in the sidebar to manage webhooks.")
@@ -2081,9 +2159,9 @@ if section == "Webhooks":
 
 # ── Version History ──────────────────────────────────────────────────
 
-if section == "Version History":
-    st.header("Contract Audit & Lifecycle")
-    st.markdown("Full governance audit trail — who proposed, approved, or rejected each version, and when.")
+if section == "Audit Trail":
+    st.header("Contract Audit Trail")
+    st.markdown("Track contract versions, approvals, and governance history — who proposed, approved, or rejected each change, and when.")
 
     if not st.session_state.get("token"):
         st.warning("Set a PAT token in the sidebar to use version history features.")
@@ -2271,10 +2349,7 @@ if section == "Version History":
 
 if section == "CLI Guide":
     st.header("CLI Guide")
-    st.markdown(
-        "The OpenDQV CLI lets you manage contracts and run validations directly from the terminal, "
-        "without needing the Workbench. Useful in CI/CD pipelines, pre-commit hooks, and scripting."
-    )
+    st.markdown("Manage contracts and run validations from the terminal — useful for CI/CD pipelines, pre-commit hooks, and scripting without the Workbench.")
 
     st.markdown("---")
 
@@ -2452,10 +2527,7 @@ if section == "CLI Guide":
 
 if section == "Federation":
     st.header("Federation")
-    st.markdown(
-        "Node health, federation status, and event log for the OpenDQV network layer. "
-        "In standalone mode, federation is disabled — only node health and isolation events are active."
-    )
+    st.markdown("Monitor node health and federation status across OpenDQV instances. In standalone mode only node health and isolation events are active.")
 
     if st.button("Refresh", key="refresh_federation"):
         pass  # Streamlit reruns on button click

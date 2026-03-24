@@ -134,7 +134,7 @@ class TestWorkbenchLoads:
 
     def test_sidebar_visible(self, workbench):
         """Sidebar navigation is rendered."""
-        # Streamlit sidebar contains navigation radio
+        # Streamlit sidebar contains navigation buttons
         sidebar = workbench.locator("[data-testid='stSidebar']")
         assert sidebar.count() >= 1
 
@@ -352,9 +352,9 @@ class TestContractAuditLifecycle:
     """Tests for the Version History / Contract Audit & Lifecycle tab."""
 
     def _navigate_to_version_history(self, page):
-        """Navigate to the Version History section via sidebar radio."""
+        """Navigate to the Audit Trail section via sidebar button."""
         sidebar = page.locator("[data-testid='stSidebar']")
-        sidebar.locator("text=Version History").click()
+        sidebar.locator("button", has_text="Audit Trail").click()
         page.wait_for_timeout(2000)
 
     def _load_audit_trail(self, page):
@@ -364,10 +364,10 @@ class TestContractAuditLifecycle:
         page.wait_for_timeout(3000)
 
     def test_audit_header_visible(self, workbench):
-        """Contract Audit & Lifecycle heading appears after navigating to Version History."""
+        """Contract Audit Trail heading appears after navigating to Audit Trail."""
         self._navigate_to_version_history(workbench)
-        heading = workbench.locator("text=Contract Audit & Lifecycle")
-        assert heading.count() >= 1, "Contract Audit & Lifecycle heading not found"
+        heading = workbench.locator("text=Contract Audit Trail")
+        assert heading.count() >= 1, "Contract Audit Trail heading not found"
 
     def test_contract_selector_exists(self, workbench):
         """A selectbox for choosing a contract is visible on the audit tab."""
