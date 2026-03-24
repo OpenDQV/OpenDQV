@@ -47,10 +47,14 @@ def main():
             )
             content = response.text.strip()
 
+            if not content:
+                continue  # notification acknowledged with no body — don't write empty line
+
             if content.startswith("event:") or content.startswith("data:"):
                 for data in parse_sse(content):
-                    sys.stdout.write(data + "\n")
-                    sys.stdout.flush()
+                    if data:
+                        sys.stdout.write(data + "\n")
+                        sys.stdout.flush()
             else:
                 sys.stdout.write(content + "\n")
                 sys.stdout.flush()
