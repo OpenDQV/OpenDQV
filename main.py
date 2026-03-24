@@ -52,7 +52,7 @@ app = FastAPI(
         "Source systems call /api/v1/validate before writing data. "
         "Bad data is blocked at the door."
     ),
-    version="1.4.0",
+    version="1.5.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
@@ -147,7 +147,7 @@ def _maker_checker_enforced() -> bool:
 async def root():
     return {
         "service": "OpenDQV",
-        "version": "1.4.0",
+        "version": "1.5.0",
         "status": "ready",
         "auth_mode": config.AUTH_MODE,
         "maker_checker_enforced": _maker_checker_enforced(),

@@ -2157,7 +2157,7 @@ if section == "Webhooks":
     elif r_list:
         st.error(f"Failed to list webhooks: {r_list.status_code} — {r_list.text}")
 
-# ── Version History ──────────────────────────────────────────────────
+# ── Audit Trail ──────────────────────────────────────────────────────
 
 if section == "Audit Trail":
     st.header("Contract Audit Trail")
