@@ -63,7 +63,7 @@ postgres = ["psycopg2-binary"]
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"
 pytest-asyncio = "^0.23"
-pytest-cov = "^4.0"
+pytest-cov = ">=4,<8"
 pytest-playwright = ">=0.4,<0.8"
 ruff = ">=0.4,<0.16"
 mcp = ">=1.0.0"
