@@ -39,7 +39,6 @@ import sqlite3
 
 from core.contracts import ContractRegistry, _compute_entry_hash
 from core.validator import validate_record
-from security.auth import VALID_ROLES
 from core.code_generator import generate_code
 from core.importers.great_expectations import import_gx_suite, gx_suite_to_yaml, export_gx_suite
 from core.importers.soda import import_soda_checks, soda_checks_to_yaml
@@ -798,10 +797,11 @@ def main():
         "token-generate", help="Generate a Personal Access Token (PAT) for API authentication"
     )
     p_token_gen.add_argument("name", help="Token name / username (e.g. salesforce-prod)")
+    from security.auth import VALID_ROLES as _VALID_ROLES  # noqa: PLC0415
     p_token_gen.add_argument(
         "--role",
         default="validator",
-        choices=sorted(VALID_ROLES),
+        choices=sorted(_VALID_ROLES),
         help="Token role (default: validator)",
     )
     p_token_gen.add_argument(
