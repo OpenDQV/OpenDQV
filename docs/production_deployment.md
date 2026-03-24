@@ -24,10 +24,10 @@ environment:
 With `AUTH_MODE=token`, every API request must include a valid Personal Access Token (PAT)
 in the `Authorization: Bearer <token>` header. Unauthenticated requests return `401`.
 
-All write endpoints (status changes, rule mutations, import endpoints) include an `X-Auth-Mode`
-response header reflecting the active auth mode (`open` or `token`). Monitoring systems can use
-this header to confirm that auth is enabled in production — if a write response returns
-`X-Auth-Mode: open`, auth is not enforced on that deployment.
+All responses include an `X-Auth-Mode` response header reflecting the active auth mode
+(`open` or `token`). Monitoring systems can use this header to confirm that auth is enabled
+in production — if any response returns `X-Auth-Mode: open`, auth is not enforced on that
+deployment.
 
 ---
 

@@ -14,7 +14,8 @@ BASE_DIR = Path(__file__).resolve().parent
 CONTRACTS_DIR = Path(os.environ.get("OPENDQV_CONTRACTS_DIR", str(BASE_DIR / "contracts")))
 
 # Security
-SECRET_KEY = os.environ.get("SECRET_KEY", "change-me-to-a-random-secret-key")
+DEFAULT_SECRET_KEY: str = "change-me-to-a-random-secret-key"
+SECRET_KEY = os.environ.get("SECRET_KEY", DEFAULT_SECRET_KEY)
 ALGORITHM = "HS256"
 TOKEN_EXPIRY_DAYS = int(os.environ.get("TOKEN_EXPIRY_DAYS", "30"))
 DB_PATH = os.environ.get("OPENDQV_DB_PATH", str(BASE_DIR / "opendqv.db"))
@@ -52,6 +53,12 @@ RATE_LIMIT_TOKENS = os.environ.get("RATE_LIMIT_TOKENS", "10/minute")
 UPSTREAM_URL = os.environ.get("OPENDQV_UPSTREAM", "")
 JOIN_TOKEN = os.environ.get("OPENDQV_JOIN_TOKEN", "")
 IS_FEDERATED = bool(UPSTREAM_URL)
+
+# Auth convenience predicates — derived from AUTH_MODE, never set independently.
+IS_OPEN_MODE: bool = AUTH_MODE == "open"
+
+# Rate-limit sentinel values — "off", "0", or "disabled" disable per-IP limiting.
+_RATE_LIMIT_OFF_VALUES: frozenset = frozenset({"off", "0", "disabled"})
 
 # Audit log mode.
 # "basic"  — SHA-256 forward-linked hash chain, no cryptographic signing.

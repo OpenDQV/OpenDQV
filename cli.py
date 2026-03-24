@@ -39,6 +39,7 @@ import sqlite3
 
 from core.contracts import ContractRegistry, _compute_entry_hash
 from core.validator import validate_record
+from security.auth import VALID_ROLES
 from core.code_generator import generate_code
 from core.importers.great_expectations import import_gx_suite, gx_suite_to_yaml, export_gx_suite
 from core.importers.soda import import_soda_checks, soda_checks_to_yaml
@@ -800,7 +801,7 @@ def main():
     p_token_gen.add_argument(
         "--role",
         default="validator",
-        choices=["validator", "reader", "auditor", "editor", "approver", "admin"],
+        choices=sorted(VALID_ROLES),
         help="Token role (default: validator)",
     )
     p_token_gen.add_argument(
