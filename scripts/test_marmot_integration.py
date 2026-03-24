@@ -258,7 +258,7 @@ def test_e_mcp_draft():
         timeout=10,
     )
     check(
-        f"Cleanup: draft archived (200/404)",
+        "Cleanup: draft archived (200/404)",
         archive_r.status_code in (200, 404),
         f"status={archive_r.status_code} body={archive_r.text[:80]}",
     )
@@ -306,7 +306,7 @@ def main():
         print("       # then POST /api/v1/users/apikeys with Bearer token\"")
         sys.exit(1)
 
-    print(f"\nOpenDQV Marmot Integration Smoke Test")
+    print("\nOpenDQV Marmot Integration Smoke Test")
     print(f"  OpenDQV : {OPENDQV_URL}")
     print(f"  Marmot  : {MARMOT_URL}")
 
