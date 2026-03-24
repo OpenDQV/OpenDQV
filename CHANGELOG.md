@@ -2,6 +2,21 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.5.3] - 2026-03-24
+
+### Fixed
+
+- **Batch validator `all_of` array handling** — lookup rules with `all_of: true` now
+  correctly validate list values in batch mode. Previously `str(["wheat"])` became
+  `"['wheat']"` which never matched the lookup set, causing a 97% failure rate on
+  `ppds_menu_item` batches. Single-record validator was unaffected. Fix mirrors the
+  existing `all_of` list iteration from the single-record path to the batch path.
+  Defect found by Mac Claude during live MCP demo session; confirmed by Grok.
+- **Marmot `discover_data` pagination** — `marmot_proxy.py` now injects `limit=100`
+  alongside `providers=["opendqv"]`, preventing Marmot from returning a summary
+  breakdown instead of the full asset list when >20 results match.
+- **MCP server name** — `Server("opendqv")` corrected to `Server("OpenDQV")`.
+
 ## [1.5.2] - 2026-03-24
 
 ### Features
