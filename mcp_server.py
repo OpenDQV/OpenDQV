@@ -201,7 +201,7 @@ if config.MCP_API_URL:
         )
 
 # ── MCP server setup ──────────────────────────────────────────────────
-server = Server("opendqv")
+server = Server("OpenDQV")
 
 
 @server.list_tools()
