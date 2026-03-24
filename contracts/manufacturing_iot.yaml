@@ -14,6 +14,7 @@ contract:
     and ATEX zone safety obligations apply.
   owner: "Operations Data Team"
   status: active
+  asset_id: urn:opendqv:manufacturing_iot
 
   rules:
     - name: device_id_required

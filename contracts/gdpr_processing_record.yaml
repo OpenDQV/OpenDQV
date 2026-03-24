@@ -11,6 +11,7 @@ contract:
     purpose, or retention period. ICO audit fails. Enforcement notice issued.
   owner: "Data Protection Team"
   status: active
+  asset_id: urn:opendqv:gdpr_processing_record
 
   rules:
 

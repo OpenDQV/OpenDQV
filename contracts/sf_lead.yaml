@@ -4,6 +4,7 @@ contract:
   description: "Salesforce Lead — data quality validation for inbound lead records"
   owner: "Sunny Sharma"
   status: active
+  asset_id: urn:opendqv:sf_lead
 
   rules:
     - name: first_name_required

@@ -11,6 +11,7 @@ contract:
     before the record enters the filing system.
   owner: "Corporate Compliance Data Team"
   status: active
+  asset_id: urn:opendqv:companies_house_filing
 
   rules:
 

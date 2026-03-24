@@ -11,6 +11,7 @@ contract:
     (PPDS scope). See docs/opendqv-integration.md for integration guide.
   owner: "AllerEasy"
   status: active
+  asset_id: urn:opendqv:allereasy_dish
 
   rules:
 

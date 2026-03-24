@@ -4,6 +4,7 @@ contract:
   description: "Education student record validation"
   owner: "Student Data Team"
   status: active
+  asset_id: urn:opendqv:education_student
 
   rules:
     - name: student_id_required

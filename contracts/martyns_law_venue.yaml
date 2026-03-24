@@ -11,6 +11,7 @@ contract:
     this contract prevents: "we didn't fill that field in."
   owner: "Public Safety Data Team"
   status: active
+  asset_id: urn:opendqv:martyns_law_venue
 
   rules:
 

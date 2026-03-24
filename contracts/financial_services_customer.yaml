@@ -29,6 +29,7 @@ contract:
     bad data from propagating into risk and compliance systems.
   owner: "Data Governance Team"
   status: active
+  asset_id: urn:opendqv:financial_services_customer
 
   rules:
     - name: account_number_required

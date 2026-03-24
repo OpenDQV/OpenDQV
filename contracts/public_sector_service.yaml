@@ -4,6 +4,7 @@ contract:
   description: "Public sector service case record validation"
   owner: "Digital Services Data Team"
   status: active
+  asset_id: urn:opendqv:public_sector_service
 
   rules:
     - name: case_id_required

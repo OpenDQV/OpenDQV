@@ -14,6 +14,7 @@ contract:
     apply.
   owner: "Claims Data Team"
   status: active
+  asset_id: urn:opendqv:insurance_claim
 
   rules:
     - name: claim_id_required

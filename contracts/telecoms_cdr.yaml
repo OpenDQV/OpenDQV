@@ -12,6 +12,7 @@ contract:
     mediation, rating, and NRTRDE (Near Real Time Roaming Data Exchange) pipelines.
   owner: "Network Data Team"
   status: active
+  asset_id: urn:opendqv:telecoms_cdr
 
   rules:
     - name: record_id_required

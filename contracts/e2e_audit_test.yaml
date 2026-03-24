@@ -4,6 +4,7 @@ contract:
   description: E2E audit trail test contract
   owner: e2e
   status: active
+  asset_id: urn:opendqv:e2e_audit_test
   rules:
     - name: id_required
       field: id

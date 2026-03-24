@@ -7,6 +7,7 @@ contract:
     Authored with reference to Landmark Global Media requirements (Roundtable 6, 2026-03-08).
   owner: Data Governance Team
   status: active
+  asset_id: urn:opendqv:proof_of_play
 
   rules:
     - name: panel_id_format

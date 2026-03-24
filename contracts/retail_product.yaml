@@ -12,6 +12,7 @@ contract:
     exchange pipelines.
   owner: "Merchandising Data Team"
   status: active
+  asset_id: urn:opendqv:retail_product
 
   rules:
     - name: sku_required

@@ -9,6 +9,7 @@ contract:
     registration numbers from entering vehicle data pipelines.
   owner: Automotive Data Team
   status: active
+  asset_id: urn:opendqv:automotive_vehicle
   rules:
   - name: vin_required
     description: ''

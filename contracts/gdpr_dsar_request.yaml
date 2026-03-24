@@ -12,6 +12,7 @@ contract:
     Fines up to £17.5M or 4% of global annual turnover.
   owner: "Data Protection Team"
   status: active
+  asset_id: urn:opendqv:gdpr_dsar_request
 
   rules:
 
