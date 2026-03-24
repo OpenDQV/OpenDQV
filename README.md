@@ -1269,6 +1269,7 @@ See [docs/benchmark_throughput.md](docs/benchmark_throughput.md) for a full 4-pl
 | `TRUST_PROXY_HEADERS` | Trust X-Forwarded-For from a reverse proxy | `false` |
 | `OPENDQV_MAX_BATCH_ROWS` | Max records per batch validation request | `10000` |
 | `OPENDQV_MAX_SSE_CONNECTIONS` | Max concurrent SSE connections per worker | `50` |
+| `MARMOT_URL` | Marmot data catalog base URL — enables one-click deep-links in the Catalogs & AI workbench tab | _(unset)_ |
 
 > ⚠️ **Rate limiting warning:** `RATE_LIMIT_VALIDATE` and `RATE_LIMIT_DEFAULT` use an in-memory counter **per Gunicorn worker**. The effective per-IP ceiling is `WEB_CONCURRENCY × configured value`. With the default of 1 worker this equals the configured value exactly. If you increase `WEB_CONCURRENCY`, multiply accordingly — or use a Redis-backed limiter (`RATE_LIMIT_BACKEND=redis`) or enforce limits at your reverse proxy for strict per-IP enforcement.
 
