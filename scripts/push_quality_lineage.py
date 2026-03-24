@@ -132,6 +132,27 @@ def push_event(client: httpx.Client, event: dict) -> tuple[int, str]:
     return r.status_code, r.text
 
 
+def stitch_direct_lineage(client: httpx.Client, name: str) -> tuple[int, str]:
+    """Create a direct edge from the OpenLineage job node to the existing Marmot asset.
+
+    OpenLineage creates assets under mrn://dataset/openlineage/... but our pushed
+    assets are mrn://dataset/opendqv/... — different MRNs, no automatic link.
+    This call stitches them together explicitly.
+    """
+    job_mrn = f"mrn://job/openlineage/opendqv.validate:{name}"
+    asset_mrn = f"mrn://dataset/opendqv/{name}"
+    r = client.post(
+        f"{MARMOT_URL}/api/v1/lineage/direct",
+        json={"source": job_mrn, "target": asset_mrn, "type": "produces"},
+        headers={
+            "X-API-Key": MARMOT_TOKEN,
+            "Content-Type": "application/json",
+        },
+        timeout=10,
+    )
+    return r.status_code, r.text
+
+
 def main() -> None:
     if not MARMOT_TOKEN:
         print("ERROR: MARMOT_TOKEN environment variable required", file=sys.stderr)
@@ -165,7 +186,11 @@ def main() -> None:
                 if total > 0
                 else "no validations yet"
             )
-            print(f"  ✅ {name:<40} {rate_str}")
+            # Stitch job node → existing Marmot asset (MRN bridge)
+            s_status, s_body = stitch_direct_lineage(client, name)
+            stitch_ok = s_status in (200, 201, 409)  # 409 = already exists, fine
+            stitch_str = "linked" if stitch_ok else f"stitch failed {s_status}"
+            print(f"  ✅ {name:<40} {rate_str} | {stitch_str}")
             ok += 1
         else:
             print(f"  ❌ {name:<40} HTTP {status}: {body[:120]}")
