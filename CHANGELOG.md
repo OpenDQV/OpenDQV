@@ -2,6 +2,27 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.5.1] - 2026-03-24
+
+### Maintenance
+
+- **DRY refactoring** — 18 copy-paste violations eliminated across `api/routes.py`,
+  `config.py`, `security/auth.py`, `main.py`, and `cli.py`: 5 route helper functions
+  (`_get_contract_or_404`, `_get_contract_versioned_or_404`, `_get_contract_hash`,
+  `_check_validate_in_states`, `_assert_contract_mutable`), `VALID_ROLES` centralised
+  in `auth.py`, `_ensure_utc()` helper, `IS_OPEN_MODE` and `_RATE_LIMIT_OFF_VALUES`
+  constants in `config.py`
+- **Version single source of truth** — `pyproject.toml` is the only place to set the
+  version; `main.py` reads it via `importlib.metadata` at startup
+- **`X-Auth-Mode` header** — moved from 4 individual write endpoints to an ASGI
+  middleware so every response carries it (better for monitoring systems)
+- **Dependency bumps** (Dependabot) — pytest-playwright 0.4.4→0.7.2,
+  pytest-cov 4.1.0→7.1.0, ruff 0.4.10→0.15.7, duckdb 1.5.0→1.5.1,
+  strawberry-graphql 0.311.1→0.312.0, github/codeql-action 3.34.0→4.34.1,
+  peter-evans/create-issue-from-file 5→6
+- **Bug fix** — `NameError` in `get_quality_trend` after route helper refactor; lint
+  fixes (F541 f-strings, E402 local import in `cli.py`)
+
 ## [1.5.0] - 2026-03-24
 
 ### Workbench UX Overhaul
