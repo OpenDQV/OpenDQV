@@ -383,7 +383,7 @@ _ACRONYMS = {
     "Hipaa": "HIPAA", "Dora": "DORA", "Ict": "ICT", "Sox": "SOX",
     "Mifid": "MiFID", "Iot": "IoT", "Cdr": "CDR", "Hr": "HR",
     "Sf": "SF", "E2e": "E2E", "Eu": "EU", "Uk": "UK", "Ndc": "NDC",
-    "Ndc": "NDC", "Csv": "CSV", "Api": "API", "Nhs": "NHS",
+    "Csv": "CSV", "Api": "API", "Nhs": "NHS",
 }
 
 def _display_name(contract_name: str) -> str:
@@ -1698,7 +1698,7 @@ if section == "Catalogs & AI":
                         _qc_catalog_type = "Marmot"
                         if _qc_marmot_url:
                             _qc_asset_name = _qc_asset_id.rstrip("/").split("/")[-1]
-                            st.link_button(f"Open in Marmot ↗", f"{_qc_marmot_url}/assets/{_qc_asset_name}")
+                            st.link_button("Open in Marmot ↗", f"{_qc_marmot_url}/assets/{_qc_asset_name}")
                         else:
                             st.code(_qc_asset_id)
                             st.caption(f"Catalog: {_qc_catalog_type}")
