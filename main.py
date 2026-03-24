@@ -7,6 +7,12 @@ Like a bouncer at the door — bad data doesn't get in.
 
 import logging
 from contextlib import asynccontextmanager
+from importlib.metadata import version as _pkg_version, PackageNotFoundError
+
+try:
+    APP_VERSION = _pkg_version("opendqv")
+except PackageNotFoundError:
+    APP_VERSION = "1.5.0"
 
 from fastapi import FastAPI
 from slowapi import _rate_limit_exceeded_handler
@@ -52,7 +58,7 @@ app = FastAPI(
         "Source systems call /api/v1/validate before writing data. "
         "Bad data is blocked at the door."
     ),
-    version="1.5.0",
+    version=APP_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
@@ -70,7 +76,7 @@ if config.TRUST_PROXY_HEADERS:
 node_health.add_observer(isolation_log.observe_state_change)
 
 # ── Security startup checks ───────────────────────────────────────────
-_DEFAULT_SECRET = "change-me-to-a-random-secret-key"
+_DEFAULT_SECRET = config.DEFAULT_SECRET_KEY
 _sec_issues = []
 if config.SECRET_KEY == _DEFAULT_SECRET:
     _sec_issues.append(
@@ -78,7 +84,7 @@ if config.SECRET_KEY == _DEFAULT_SECRET:
         "by anyone who reads config.py. "
         "Generate a real secret: SECRET_KEY=$(python -c \"import secrets; print(secrets.token_hex(32))\")"
     )
-if config.AUTH_MODE == "open":
+if config.IS_OPEN_MODE:
     _sec_issues.append(
         "AUTH_MODE=open — all callers are granted admin access without a token."
     )
@@ -114,18 +120,26 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Startup warnings when rate limiting is disabled on the hot path
-import logging as _startup_log
-_rl_off = {"off", "0", "disabled"}
+_rl_off = config._RATE_LIMIT_OFF_VALUES
 if config.RATE_LIMIT_VALIDATE.strip().lower() in _rl_off:
-    _startup_log.getLogger("opendqv").warning(
+    logger.warning(
         "RATE_LIMIT_VALIDATE=off — per-IP rate limiting is DISABLED on POST /validate. "
         "Ensure your reverse proxy enforces rate limits before exposing this node to the internet."
     )
 if config.RATE_LIMIT_DEFAULT.strip().lower() in _rl_off:
-    _startup_log.getLogger("opendqv").warning(
+    logger.warning(
         "RATE_LIMIT_DEFAULT=off — per-IP rate limiting is DISABLED on all non-validate endpoints. "
         "Ensure your reverse proxy enforces rate limits before exposing this node to the internet."
     )
+
+# ── X-Auth-Mode header — returned on every response for observability ─
+# Monitoring systems can check any response for `X-Auth-Mode: open` to
+# confirm that token auth is enforced before exposing a node to the internet.
+@app.middleware("http")
+async def add_auth_mode_header(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Auth-Mode"] = config.AUTH_MODE
+    return response
 
 # ── Mount REST API ───────────────────────────────────────────────────
 app.include_router(router)
@@ -147,7 +161,7 @@ def _maker_checker_enforced() -> bool:
 async def root():
     return {
         "service": "OpenDQV",
-        "version": "1.5.0",
+        "version": APP_VERSION,
         "status": "ready",
         "auth_mode": config.AUTH_MODE,
         "maker_checker_enforced": _maker_checker_enforced(),
@@ -164,8 +178,7 @@ async def health():
     state = node_health.current_state()
     enforced = _maker_checker_enforced()
     if not enforced:
-        import logging as _logging
-        _logging.getLogger("opendqv").warning(
+        logger.warning(
             "SECURITY: auth_mode=open — maker-checker bypassed, all callers have admin role. "
             "Never use open mode outside of local development."
         )
@@ -174,11 +187,10 @@ async def health():
         "status": "healthy",
         "opendqv_node_state": state.value,
         "auth_mode": config.AUTH_MODE,
-        "secret_key_insecure": config.SECRET_KEY == "change-me-to-a-random-secret-key",
+        "secret_key_insecure": config.SECRET_KEY == config.DEFAULT_SECRET_KEY,
     }
     # Extended detail — only exposed when OPENDQV_HEALTH_DETAIL=true (network-protected deployments).
     if config.HEALTH_DETAIL:
-        _rl_off = {"off", "0", "disabled"}
         resp.update({
             "auth_mode": config.AUTH_MODE,
             "maker_checker_enforced": enforced,

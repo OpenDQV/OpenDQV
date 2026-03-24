@@ -797,10 +797,11 @@ def main():
         "token-generate", help="Generate a Personal Access Token (PAT) for API authentication"
     )
     p_token_gen.add_argument("name", help="Token name / username (e.g. salesforce-prod)")
+    from security.auth import VALID_ROLES as _VALID_ROLES  # noqa: PLC0415
     p_token_gen.add_argument(
         "--role",
         default="validator",
-        choices=["validator", "reader", "auditor", "editor", "approver", "admin"],
+        choices=sorted(_VALID_ROLES),
         help="Token role (default: validator)",
     )
     p_token_gen.add_argument(

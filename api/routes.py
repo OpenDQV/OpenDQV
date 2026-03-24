@@ -17,6 +17,7 @@ import time
 import logging
 import threading
 import uuid
+import yaml as _yaml
 
 import httpx
 from datetime import datetime, timezone
@@ -41,7 +42,7 @@ from core.importers.csvw import import_csvw, csvw_to_yaml
 from core.importers.otel import import_otel, otel_to_yaml
 from core.importers.ndc import import_ndc, ndc_to_yaml
 from core.profiler import profile_records
-from security.auth import get_current_user, get_current_role, create_pat, revoke_pat, revoke_by_username, list_tokens
+from security.auth import get_current_user, get_current_role, create_pat, revoke_pat, revoke_by_username, list_tokens, VALID_ROLES
 from monitoring import stats, update_contract_counts
 from core.webhooks import WebhookManager
 from core.worker_heartbeat import heartbeat
@@ -84,7 +85,7 @@ def _make_limit(rate_str: str):
     for both accuracy (no 4× worker multiplication) and performance (~14% overhead
     eliminated). See docs/runbook.md — "Rate Limiter Overhead at High Throughput".
     """
-    if rate_str.strip().lower() in ("off", "0", "disabled"):
+    if rate_str.strip().lower() in config._RATE_LIMIT_OFF_VALUES:
         def _noop(func):
             return func
         return _noop
@@ -94,6 +95,62 @@ def _make_limit(rate_str: str):
 _validate_limit = _make_limit(config.RATE_LIMIT_VALIDATE)
 _default_limit = _make_limit(config.RATE_LIMIT_DEFAULT)
 _tokens_limit = _make_limit(config.RATE_LIMIT_TOKENS)
+
+
+# ── Internal helper functions ─────────────────────────────────────────
+
+def _get_contract_or_404(name: str):
+    """Return the contract for *name*, or raise HTTP 404."""
+    contract = registry.get(name)
+    if not contract:
+        raise HTTPException(status_code=404, detail=f"Contract '{name}' not found")
+    return contract
+
+
+def _get_contract_versioned_or_404(name: str, version: str):
+    """Return the versioned contract, or raise HTTP 404."""
+    contract = registry.get(name, version)
+    if not contract:
+        raise HTTPException(status_code=404, detail=f"Contract '{name}' version '{version}' not found")
+    return contract
+
+
+def _get_contract_hash(contract_name: str):
+    """Return the latest entry_hash from the audit chain, or None."""
+    history = registry.get_history(contract_name)
+    return history[-1]["entry_hash"] if history else None
+
+
+def _check_validate_in_states(contract, contract_name: str, allow_draft: bool) -> None:
+    """Raise HTTP 422 when the contract status is not in validate_in_states."""
+    if not allow_draft and hasattr(contract, 'validate_in_states') and contract.validate_in_states:
+        if contract.status.value not in contract.validate_in_states:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Contract '{contract_name}' is in status '{contract.status.value}' which is not in validate_in_states {contract.validate_in_states}"
+            )
+
+
+def _assert_contract_mutable(contract, name: str, user: str, op: str) -> None:
+    """Raise HTTP 409 if the contract is ACTIVE (immutable). Log the edit-mode hook."""
+    # ACT-047-01: ACTIVE contracts are immutable — rule mutations are blocked for all callers.
+    # To modify rules, fork via POST /contracts/{name}/version (creates a new DRAFT).
+    if contract.status == ContractStatus.ACTIVE:
+        logger.warning(
+            "rule_mutation_blocked contract=%s op=%s caller=%s status=active",
+            name, op, user,
+        )
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Contract '{name}' is ACTIVE. Rule mutations are not permitted on active contracts. "
+                f"To modify rules, use POST /api/v1/contracts/{name}/version to create a new draft version."
+            ),
+        )
+    # ACT-036-04: CONTRACT_EDIT_MODE hook — in "auto" mode, rule edits take effect immediately.
+    # "maker_checker" mode reserved for enterprise tier.
+    if config.CONTRACT_EDIT_MODE != "auto":
+        logger.info("contract_edit_mode=%s contract=%s op=%s", config.CONTRACT_EDIT_MODE, name, op)
 
 # SEC-009 / ACT-005: Global PII masking mode for error response 'value' fields.
 # "false" (default) — values pass through unchanged
@@ -246,12 +303,7 @@ async def validate_single(
                 detail=f"Contract '{body.contract}' not found in history at or before '{as_of}'.",
             )
     else:
-        contract = registry.get(body.contract, body.version)
-        if not contract:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Contract '{body.contract}' version '{body.version}' not found",
-            )
+        contract = _get_contract_versioned_or_404(body.contract, body.version)
 
     # Status checks skipped for point-in-time (as_of) queries — historical state is authoritative
     if not as_of:
@@ -295,12 +347,7 @@ async def validate_single(
 
         # Enforce validate_in_states — only allow validation against contracts in permitted states.
         # Skipped when allow_draft=true so that draft testing bypasses the state gate.
-        if not allow_draft and hasattr(contract, 'validate_in_states') and contract.validate_in_states:
-            if contract.status.value not in contract.validate_in_states:
-                raise HTTPException(
-                    status_code=422,
-                    detail=f"Contract '{body.contract}' is in status '{contract.status.value}' which is not in validate_in_states {contract.validate_in_states}"
-                )
+        _check_validate_in_states(contract, body.contract, allow_draft)
 
     try:
         rules = registry.get_rules_with_context(contract, body.context)
@@ -358,8 +405,7 @@ async def validate_single(
         })
 
     # ACT-038-05: include contract hash (entry_hash from hash chain) for audit evidence
-    _latest_history = registry.get_history(contract.name)
-    _contract_hash = _latest_history[-1]["entry_hash"] if _latest_history else None
+    _contract_hash = _get_contract_hash(contract.name)
 
     return ValidateResponse(
         valid=result["valid"],
@@ -403,12 +449,7 @@ async def validate_batch_endpoint(
             ),
         )
 
-    contract = registry.get(body.contract, body.version)
-    if not contract:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Contract '{body.contract}' version '{body.version}' not found",
-        )
+    contract = _get_contract_versioned_or_404(body.contract, body.version)
 
     if contract.status == ContractStatus.DRAFT and not allow_draft:
         if not config.STRICT_DRAFT_VALIDATION:
@@ -420,12 +461,7 @@ async def validate_batch_endpoint(
 
     # Enforce validate_in_states — only allow validation against contracts in permitted states.
     # Skipped when allow_draft=true so that draft testing bypasses the state gate.
-    if not allow_draft and hasattr(contract, 'validate_in_states') and contract.validate_in_states:
-        if contract.status.value not in contract.validate_in_states:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Contract '{body.contract}' is in status '{contract.status.value}' which is not in validate_in_states {contract.validate_in_states}"
-            )
+    _check_validate_in_states(contract, body.contract, allow_draft)
 
     trace_id = str(uuid.uuid4())
     try:
@@ -492,8 +528,7 @@ async def validate_batch_endpoint(
         logger.exception("quality_stats.record_batch failed — non-blocking")
 
     # ACT-038-05: include contract hash (entry_hash from hash chain) for audit evidence
-    _latest_history = registry.get_history(contract.name)
-    _contract_hash = _latest_history[-1]["entry_hash"] if _latest_history else None
+    _contract_hash = _get_contract_hash(contract.name)
 
     return BatchValidateResponse(
         summary=BatchSummary(**result["summary"]),
@@ -542,9 +577,7 @@ async def validate_batch_file(
     Returns a summary and per-row results. DuckDB-powered.
     Max file size: 100MB.
     """
-    dc = registry.get(contract, version)
-    if not dc:
-        raise HTTPException(status_code=404, detail=f"Contract '{contract}' not found")
+    dc = _get_contract_versioned_or_404(contract, version)
 
     try:
         rules = registry.get_rules_with_context(dc, context)
@@ -581,9 +614,7 @@ async def list_contracts(
 @_default_limit
 async def get_contract(request: Request, name: str, version: str = Query("latest")):
     """Get full detail of a data contract including its rules."""
-    contract = registry.get(name, version)
-    if not contract:
-        raise HTTPException(status_code=404, detail=f"Contract '{name}' version '{version}' not found")
+    contract = _get_contract_versioned_or_404(name, version)
 
     def _rule_values(r) -> list[str] | None:
         """Return the first valid value from a local lookup file, for workbench sample generation."""
@@ -654,9 +685,7 @@ async def explain_contract(
         except _JWTInvalidTokenError:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-    contract = registry.get(name, version)
-    if not contract:
-        raise HTTPException(status_code=404, detail=f"Contract '{name}' not found")
+    contract = _get_contract_versioned_or_404(name, version)
 
     lines = [
         f"Contract: {contract.name} (version {contract.version})",
@@ -778,9 +807,7 @@ async def explain_error(
     rule_name: str,
     version: str = Query("latest", description="Contract version or 'latest'"),
 ):
-    contract = registry.get(name, version)
-    if not contract:
-        raise HTTPException(status_code=404, detail=f"Contract '{name}' not found")
+    contract = _get_contract_versioned_or_404(name, version)
 
     matching = [r for r in contract.rules if r.name == rule_name and r.field == field]
     if not matching:
@@ -824,9 +851,7 @@ async def get_quality_trend(
     to populate trend data.
     """
     # Verify contract exists
-    c = registry.get(name)
-    if c is None:
-        raise HTTPException(status_code=404, detail=f"Contract '{name}' not found")
+    c = _get_contract_or_404(name)
 
     points = _quality_stats.get_trend(name, days=days, context=context)
     return QualityTrendResponse(
@@ -925,9 +950,7 @@ async def change_contract_status(
         )
 
     # Look up the contract first so we return 404 before any role check.
-    contract = registry.get(name, version)
-    if not contract:
-        raise HTTPException(status_code=404, detail=f"Contract '{name}' version '{version}' not found")
+    contract = _get_contract_versioned_or_404(name, version)
 
     # Maker-checker gate: activating a contract requires approver or admin role.
     if new_status == ContractStatus.ACTIVE and role not in ("admin", "approver"):
@@ -966,7 +989,6 @@ async def change_contract_status(
         "contract_status_change: name=%s version=%s status=%s caller=%s role=%s",
         name, version, new_status.value, user, role,
     )
-    response.headers["X-Auth-Mode"] = config.AUTH_MODE
     return {
         "name": contract.name,
         "version": contract.version,
@@ -1126,9 +1148,7 @@ async def bump_contract_version(
             ),
         )
 
-    contract = registry.get(name)
-    if not contract:
-        raise HTTPException(status_code=404, detail=f"Contract '{name}' not found")
+    contract = _get_contract_or_404(name)
 
     old_version = contract.version
 
@@ -1162,7 +1182,6 @@ async def bump_contract_version(
     except ValueError:
         diff = None
 
-    response.headers["X-Auth-Mode"] = config.AUTH_MODE
     return {
         "name": name,
         "old_version": old_version,
@@ -1192,37 +1211,16 @@ async def add_rule(
     Writes atomically to YAML and records history.
     ACT-036-01 / ACT-046-05
     """
-    contract = registry.get(name)
-    if not contract:
-        raise HTTPException(status_code=404, detail=f"Contract '{name}' not found")
+    contract = _get_contract_or_404(name)
 
     if role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail=f"Role '{role}' cannot modify contract rules. Required: editor or admin.")
 
-    # ACT-047-01: ACTIVE contracts are immutable — rule mutations are blocked for all callers.
-    # To modify rules, fork via POST /contracts/{name}/version (creates a new DRAFT).
-    if contract.status == ContractStatus.ACTIVE:
-        logger.warning(
-            "rule_mutation_blocked contract=%s op=add_rule caller=%s status=active",
-            name, user,
-        )
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"Contract '{name}' is ACTIVE. Rule mutations are not permitted on active contracts. "
-                f"To modify rules, use POST /api/v1/contracts/{name}/version to create a new draft version."
-            ),
-        )
-
-    # ACT-036-04: CONTRACT_EDIT_MODE hook — in "auto" mode, rule edits take effect immediately.
-    # "maker_checker" mode reserved for enterprise tier.
-    if config.CONTRACT_EDIT_MODE != "auto":
-        logger.info("contract_edit_mode=%s contract=%s op=add_rule", config.CONTRACT_EDIT_MODE, name)
+    _assert_contract_mutable(contract, name, user, "add_rule")
     try:
         contract = registry.add_rule(name, body)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    response.headers["X-Auth-Mode"] = config.AUTH_MODE
     return {"status": "added", "contract": name, "rule": body.get("name"), "rule_count": len(contract.rules), "version": contract.version}
 
 
@@ -1243,32 +1241,12 @@ async def update_rule(
     Returns a breaking_change_warning if type/pattern/min/max changed.
     ACT-036-01 / ACT-036-06 / ACT-046-05
     """
-    contract = registry.get(name)
-    if not contract:
-        raise HTTPException(status_code=404, detail=f"Contract '{name}' not found")
+    contract = _get_contract_or_404(name)
 
     if role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail=f"Role '{role}' cannot modify contract rules. Required: editor or admin.")
 
-    # ACT-047-01: ACTIVE contracts are immutable — rule mutations are blocked for all callers.
-    # To modify rules, fork via POST /contracts/{name}/version (creates a new DRAFT).
-    if contract.status == ContractStatus.ACTIVE:
-        logger.warning(
-            "rule_mutation_blocked contract=%s op=update_rule caller=%s status=active",
-            name, user,
-        )
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"Contract '{name}' is ACTIVE. Rule mutations are not permitted on active contracts. "
-                f"To modify rules, use POST /api/v1/contracts/{name}/version to create a new draft version."
-            ),
-        )
-
-    # ACT-036-04: CONTRACT_EDIT_MODE hook — in "auto" mode, rule edits take effect immediately.
-    # "maker_checker" mode reserved for enterprise tier.
-    if config.CONTRACT_EDIT_MODE != "auto":
-        logger.info("contract_edit_mode=%s contract=%s op=update_rule", config.CONTRACT_EDIT_MODE, name)
+    _assert_contract_mutable(contract, name, user, "update_rule")
     try:
         contract, breaking = registry.update_rule(name, rule_name, body)
     except ValueError as exc:
@@ -1279,7 +1257,6 @@ async def update_rule(
             "Modifying an existing rule may cause previously passing validations to fail. "
             "Consider bumping the contract version when promoting this draft to ACTIVE."
         )
-    response.headers["X-Auth-Mode"] = config.AUTH_MODE
     return resp
 
 
@@ -1297,37 +1274,16 @@ async def delete_rule(
     Delete a rule from a contract.
     ACT-036-01 / ACT-046-05
     """
-    contract = registry.get(name)
-    if not contract:
-        raise HTTPException(status_code=404, detail=f"Contract '{name}' not found")
+    contract = _get_contract_or_404(name)
 
     if role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail=f"Role '{role}' cannot modify contract rules. Required: editor or admin.")
 
-    # ACT-047-01: ACTIVE contracts are immutable — rule mutations are blocked for all callers.
-    # To modify rules, fork via POST /contracts/{name}/version (creates a new DRAFT).
-    if contract.status == ContractStatus.ACTIVE:
-        logger.warning(
-            "rule_mutation_blocked contract=%s op=delete_rule caller=%s status=active",
-            name, user,
-        )
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"Contract '{name}' is ACTIVE. Rule mutations are not permitted on active contracts. "
-                f"To modify rules, use POST /api/v1/contracts/{name}/version to create a new draft version."
-            ),
-        )
-
-    # ACT-036-04: CONTRACT_EDIT_MODE hook — in "auto" mode, rule edits take effect immediately.
-    # "maker_checker" mode reserved for enterprise tier.
-    if config.CONTRACT_EDIT_MODE != "auto":
-        logger.info("contract_edit_mode=%s contract=%s op=delete_rule", config.CONTRACT_EDIT_MODE, name)
+    _assert_contract_mutable(contract, name, user, "delete_rule")
     try:
         contract = registry.delete_rule(name, rule_name)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    response.headers["X-Auth-Mode"] = config.AUTH_MODE
     return {"status": "deleted", "contract": name, "rule": rule_name, "rule_count": len(contract.rules), "version": contract.version}
 
 
@@ -1381,9 +1337,7 @@ async def get_schema_registry_entry(
     Includes the schema_hash (from the audit hash chain) for integrity verification.
     ACT-038-02
     """
-    contract = registry.get(name)
-    if not contract:
-        raise HTTPException(status_code=404, detail=f"Contract '{name}' not found in registry")
+    contract = _get_contract_or_404(name)
     history = registry.get_history(name)
     latest_hash = history[-1]["entry_hash"] if history else None
     rules_out = [
@@ -1424,9 +1378,7 @@ async def generate_code_endpoint(
     user=Depends(get_current_user),
 ):
     """Generate validation code for a target platform from a contract's rules."""
-    contract = registry.get(contract_name, version)
-    if not contract:
-        raise HTTPException(status_code=404, detail=f"Contract '{contract_name}' not found")
+    contract = _get_contract_versioned_or_404(contract_name, version)
 
     try:
         rules = registry.get_rules_with_context(contract, context)
@@ -1460,13 +1412,11 @@ async def import_great_expectations(
     """
     if role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail=f"Role '{role}' is not permitted. Required: editor or admin.")
-    import yaml as _yaml
     result = import_gx_suite(suite)
     result["contract"]["source"] = "import"
     result["contract"]["status"] = "draft"
 
     if save:
-        import os
         contract_name = result["contract"]["name"]
         _validate_contract_name(contract_name)
         yaml_content = gx_suite_to_yaml(suite)
@@ -1484,7 +1434,6 @@ async def import_great_expectations(
         result["saved_to"] = file_path
         result["message"] = f"Contract '{contract_name}' saved and loaded"
 
-    response.headers["X-Auth-Mode"] = config.AUTH_MODE
     return result
 
 
@@ -1506,14 +1455,12 @@ async def import_dbt(
     """
     if role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail=f"Role '{role}' is not permitted. Required: editor or admin.")
-    import yaml as _yaml
     result = import_dbt_schema(schema)
     for item in result["contracts"]:
         item["contract"]["source"] = "import"
         item["contract"]["status"] = "draft"
 
     if save:
-        import os
         saved_files = []
         contracts_dir = str(config.CONTRACTS_DIR)
         for item in result["contracts"]:
@@ -1537,7 +1484,6 @@ async def import_dbt(
         result["saved_to"] = saved_files
         result["message"] = f"Saved {len(saved_files)} contract(s)"
 
-    response.headers["X-Auth-Mode"] = config.AUTH_MODE
     return result
 
 
@@ -1560,14 +1506,12 @@ async def import_soda(
     """
     if role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail=f"Role '{role}' is not permitted. Required: editor or admin.")
-    import yaml as _yaml
     result = import_soda_checks(checks)
     for item in result.get("contracts", []):
         item["contract"]["source"] = "import"
         item["contract"]["status"] = "draft"
 
     if save:
-        import os
         saved_files = []
         contracts_dir = str(config.CONTRACTS_DIR)
         pairs = soda_checks_to_yaml(checks)
@@ -1587,7 +1531,6 @@ async def import_soda(
         result["saved_to"] = saved_files
         result["message"] = f"Saved {len(saved_files)} contract(s)"
 
-    response.headers["X-Auth-Mode"] = config.AUTH_MODE
     return result
 
 
@@ -1609,7 +1552,6 @@ async def import_csv(
     """
     if role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail=f"Role '{role}' is not permitted. Required: editor or admin.")
-    import yaml as _yaml
     body_bytes = await request.body()
     csv_content = body_bytes.decode("utf-8")
 
@@ -1619,7 +1561,6 @@ async def import_csv(
     result["contract"]["status"] = "draft"
 
     if save:
-        import os
         yaml_content = csv_rules_to_yaml(csv_content, contract_name)
         _d = _yaml.safe_load(yaml_content)
         _d["source"] = "import"
@@ -1635,7 +1576,6 @@ async def import_csv(
         result["saved_to"] = file_path
         result["message"] = f"Contract '{contract_name}' saved and loaded"
 
-    response.headers["X-Auth-Mode"] = config.AUTH_MODE
     return result
 
 
@@ -1664,13 +1604,11 @@ async def import_odcs_contract(
     """
     if role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail=f"Role '{role}' is not permitted. Required: editor or admin.")
-    import yaml as _yaml
     result = import_odcs(contract_data)
     result["contract"]["source"] = "import"
     result["contract"]["status"] = "draft"
 
     if save:
-        import os
         contract_name, yaml_content = odcs_to_yaml(contract_data, contract_name or None)
         _validate_contract_name(contract_name)
         _d = _yaml.safe_load(yaml_content)
@@ -1687,7 +1625,6 @@ async def import_odcs_contract(
         result["saved_to"] = file_path
         result["message"] = f"Contract '{contract_name}' saved and loaded"
 
-    response.headers["X-Auth-Mode"] = config.AUTH_MODE
     return result
 
 
@@ -1716,7 +1653,6 @@ async def import_from_csvw(
     if role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail=f"Role '{role}' is not permitted. Required: editor or admin.")
     _validate_contract_name(contract_name)
-    import yaml as _yaml
     try:
         result = import_csvw(body)
         yaml_output = csvw_to_yaml(body, contract_name)
@@ -1734,7 +1670,6 @@ async def import_from_csvw(
             "yaml": yaml_output,
         }
         if save:
-            import os
             contracts_dir = str(config.CONTRACTS_DIR)
             file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
             with open(file_path, "w") as f:
@@ -1742,7 +1677,6 @@ async def import_from_csvw(
             registry.reload()
             resp["saved_to"] = file_path
             resp["message"] = f"Contract '{contract_name}' saved and loaded"
-        response.headers["X-Auth-Mode"] = config.AUTH_MODE
         return resp
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"CSVW import failed: {e}")
@@ -1772,7 +1706,6 @@ async def import_from_otel(
     if role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail=f"Role '{role}' is not permitted. Required: editor or admin.")
     _validate_contract_name(contract_name)
-    import yaml as _yaml
     try:
         result = import_otel(body)
         yaml_output = otel_to_yaml(body, contract_name)
@@ -1790,7 +1723,6 @@ async def import_from_otel(
             "yaml": yaml_output,
         }
         if save:
-            import os
             contracts_dir = str(config.CONTRACTS_DIR)
             file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
             with open(file_path, "w") as f:
@@ -1798,7 +1730,6 @@ async def import_from_otel(
             registry.reload()
             resp["saved_to"] = file_path
             resp["message"] = f"Contract '{contract_name}' saved and loaded"
-        response.headers["X-Auth-Mode"] = config.AUTH_MODE
         return resp
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"OTel import failed: {e}")
@@ -1829,7 +1760,6 @@ async def import_from_ndc(
     if role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail=f"Role '{role}' is not permitted. Required: editor or admin.")
     _validate_contract_name(contract_name)
-    import yaml as _yaml
     try:
         result = import_ndc(body)
         yaml_output = ndc_to_yaml(body, contract_name)
@@ -1847,7 +1777,6 @@ async def import_from_ndc(
             "yaml": yaml_output,
         }
         if save:
-            import os
             contracts_dir = str(config.CONTRACTS_DIR)
             file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
             with open(file_path, "w") as f:
@@ -1855,7 +1784,6 @@ async def import_from_ndc(
             registry.reload()
             resp["saved_to"] = file_path
             resp["message"] = f"Contract '{contract_name}' saved and loaded"
-        response.headers["X-Auth-Mode"] = config.AUTH_MODE
         return resp
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"NDC import failed: {e}")
@@ -1876,9 +1804,7 @@ async def export_to_great_expectations(
     This enables bidirectional sync: import GX suites into OpenDQV for governance,
     then export back to keep GX pipelines aligned with the governed rules.
     """
-    contract = registry.get(contract_name, version)
-    if not contract:
-        raise HTTPException(status_code=404, detail=f"Contract '{contract_name}' not found")
+    contract = _get_contract_versioned_or_404(contract_name, version)
 
     try:
         rules = registry.get_rules_with_context(contract, context)
@@ -1906,9 +1832,7 @@ async def export_to_odcs(
     checks mapped from OpenDQV rules. Suitable for use with OpenMetadata, Soda,
     Monte Carlo, and the Data Contract CLI.
     """
-    contract = registry.get(contract_name, version)
-    if not contract:
-        raise HTTPException(status_code=404, detail=f"Contract '{contract_name}' not found")
+    contract = _get_contract_versioned_or_404(contract_name, version)
 
     try:
         rules = registry.get_rules_with_context(contract, context)
@@ -1942,10 +1866,8 @@ async def profile_data(
     result = profile_records(records, contract_name=contract_name)
 
     if save:
-        import os
-        import yaml
         contract_data = {"contract": result["contract"]}
-        yaml_content = yaml.dump(contract_data, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        yaml_content = _yaml.dump(contract_data, default_flow_style=False, sort_keys=False, allow_unicode=True)
         contracts_dir = str(config.CONTRACTS_DIR)
         file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
         with open(file_path, "w") as f:
@@ -1982,10 +1904,8 @@ async def profile_file(
     result = profile_records(records, contract_name=contract_name)
 
     if save:
-        import os
-        import yaml
         contract_data = {"contract": result["contract"]}
-        yaml_content = yaml.dump(contract_data, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        yaml_content = _yaml.dump(contract_data, default_flow_style=False, sort_keys=False, allow_unicode=True)
         contracts_dir = str(config.CONTRACTS_DIR)
         file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
         with open(file_path, "w") as f:
@@ -2020,7 +1940,6 @@ async def generate_token(
     Elevated tokens can only be issued in AUTH_MODE=token to prevent privilege escalation
     tokens from being persisted in development environments.
     """
-    VALID_ROLES = {"validator", "reader", "auditor", "editor", "approver", "admin"}
     if role not in VALID_ROLES:
         raise HTTPException(
             status_code=422,
@@ -2031,7 +1950,7 @@ async def generate_token(
     # elevated role would remain valid after AUTH_MODE is later tightened to
     # "token". Cap to "validator" in open mode regardless of what was requested.
     effective_role = role
-    if config.AUTH_MODE == "open" and role in ("admin", "approver", "editor"):
+    if config.IS_OPEN_MODE and role in ("admin", "approver", "editor"):
         effective_role = "validator"
 
     result = create_pat(username, expiry_days=expiry_days, role=effective_role)

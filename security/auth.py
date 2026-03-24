@@ -15,6 +15,10 @@ from passlib.context import CryptContext
 
 import config
 
+VALID_ROLES: frozenset = frozenset(
+    {"validator", "reader", "auditor", "editor", "approver", "admin"}
+)
+
 ALGORITHM = config.ALGORITHM
 SECRET_KEY = config.SECRET_KEY
 TOKEN_EXPIRY_DAYS = config.TOKEN_EXPIRY_DAYS
@@ -53,6 +57,11 @@ def init_db():
 
 
 init_db()
+
+
+def _ensure_utc(dt: datetime) -> datetime:
+    """Return dt with UTC timezone attached; no-op if already tz-aware."""
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
 def create_pat(username: str, scopes: str = "read:write", expiry_days: int = None, role: str = "validator") -> dict:
@@ -96,9 +105,7 @@ def list_tokens() -> list[dict]:
     now = datetime.now(timezone.utc)
     result = []
     for username, expiry_str, scopes, role in rows:
-        expiry = datetime.fromisoformat(expiry_str)
-        if expiry.tzinfo is None:
-            expiry = expiry.replace(tzinfo=timezone.utc)
+        expiry = _ensure_utc(datetime.fromisoformat(expiry_str))
         days_remaining = (expiry - now).days
         result.append({
             "username": username,
@@ -165,9 +172,7 @@ async def get_current_user(authorization: str = Header(None)) -> str:
         if not row:
             raise HTTPException(status_code=401, detail="Token not found or revoked")
 
-        expiry = datetime.fromisoformat(row[0])
-        if expiry.tzinfo is None:
-            expiry = expiry.replace(tzinfo=timezone.utc)
+        expiry = _ensure_utc(datetime.fromisoformat(row[0]))
         if expiry < datetime.now(timezone.utc):
             raise HTTPException(status_code=401, detail="Token expired")
 
