@@ -349,7 +349,7 @@ class TestIndustrySetupWizard:
 
 
 class TestContractAuditLifecycle:
-    """Tests for the Version History / Contract Audit & Lifecycle tab."""
+    """Tests for the Audit Trail tab."""
 
     def _navigate_to_version_history(self, page):
         """Navigate to the Audit Trail section via sidebar button."""
@@ -358,7 +358,7 @@ class TestContractAuditLifecycle:
         page.wait_for_timeout(2000)
 
     def _load_audit_trail(self, page):
-        """Navigate to Version History, then click Load Audit Trail for the default contract."""
+        """Navigate to Audit Trail, then click Load Audit Trail for the default contract."""
         self._navigate_to_version_history(page)
         page.locator("button", has_text="Load Audit Trail").click()
         page.wait_for_timeout(3000)
@@ -373,7 +373,7 @@ class TestContractAuditLifecycle:
         """A selectbox for choosing a contract is visible on the audit tab."""
         self._navigate_to_version_history(workbench)
         selectboxes = workbench.locator("[data-testid='stSelectbox']")
-        assert selectboxes.count() >= 1, "No contract selector selectbox found on Version History tab"
+        assert selectboxes.count() >= 1, "No contract selector selectbox found on Audit Trail tab"
 
     def test_load_audit_trail_button_exists(self, workbench):
         """The Load Audit Trail button is present on the audit tab."""
@@ -512,9 +512,9 @@ class TestContractAuditLifecycle:
         )
 
     def test_audit_tab_does_not_crash(self, workbench):
-        """Version History section loads without a Streamlit Python exception."""
+        """Audit Trail section loads without a Streamlit Python exception."""
         self._navigate_to_version_history(workbench)
         # Streamlit renders exceptions with a heading containing "Error"
         # and a data-testid="stException" element
         exceptions = workbench.locator("[data-testid='stException']").count()
-        assert exceptions == 0, "Streamlit rendered a Python exception on the Version History tab"
+        assert exceptions == 0, "Streamlit rendered a Python exception on the Audit Trail tab"

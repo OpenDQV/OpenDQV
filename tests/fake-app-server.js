@@ -143,8 +143,8 @@ const HTML = `<!DOCTYPE html>
         </div>
       </div>
       <div class="btn-row">
-        <button class="btn-primary" onclick="validateSingle()">Validate Record</button>
-        <button class="btn-batch btn-batch" onclick="validateBatch()">Batch Test (5 records)</button>
+        <button class="btn-primary" onclick="validateSingle()">Validate (Single)</button>
+        <button class="btn-batch btn-batch" onclick="validateBatch()">Validate (Batch — 5 records)</button>
       </div>
     </div>
 
@@ -336,5 +336,5 @@ server.listen(PORT, () => {
   console.log(`  Try these:`);
   console.log(`    1. Open http://localhost:${PORT} in your browser`);
   console.log(`    2. Use the preset buttons to fill sample data`);
-  console.log(`    3. Click "Validate Record" or "Batch Test"\n`);
+  console.log(`    3. Click "Validate (Single)" or "Validate (Batch)"\n`);
 });
