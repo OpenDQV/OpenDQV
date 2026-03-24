@@ -17,6 +17,7 @@ class ValidateRequest(BaseModel):
     version: str = Field("latest", description="Contract version or 'latest'")
     context: Optional[str] = Field(None, description="Context override (e.g. 'kids_app', 'salesforce')")
     record_id: Optional[str] = Field(None, description="Caller's correlation ID for tracking")
+    agent_id: Optional[str] = Field(None, description="Caller identity — AI agent name, service name, or team. Echoed in response for session correlation.")
 
     model_config = {
         "json_schema_extra": {
@@ -56,6 +57,8 @@ class ValidateResponse(BaseModel):
         description="SHA-256 hash of the contract ruleset at validation time — enables point-in-time audit evidence",
     )
     owner_team: Optional[str] = None
+    validated_at: Optional[str] = Field(None, description="ISO 8601 UTC timestamp of validation — use for time-series correlation with quality metrics")
+    agent_id: Optional[str] = Field(None, description="Echo of caller's agent_id — for session and caller attribution")
 
 
 # ── Batch validation request/response ────────────────────────────────
@@ -66,6 +69,7 @@ class BatchValidateRequest(BaseModel):
     contract: str = Field(..., description="Contract name")
     version: str = Field("latest", description="Contract version or 'latest'")
     context: Optional[str] = Field(None, description="Context override")
+    agent_id: Optional[str] = Field(None, description="Caller identity — AI agent name, service name, or team. Echoed in response for session correlation.")
 
     model_config = {
         "json_schema_extra": {
@@ -111,6 +115,8 @@ class BatchValidateResponse(BaseModel):
     owner: str = Field("", description="Contract owner — for routing disputes and on-call escalation")
     engine_version: str = Field("", description="OpenDQV engine version — for regulatory audit trails")
     contract_hash: Optional[str] = Field(None, description="SHA-256 hash of the contract ruleset at validation time")
+    validated_at: Optional[str] = Field(None, description="ISO 8601 UTC timestamp of batch validation — use for time-series correlation with quality metrics")
+    agent_id: Optional[str] = Field(None, description="Echo of caller's agent_id — for session and caller attribution")
 
 
 # ── Contract models ──────────────────────────────────────────────────

@@ -418,6 +418,8 @@ async def validate_single(
         engine_version=config.ENGINE_VERSION,
         contract_hash=_contract_hash,
         owner_team=contract.owner_team,
+        validated_at=datetime.now(timezone.utc).isoformat(),
+        agent_id=body.agent_id,
     )
 
 
@@ -546,6 +548,8 @@ async def validate_batch_endpoint(
         owner=contract.owner or "",
         engine_version=config.ENGINE_VERSION,
         contract_hash=_contract_hash,
+        validated_at=datetime.now(timezone.utc).isoformat(),
+        agent_id=body.agent_id,
     )
 
 
@@ -2104,7 +2108,12 @@ async def get_rejection_summary(
             continue
         pass_rate = round(_cdata["pass"] / total, 4)
         top_rules = [
-            {"rule": f["rule"], "field": f["field"], "failures": f["count"]}
+            {
+                "rule": f["rule"],
+                "field": f["field"],
+                "failures": f["count"],
+                "failure_rate_pct": round(f["count"] / total * 100, 1) if total > 0 else 0,
+            }
             for f in top_fields if f["contract"] == contract_name
         ][:5]
         result.append({
