@@ -2,6 +2,23 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.5.4] - 2026-03-24
+
+### Features
+
+- **`validated_at` on validate responses** — ISO 8601 UTC timestamp on every
+  `/validate` and `/validate/batch` response. Enables time-series correlation
+  with quality metrics windows.
+- **`agent_id` on validate requests/responses** — optional caller identity field
+  on `/validate` and `/validate/batch`. Pass your agent name, service name, or
+  team; it echoes back in the response for session and caller attribution.
+- **`failure_rate_pct` in `/rejection-summary`** — each rule in `top_failing_rules`
+  now includes the percentage of total records failing that rule, not just raw count.
+  Gives meaningful signal when batch sizes vary.
+
+Feature requests from Mac Claude after live MCP demo session. All three items
+identified during real integration use — not hypothetical.
+
 ## [1.5.3] - 2026-03-24
 
 ### Fixed
