@@ -190,7 +190,8 @@ pip install --require-hashes -r requirements.lock
 **Scan the container image** for OS-layer and package CVEs before deployment (see [hardening.md — Container Image Scanning](hardening.md)):
 
 ```bash
-trivy image opendqv:latest --ignore-unfixed --exit-code 1 --severity CRITICAL,HIGH
+# Recommended: Grype + Syft (Anchore) — unaffected by the March 2026 Trivy incident
+syft opendqv:latest -o json | grype --fail-on high
 ```
 
 ### If you are responding to a supply chain incident

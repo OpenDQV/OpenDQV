@@ -337,7 +337,34 @@ secrets:
 
 ## 12. Container Image Scanning
 
-Container images should be scanned with **Trivy** before deployment. A `container-scan` CI job is planned but not yet automated — run Trivy locally or in your deployment pipeline until the CI job is added. When configured, results should be uploaded to the GitHub Security tab as SARIF. CRITICAL findings with a fix should block the build; HIGH findings without an upstream fix are surfaced as warnings only (`--ignore-unfixed`).
+### Recommended scanner: Grype + Syft (Anchore)
+
+The primary recommended scanner is **Grype** paired with **Syft** for SBOM generation (both by Anchore). Grype is free, open source, and unaffected by the March 2026 Trivy supply chain incident (see note below).
+
+```bash
+# Install
+curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+# Scan via SBOM (recommended — generates an SBOM and scans it)
+syft opendqv:latest -o json | grype --fail-on high
+
+# Or scan the image directly
+grype opendqv:latest --fail-on high
+```
+
+A `container-scan` CI job using Grype is planned but not yet automated — run it locally or in your deployment pipeline until the CI job is added. CRITICAL and HIGH findings with a fix available should block the build.
+
+### Note on Trivy (March 2026)
+
+On March 19, 2026, the threat actor TeamPCP compromised Aqua Security's CI/CD pipeline and published a malicious Trivy binary (v0.69.4) and force-pushed backdoored commits to nearly all version tags in `aquasecurity/trivy-action` and `aquasecurity/setup-trivy`. Pipelines referencing version tags silently ran credential-stealing malware. The same stolen credentials enabled the downstream LiteLLM PyPI attack on March 24.
+
+**OpenDQV's own CI pipelines did not use `trivy-action` and were not exposed.**
+
+If you choose to use Trivy:
+- Avoid v0.69.4 — use v0.69.3 or a post-remediation release
+- Never reference `aquasecurity/trivy-action` or `aquasecurity/setup-trivy` by version tag — pin to an exact commit hash
+- Prefer running the Trivy binary directly (not via the GitHub Action) during the recovery period
 
 ### Baseline scan — 2026-03-10
 
@@ -355,5 +382,5 @@ Post-fix scan result: **0 CRITICAL, 0 HIGH** across all packages and OS layers.
 ### Keeping the image clean
 
 - When the `container-scan` CI job is added, it should run on every push to `main` and `develop` and on all PRs to `main`.
-- When a new HIGH/CRITICAL finding appears: check `--ignore-unfixed` status. If a fix exists, bump the relevant package in `requirements.txt` or the Dockerfile pre-pin line and rebuild.
-- `python:3.11-slim` OS-layer findings (Debian packages) with no upstream fix are automatically excluded by `--ignore-unfixed`. Monitor these periodically — bump the base image tag when a patched slim image is released.
+- When a new HIGH/CRITICAL finding appears: if a fix exists, bump the relevant package in `requirements.txt` or the Dockerfile pre-pin line and rebuild.
+- `python:3.11-slim` OS-layer findings (Debian packages) with no upstream fix can be excluded with `--ignore-unfixed` / `--only-fixed`. Monitor these periodically — bump the base image tag when a patched slim image is released.
