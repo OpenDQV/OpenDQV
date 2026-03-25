@@ -1005,7 +1005,7 @@ python mcp_server.py
 
 OpenDQV pushes quality metrics to Marmot as OpenLineage events, giving you live lineage diagrams showing validation jobs, pass rates, and top failing rules directly in your data catalog:
 
-<video src="https://github.com/user-attachments/assets/5e18d3a2-5139-41e9-8d01-899c58c5bd29" controls width="800" title="OpenDQV + Marmot MCP demo — discover contracts, validate records, visualise lineage"></video>
+<video src="https://github.com/user-attachments/assets/4d414ff1-b08c-4ff1-91e4-e421f0d5391d" controls width="800" title="OpenDQV + Marmot MCP demo — discover contracts, validate records, visualise lineage"></video>
 
 ![Marmot lineage diagram — validate:ppds_menu_item job node linked to ppds_menu_item dataset with quality metrics](docs/marmot_lineage.png)
 
