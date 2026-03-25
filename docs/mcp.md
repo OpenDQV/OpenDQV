@@ -58,7 +58,7 @@ Claude Desktop  →  (stdio)  →  mcp_server.py (laptop)  →  (HTTP)  →  Fas
 ```json
 {
   "mcpServers": {
-    "opendqv": {
+    "OpenDQV": {
       "command": "python",
       "args": ["/path/to/OpenDQV/mcp_server.py"],
       "env": {
@@ -91,7 +91,7 @@ Point your MCP-compatible client at the server. For Claude Desktop, add to `~/.c
 ```json
 {
   "mcpServers": {
-    "opendqv": {
+    "OpenDQV": {
       "command": "python",
       "args": ["/path/to/OpenDQV/mcp_server.py"],
       "env": {
@@ -304,9 +304,9 @@ Because both OpenDQV and catalog tools like [Marmot](https://github.com/marmotda
 
 ```
 Agent
-  ├─ opendqv:get_quality_metrics("customer")
-  │     → { pass_rate: 0.94, failed: 85, catalog_hint: "marmot:assets/customer" }
-  └─ marmot:get_asset("customer")          ← agent uses catalog_hint
+  ├─ OpenDQV:get_quality_metrics("customer")
+  │     → { pass_rate: 0.94, failed: 85, catalog_hint: "Marmot:assets/customer" }
+  └─ Marmot:get_asset("customer")          ← agent uses catalog_hint
         → { owner: "...", lineage: [...], downstream_assets: [...] }
 ```
 
@@ -315,11 +315,11 @@ No integration code required. Both servers are already running. The agent reads 
 ### Example agent prompt
 
 ```
-You have access to two MCP servers: opendqv and marmot.
+You have access to two MCP servers: OpenDQV and Marmot.
 
-1. Call opendqv:get_quality_metrics for the "customer" contract.
+1. Call OpenDQV:get_quality_metrics for the "customer" contract.
 2. Read the catalog_hint field from the result.
-3. If pass_rate is below 0.95, call marmot:get_asset using the asset name
+3. If pass_rate is below 0.95, call Marmot:get_asset using the asset name
    from catalog_hint to find the asset owner.
 4. Summarise: which rules are failing, who owns the asset, and what
    downstream assets are at risk.
@@ -329,29 +329,29 @@ You have access to two MCP servers: opendqv and marmot.
 
 | Layer | Tool | Contributes |
 |-------|------|-------------|
-| Layer 1 — write-time | `opendqv:get_quality_metrics` | Pass rate, failing rules, rejection counts |
-| Layer 2 — catalog | `marmot:get_asset` (or DataHub / Atlan equivalent) | Owner, lineage, downstream assets |
+| Layer 1 — write-time | `OpenDQV:get_quality_metrics` | Pass rate, failing rules, rejection counts |
+| Layer 2 — catalog | `Marmot:get_asset` (or DataHub / Atlan equivalent) | Owner, lineage, downstream assets |
 
 OpenDQV stays pure enforcement. The catalog stays pure governance. The agent composes them at runtime.
 
-### Marmot proxy (`marmot_proxy.py`)
+### Marmot proxy (`Marmot_proxy.py`)
 
-For Claude Desktop setups where Marmot's MCP endpoint is on a remote machine, `marmot_proxy.py` acts as a stdio-to-HTTP bridge. It also applies two filters automatically:
+For Claude Desktop setups where Marmot's MCP endpoint is on a remote machine, `Marmot_proxy.py` acts as a stdio-to-HTTP bridge. It also applies two filters automatically:
 
-1. **Provider filter** — injects `providers=["opendqv"]` into every `discover_data` call, so catalog discovery returns only OpenDQV assets (not OpenLineage job nodes or other providers).
-2. **Visibility filter** — contracts with `catalog_visible: false` in their YAML are excluded from `discover_data` responses. `marmot_proxy.py` loads hidden contract names from the local `contracts/` directory at startup (configurable via `OPENDQV_CONTRACTS_DIR`).
+1. **Provider filter** — injects `providers=["OpenDQV"]` into every `discover_data` call, so catalog discovery returns only OpenDQV assets (not OpenLineage job nodes or other providers).
+2. **Visibility filter** — contracts with `catalog_visible: false` in their YAML are excluded from `discover_data` responses. `Marmot_proxy.py` loads hidden contract names from the local `contracts/` directory at startup (configurable via `OPENDQV_CONTRACTS_DIR`).
 
 Claude Desktop config using the proxy:
 
 ```json
 {
   "mcpServers": {
-    "marmot": {
+    "Marmot": {
       "command": "python3",
-      "args": ["/path/to/OpenDQV/marmot_proxy.py"],
+      "args": ["/path/to/OpenDQV/Marmot_proxy.py"],
       "env": {
         "MARMOT_URL": "http://<linux-ip>:8080",
-        "MARMOT_API_KEY": "<your-marmot-api-key>",
+        "MARMOT_API_KEY": "<your-Marmot-api-key>",
         "OPENDQV_CONTRACTS_DIR": "/path/to/OpenDQV/contracts"
       }
     }
