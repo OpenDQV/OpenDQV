@@ -95,6 +95,55 @@ jobs:
         # 2.19.2 is the latest release; no upstream fix available yet.
         run: pip install -r requirements.txt && pip-audit --requirement requirements.txt --ignore-vuln CVE-2024-23342 --ignore-vuln CVE-2026-4539
 
+  container-scan:
+    name: Container image scan (Grype + Trivy)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4
+
+      # Single-arch build loaded into the local Docker daemon for scanning.
+      # Multi-arch builds (linux/amd64,linux/arm64) cannot be loaded locally —
+      # a separate amd64-only build is required here.
+      - name: Build image for scanning (linux/amd64)
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294  # v7
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: opendqv:ci
+          cache-from: type=gha
+
+      # --- Grype (primary scanner — Anchore) ---
+      - name: Install Grype
+        run: curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Scan with Grype
+        run: grype opendqv:ci --fail-on high --only-fixed
+
+      # --- Trivy binary v0.69.3 ---
+      # NOTE: Do NOT use aquasecurity/trivy-action or aquasecurity/setup-trivy.
+      # Both GitHub Actions repos had version tags force-pushed with malicious commits
+      # on 2026-03-19 (TeamPCP supply chain attack). The Trivy binary downloaded
+      # directly at a pinned version is safe. v0.69.3 is the last known clean release.
+      # Review this pin when Aqua Security publishes a confirmed post-remediation release.
+      - name: Install Trivy binary (v0.69.3)
+        run: |
+          curl -sSfL \
+            https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-64bit.tar.gz \
+            | tar -xz -C /usr/local/bin trivy
+
+      - name: Scan with Trivy
+        run: |
+          trivy image opendqv:ci \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --severity CRITICAL,HIGH
+
   integration:
     name: Integration tests (live stack)
     runs-on: ubuntu-latest
