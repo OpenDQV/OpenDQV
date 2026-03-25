@@ -208,10 +208,10 @@ class TestStitchConsumerLineage:
 class TestBuildRunEventOwnerTeam:
     def _make_stats(self, contract_name: str) -> dict:
         return {
-            "by_contract": {
-                f"{contract_name}:default": {"pass": 90, "fail": 10}
-            },
-            "top_failing_fields": [],
+            "total": 100,
+            "passed": 90,
+            "failed": 10,
+            "top_failing_rules": {},
         }
 
     def test_owner_team_included_in_facet(self):
