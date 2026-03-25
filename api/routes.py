@@ -389,6 +389,23 @@ async def validate_single(
             latency_ms=elapsed_ms, errors=result["errors"], mode="single",
         )
         heartbeat.record_validation(contract.name, contract.version)
+        # Persist to SQLite so pass rates survive restarts (same as batch path)
+        try:
+            rule_failure_counts: dict = {}
+            for e in result["errors"]:
+                rule = e.get("rule", "unknown")
+                rule_failure_counts[rule] = rule_failure_counts.get(rule, 0) + 1
+            _quality_stats.record_batch(
+                contract_name=contract.name,
+                contract_version=contract.version,
+                context=body.context,
+                total=1,
+                passed=1 if result["valid"] else 0,
+                failed=0 if result["valid"] else 1,
+                rule_failure_counts=rule_failure_counts,
+            )
+        except Exception:
+            logger.exception("quality_stats.record_batch (single) failed — non-blocking")
 
     # Webhook notifications (fire-and-forget)
     if not result["valid"] and not body.dry_run:

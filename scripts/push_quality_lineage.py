@@ -50,35 +50,55 @@ def load_contracts() -> list[dict]:
     return contracts
 
 
-def get_opendqv_stats() -> dict:
-    """Fetch global quality stats from OpenDQV."""
-    r = httpx.get(f"{OPENDQV_URL}/api/v1/stats", timeout=10)
-    r.raise_for_status()
-    return r.json()
+def get_contract_stats(name: str) -> dict:
+    """Fetch persistent (SQLite-backed) quality stats for a contract via the trend endpoint.
+
+    Uses the 30-day quality trend rather than the in-memory /stats endpoint so that
+    pass rates survive API restarts. Falls back to zero-counts on error.
+    """
+    try:
+        r = httpx.get(
+            f"{OPENDQV_URL}/api/v1/contracts/{name}/quality-trend",
+            params={"days": 30},
+            timeout=10,
+        )
+        r.raise_for_status()
+        trend = r.json().get("points", [])
+    except Exception:
+        return {"total": 0, "passed": 0, "failed": 0, "top_failing_rules": {}}
+
+    total = sum(d["total_records"] for d in trend)
+    passed = sum(d["passed"] for d in trend)
+    failed = sum(d["failed"] for d in trend)
+    rule_counts: dict = {}
+    for d in trend:
+        for rule, count in d.get("top_failing_rules", {}).items():
+            rule_counts[rule] = rule_counts.get(rule, 0) + count
+
+    return {
+        "total": total,
+        "passed": passed,
+        "failed": failed,
+        "top_failing_rules": rule_counts,
+    }
 
 
-def build_run_event(contract: dict, stats: dict) -> dict:
+def build_run_event(contract: dict, contract_stats: dict) -> dict:
     """Build an OpenLineage COMPLETE RunEvent for a single contract."""
     name = contract["name"]
     asset_id = contract["asset_id"]
 
-    # Aggregate pass/fail counts across all contexts for this contract
-    total_pass = 0
-    total_fail = 0
-    for key, values in stats.get("by_contract", {}).items():
-        if key.startswith(f"{name}:"):
-            total_pass += values.get("pass", 0)
-            total_fail += values.get("fail", 0)
-
+    total_pass = contract_stats["passed"]
+    total_fail = contract_stats["failed"]
     total = total_pass + total_fail
     pass_rate = round(total_pass / total * 100, 1) if total > 0 else None
 
-    # Top failing rules for this contract (field:rule pairs, up to 5)
-    top_failing = [
-        f"{f['field']}:{f['rule']}"
-        for f in stats.get("top_failing_fields", [])
-        if f["contract"] == name
-    ][:5]
+    # Top failing rules (up to 5), sorted by count descending
+    top_failing = sorted(
+        contract_stats.get("top_failing_rules", {}).items(),
+        key=lambda x: x[1], reverse=True,
+    )
+    top_failing = [rule for rule, _ in top_failing[:5]]
 
     now = datetime.now(timezone.utc).isoformat()
 
@@ -178,12 +198,7 @@ def main() -> None:
 
     contracts = load_contracts()
     print(f"Contracts with asset_id: {len(contracts)}")
-
-    stats = get_opendqv_stats()
-    print(
-        f"OpenDQV stats: {stats['total_validations']} validations, "
-        f"pass_rate={stats['pass_rate']}%\n"
-    )
+    print(f"Reading quality stats from SQLite trend (30-day window) …\n")
 
     client = httpx.Client()
     ok = 0
@@ -191,7 +206,8 @@ def main() -> None:
 
     for contract in contracts:
         name = contract["name"]
-        event = build_run_event(contract, stats)
+        contract_stats = get_contract_stats(name)
+        event = build_run_event(contract, contract_stats)
         status, body = push_event(client, event)
 
         if status == 200:
