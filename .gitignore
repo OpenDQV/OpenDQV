@@ -16,6 +16,9 @@ dist/
 # Never commit the static file; it will always drift. Let FastAPI serve the live spec.
 openapi.json
 
+# Customer-specific demo menus — never commit prospect names to the public repo
+scripts/ppds_demo_customers.local.json
+
 # Importer artifact contracts — created by ODCS/GX importers when input has no title/name.
 # These are user-generated artifacts, not part of the curated contract library.
 contracts/imported_contract.yaml

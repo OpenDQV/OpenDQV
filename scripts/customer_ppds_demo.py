@@ -4,11 +4,22 @@ Customer PPDS demo — validates branded menu items against ppds_menu_item
 (Natasha's Law) and prints a narration-ready pass/fail summary.
 
 Usage:
-    python scripts/customer_ppds_demo.py --customer DEMO_CUSTOMER
-    OPENDQV_CUSTOMER=DEMO_CUSTOMER OPENDQV_TOKEN=<token> python scripts/customer_ppds_demo.py
+    python scripts/customer_ppds_demo.py --customer <name>
+    OPENDQV_CUSTOMER=<name> OPENDQV_TOKEN=<token> python scripts/customer_ppds_demo.py
 
-Produces a mix of passes and instructive failures that demonstrate the four
-most common real-world allergen data quality gaps.
+Customer-specific menu items are loaded from scripts/ppds_demo_customers.local.json
+(gitignored — never committed). If the file doesn't exist or the customer name isn't
+in it, the generic _default menu is used instead.
+
+To add a customer, create scripts/ppds_demo_customers.local.json:
+    {
+      "ACME": [
+        ["Item Name", "SKU-001", "sandwich", null, {"contains_gluten": "true", "gluten_cereal_types": "wheat"}],
+        ["Another Item", "SKU-002", "side", "no_reviewer", {}]
+      ]
+    }
+
+fail_mode options: null, "no_reviewer", "sulphites_no_ppm", "blank_allergen", "gluten_no_cereal"
 """
 import argparse
 import json
@@ -16,11 +27,15 @@ import os
 import urllib.error
 import urllib.request
 from datetime import date
+from pathlib import Path
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 BASE_URL = os.environ.get("OPENDQV_URL", "http://localhost:8000").rstrip("/")
 TOKEN    = os.environ.get("OPENDQV_TOKEN", "")
+
+_SCRIPT_DIR = Path(__file__).parent
+_LOCAL_CONFIG = _SCRIPT_DIR / "ppds_demo_customers.local.json"
 
 # ── Customer menu definitions ─────────────────────────────────────────────────
 #
@@ -33,87 +48,50 @@ TOKEN    = os.environ.get("OPENDQV_TOKEN", "")
 #   "blank_allergen" — one allergen field left absent (blank ≠ false)
 #   "gluten_no_cereal" — contains_gluten="true" but gluten_cereal_types absent
 #
-# allergen_overrides: dict of contains_<name> → "true"/"false" overriding defaults.
-# Realistic profiles — not official QSR_COMPANY data, illustrative only.
+# Customer-specific menus live in ppds_demo_customers.local.json (gitignored).
+# Only the generic fallback is shipped in the repo.
 
-CUSTOMER_MENUS = {
-    DEMO_CUSTOMER: [
-        (
-            "Original Recipe Chicken Burger",
-            "QSR-001", "sandwich", None,
-            {"contains_gluten": "true", "contains_eggs": "true", "contains_milk": "true",
-             "gluten_cereal_types": "wheat"},
-        ),
-        (
-            "Zinger Tower Burger",
-            "QSR-002", "sandwich", "no_reviewer",
-            {"contains_gluten": "true", "contains_eggs": "true", "contains_milk": "true",
-             "contains_mustard": "true", "gluten_cereal_types": "wheat"},
-        ),
-        (
-            "Corn on the Cob",
-            "QSR-003", "side", None,
-            {},
-        ),
-        (
-            "Coleslaw",
-            "QSR-004", "side", "sulphites_no_ppm",
-            {"contains_eggs": "true", "contains_milk": "true", "contains_sulphites": "true",
-             "contains_mustard": "true"},
-        ),
-        (
-            "Chocolate Mousse",
-            "QSR-005", "dessert", "blank_allergen",
-            {"contains_milk": "true", "contains_eggs": "true", "contains_gluten": "true",
-             "gluten_cereal_types": "wheat"},
-        ),
-        (
-            "Crispy Strips (3 pc)",
-            "QSR-006", "hot_food", None,
-            {"contains_gluten": "true", "contains_eggs": "true",
-             "gluten_cereal_types": "wheat"},
-        ),
-        (
-            "Fries (Large)",
-            "QSR-007", "side", None,
-            {},
-        ),
-        (
-            "BBQ Dipping Sauce",
-            "QSR-008", "sauce", "gluten_no_cereal",
-            {"contains_gluten": "true", "contains_soybeans": "true",
-             "contains_sulphites": "true", "sulphites_ppm": 15},
-        ),
-        (
-            "Pepsi Max (500ml)",
-            "QSR-009", "beverage", None,
-            {},
-        ),
-        (
-            "Krushems Strawberry",
-            "QSR-010", "dessert", "no_reviewer",
-            {"contains_milk": "true"},
-        ),
-    ],
-    "_default": [
-        ("House Special Burger",  "ITEM-001", "sandwich", None,
-         {"contains_gluten": "true", "contains_eggs": "true", "gluten_cereal_types": "wheat"}),
-        ("Garden Salad",          "ITEM-002", "salad",    None,    {}),
-        ("Cheese Sauce",          "ITEM-003", "sauce",    "no_reviewer",
-         {"contains_milk": "true"}),
-        ("Chocolate Brownie",     "ITEM-004", "dessert",  "blank_allergen",
-         {"contains_gluten": "true", "contains_eggs": "true", "contains_milk": "true",
-          "gluten_cereal_types": "wheat"}),
-        ("Sparkling Water",       "ITEM-005", "beverage", None,    {}),
-        ("Garlic Bread",          "ITEM-006", "hot_food", "gluten_no_cereal",
-         {"contains_gluten": "true", "contains_milk": "true"}),
-        ("Seafood Platter",       "ITEM-007", "hot_food", None,
-         {"contains_crustaceans": "true", "contains_molluscs": "true", "contains_fish": "true"}),
-        ("Coleslaw",              "ITEM-008", "side",     "sulphites_no_ppm",
-         {"contains_eggs": "true", "contains_milk": "true", "contains_sulphites": "true",
-          "contains_mustard": "true"}),
-    ],
-}
+_DEFAULT_MENU = [
+    # Passes — complete, correctly declared records
+    ("Crispy Chicken Sandwich",   "DEMO-001", "sandwich", None,
+     {"contains_gluten": "true", "contains_eggs": "true", "contains_milk": "true",
+      "gluten_cereal_types": "wheat"}),
+    ("Sweetcorn Side",            "DEMO-002", "side",     None,    {}),
+    ("Still Mineral Water",       "DEMO-003", "beverage", None,    {}),
+    ("Grilled Salmon Fillet",     "DEMO-004", "hot_food", None,
+     {"contains_fish": "true"}),
+    # Failures — four instructive real-world gaps
+    ("Classic Cheeseburger",      "DEMO-005", "sandwich", "no_reviewer",
+     {"contains_gluten": "true", "contains_eggs": "true", "contains_milk": "true",
+      "contains_mustard": "true", "gluten_cereal_types": "wheat"}),
+    ("Creamy Coleslaw",           "DEMO-006", "side",     "sulphites_no_ppm",
+     {"contains_eggs": "true", "contains_milk": "true", "contains_sulphites": "true",
+      "contains_mustard": "true"}),
+    ("Chocolate Fudge Brownie",   "DEMO-007", "dessert",  "blank_allergen",
+     {"contains_gluten": "true", "contains_eggs": "true", "contains_milk": "true",
+      "gluten_cereal_types": "wheat"}),
+    ("Garlic Flatbread",          "DEMO-008", "hot_food", "gluten_no_cereal",
+     {"contains_gluten": "true", "contains_milk": "true"}),
+]
+
+
+def _load_menu(customer: str) -> list:
+    """Load menu for the named customer from local config, fall back to default."""
+    if _LOCAL_CONFIG.exists():
+        try:
+            data = json.loads(_LOCAL_CONFIG.read_text(encoding="utf-8"))
+            # Try exact match, then case-insensitive
+            menu_raw = data.get(customer) or data.get(customer.upper()) or data.get(customer.lower())
+            if menu_raw:
+                # Convert JSON arrays to tuples, None strings to None
+                return [
+                    (row[0], row[1], row[2], row[3] or None, row[4])
+                    for row in menu_raw
+                ]
+        except Exception:
+            pass
+    return _DEFAULT_MENU
+
 
 # ── Record builder ────────────────────────────────────────────────────────────
 
@@ -123,13 +101,8 @@ _ALL_ALLERGENS = [
     "sulphites", "tree_nuts",
 ]
 
-_BLANK_TARGETS = {
-    # fail_mode → which allergen field to leave absent
-    "blank_allergen": "contains_tree_nuts",
-}
 
-
-def _base_record(customer: str, item_name: str, sku: str, category: str,
+def _base_record(item_name: str, sku: str, category: str,
                  allergen_overrides: dict) -> dict:
     """Build a fully valid PPDS record."""
     record: dict = {
@@ -157,10 +130,10 @@ def _base_record(customer: str, item_name: str, sku: str, category: str,
     return record
 
 
-def build_ppds_record(customer: str, item_name: str, sku: str, category: str,
+def build_ppds_record(item_name: str, sku: str, category: str,
                       fail_mode, allergen_overrides: dict) -> dict:
     """Build the record, then apply the requested failure mode."""
-    record = _base_record(customer, item_name, sku, category, allergen_overrides)
+    record = _base_record(item_name, sku, category, allergen_overrides)
 
     if fail_mode == "no_reviewer":
         del record["ppds_compliant_reviewed_by"]
@@ -198,7 +171,7 @@ def _validate(contract: str, record: dict) -> dict:
         try:
             return json.loads(body)
         except Exception:
-            return {"passed": False, "errors": [{"message": f"HTTP {exc.code}: {body[:200]}"}]}
+            return {"valid": False, "errors": [{"message": f"HTTP {exc.code}: {body[:200]}"}]}
 
 
 # ── Failure summary extractor ─────────────────────────────────────────────────
@@ -225,8 +198,7 @@ def _first_error(result: dict, fail_mode) -> str:
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def run(customer: str) -> None:
-    menu = CUSTOMER_MENUS.get(customer.upper(), CUSTOMER_MENUS.get(customer)) \
-        or CUSTOMER_MENUS["_default"]
+    menu = _load_menu(customer)
 
     print(f"\nOpenDQV PPDS demo — {customer}")
     print("─" * 56)
@@ -236,9 +208,7 @@ def run(customer: str) -> None:
     width  = max(len(item[0]) for item in menu)
 
     for item_name, sku, category, fail_mode, allergen_overrides in menu:
-        record = build_ppds_record(
-            customer, item_name, sku, category, fail_mode, allergen_overrides
-        )
+        record = build_ppds_record(item_name, sku, category, fail_mode, allergen_overrides)
         result = _validate("ppds_menu_item", record)
 
         if result.get("valid") or result.get("passed"):
@@ -265,8 +235,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--customer",
-        default=os.environ.get("OPENDQV_CUSTOMER", DEMO_CUSTOMER),
-        help="Customer name (default: DEMO_CUSTOMER). Add entries to CUSTOMER_MENUS for new customers.",
+        default=os.environ.get("OPENDQV_CUSTOMER", "demo"),
+        help="Customer name. Loaded from ppds_demo_customers.local.json if present.",
     )
     args = parser.parse_args()
     run(args.customer)
