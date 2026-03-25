@@ -41,7 +41,11 @@ def load_contracts() -> list[dict]:
             raw = yaml.safe_load(f)
         # Contracts are nested under a top-level "contract:" key
         data = raw.get("contract", raw)
-        if data.get("status") == "active" and data.get("asset_id"):
+        if (
+            data.get("status") == "active"
+            and data.get("asset_id")
+            and data.get("catalog_visible", True)
+        ):
             contracts.append(data)
     return contracts
 
@@ -100,6 +104,7 @@ def build_run_event(contract: dict, stats: dict) -> dict:
                     "failCount": total_fail,
                     "topFailingRules": top_failing,
                     "assetId": asset_id,
+                    "contractOwnerTeam": contract.get("owner_team") or None,
                 }
             },
         },
@@ -113,6 +118,28 @@ def push_event(client: httpx.Client, event: dict) -> tuple[int, str]:
     r = client.post(
         f"{MARMOT_URL}/api/v1/lineage",
         json=event,
+        headers={
+            "X-API-Key": MARMOT_TOKEN,
+            "Content-Type": "application/json",
+        },
+        timeout=10,
+    )
+    return r.status_code, r.text
+
+
+def stitch_consumer_lineage(
+    client: httpx.Client, name: str, consumer_mrn: str
+) -> tuple[int, str]:
+    """Create edge: mrn://dataset/opendqv/{name} → consumer_mrn (type: downstream).
+
+    The target consumer_mrn must already exist in Marmot's catalog — Marmot
+    returns HTTP 500 if either node is unknown. Register the consumer asset in
+    Marmot before adding it to downstream_consumers in the contract YAML.
+    """
+    asset_mrn = f"mrn://dataset/opendqv/{name}"
+    r = client.post(
+        f"{MARMOT_URL}/api/v1/lineage/direct",
+        json={"source": asset_mrn, "target": consumer_mrn, "type": "downstream"},
         headers={
             "X-API-Key": MARMOT_TOKEN,
             "Content-Type": "application/json",
@@ -181,6 +208,14 @@ def main() -> None:
             stitch_ok = s_status in (200, 201, 409)  # 409 = already exists, fine
             stitch_str = "linked" if stitch_ok else f"stitch failed {s_status}"
             print(f"  ✅ {name:<40} {rate_str} | {stitch_str}")
+            # Stitch downstream consumers
+            consumers = contract.get("downstream_consumers", [])
+            if consumers:
+                c_ok = sum(
+                    1 for c_mrn in consumers
+                    if stitch_consumer_lineage(client, name, c_mrn)[0] in (200, 201, 409)
+                )
+                print(f"      consumers: {c_ok}/{len(consumers)} linked")
             ok += 1
         else:
             print(f"  ❌ {name:<40} HTTP {status}: {body[:120]}")

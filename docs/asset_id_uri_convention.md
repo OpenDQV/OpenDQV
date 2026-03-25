@@ -223,6 +223,53 @@ contract:
 
 ---
 
+## Downstream Consumer Lineage (`downstream_consumers`)
+
+For Marmot integrations, contracts can declare the downstream consumers of their validated asset. This completes the full lineage graph in Marmot — from source through the OpenDQV validation job to the consuming dashboards, models, or services.
+
+```yaml
+contract:
+  name: customer_master
+  asset_id: "mrn://dataset/opendqv/customer_master"
+  downstream_consumers:
+    - "mrn://dataset/tableau/sales_dashboard"
+    - "mrn://dataset/dbt/customer_mart"
+    - "mrn://dataset/looker/revenue_explore"
+```
+
+Marmot MRN format for common consumer types:
+
+| Consumer type | MRN format |
+|---|---|
+| Tableau workbook / view | `mrn://dataset/tableau/{workbook_or_view_name}` |
+| dbt model | `mrn://dataset/dbt/{model_name}` |
+| Looker Explore | `mrn://dataset/looker/{explore_name}` |
+| Another OpenDQV asset | `mrn://dataset/opendqv/{contract_name}` |
+| Generic dataset | `mrn://dataset/{provider}/{name}` |
+
+`scripts/push_quality_lineage.py` reads `downstream_consumers` and stitches direct `downstream` edges in Marmot automatically. The target MRN must already exist in Marmot's catalog before running the script — register the consumer asset in Marmot first.
+
+---
+
+## Catalog Visibility Control (`catalog_visible`)
+
+Set `catalog_visible: false` on any contract that should be excluded from Marmot catalog discovery:
+
+```yaml
+contract:
+  name: internal_test_contract
+  asset_id: "mrn://dataset/opendqv/internal_test_contract"
+  catalog_visible: false   # exclude from Marmot push and discover_data
+```
+
+Effects:
+- `push_quality_lineage.py` skips the contract — it is never pushed to Marmot.
+- `marmot_proxy.py` filters it from `discover_data` MCP responses at runtime.
+
+Omitting the field (or setting `catalog_visible: true`) keeps the default visible behaviour. Setting `catalog_visible: false` does **not** remove an asset that was already pushed to Marmot — delete it via the Marmot UI or REST API if needed.
+
+---
+
 ## Catalog Integration Pattern
 
 Once your contracts carry `asset_id` fields, catalog tools can query OpenDQV quality signals:

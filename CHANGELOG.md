@@ -2,6 +2,26 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.6.0] - 2026-03-25
+
+### Features
+
+- **`downstream_consumers` on contracts** — optional list of Marmot MRNs for downstream
+  consumers of a validated asset (e.g. Tableau dashboards, dbt models). When present,
+  `push_quality_lineage.py` stitches direct lineage edges from the validated asset to each
+  consumer, completing the full lineage graph: source → OpenDQV job → validated asset →
+  downstream consumers.
+- **`catalog_visible` on contracts** — boolean flag (default `true`). Set to `false` to
+  exclude a contract from Marmot catalog discovery and `push_quality_lineage.py` pushes.
+  The Marmot proxy also filters these from `discover_data` responses at runtime.
+- **`owner_team` synced to Marmot** — `contractOwnerTeam` now included in the
+  `opendqvQuality` OpenLineage facet pushed via `push_quality_lineage.py`.
+- **Visual diff UI in Audit Trail workbench** — "Diff Versions" section upgraded from
+  free-text inputs to selectbox dropdowns populated from loaded history. Diffs render
+  colour-coded: added rules in green, removed rules in red, changed rules with per-field
+  before/after values. Diff state persists across Streamlit rerenders; clears on contract
+  switch.
+
 ## [1.5.5] - 2026-03-24
 
 ### Features
