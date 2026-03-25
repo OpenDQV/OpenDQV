@@ -166,6 +166,8 @@ pip install opendqv        # no MCP
 pip install opendqv[mcp]   # with MCP
 ```
 
+> **macOS (zsh):** zsh treats square brackets as glob patterns. If you see `zsh: no matches found`, quote the package name: `pip install "opendqv[mcp]"`
+
 If you do use MCP, pin `mcp` to an exact version in your deployment rather than a range, and review the release changelog when upgrading.
 
 ### Verifying your installation
