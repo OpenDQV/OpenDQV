@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "opendqv"
-version = "1.7.1"
+version = "1.8.0"
 description = "Open Data Quality Validation — rule-based validation gateway for data pipelines and API boundaries"
 authors = ["Sunny Sharma"]
 license = "MIT"
