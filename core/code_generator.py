@@ -2,7 +2,7 @@
 Code generator — generates validation code for target platforms.
 
 Supports: Snowflake (JS UDF), Salesforce (Apex), JavaScript.
-Covers: regex, min, max, range, not_empty, min_length, max_length, date_format, unique.
+Covers: regex, min, max, range, not_empty, min_length, max_length, date_format, unique, age_match.
 
 Rule types not yet implemented emit a // TODO comment rather than being silently dropped.
 This is a "push-down" feature: deploy OpenDQV rules directly into source systems
@@ -141,6 +141,8 @@ def _generate_salesforce(rules: list, contract_name: str = "", contract_version:
             code += f"            if (row.get('{field}') != null) {{ try {{ Date.valueOf((String)row.get('{field}')); }} catch (Exception e) {{ {target_list}.add('{error}'); }} }}\n"
         elif rtype == "unique":
             code += f"            // Unique check for '{field}' requires full dataset\n"
+        elif rtype == "age_match":
+            pass  # handled entirely by the min_age/max_age block below
         elif rtype in ("required_if", "lookup", "compare", "date_diff", "checksum",
                        "cross_field_range", "field_sum", "forbidden_if", "conditional_value",
                        "ratio_check", "geospatial_bounds", "conditional_lookup", "allowed_values"):
@@ -230,6 +232,8 @@ def _js_rule_check(rule: dict, indent: str = "    ", age_checked: set = None) ->
         snippet += f"{indent}if (isNaN(Date.parse(row['{field}']))) errors.push('{error}');\n"
     elif rtype == "unique":
         snippet += f"{indent}// Unique check for '{field}' requires full dataset — implement via pre-scan\n"
+    elif rtype == "age_match":
+        pass  # handled entirely by the min_age/max_age block below
     elif rtype not in ("required_if", "lookup", "compare", "date_diff", "checksum",
                        "cross_field_range", "field_sum", "forbidden_if", "conditional_value",
                        "ratio_check", "geospatial_bounds", "conditional_lookup", "allowed_values"):
