@@ -346,3 +346,54 @@ class TestProfileFile:
             files={"file": ("data.csv", io.BytesIO(csv_content), "text/csv")},
         )
         assert r.status_code == 401
+
+
+class TestDeleteQualityStatsByContext:
+    """ACT-RT110 — DELETE /api/v1/quality/stats?context= endpoint."""
+
+    def _seed_stats(self, client, auth_headers, context: str, n: int = 2):
+        """Seed quality_stats rows by validating records with a given context tag."""
+        for i in range(n):
+            client.post(
+                "/api/v1/validate",
+                json={"contract": "customer", "context": context,
+                      "record": {"name": f"User{i}", "age": 25, "email": f"u{i}@x.com"}},
+                headers=auth_headers,
+            )
+
+    def test_delete_requires_auth(self, client):
+        r = client.delete("/api/v1/quality/stats", params={"context": "demo"})
+        assert r.status_code == 401
+
+    def test_delete_requires_admin_role(self, client, auth_headers):
+        r = client.delete("/api/v1/quality/stats", params={"context": "demo"},
+                          headers=auth_headers)
+        assert r.status_code == 403
+
+    def test_delete_returns_count_and_context(self, client, admin_headers, auth_headers):
+        tag = "rt110_test_ctx"
+        self._seed_stats(client, auth_headers, tag, n=3)
+        r = client.delete("/api/v1/quality/stats", params={"context": tag},
+                          headers=admin_headers)
+        assert r.status_code == 200
+        body = r.json()
+        assert body["context"] == tag
+        assert body["deleted"] >= 3
+
+    def test_delete_nonexistent_context_returns_zero(self, client, admin_headers):
+        r = client.delete("/api/v1/quality/stats",
+                          params={"context": "ctx_that_never_existed_xyz"},
+                          headers=admin_headers)
+        assert r.status_code == 200
+        assert r.json() == {"deleted": 0, "context": "ctx_that_never_existed_xyz"}
+
+    def test_delete_is_idempotent(self, client, admin_headers, auth_headers):
+        tag = "rt110_idempotent_ctx"
+        self._seed_stats(client, auth_headers, tag, n=2)
+        r1 = client.delete("/api/v1/quality/stats", params={"context": tag},
+                           headers=admin_headers)
+        assert r1.json()["deleted"] >= 2
+        r2 = client.delete("/api/v1/quality/stats", params={"context": tag},
+                           headers=admin_headers)
+        assert r2.status_code == 200
+        assert r2.json()["deleted"] == 0

@@ -600,7 +600,7 @@ def _check_rule(value, rule: Rule, record: Optional[dict] = None) -> Optional[st
             logger.warning("date_diff rule '%s' missing date_diff_field", rule.name)
             return None
         if value is None:
-            return rule.error_message
+            return None  # field absent — skip date_diff; required check is a separate rule
         other_val = (record or {}).get(rule.date_diff_field)
         if other_val is None:
             return rule.error_message
