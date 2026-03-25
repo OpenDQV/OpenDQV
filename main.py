@@ -12,7 +12,7 @@ from importlib.metadata import version as _pkg_version, PackageNotFoundError
 try:
     APP_VERSION = _pkg_version("opendqv")
 except PackageNotFoundError:
-    APP_VERSION = "1.5.0"
+    APP_VERSION = "1.7.0"
 
 from fastapi import FastAPI
 from slowapi import _rate_limit_exceeded_handler
