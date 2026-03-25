@@ -7,7 +7,7 @@ accessible via /metrics (Prometheus) and the in-memory stats API.
 
 import time
 import threading
-from collections import defaultdict
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, Request
@@ -92,6 +92,7 @@ class ValidationStats:
         self.severity_counts = defaultdict(int)  # (contract, severity) -> count
         self.started_at = datetime.now(timezone.utc)
         self._latencies: list = []  # recent latency values for percentile computation
+        self._events: deque = deque(maxlen=10_000)  # (timestamp, contract, context, valid, latency_ms)
 
     def record(self, contract: str, context: str, valid: bool, error_count: int,
                warning_count: int, latency_ms: float, errors: list = None, mode: str = "single",
@@ -119,6 +120,9 @@ class ValidationStats:
             self._latencies.append(round(latency_ms, 1))
             if len(self._latencies) > 1000:
                 self._latencies = self._latencies[-1000:]
+
+            # Timestamped event log for windowed queries (capped at maxlen=10_000)
+            self._events.append((time.time(), contract, ctx, valid, latency_ms))
 
             # Append to history (ring buffer)
             self.history.append({
@@ -190,6 +194,39 @@ class ValidationStats:
                 },
             }
 
+
+    def get_windowed_summary(self, window_hours: int) -> dict:
+        """Return pass/fail totals per contract:context key for events within the last window_hours.
+
+        Returns a dict with the same shape as get_summary() but scoped to the time window.
+        Keys not present in the window will be absent from by_contract.
+        """
+        cutoff = time.time() - window_hours * 3600
+        windowed_totals: dict = defaultdict(lambda: {"pass": 0, "fail": 0, "errors": 0, "warnings": 0})
+        windowed_latencies: list = []
+        with self._lock:
+            for ts, contract, ctx, valid, latency_ms in self._events:
+                if ts < cutoff:
+                    continue
+                key = f"{contract}:{ctx}"
+                if valid:
+                    windowed_totals[key]["pass"] += 1
+                else:
+                    windowed_totals[key]["fail"] += 1
+                windowed_latencies.append(latency_ms)
+
+        total_pass = sum(v["pass"] for v in windowed_totals.values())
+        total_fail = sum(v["fail"] for v in windowed_totals.values())
+        total = total_pass + total_fail
+        # Reuse the full-summary structure but override the by_contract view
+        summary = self.get_summary()
+        summary["by_contract"] = dict(windowed_totals)
+        summary["total_validations"] = total
+        summary["total_pass"] = total_pass
+        summary["total_fail"] = total_fail
+        summary["pass_rate"] = round(total_pass / total * 100, 1) if total > 0 else 0
+        summary["window_hours"] = window_hours
+        return summary
 
     def _latency_stats(self) -> dict:
         """Compute avg/p50/p95/p99 from recent latency values. Called under self._lock."""
