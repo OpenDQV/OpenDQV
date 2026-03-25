@@ -6,13 +6,18 @@ Like a bouncer at the door — bad data doesn't get in.
 """
 
 import logging
+import tomllib
 from contextlib import asynccontextmanager
 from importlib.metadata import version as _pkg_version, PackageNotFoundError
+from pathlib import Path
 
 try:
     APP_VERSION = _pkg_version("opendqv")
 except PackageNotFoundError:
-    APP_VERSION = "1.7.0"
+    # Package not installed (dev environment) — read directly from pyproject.toml
+    # so this never drifts from the single version source of truth.
+    _pyproject = Path(__file__).parent / "pyproject.toml"
+    APP_VERSION = tomllib.loads(_pyproject.read_text(encoding="utf-8"))["tool"]["poetry"]["version"]
 
 from fastapi import FastAPI
 from slowapi import _rate_limit_exceeded_handler
