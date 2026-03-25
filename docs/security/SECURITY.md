@@ -1,6 +1,6 @@
 # OpenDQV — Security Overview
 
-**Version:** 1.0.0 | **Last updated:** 2026-03-19
+**Version:** 1.0.0 | **Last updated:** 2026-03-25
 
 ---
 
@@ -120,6 +120,86 @@ If the NTP check detects significant skew (> 5 seconds) or cannot reach an NTP s
 **For production deployments:** ensure the host is synchronised to a reliable NTP source. See [`hardening.md`](hardening.md) for configuration requirements.
 
 **Enterprise and regulated environments:** RFC 3161 trusted timestamp anchoring — cryptographic proof of timestamp accuracy from a trusted timestamp authority (TSA) — is the correct upgrade for environments with FCA, SOX, or GDPR audit obligations. This is available in the commercial offering.
+
+---
+
+## Supply chain security
+
+### Dependency philosophy
+
+OpenDQV's dependency tree is kept deliberately small. Every production dependency was chosen to solve a specific, well-scoped problem. The project does not depend on AI/ML meta-frameworks, language model clients (no LiteLLM, no OpenAI SDK, no LangChain), or packages that make outbound network connections at import or startup time.
+
+This is a conscious production-readiness decision. Packages with large transitive dependency trees or packages that operate in immature ecosystems increase the attack surface for supply chain compromise — the vector exploited in attacks such as the LiteLLM `.pth` file credential exfiltration incident (March 2026).
+
+### Production dependency rationale
+
+| Package | Purpose | Supply chain notes |
+|---|---|---|
+| `fastapi`, `starlette`, `uvicorn`, `gunicorn` | Web framework and ASGI server | Widely audited; no outbound network calls at import |
+| `pydantic` | Schema validation and contract model | No network access; deterministic |
+| `pyyaml` | YAML parsing | Used via `safe_load()` only throughout the codebase — arbitrary code execution via YAML tags is not possible |
+| `pandas` | Batch record processing | Large transitive tree (numpy, etc.); well-audited; no network calls at import |
+| `duckdb` | In-process SQL engine for batch validation | Self-contained binary; no external connections |
+| `PyJWT`, `cryptography`, `passlib[bcrypt]` | Authentication and token signing | Mature, narrow-scope crypto libraries |
+| `urllib3`, `httpx`, `requests` | HTTP clients for webhook delivery and SDK | Standard libraries; no background threads or startup callbacks |
+| `slowapi`, `prometheus-client` | Rate limiting and metrics | Narrow-scope; no outbound connections |
+| `strawberry-graphql` | GraphQL schema layer | Version-pinned tightly in `pyproject.toml` |
+| `regex` | ReDoS-safe regex evaluation | Drop-in `re` replacement; no network access; used specifically for SEC-001 |
+| `rich`, `questionary` | CLI display | No network access |
+| `mcp` | MCP server protocol (optional) | Newer ecosystem — see note below |
+
+### What is not in this codebase
+
+The following categories of packages are explicitly absent:
+
+- **LLM/AI client libraries** — no LiteLLM, LangChain, OpenAI SDK, Anthropic SDK, or similar
+- **Model serving frameworks** — no Triton, vLLM, Ollama, or similar
+- **Data pipeline orchestrators** — no Airflow, Prefect, or Dagster clients
+- **Packages that execute code at import** — all production dependencies are passive at import time
+
+### The `mcp` package
+
+`mcp` is the newest package in the dependency tree and operates in a smaller ecosystem than the others. It is optional — required only if you run `mcp_server.py`. For production deployments that do not use the MCP integration, install without it:
+
+```bash
+pip install opendqv        # no MCP
+pip install opendqv[mcp]   # with MCP
+```
+
+If you do use MCP, pin `mcp` to an exact version in your deployment rather than a range, and review the release changelog when upgrading.
+
+### Verifying your installation
+
+**Audit for known CVEs:**
+
+```bash
+pip install pip-audit
+pip-audit -r requirements.txt
+```
+
+**Generate a hash-pinned lockfile** (prevents tampered packages from being installed silently):
+
+```bash
+pip install pip-tools
+pip-compile requirements.txt --generate-hashes -o requirements.lock
+pip install --require-hashes -r requirements.lock
+```
+
+**Scan the container image** for OS-layer and package CVEs before deployment (see [hardening.md — Container Image Scanning](hardening.md)):
+
+```bash
+trivy image opendqv:latest --ignore-unfixed --exit-code 1 --severity CRITICAL,HIGH
+```
+
+### If you are responding to a supply chain incident
+
+If a package in the Python ecosystem you depend on has been reported as compromised:
+
+1. Check whether OpenDQV lists it as a dependency: `grep -i <package-name> requirements.txt requirements-dev.txt`
+2. If present, rotate any API keys or secrets that the OpenDQV process had access to on affected hosts
+3. Rebuild the container image from scratch (`docker compose build --no-cache api`) — do not rely on layer caching
+4. Run `pip-audit` against the rebuilt image to confirm the compromised version is not present
+5. File an issue at the repository so the maintainers can assess and pin away from the affected version
 
 ---
 
