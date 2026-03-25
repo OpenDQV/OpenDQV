@@ -232,7 +232,7 @@ python mcp_server.py
 ```json
 {
   "mcpServers": {
-    "opendqv": {
+    "OpenDQV": {
       "command": "python",
       "args": ["/path/to/OpenDQV/mcp_server.py"]
     }
@@ -241,7 +241,7 @@ python mcp_server.py
 ```
 
 **Register in Cursor** (Settings → MCP → Add Server):
-- Name: `opendqv`
+- Name: `OpenDQV`
 - Command: `python /path/to/OpenDQV/mcp_server.py`
 
 > **Path note:** The `args` path is machine-specific. Update it when cloning on a new machine.
@@ -270,7 +270,7 @@ In Claude Desktop, add it to the `env` block in `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "opendqv": {
+    "OpenDQV": {
       "command": "python",
       "args": ["/path/to/OpenDQV/mcp_server.py"],
       "env": {
