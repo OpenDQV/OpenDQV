@@ -10,7 +10,8 @@ All notable changes to OpenDQV are documented here.
   `--customer` (or `OPENDQV_CUSTOMER` env var). Seeds branded menu items through the
   `ppds_menu_item` contract with a deliberate mix of passes and four instructive failure
   modes: missing reviewer, sulphites without ppm, blank allergen field, gluten without
-  cereal type. default menu hardcoded; generic `_default` fallback for any customer name.
+  cereal type. Customer menus loaded from `scripts/ppds_demo_customers.local.json`
+  (gitignored); generic `_default` fallback ships in the repo.
   Prints a narration-ready summary for prospect demos.
 
 ### Changes
