@@ -115,7 +115,7 @@ Once connected, the agent will see these tools:
 | Tool | What it does |
 |------|--------------|
 | `list_contracts` | List all active contracts with name, version, status, rule count |
-| `get_contract` | Get full contract detail including all rules |
+| `get_contract` | Get full contract detail including all rules. Each rule includes constraint fields: `allowed_values`, `pattern`, `min_value`, `max_value`, `min_length`, `max_length` (null when not applicable for that rule type). |
 | `validate_record` | Validate a single JSON record against a named contract. Supports `agent_id` (attribution), `dry_run` (skip metrics), `context`. Returns `latency_ms` and `suggested_fix` inline on errors. |
 | `validate_batch` | Validate multiple records in one call; returns per-row results and a summary. Same `agent_id`, `dry_run`, `context` params as `validate_record`. Returns `latency_ms` on the batch envelope. |
 | `explain_error` | Get a plain-English explanation of a rule failure with valid/invalid examples |
@@ -124,7 +124,7 @@ Observability tools:
 
 | Tool | What it does |
 |------|--------------|
-| `get_quality_metrics` | Return rejection rates, top failing rules, and latency histogram (`avg_ms`, `p50_ms`, `p95_ms`, `p99_ms`) per contract, with a `catalog_hint` for chaining to Marmot or any catalog MCP server |
+| `get_quality_metrics` | Return rejection rates, top failing rules, and latency histogram (`avg_ms`, `p50_ms`, `p95_ms`, `p99_ms`) per contract. Accepts `window_hours` (integer) to scope stats to the last N hours — only validations within the window are counted. Each entry includes `data_confidence` (`no_data` / `low` / `medium` / `high`) and `confidence_note` (plain-English caution when fewer than 10 validations have been recorded). Includes a `catalog_hint` for chaining to Marmot or any catalog MCP server. |
 
 Write tools:
 
