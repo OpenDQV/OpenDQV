@@ -1591,6 +1591,7 @@ Only a subset of docs appear in the sections above. Full index:
 - [docs/roadmap.md](docs/roadmap.md) — Planned integrations and features based on community demand
 
 **Security**
+- [docs/security/SECURITY.md](docs/security/SECURITY.md) — Security overview: auth, RBAC, controls, supply chain
 - [docs/security/hardening.md](docs/security/hardening.md) — Production hardening checklist
 - [docs/security/threat_model.md](docs/security/threat_model.md) — STRIDE analysis, attack surfaces
 - [docs/security/vulnerability_response_playbook.md](docs/security/vulnerability_response_playbook.md) — Incident response
