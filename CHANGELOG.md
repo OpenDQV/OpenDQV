@@ -2,6 +2,30 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.7.0] - 2026-03-25
+
+### Features
+
+- **`get_contract` exposes constraint fields** — `allowed_values`, `pattern`, `min_value`,
+  `max_value`, `min_length`, `max_length` now included in every rule dict returned by the
+  `get_contract` MCP tool. Previously these were all omitted, forcing agents to trigger
+  validation failures just to discover valid values.
+- **`window_hours` is now a real filter in `get_quality_metrics`** — pass `window_hours=1`
+  to receive stats computed only from validations in the last hour. Previously the parameter
+  was echoed but ignored; all-time totals were always returned. Uses a new timestamped
+  `_events` deque (`maxlen=10,000`) in `ValidationStats`. The REST `GET /api/v1/stats`
+  endpoint now also accepts an optional `window_hours` query parameter for the same effect.
+- **Sample size confidence indicator** — `data_confidence` (`no_data` / `low` / `medium` /
+  `high`) and `confidence_note` (plain-English caution when n < 10) added to every entry in
+  `get_quality_metrics` output. Prevents agents from treating 1-record pass rates as signal.
+
+### Bug fixes / investigations
+
+- **`window_hours` label-only (Issue 2)** — confirmed as a real gap; implemented above.
+- **`dry_run` latency claim (Issue 4)** — verified NOT a bug via live test. The guard in
+  `api/routes.py` (`if not body.dry_run: stats.record(...)`) is working correctly. Regression
+  test added to confirm the guard remains in place.
+
 ## [1.6.0] - 2026-03-25
 
 ### Features

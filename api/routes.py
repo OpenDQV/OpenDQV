@@ -2075,9 +2075,13 @@ async def unregister_webhook(
 
 @router.get("/stats")
 @_default_limit
-async def get_stats(request: Request, user=Depends(get_current_user)):
+async def get_stats(
+    request: Request,
+    window_hours: Optional[int] = Query(None, ge=1, le=8760, description="If set, return stats for only the last N hours"),
+    user=Depends(get_current_user),
+):
     """Get validation statistics for the monitoring dashboard."""
-    result = stats.get_summary()
+    result = stats.get_windowed_summary(window_hours) if window_hours else stats.get_summary()
     contracts = registry.list_contracts()
     draft_count = sum(1 for c in contracts if c["status"] == "draft")
     active_count = sum(1 for c in contracts if c["status"] == "active")

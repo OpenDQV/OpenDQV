@@ -570,6 +570,12 @@ async def _tool_get_contract(args: dict) -> list[types.TextContent]:
             "severity": r.severity.value if hasattr(r.severity, "value") else str(r.severity),
             "error_message": r.error_message,
             "description": r.description or "",
+            "allowed_values": r.allowed_values,
+            "pattern": r.pattern,
+            "min_value": r.min_value,
+            "max_value": r.max_value,
+            "min_length": r.min_length,
+            "max_length": r.max_length,
         }
         for r in contract.rules
     ]
@@ -760,11 +766,12 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
     )
 
     if _remote_client:
-        resp = _remote_client.get("/api/v1/stats")
+        params = {"window_hours": window_hours} if window_hours else {}
+        resp = _remote_client.get("/api/v1/stats", params=params)
         resp.raise_for_status()
         summary = resp.json()
     else:
-        summary = _stats.get_summary()
+        summary = _stats.get_windowed_summary(window_hours) if window_hours else _stats.get_summary()
 
     by_contract = summary.get("by_contract", {})
     if contract_name:
@@ -801,12 +808,33 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
                     top_rules = top_rules[:5]
             except Exception:
                 pass
+        def _confidence(n: int) -> str:
+            if n == 0:
+                return "no_data"
+            if n < 10:
+                return "low"
+            if n < 100:
+                return "medium"
+            return "high"
+
+        confidence = _confidence(total_val)
+        confidence_note = (
+            f"Based on {total_val} validation{'s' if total_val != 1 else ''} — treat with caution"
+            if confidence == "low"
+            else (
+                "No validation data recorded yet for this contract."
+                if confidence == "no_data"
+                else None
+            )
+        )
         entry = {
             "contract": cname,
             "window_hours": window_hours,
             "total_validations": total_val,
             "pass_rate": pass_rate,
             "failed": total_fail,
+            "data_confidence": confidence,
+            "confidence_note": confidence_note,
             "top_failing_rules": top_rules,
             "latency": summary.get("latency", {}),
             "catalog_hint": f"marmot:assets/{cname}",
@@ -822,6 +850,8 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
             "total_validations": 0,
             "pass_rate": 1.0,
             "failed": 0,
+            "data_confidence": "no_data",
+            "confidence_note": "No validation data recorded yet for this contract.",
             "top_failing_rules": [],
             "catalog_hint": f"marmot:assets/{contract_name}",
             "governance_tip": "No validation data recorded yet for this contract.",
