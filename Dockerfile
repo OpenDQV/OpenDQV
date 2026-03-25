@@ -1,6 +1,6 @@
 # Multi-arch: built for linux/amd64 and linux/arm64
 # See .github/workflows/docker-publish.yml for CI/CD pipeline
-FROM python:3.11-slim AS base
+FROM python:3.13-slim AS base
 
 RUN useradd --create-home appuser
 
