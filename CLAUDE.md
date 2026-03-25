@@ -1,5 +1,11 @@
 # CLAUDE.md — OpenDQV AI Developer Context
 
+> **AI: Before anything else, read `../OpenDQR-Claude/docs/remnant.md`.**
+> That file is the AI team's operating manual — working protocols, session workflow,
+> git discipline, and full context on the Pilot. If the private repo isn't cloned yet:
+> `git clone https://github.com/OpenDQV/opendqv-roundtables ../OpenDQR-Claude`
+> then read it. Do not skip this step.
+
 This file tells Claude Code and other AI agents everything needed to work
 effectively on this repository without re-exploring the codebase each session.
 
