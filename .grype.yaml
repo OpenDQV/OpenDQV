@@ -1,0 +1,7 @@
+# Grype ignore rules — CVEs acknowledged but not actionable
+# Each entry documents why and when to re-evaluate.
+ignore:
+  # Fix requires Python 3.15.0 (pre-release / alpha as of 2026-03-25).
+  # No stable Python release carries the patch. Re-evaluate when 3.15 GA ships.
+  - vulnerability: CVE-2026-4519
+    reason: "Fix in Python 3.15.0 only (pre-release). No stable fix available."
