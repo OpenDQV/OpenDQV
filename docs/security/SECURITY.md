@@ -162,9 +162,11 @@ The following categories of packages are explicitly absent:
 `mcp` is the newest package in the dependency tree and operates in a smaller ecosystem than the others. It is optional — required only if you run `mcp_server.py`. For production deployments that do not use the MCP integration, install without it:
 
 ```bash
-pip install opendqv          # no MCP
-pip install "opendqv[mcp]"   # with MCP
+pip install opendqv        # no MCP
+pip install opendqv[mcp]   # with MCP
 ```
+
+> **macOS (zsh):** zsh treats square brackets as glob patterns. If you see `zsh: no matches found`, quote the package name: `pip install "opendqv[mcp]"`
 
 If you do use MCP, pin `mcp` to an exact version in your deployment rather than a range, and review the release changelog when upgrading.
 
