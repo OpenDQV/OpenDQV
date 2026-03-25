@@ -127,6 +127,8 @@ class DataContract(BaseModel):
     rules: list[Rule] = []
     contexts: dict = {}  # context_name -> list of override rule dicts
     asset_id: Optional[str] = None  # catalog asset identifier (e.g. Collibra, Atlan, DataHub)
+    downstream_consumers: list[str] = []  # Marmot MRNs of downstream consumers
+    catalog_visible: bool = True  # Set False to hide from Marmot discover_data
 
     # sensitive_fields — list of field names whose values must never appear in logs,
     # error responses, /explain output, or ContractHistory diffs.
@@ -531,6 +533,8 @@ class ContractRegistry:
             rules=rules,
             contexts=c.get("contexts", {}),
             asset_id=c.get("asset_id"),
+            downstream_consumers=c.get("downstream_consumers", []),
+            catalog_visible=c.get("catalog_visible", True),
             sensitive_fields=c.get("sensitive_fields", []),
             validate_in_states=c.get("validate_in_states", ["active"]),
             owner_team=c.get("owner_team"),
@@ -838,6 +842,10 @@ class ContractRegistry:
                 "rules": rules_list,
             }
         }
+        if contract.downstream_consumers:
+            data["contract"]["downstream_consumers"] = contract.downstream_consumers
+        if not contract.catalog_visible:
+            data["contract"]["catalog_visible"] = False
         return yaml.dump(data, default_flow_style=False, sort_keys=False, allow_unicode=True)
 
     def contract_as_of(self, name: str, timestamp: str) -> Optional["DataContract"]:

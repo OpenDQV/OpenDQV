@@ -90,8 +90,11 @@ seconds (default 300). Mount local files via Docker volume for production use.
 | `version` | yes | Semver string (e.g. `"1.0"`) |
 | `description` | no | Human-readable summary |
 | `owner` | no | Team or individual responsible — surfaced in error responses for escalation routing |
+| `owner_team` | no | Team identifier for BCBS 239 / governance audit. Synced to Marmot as `contractOwnerTeam` in the OpenLineage quality facet. |
 | `status` | no | `active` (default), `draft`, or `archived` |
-| `asset_id` | no | Catalog reference — link to Collibra, Atlan, DataHub, or dbt model ref |
+| `asset_id` | no | Catalog reference — link to Collibra, Atlan, DataHub, Marmot, or dbt model ref. Required for Marmot lineage push. |
+| `downstream_consumers` | no | List of Marmot MRNs for downstream consumers of this asset (e.g. dashboards, dbt models). `push_quality_lineage.py` stitches direct lineage edges to each consumer automatically. Target MRNs must exist in Marmot. |
+| `catalog_visible` | no | Boolean, default `true`. Set to `false` to exclude this contract from `push_quality_lineage.py` pushes and from Marmot `discover_data` responses via the proxy filter. |
 | `rules` | yes | List of validation rules |
 | `contexts` | no | Per-source-system or per-region rule overrides |
 

@@ -334,4 +334,29 @@ You have access to two MCP servers: opendqv and marmot.
 
 OpenDQV stays pure enforcement. The catalog stays pure governance. The agent composes them at runtime.
 
-For a full walkthrough including webhook quality tagging and the MCP bridge approach, see [`docs/marmot_integration.md`](marmot_integration.md).
+### Marmot proxy (`marmot_proxy.py`)
+
+For Claude Desktop setups where Marmot's MCP endpoint is on a remote machine, `marmot_proxy.py` acts as a stdio-to-HTTP bridge. It also applies two filters automatically:
+
+1. **Provider filter** — injects `providers=["opendqv"]` into every `discover_data` call, so catalog discovery returns only OpenDQV assets (not OpenLineage job nodes or other providers).
+2. **Visibility filter** — contracts with `catalog_visible: false` in their YAML are excluded from `discover_data` responses. `marmot_proxy.py` loads hidden contract names from the local `contracts/` directory at startup (configurable via `OPENDQV_CONTRACTS_DIR`).
+
+Claude Desktop config using the proxy:
+
+```json
+{
+  "mcpServers": {
+    "marmot": {
+      "command": "python3",
+      "args": ["/path/to/OpenDQV/marmot_proxy.py"],
+      "env": {
+        "MARMOT_URL": "http://<linux-ip>:8080",
+        "MARMOT_API_KEY": "<your-marmot-api-key>",
+        "OPENDQV_CONTRACTS_DIR": "/path/to/OpenDQV/contracts"
+      }
+    }
+  }
+}
+```
+
+For a full walkthrough including webhook quality tagging and the lineage push script, see [`docs/marmot_integration.md`](marmot_integration.md).

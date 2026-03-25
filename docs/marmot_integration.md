@@ -544,13 +544,69 @@ contract:
   version: "1.0"
   asset_id: "marmot://marmot.internal/assets/a1b2c3d4-e5f6-7890-abcd-ef1234567890"
   owner: "data-governance"
+  owner_team: "data-platform"          # synced to Marmot as contractOwnerTeam
   owner_email: "governance@example.com"
+  downstream_consumers:                # Marmot MRNs of downstream consumers
+    - "mrn://dataset/tableau/sales_dashboard"
+    - "mrn://dataset/dbt/customer_mart"
   rules:
     - name: customer_id_not_null
       type: not_empty
       field: customer_id
       error_message: "Customer ID is required (GDPR Article 30 controller identity)"
 ```
+
+---
+
+## Contract Fields for Marmot Integration
+
+Three contract YAML fields control how a contract interacts with Marmot:
+
+### `owner_team`
+
+```yaml
+owner_team: "data-platform"
+```
+
+Synced to Marmot as the `contractOwnerTeam` field in the `opendqvQuality` OpenLineage facet (pushed by `scripts/push_quality_lineage.py`). Surfaces team ownership in Marmot's lineage view alongside pass rate and fail counts.
+
+### `downstream_consumers`
+
+```yaml
+downstream_consumers:
+  - "mrn://dataset/tableau/sales_dashboard"
+  - "mrn://dataset/dbt/customer_mart"
+  - "mrn://dataset/looker/revenue_explore"
+```
+
+List of Marmot MRNs for assets that consume the validated dataset. When `push_quality_lineage.py` runs, it calls `stitch_consumer_lineage()` for each entry, creating a direct lineage edge:
+
+```
+mrn://dataset/opendqv/{name}  →  mrn://dataset/tableau/sales_dashboard
+                                  type: downstream
+```
+
+This completes the full lineage graph in Marmot:
+
+```
+[source asset]  →  [opendqv:validate:{name}]  →  [opendqv:{name}]  →  [downstream consumers]
+```
+
+> **Important:** The target MRN must already exist in Marmot's catalog before running the push script. Marmot returns HTTP 500 if either node is unknown. Consumer failures are non-fatal — the script logs `stitch failed 500` and continues.
+
+### `catalog_visible`
+
+```yaml
+catalog_visible: false  # omit or set true to include (default)
+```
+
+Set to `false` to:
+- **Exclude from `push_quality_lineage.py`** — the contract is never pushed to Marmot, so it never appears in catalog discovery.
+- **Filter from `discover_data` responses** — `marmot_proxy.py` loads hidden contract names at startup and removes matching assets from `discover_data` MCP responses at runtime (defence-in-depth for assets already pushed before the flag was set).
+
+Use cases: internal test contracts, deprecated contracts pending archival, experimental contracts not ready for catalog visibility.
+
+> **Note:** Setting `catalog_visible: false` does **not** delete an already-pushed Marmot asset. To remove a previously pushed asset, delete it via the Marmot admin UI or REST API.
 
 ---
 

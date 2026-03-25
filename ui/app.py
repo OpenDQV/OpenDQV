@@ -2178,12 +2178,19 @@ if section == "Audit Trail":
             vh_selected = st.selectbox("Contract", vh_contract_names, index=_vh_idx, key="vh_contract")
 
             if vh_selected:
+                # Clear stale diff state on contract switch
+                if st.session_state.get("vh_history_contract") != vh_selected:
+                    for _k in ["vh_history", "vh_history_contract", "vh_diff_result", "vh_diff_a", "vh_diff_b"]:
+                        st.session_state.pop(_k, None)
+
                 # Governance Audit Trail
                 st.subheader("Governance Audit Trail")
                 if st.button("Load Audit Trail", key="btn_view_history"):
                     r_hist = api_get(f"/api/v1/contracts/{vh_selected}/history")
                     if r_hist and r_hist.status_code == 200:
                         history = r_hist.json().get("history", [])
+                        st.session_state["vh_history"] = history
+                        st.session_state["vh_history_contract"] = vh_selected
                         if history:
                             # Status badge helper
                             def _status_badge(s):
@@ -2291,57 +2298,93 @@ if section == "Audit Trail":
 
                 # Diff Versions
                 st.subheader("Diff Versions")
-                col1, col2 = st.columns(2)
-                with col1:
-                    version_a = st.text_input("Version A (older)", placeholder="1.0.0", key="diff_version_a")
-                with col2:
-                    version_b = st.text_input("Version B (newer)", placeholder="1.1.0", key="diff_version_b")
+                history_for_diff = (
+                    st.session_state.get("vh_history", [])
+                    if st.session_state.get("vh_history_contract") == vh_selected
+                    else []
+                )
 
-                if st.button("Show Diff", key="btn_show_diff"):
-                    if version_a.strip() and version_b.strip():
-                        r_diff = api_get(
-                            f"/api/v1/contracts/{vh_selected}/diff",
-                            params={"version_a": version_a.strip(), "version_b": version_b.strip()},
+                if not history_for_diff:
+                    st.info("Load the Audit Trail above first to enable version comparison.")
+                else:
+                    version_labels = [
+                        f"v{h['version']} — {h['status']} ({(h.get('updated_at') or '')[:10]})"
+                        for h in history_for_diff
+                    ]
+                    version_values = [h["version"] for h in history_for_diff]
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        idx_a = st.selectbox(
+                            "Version A (older)", range(len(version_labels)),
+                            format_func=lambda i: version_labels[i], key="diff_ver_a_idx",
                         )
-                        if r_diff and r_diff.status_code == 200:
-                            diff = r_diff.json()
-                            changes = diff.get("changes", {})
-                            added = changes.get("rules_added", [])
-                            removed = changes.get("rules_removed", [])
-                            changed = changes.get("rules_changed", [])
+                    with col2:
+                        idx_b = st.selectbox(
+                            "Version B (newer)", range(len(version_labels)),
+                            index=min(idx_a + 1, len(version_labels) - 1),
+                            format_func=lambda i: version_labels[i], key="diff_ver_b_idx",
+                        )
 
+                    if st.button("Compare Versions", key="btn_compare_versions"):
+                        ver_a, ver_b = version_values[idx_a], version_values[idx_b]
+                        if ver_a == ver_b:
+                            st.warning("Select two different versions to compare.")
+                        else:
+                            r_diff = api_get(
+                                f"/api/v1/contracts/{vh_selected}/diff",
+                                params={"version_a": ver_a, "version_b": ver_b},
+                            )
+                            if r_diff and r_diff.status_code == 200:
+                                st.session_state["vh_diff_result"] = r_diff.json()
+                                st.session_state["vh_diff_a"] = ver_a
+                                st.session_state["vh_diff_b"] = ver_b
+                            elif r_diff:
+                                st.error(f"Diff failed: {r_diff.status_code} — {r_diff.text}")
+
+                    # Render stored diff result
+                    diff_result = st.session_state.get("vh_diff_result")
+                    if diff_result and st.session_state.get("vh_diff_a"):
+                        ver_a = st.session_state["vh_diff_a"]
+                        ver_b = st.session_state["vh_diff_b"]
+                        st.markdown(f"**v{ver_a} → v{ver_b}**")
+                        changes = diff_result.get("changes", {})
+                        added   = changes.get("rules_added", [])
+                        removed = changes.get("rules_removed", [])
+                        changed = changes.get("rules_changed", [])
+                        meta    = changes.get("metadata_changed", {})
+
+                        if not added and not removed and not changed and not meta:
+                            st.success("No differences between these versions.")
+                        else:
                             if added:
-                                st.markdown(f"**Rules added ({len(added)}):**")
+                                st.markdown(f"##### Rules Added ({len(added)})")
                                 for rule_item in added:
-                                    st.write(
-                                        f"  + {rule_item.get('name', '')} "
-                                        f"({rule_item.get('type', '')} on {rule_item.get('field', '')})"
-                                    )
+                                    st.success(f"+ **{rule_item['name']}** — `{rule_item.get('type', '')}` on `{rule_item.get('field', '')}`")
                             if removed:
-                                st.markdown(f"**Rules removed ({len(removed)}):**")
+                                st.markdown(f"##### Rules Removed ({len(removed)})")
                                 for rule_item in removed:
-                                    st.write(
-                                        f"  - {rule_item.get('name', '')} "
-                                        f"({rule_item.get('type', '')} on {rule_item.get('field', '')})"
-                                    )
+                                    st.error(f"- **{rule_item['name']}** — `{rule_item.get('type', '')}` on `{rule_item.get('field', '')}`")
                             if changed:
-                                st.markdown(f"**Rules changed ({len(changed)}):**")
+                                st.markdown(f"##### Rules Changed ({len(changed)})")
                                 for rule_item in changed:
-                                    st.write(
-                                        f"  ~ {rule_item.get('name', '')}: "
-                                        f"{rule_item.get('changes', {})}"
-                                    )
-                            if not added and not removed and not changed:
-                                st.info("No rule changes between these versions")
-
-                            meta = changes.get("metadata_changed", {})
+                                    with st.expander(f"~ **{rule_item['name']}** (field: `{rule_item.get('field', '')}`)", expanded=True):
+                                        for field_nm, delta in rule_item.get("changes", {}).items():
+                                            c_field, c_old, c_arr, c_new = st.columns([2, 3, 1, 3])
+                                            c_field.markdown(f"`{field_nm}`")
+                                            c_old.markdown(
+                                                f'<span style="color:#e57373">{delta.get("old", "—")}</span>',
+                                                unsafe_allow_html=True,
+                                            )
+                                            c_arr.markdown("→")
+                                            c_new.markdown(
+                                                f'<span style="color:#81c784">{delta.get("new", "—")}</span>',
+                                                unsafe_allow_html=True,
+                                            )
                             if meta:
-                                st.markdown("**Metadata changed:**")
-                                st.code(json.dumps(meta, indent=2), language="json")
-                        elif r_diff:
-                            st.error(f"Diff failed: {r_diff.status_code} — {r_diff.text}")
-                    else:
-                        st.warning("Enter both version strings to compare")
+                                st.markdown("##### Metadata Changed")
+                                for field_nm, delta in meta.items():
+                                    st.info(f"**{field_nm}**: `{delta.get('old', '—')}` → `{delta.get('new', '—')}`")
     elif vh_contracts_r:
         st.error(f"Failed to load contracts: {vh_contracts_r.status_code}")
 
