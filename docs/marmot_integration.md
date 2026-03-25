@@ -648,7 +648,7 @@ Both MCP servers must be registered in your agent's config:
 
 **Daily quality health check:**
 ```
-Using the opendqv MCP server, call get_quality_metrics for all contracts.
+Using the OpenDQV MCP server, call get_quality_metrics for all contracts.
 For any contract with pass_rate below 0.95:
   1. Read the catalog_hint field.
   2. Call the marmot MCP server's get_asset tool with the asset name from catalog_hint.
