@@ -2,6 +2,24 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.8.1] - 2026-03-25
+
+### Features
+
+- **Customer PPDS demo script** (`scripts/customer_ppds_demo.py`) — parameterised by
+  `--customer` (or `OPENDQV_CUSTOMER` env var). Seeds branded menu items through the
+  `ppds_menu_item` contract with a deliberate mix of passes and four instructive failure
+  modes: missing reviewer, sulphites without ppm, blank allergen field, gluten without
+  cereal type. default menu hardcoded; generic `_default` fallback for any customer name.
+  Prints a narration-ready summary for prospect demos.
+
+### Changes
+
+- **`allereasy_dish` hidden from Marmot catalog** — `catalog_visible: false` added to
+  `contracts/allereasy_dish.yaml`. Contract remains active and functional; removed from
+  `discover_data` MCP tool and catalog endpoint to avoid surfacing a placeholder
+  integration during customer demos. Reversible by removing the flag.
+
 ## [1.8.0] - 2026-03-25
 
 ### Features
