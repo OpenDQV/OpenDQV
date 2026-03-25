@@ -3,12 +3,9 @@ tests/test_push_lineage.py — Unit tests for push_quality_lineage.py and marmot
 new logic (RT106 Phase 1 + 2A + 2B).
 """
 import json
-import sys
-import types
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 import yaml
 
 
