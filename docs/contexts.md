@@ -268,27 +268,38 @@ Avoid spaces, hyphens, and special characters. Context names are stored as-is in
 
 ## Context names are case-sensitive
 
-Context names are freeform strings matched exactly. Passing an unknown context name raises an error — the API returns HTTP 422, and `LocalValidator` raises `UnknownContextError`.
+Context names are freeform strings matched exactly against the contract's `contexts:` block.
+
+If the context name is not defined in the contract, the engine applies the base contract rules
+with no overrides and does not return an error. This allows `context` to double as a stats tag
+for purposes that don't need rule changes — for example, tagging records as `"demo"`, `"ci"`,
+or `"staging"` so they can be queried or cleaned up by context later.
 
 ```bash
 # This runs the "financial" context rules
 python -m cli validate customer '{"age": 25}' --context financial
 
-# This raises an error — "Financial" is not a defined context
+# "Financial" is not defined — base rules apply, no error
 python -m cli validate customer '{"age": 25}' --context Financial
-# → Error: Unknown context 'Financial' for contract 'customer'. Available contexts: ['financial', 'kids_app']
 ```
 
-```python
-from core.contracts import UnknownContextError
-
-try:
-    result = validator.validate(record, contract="customer", context="financia")
-except UnknownContextError as e:
-    print(e)  # Unknown context 'financia' for contract 'customer'. Available contexts: ['financial', 'kids_app']
+```bash
+# Tagging demo records — no "demo" context block needed in the contract
+curl -s -X POST http://localhost:8000/api/v1/validate \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"contract": "customer", "context": "demo", "record": {"name": "Alice", "age": 30, "email": "alice@example.com"}}'
+# → validates normally; quality_stats row recorded with context="demo"
 ```
 
-The error message includes the list of available contexts, so misconfiguration is immediately obvious.
+**Cleaning up tagged records:**
+
+```bash
+# Delete all quality_stats rows with context="demo" (admin role required)
+curl -s -X DELETE "http://localhost:8000/api/v1/quality/stats?context=demo" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+# → {"deleted": 42, "context": "demo"}
+```
 
 ---
 

@@ -996,11 +996,12 @@ class ContractRegistry:
         if not context:
             return contract.rules
         if context not in contract.contexts:
-            available = sorted(contract.contexts.keys())
-            raise UnknownContextError(
-                f"Unknown context '{context}' for contract '{contract.name}'. "
-                f"Available contexts: {available or ['(none defined)']}"
+            logger.debug(
+                "Context '%s' not defined in contract '%s' — applying base rules (no overrides). "
+                "This is normal for stats-tagging contexts (e.g. 'demo', 'ci', 'test').",
+                context, contract.name,
             )
+            return contract.rules
 
         overrides = contract.contexts[context]
         rules = list(contract.rules)

@@ -2,6 +2,43 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.8.2] - 2026-03-25
+
+### Features
+
+- **Top-10 customer demo scripts** — nine new `scripts/customer_<contract>_demo.py` scripts
+  covering the most commercially valuable contracts: `hr_employee`, `gdpr_dsar_request`,
+  `healthcare_patient`, `mifid_transaction_report`, `dora_ict_incident`, `sox_control_test`,
+  `companies_house_filing`, `martyns_law_venue`, `building_safety_golden_thread`.
+  Each script ships a generic default menu (no trademarks or prospect names) with two passing
+  records and four instructive failure modes. Customer-specific menus load from gitignored
+  `scripts/<contract>_demo_customers.local.json` files.
+
+- **Demo context persistence** — demo scripts use `context="demo"` (not `dry_run: true`) so
+  records land in `quality_stats` during the demo. The analytics dashboard updates in real time
+  as the prospect watches each record validate.
+
+- **`scripts/_demo_utils.py`** — shared utilities extracted from `customer_ppds_demo.py`:
+  `_validate`, `_first_error`, `_load_menu`, `run_demo`. All demo scripts import from here.
+
+- **`scripts/teardown_demo.py`** — post-demo cleanup: deletes all `context='demo'`
+  quality_stats rows via the new admin endpoint, then re-runs `push_quality_lineage.py` to
+  sync Marmot back to the clean state. Run at home after returning from a customer visit.
+
+- **`DELETE /api/v1/quality/stats?context=`** — new admin endpoint. Deletes all quality_stats
+  rows with the given context tag. Returns `{"deleted": N, "context": "..."}`.
+
+- **`quality_stats.delete_by_context(context)`** — new method on `QualityStats` backing the
+  above endpoint.
+
+### Changes
+
+- **`.gitignore`** — single `scripts/ppds_demo_customers.local.json` entry replaced with
+  glob `scripts/*_demo_customers.local.json` to cover all 10 demo scripts.
+
+- **`scripts/customer_ppds_demo.py`** — refactored to import from `_demo_utils`; duplicate
+  utility code removed; switched from `dry_run: true` to `context="demo"`.
+
 ## [1.8.1] - 2026-03-25
 
 ### Features

@@ -20,22 +20,15 @@ To add a customer, create scripts/ppds_demo_customers.local.json:
     }
 
 fail_mode options: null, "no_reviewer", "sulphites_no_ppm", "blank_allergen", "gluten_no_cereal"
+
+Records persist with context='demo' during the run.
+Run scripts/teardown_demo.py to clean up after the session.
 """
 import argparse
-import json
 import os
-import urllib.error
-import urllib.request
 from datetime import date
-from pathlib import Path
 
-# ── Configuration ─────────────────────────────────────────────────────────────
-
-BASE_URL = os.environ.get("OPENDQV_URL", "http://localhost:8000").rstrip("/")
-TOKEN    = os.environ.get("OPENDQV_TOKEN", "")
-
-_SCRIPT_DIR = Path(__file__).parent
-_LOCAL_CONFIG = _SCRIPT_DIR / "ppds_demo_customers.local.json"
+from _demo_utils import _load_menu, run_demo
 
 # ── Customer menu definitions ─────────────────────────────────────────────────
 #
@@ -74,26 +67,12 @@ _DEFAULT_MENU = [
      {"contains_gluten": "true", "contains_milk": "true"}),
 ]
 
-
-def _load_menu(customer: str) -> list:
-    """Load menu for the named customer from local config, fall back to default."""
-    if _LOCAL_CONFIG.exists():
-        try:
-            data = json.loads(_LOCAL_CONFIG.read_text(encoding="utf-8"))
-            # Try exact match, then case-insensitive
-            menu_raw = data.get(customer) or data.get(customer.upper()) or data.get(customer.lower())
-            if menu_raw:
-                # Convert JSON arrays to tuples, None strings to None
-                return [
-                    (row[0], row[1], row[2], row[3] or None, row[4])
-                    for row in menu_raw
-                ]
-        except Exception:
-            pass
-    return _DEFAULT_MENU
-
-
-# ── Record builder ────────────────────────────────────────────────────────────
+_FAIL_LABELS = {
+    "no_reviewer":       "ppds_compliant_reviewed_by: required",
+    "sulphites_no_ppm":  "sulphites_ppm: required when contains_sulphites=true",
+    "blank_allergen":    "contains_tree_nuts: field missing — blank is not false",
+    "gluten_no_cereal":  "gluten_cereal_types: required when contains_gluten=true",
+}
 
 _ALL_ALLERGENS = [
     "celery", "gluten", "crustaceans", "eggs", "fish", "lupin",
@@ -114,19 +93,13 @@ def _base_record(item_name: str, sku: str, category: str,
             f"{item_name} ingredients: flour (wheat), water, salt, sugar, "
             "sunflower oil, natural flavourings."
         ),
-        # Audit trail
         "ppds_compliant_reviewed_by": "Head Chef",
         "ppds_review_date":           date.today().isoformat(),
     }
-
-    # Start with all 14 allergens false
     for allergen in _ALL_ALLERGENS:
         record[f"contains_{allergen}"] = "false"
-
-    # Apply realistic allergen profile
     for field, value in allergen_overrides.items():
         record[field] = value
-
     return record
 
 
@@ -141,92 +114,21 @@ def build_ppds_record(item_name: str, sku: str, category: str,
 
     elif fail_mode == "sulphites_no_ppm":
         record["contains_sulphites"] = "true"
-        record.pop("sulphites_ppm", None)  # omit the required sub-field
+        record.pop("sulphites_ppm", None)
 
     elif fail_mode == "blank_allergen":
-        # Remove tree_nuts entirely — blank ≠ false
         record.pop("contains_tree_nuts", None)
 
     elif fail_mode == "gluten_no_cereal":
         record["contains_gluten"] = "true"
-        record.pop("gluten_cereal_types", None)  # omit the required sub-field
+        record.pop("gluten_cereal_types", None)
 
     return record
 
 
-# ── HTTP ──────────────────────────────────────────────────────────────────────
-
-def _validate(contract: str, record: dict) -> dict:
-    url     = f"{BASE_URL}/api/v1/validate"
-    payload = json.dumps({"contract": contract, "record": record, "dry_run": True}).encode()
-    headers = {"Content-Type": "application/json"}
-    if TOKEN:
-        headers["Authorization"] = f"Bearer {TOKEN}"
-    req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
-    try:
-        with urllib.request.urlopen(req) as resp:
-            return json.loads(resp.read())
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode(errors="replace")
-        try:
-            return json.loads(body)
-        except Exception:
-            return {"valid": False, "errors": [{"message": f"HTTP {exc.code}: {body[:200]}"}]}
-
-
-# ── Failure summary extractor ─────────────────────────────────────────────────
-
-_FAIL_LABELS = {
-    "no_reviewer":       "ppds_compliant_reviewed_by: required",
-    "sulphites_no_ppm":  "sulphites_ppm: required when contains_sulphites=true",
-    "blank_allergen":    "contains_tree_nuts: field missing — blank is not false",
-    "gluten_no_cereal":  "gluten_cereal_types: required when contains_gluten=true",
-}
-
-
-def _first_error(result: dict, fail_mode) -> str:
-    """Extract the first error message from a validation result."""
-    if fail_mode and fail_mode in _FAIL_LABELS:
-        return _FAIL_LABELS[fail_mode]
-    errors = result.get("errors") or result.get("violations") or []
-    if errors:
-        msg = errors[0].get("message") or errors[0].get("error_message") or str(errors[0])
-        return msg[:80]
-    return "unknown error"
-
-
-# ── Main ──────────────────────────────────────────────────────────────────────
-
 def run(customer: str) -> None:
-    menu = _load_menu(customer)
-
-    print(f"\nOpenDQV PPDS demo — {customer}")
-    print("─" * 56)
-
-    passed = 0
-    failed = 0
-    width  = max(len(item[0]) for item in menu)
-
-    for item_name, sku, category, fail_mode, allergen_overrides in menu:
-        record = build_ppds_record(item_name, sku, category, fail_mode, allergen_overrides)
-        result = _validate("ppds_menu_item", record)
-
-        if result.get("valid") or result.get("passed"):
-            status = "PASS"
-            detail = ""
-            passed += 1
-        else:
-            status = "FAIL"
-            detail = f"  ({_first_error(result, fail_mode)})"
-            failed += 1
-
-        icon = "✓" if status == "PASS" else "✗"
-        print(f"  {icon}  {item_name:<{width}}  {status}{detail}")
-
-    total = passed + failed
-    print("─" * 56)
-    print(f"  {passed} passed  /  {failed} failed  ({total} records)")
-    print("Done.\n")
+    menu = _load_menu("ppds", customer, _DEFAULT_MENU)
+    run_demo("PPDS", "ppds_menu_item", customer, menu, build_ppds_record, _FAIL_LABELS)
 
 
 if __name__ == "__main__":

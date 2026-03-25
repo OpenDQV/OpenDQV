@@ -65,11 +65,14 @@ class TestContextOverrides:
         assert range_rule[0].min_value == 5
         assert range_rule[0].max_value == 17
 
-    def test_unknown_context_raises(self, registry):
-        from core.contracts import UnknownContextError
+    def test_unknown_context_falls_back_to_base_rules(self, registry):
+        # Unknown context → base rules, no exception.
+        # This allows context to be used as a stats tag (e.g. "demo", "ci")
+        # without requiring a matching context block in the YAML contract.
         c = registry.get("customer")
-        with pytest.raises(UnknownContextError, match="Unknown context 'unknown_context'"):
-            registry.get_rules_with_context(c, "unknown_context")
+        base_rules = c.rules
+        result = registry.get_rules_with_context(c, "nonexistent_context_xyz")
+        assert result == base_rules
 
     def test_reload(self, registry):
         count_before = len(registry.list_contracts())

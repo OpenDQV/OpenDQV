@@ -2,16 +2,12 @@
 Endpoint consistency tests — ACT-049-EC series.
 
 Any endpoint that accepts a `context` parameter and calls get_rules_with_context()
-must return 422 for an unknown context. This test family is parametrised over
-every such endpoint so that when a new one is added, the developer must either
-add it to the list below or make a conscious decision to exclude it.
+must accept unknown context names gracefully — returning base rules with no error
+(HTTP 200, not 422). This allows `context` to double as a stats tag for contexts
+that don't need rule overrides (e.g. "demo", "ci", "test").
 
-Motivation: /validate/batch/file was missing the UnknownContextError
-try/except that existed on the other two validate endpoints. It was found by
-code review after external stress-testing, not by our own tests.
-
-The parametrised structure means a new endpoint with a missing guard will cause
-this test file to fail (by omission) rather than silently pass.
+The parametrised structure ensures every context-accepting endpoint is covered.
+Add new endpoints to CONTEXT_ENDPOINTS to keep this guarantee.
 """
 import io
 import pytest
@@ -75,31 +71,27 @@ CONTEXT_ENDPOINTS = [
 ]
 
 
-# ── ACT-049-EC-001: unknown context → 422 on every context endpoint ───────────
+# ── ACT-049-EC-001: unknown context → base rules (200) on every context endpoint
 
 @pytest.mark.parametrize(
     "endpoint_id,method,url,kwargs_factory",
     CONTEXT_ENDPOINTS,
     ids=[ep[0] for ep in CONTEXT_ENDPOINTS],
 )
-def test_unknown_context_returns_422(
+def test_unknown_context_uses_base_rules(
     endpoint_id, method, url, kwargs_factory, client, auth_headers
 ):
-    """Every endpoint that accepts context must return 422 for an unknown context.
+    """Every endpoint that accepts context must handle an unknown context gracefully.
 
-    If this test fails for a newly added endpoint, it means that endpoint is
-    missing UnknownContextError handling. Add:
-
-        try:
-            rules = registry.get_rules_with_context(contract, context)
-        except UnknownContextError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    Unknown context → base rules applied, no error. This allows context to be used
+    as a stats tag (e.g. "demo", "ci") without a matching context block in the YAML.
     """
     kwargs = kwargs_factory(client, auth_headers)
     resp = client.request(method, url, **kwargs)
-    assert resp.status_code == 422, (
+    assert resp.status_code not in (422, 500), (
         f"Endpoint '{endpoint_id}' ({method} {url}) returned {resp.status_code} "
-        f"for unknown context — expected 422. Response: {resp.text[:200]}"
+        f"for unknown context — expected base-rules fallback (not 422/500). "
+        f"Response: {resp.text[:200]}"
     )
 
 

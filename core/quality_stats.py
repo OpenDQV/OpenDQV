@@ -35,6 +35,8 @@ INSERT INTO quality_stats
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
+_DELETE_BY_CONTEXT = "DELETE FROM quality_stats WHERE context = ?"
+
 _SELECT_SINCE = """
 SELECT contract_name, contract_version, context, recorded_at,
        total_records, passed, failed, pass_rate, rule_failure_counts
@@ -97,6 +99,20 @@ class QualityStats:
             conn.commit()
         except (sqlite3.Error, OSError, ValueError) as exc:
             logger.exception("Failed to record quality stats: %s", exc)
+        finally:
+            if self._db_path != ":memory:":
+                conn.close()
+
+    def delete_by_context(self, context: str) -> int:
+        """Delete all rows with the given context. Returns number of rows deleted."""
+        conn = self._connect()
+        try:
+            cur = conn.execute(_DELETE_BY_CONTEXT, (context,))
+            conn.commit()
+            return cur.rowcount
+        except (sqlite3.Error, OSError) as exc:
+            logger.exception("Failed to delete quality stats by context: %s", exc)
+            return 0
         finally:
             if self._db_path != ":memory:":
                 conn.close()

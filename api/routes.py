@@ -903,6 +903,28 @@ async def get_quality_trend(
     )
 
 
+@router.delete("/quality/stats")
+async def delete_quality_stats_by_context(
+    request: Request,
+    context: str = Query(..., description="Context tag to delete (e.g. 'demo')"),
+    user=Depends(get_current_user),
+    role: str = Depends(get_current_role),
+):
+    """
+    Delete all quality statistics records for a given context tag.
+
+    Intended for demo teardown — removes records written with context='demo'
+    after a prospect session ends. Requires admin role.
+    """
+    if role not in ("admin",):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Role '{role}' is not permitted. Required: admin.",
+        )
+    deleted = _quality_stats.delete_by_context(context)
+    return {"deleted": deleted, "context": context}
+
+
 @router.get("/contracts/{name}/at")
 @_default_limit
 async def get_contract_at_timestamp(
