@@ -2,6 +2,32 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.8.0] - 2026-03-25
+
+### Features
+
+- **DuckDB OLAP analytics layer** — new `core/quality_analytics.py` completes the
+  OLTP/OLAP split introduced in v1.7.1. DuckDB attaches the SQLite `quality_stats`
+  table directly via its SQLite extension — zero data duplication from the OLTP write
+  path. Two new REST endpoints:
+  - `GET /api/v1/analytics/summary?days=N` — cross-contract pass rates sorted
+    worst-first, backed by a DuckDB aggregation query over SQLite.
+  - `GET /api/v1/analytics/rule-heatmap?days=N` — top-50 failing rules across all
+    contracts ranked by failure count, for systemic data quality diagnosis.
+- **Schema-driven demo seeder** (`scripts/seed_broad_demo.py` rewrite) — all 32
+  contract generators replaced with a contract-aware engine that reads YAML rules
+  directly. Generates valid records by priority: `allowed_values`/`lookup` → `regex`/
+  `date_format` → numeric `min`/`max`/`range` → `not_empty` fallback. Handles `compare`,
+  `required_if`, and `date_diff` rules. Previously produced ~100% failure rates due to
+  field name and allowed_values mismatches; now generates realistic 80–88% pass rates.
+
+### Tests
+
+- 34 new tests in `tests/test_quality_analytics.py`: DuckDB OLAP unit tests (window
+  filtering, pass-rate ranking, rule heatmap aggregation, 50-entry cap), API endpoint
+  shape and auth tests, seeder helper unit tests (make_valid_record, make_invalid_record).
+- **Total: 2,505 passing, 21 skipped.**
+
 ## [1.7.1] - 2026-03-25
 
 ### Bug fixes

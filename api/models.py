@@ -269,3 +269,40 @@ class ExplainErrorResponse(BaseModel):
     valid_examples: list = Field(default_factory=list, description="Example values that would pass this rule")
     invalid_examples: list = Field(default_factory=list, description="Example values that would fail this rule")
     constraint: dict = Field(default_factory=dict, description="The raw constraint values from the contract (e.g. {'min': 0.01})")
+
+
+# ── DuckDB analytics models ───────────────────────────────────────────
+
+class AnalyticsSummaryItem(BaseModel):
+    """Pass-rate summary for one contract over the analytics window."""
+    contract: str = Field(..., description="Contract name")
+    total_records: int = Field(..., description="Total records validated in the window")
+    passed: int = Field(..., description="Records that passed")
+    failed: int = Field(..., description="Records that failed")
+    pass_rate: float = Field(..., description="Pass rate as a fraction (0.0–1.0)")
+    pass_rate_pct: float = Field(..., description="Pass rate as a percentage (0.0–100.0)")
+
+
+class AnalyticsSummaryResponse(BaseModel):
+    """Cross-contract pass rate summary backed by DuckDB OLAP over SQLite quality data."""
+    days: int = Field(..., description="Analytics window in days")
+    contracts: list[AnalyticsSummaryItem] = Field(
+        ..., description="Per-contract summary, sorted by pass_rate ascending (worst first)"
+    )
+    total_contracts: int = Field(..., description="Number of contracts with data in the window")
+
+
+class RuleHeatmapItem(BaseModel):
+    """Failure count for one (contract, rule) pair over the analytics window."""
+    contract: str = Field(..., description="Contract name")
+    rule: str = Field(..., description="Rule name")
+    failure_count: int = Field(..., description="Total failures for this rule in the window")
+
+
+class RuleHeatmapResponse(BaseModel):
+    """Top failing rules across all contracts, backed by DuckDB OLAP over SQLite quality data."""
+    days: int = Field(..., description="Analytics window in days")
+    rules: list[RuleHeatmapItem] = Field(
+        ..., description="Rules ranked by failure_count descending (up to 50)"
+    )
+    total_rules: int = Field(..., description="Number of distinct (contract, rule) pairs returned")

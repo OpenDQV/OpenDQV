@@ -50,12 +50,14 @@ from core.federation import FederationLog
 from core.node_health import NodeHealthStateMachine
 from core.isolation_log import IsolationLog
 from core.quality_stats import QualityStats
+from core.quality_analytics import QualityAnalytics
 
 # Federation singletons — share DB with the rest of the app
 _federation_log = FederationLog(config.DB_PATH)
 _node_health = NodeHealthStateMachine(config.DB_PATH)
 _isolation_log = IsolationLog(config.DB_PATH)
 _quality_stats = QualityStats(config.DB_PATH)
+_quality_analytics = QualityAnalytics(config.DB_PATH)
 from .models import (
     ValidateRequest, ValidateResponse, FieldErrorResponse,
     BatchValidateRequest, BatchValidateResponse, BatchResultItem, BatchSummary,
@@ -63,6 +65,8 @@ from .models import (
     QualityTrendPoint, QualityTrendResponse,
     ExplainErrorResponse,
     ContractHistoryResponse, ContractDiffResponse, ContractReloadResponse,
+    AnalyticsSummaryItem, AnalyticsSummaryResponse,
+    RuleHeatmapItem, RuleHeatmapResponse,
 )
 from core.explainer import explain_rule, quick_fix
 
@@ -2162,6 +2166,56 @@ async def get_rejection_summary(
 
     result.sort(key=lambda x: x["pass_rate"])
     return result[:limit]
+
+
+# ── DuckDB analytics (OLAP read path over SQLite OLTP data) ───────────
+
+@router.get("/analytics/summary", response_model=AnalyticsSummaryResponse)
+@_default_limit
+async def get_analytics_summary(
+    request: Request,
+    days: int = Query(7, ge=1, le=365, description="Analytics window in calendar days"),
+    user=Depends(get_current_user),
+):
+    """
+    Cross-contract pass rate summary — DuckDB OLAP over SQLite quality data.
+
+    Returns every contract that has validation records in the last N days,
+    sorted by pass_rate ascending (worst-performing contracts first).
+
+    Backed by DuckDB reading the SQLite quality_stats table directly — no data
+    duplication from the OLTP write path.
+    """
+    items = _quality_analytics.cross_contract_summary(days=days)
+    return AnalyticsSummaryResponse(
+        days=days,
+        contracts=[AnalyticsSummaryItem(**i) for i in items],
+        total_contracts=len(items),
+    )
+
+
+@router.get("/analytics/rule-heatmap", response_model=RuleHeatmapResponse)
+@_default_limit
+async def get_analytics_rule_heatmap(
+    request: Request,
+    days: int = Query(7, ge=1, le=365, description="Analytics window in calendar days"),
+    user=Depends(get_current_user),
+):
+    """
+    Top failing rules across all contracts — DuckDB OLAP over SQLite quality data.
+
+    Returns up to 50 (contract, rule) pairs ranked by failure count descending.
+    Use this to identify systemic data quality issues that span multiple contracts.
+
+    Backed by DuckDB reading the SQLite quality_stats table directly — no data
+    duplication from the OLTP write path.
+    """
+    items = _quality_analytics.rule_heatmap(days=days)
+    return RuleHeatmapResponse(
+        days=days,
+        rules=[RuleHeatmapItem(**i) for i in items],
+        total_rules=len(items),
+    )
 
 
 # ── Federation API (OSS skeleton) ─────────────────────────────────────
