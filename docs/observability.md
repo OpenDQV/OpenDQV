@@ -189,7 +189,7 @@ This allows you to join OpenDQV validation outcomes with traces in Jaeger, Zipki
 GET /api/v1/stats/summary
 ```
 
-Returns aggregated validation statistics accumulated since the API server started. No external database is required — statistics are held in a thread-safe in-memory structure (`ValidationStats` in `monitoring.py`).
+Returns aggregated validation statistics. Statistics are held in a thread-safe in-memory structure (`ValidationStats` in `monitoring.py`) for real-time dashboard use, **and** persisted to SQLite (`quality_stats` table) so that per-contract pass rates survive API restarts. Use `GET /api/v1/contracts/{name}/quality-trend` for the SQLite-backed historical view.
 
 **Response shape:**
 

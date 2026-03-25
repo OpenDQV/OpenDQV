@@ -2,6 +2,19 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.7.1] - 2026-03-25
+
+### Bug fixes
+
+- **Single-record validations now persist to SQLite** — `/validate` (single-record) previously
+  wrote only to in-memory `ValidationStats`, so all per-contract pass rates were lost on API
+  restart. Now also calls `_quality_stats.record_batch(total=1, ...)` into the `quality_stats`
+  SQLite table — same path batch validation already used.
+- **`push_quality_lineage.py` reads from SQLite, not in-memory stats** — replaced the call to
+  `GET /api/v1/stats` (in-memory, resets on restart) with per-contract calls to
+  `GET /api/v1/contracts/{name}/quality-trend?days=30` (SQLite-backed). Pass rates pushed to
+  Marmot are now restart-safe.
+
 ## [1.7.0] - 2026-03-25
 
 ### Features
