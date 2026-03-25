@@ -12,6 +12,7 @@ contract:
   owner: "AllerEasy"
   status: active
   asset_id: urn:opendqv:allereasy_dish
+  catalog_visible: false
 
   rules:
 
