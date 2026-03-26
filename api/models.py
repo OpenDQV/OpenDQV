@@ -306,3 +306,19 @@ class RuleHeatmapResponse(BaseModel):
         ..., description="Rules ranked by failure_count descending (up to 50)"
     )
     total_rules: int = Field(..., description="Number of distinct (contract, rule) pairs returned")
+
+
+class RuleVelocityBucket(BaseModel):
+    """One time bucket in a rule velocity series."""
+    bucket: str = Field(..., description="Bucket start time in ISO 8601 format (UTC)")
+    failures: int = Field(..., description="Total failures for this rule in this bucket")
+
+
+class RuleVelocityResponse(BaseModel):
+    """Time-series failure counts per rule — shows acceleration vs slow drip."""
+    contract: str = Field(..., description="Contract name")
+    window_hours: int = Field(..., description="Look-back window in hours")
+    bucket_minutes: int = Field(..., description="Bucket width in minutes")
+    series: dict[str, list[RuleVelocityBucket]] = Field(
+        ..., description="Per-rule time-series (top 5 rules by total failures)"
+    )

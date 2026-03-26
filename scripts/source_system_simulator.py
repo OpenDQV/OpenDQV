@@ -408,6 +408,7 @@ def run_single(
     contract: str,
     api_url: str,
     token: Optional[str],
+    agent_id: str = "",
 ) -> list[dict]:
     """Validate records one at a time via POST /api/v1/validate."""
     headers = {}
@@ -419,6 +420,8 @@ def run_single(
         for idx, (record, _) in enumerate(population, 1):
             record_id = f"sim-{idx:03d}"
             body = {"record": record, "contract": contract, "record_id": record_id}
+            if agent_id:
+                body["agent_id"] = agent_id
 
             t0 = time.perf_counter()
             try:
@@ -476,6 +479,7 @@ def run_batch(
     batch_size: int,
     api_url: str,
     token: Optional[str],
+    agent_id: str = "",
 ) -> list[dict]:
     """Validate records in batches via POST /api/v1/validate/batch.
 
@@ -498,6 +502,8 @@ def run_batch(
             sim_ids = [f"sim-{i:03d}" for i in range(offset + 1, offset + len(batch_records) + 1)]
 
             body = {"records": batch_records, "contract": contract}
+            if agent_id:
+                body["agent_id"] = agent_id
 
             t0 = time.perf_counter()
             try:
@@ -719,11 +725,13 @@ def main() -> None:
     # ── Validate ─────────────────────────────────────────────────────────────
     if args.batch_size == 1:
         results = run_single(
-            population, args.contract, args.api_url, args.token or None
+            population, args.contract, args.api_url, args.token or None,
+            agent_id=args.source_system,
         )
     else:
         results = run_batch(
-            population, args.contract, args.batch_size, args.api_url, args.token or None
+            population, args.contract, args.batch_size, args.api_url, args.token or None,
+            agent_id=args.source_system,
         )
 
     # ── Summary ──────────────────────────────────────────────────────────────

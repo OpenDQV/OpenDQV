@@ -121,3 +121,109 @@ class QualityAnalytics:
             reverse=True,
         )
         return result[:50]
+
+    def rule_failure_velocity(
+        self,
+        contract_name: str,
+        window_hours: int = 24,
+        bucket_minutes: int = 5,
+    ) -> dict:
+        """
+        Time-series failure counts per rule for a single contract.
+
+        Shows whether failures are accelerating or decelerating — the difference
+        between a slow drip and a sudden spike. Returns the top 5 rules only
+        (consistent with rule_heatmap cap).
+
+        Returns:
+          {
+            "contract": str,
+            "window_hours": int,
+            "bucket_minutes": int,
+            "series": {
+              "<rule>": [{"bucket": "2026-03-26T10:00Z", "failures": 12}, ...]
+            }
+          }
+        """
+        since = (
+            datetime.now(timezone.utc) - timedelta(hours=window_hours)
+        ).isoformat()
+        conn = self._conn()
+        try:
+            rows = conn.execute(
+                """
+                SELECT recorded_at, rule_failure_counts
+                FROM   qs.quality_stats
+                WHERE  contract_name = ?
+                  AND  recorded_at   >= ?
+                  AND  rule_failure_counts IS NOT NULL
+                ORDER  BY recorded_at ASC
+                """,
+                [contract_name, since],
+            ).fetchall()
+        finally:
+            conn.close()
+
+        # Identify top 5 rules by total failures across the window
+        rule_totals: dict[str, int] = {}
+        for _ts, rfc_json in rows:
+            if not rfc_json or rfc_json in ("{}", "null"):
+                continue
+            try:
+                rfc = json.loads(rfc_json)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            for rule, count in rfc.items():
+                rule_totals[rule] = rule_totals.get(rule, 0) + int(count)
+
+        top_rules = sorted(rule_totals, key=lambda r: rule_totals[r], reverse=True)[:5]
+        if not top_rules:
+            return {
+                "contract": contract_name,
+                "window_hours": window_hours,
+                "bucket_minutes": bucket_minutes,
+                "series": {},
+            }
+
+        # Build per-rule time-series bucketed by bucket_minutes
+        bucket_secs = bucket_minutes * 60
+        series: dict[str, dict[str, int]] = {rule: {} for rule in top_rules}
+
+        for recorded_at, rfc_json in rows:
+            if not rfc_json or rfc_json in ("{}", "null"):
+                continue
+            try:
+                rfc = json.loads(rfc_json)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            # Parse timestamp and snap to bucket boundary
+            try:
+                ts = datetime.fromisoformat(recorded_at.replace("Z", "+00:00"))
+            except (ValueError, AttributeError):
+                continue
+            epoch = ts.timestamp()
+            bucket_epoch = int(epoch // bucket_secs) * bucket_secs
+            bucket_label = (
+                datetime.fromtimestamp(bucket_epoch, tz=timezone.utc)
+                .strftime("%Y-%m-%dT%H:%MZ")
+            )
+            for rule in top_rules:
+                if rule in rfc:
+                    series[rule][bucket_label] = (
+                        series[rule].get(bucket_label, 0) + int(rfc[rule])
+                    )
+
+        # Convert to sorted lists
+        formatted_series = {}
+        for rule in top_rules:
+            formatted_series[rule] = [
+                {"bucket": b, "failures": c}
+                for b, c in sorted(series[rule].items())
+            ]
+
+        return {
+            "contract": contract_name,
+            "window_hours": window_hours,
+            "bucket_minutes": bucket_minutes,
+            "series": formatted_series,
+        }

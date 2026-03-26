@@ -86,7 +86,7 @@ class TestGetWindowedSummary:
         vs = self._fresh_stats()
         # Inject an old event directly into _events (2 hours ago)
         two_hours_ago = time.time() - 7_300  # > 2 hours
-        vs._events.append((two_hours_ago, "old_contract", "none", True, 5.0))
+        vs._events.append((two_hours_ago, "old_contract", "none", True, 5.0, ""))
 
         summary = vs.get_windowed_summary(window_hours=1)
         by_contract = summary["by_contract"]
@@ -111,7 +111,7 @@ class TestGetWindowedSummary:
         vs.record("my_contract", "none", True, 0, 0, 1.0)
         # Inject old event outside 1h but within 24h
         slightly_old = time.time() - 4_000  # ~67 min ago
-        vs._events.append((slightly_old, "my_contract", "none", False, 1.0))
+        vs._events.append((slightly_old, "my_contract", "none", False, 1.0, ""))
 
         summary_1h = vs.get_windowed_summary(window_hours=1)
         summary_24h = vs.get_windowed_summary(window_hours=24)
@@ -129,7 +129,7 @@ class TestGetWindowedSummary:
         vs = self._fresh_stats()
         # Old event only
         old_ts = time.time() - 7_300
-        vs._events.append((old_ts, "stale_contract", "none", True, 1.0))
+        vs._events.append((old_ts, "stale_contract", "none", True, 1.0, ""))
 
         summary = vs.get_windowed_summary(window_hours=1)
         assert "stale_contract:none" not in summary["by_contract"]

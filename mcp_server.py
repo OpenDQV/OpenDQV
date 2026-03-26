@@ -94,6 +94,7 @@ from core.explainer import explain_rule
 from core.rule_parser import ContractStatus, Rule as _Rule
 from monitoring import stats as _stats
 from core.quality_stats import QualityStats as _QualityStats
+from core.quality_analytics import QualityAnalytics as _QualityAnalytics
 
 # ── Governance tips ───────────────────────────────────────────────────
 _GOVERNANCE_TIPS: dict[str, str] = {
@@ -169,6 +170,7 @@ _DRAFT_RATE_WINDOW = 3600.0   # per hour (seconds)
 # ── Contract registry (local mode) ────────────────────────────────────
 _registry = ContractRegistry(config.CONTRACTS_DIR)
 _quality_stats = _QualityStats(config.DB_PATH)
+_quality_analytics = _QualityAnalytics(config.DB_PATH)
 
 # ── Remote mode (enterprise) ───────────────────────────────────────────
 # When OPENDQV_MCP_API_URL is set, all tool calls are proxied to the central
@@ -363,9 +365,39 @@ async def list_tools() -> list[types.Tool]:
                     "window_hours": {
                         "type": "integer",
                         "default": 24,
-                        "description": "Look-back window in hours. Used as a label only.",
+                        "description": "Filters the look-back window. In-memory events used when available; SQLite used as fallback after restarts.",
                     },
                 },
+            },
+        ),
+        types.Tool(
+            name="get_rule_velocity",
+            description=(
+                "Return time-series failure counts per rule for a single contract — shows whether "
+                "failures are accelerating or decelerating. Use this when pass_rate is degrading "
+                "to diagnose whether it's a sudden spike (fix the upstream source now) or a slow "
+                "drip (investigate root cause). Returns the top 5 rules by total failures, bucketed "
+                "by bucket_minutes intervals."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "contract": {
+                        "type": "string",
+                        "description": "Contract name (required).",
+                    },
+                    "window_hours": {
+                        "type": "integer",
+                        "default": 24,
+                        "description": "Look-back window in hours (1–168). Default 24.",
+                    },
+                    "bucket_minutes": {
+                        "type": "integer",
+                        "default": 5,
+                        "description": "Bucket width in minutes (1–60). Default 5.",
+                    },
+                },
+                "required": ["contract"],
             },
         ),
         types.Tool(
@@ -440,6 +472,8 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             return await _tool_create_contract_draft(arguments)
         elif name == "get_quality_metrics":
             return await _tool_get_quality_metrics(arguments)
+        elif name == "get_rule_velocity":
+            return await _tool_get_rule_velocity(arguments)
         else:
             return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
     except Exception as exc:
@@ -772,6 +806,25 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
         summary = resp.json()
     else:
         summary = _stats.get_windowed_summary(window_hours) if window_hours else _stats.get_summary()
+        # SQLite fallback: if in-memory events are empty (e.g. after a restart), use persisted data
+        if summary.get("total_validations", 0) == 0 and not _remote_client:
+            try:
+                fallback_contract = contract_name or ""
+                if fallback_contract:
+                    fb = _quality_stats.get_windowed_totals(fallback_contract, window_hours or 24)
+                    if fb.get("total", 0) > 0:
+                        summary = dict(summary)
+                        summary["by_contract"] = {
+                            f"{fallback_contract}:default": {
+                                "pass": fb["passed"],
+                                "fail": fb["failed"],
+                            }
+                        }
+                        summary["total_validations"] = fb["total"]
+                        summary["total_pass"] = fb["passed"]
+                        summary["total_fail"] = fb["failed"]
+            except Exception:
+                pass
 
     by_contract = summary.get("by_contract", {})
     if contract_name:
@@ -832,6 +885,7 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
             "window_hours": window_hours,
             "total_validations": total_val,
             "pass_rate": pass_rate,
+            "passed": total_pass,
             "failed": total_fail,
             "data_confidence": confidence,
             "confidence_note": confidence_note,
@@ -840,6 +894,24 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
             "catalog_hint": f"marmot:assets/{cname}",
             "governance_tip": governance_tip if total_val > 0 else "No validation data recorded yet for this contract.",
         }
+        # Include per-agent breakdown when >1 distinct agent seen in the window
+        if not _remote_client:
+            try:
+                agent_breakdown = _quality_stats.get_agent_breakdown(cname, window_hours or 24)
+                if len(agent_breakdown) > 1:
+                    entry["by_agent"] = {
+                        a["agent_id"]: {
+                            "total": a["total"],
+                            "passed": a["passed"],
+                            "failed": a["failed"],
+                            "pass_rate": a["pass_rate"],
+                        }
+                        for a in agent_breakdown
+                    }
+                elif summary.get("by_agent"):
+                    entry["by_agent"] = summary["by_agent"]
+            except Exception:
+                pass
         if total_val > 0 or contract_name:
             result.append(entry)
 
@@ -859,6 +931,33 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
 
     output = result[0] if (contract_name and result) else result
     return [types.TextContent(type="text", text=json.dumps(output, default=str))]
+
+
+async def _tool_get_rule_velocity(args: dict) -> list[types.TextContent]:
+    contract_name = args.get("contract", "")
+    if not contract_name:
+        return [types.TextContent(type="text", text=json.dumps({"error": "contract is required"}))]
+    window_hours = max(1, min(168, int(args.get("window_hours", 24))))
+    bucket_minutes = max(1, min(60, int(args.get("bucket_minutes", 5))))
+
+    if _remote_client:
+        resp = _remote_client.get(
+            "/api/v1/analytics/rule-velocity",
+            params={"contract": contract_name, "window_hours": window_hours, "bucket_minutes": bucket_minutes},
+        )
+        resp.raise_for_status()
+        return [types.TextContent(type="text", text=json.dumps(resp.json(), default=str))]
+
+    try:
+        data = _quality_analytics.rule_failure_velocity(
+            contract_name=contract_name,
+            window_hours=window_hours,
+            bucket_minutes=bucket_minutes,
+        )
+    except Exception as exc:
+        return [types.TextContent(type="text", text=json.dumps({"error": str(exc)}))]
+
+    return [types.TextContent(type="text", text=json.dumps(data, default=str))]
 
 
 # ── Entry point ───────────────────────────────────────────────────────

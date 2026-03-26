@@ -92,11 +92,11 @@ class ValidationStats:
         self.severity_counts = defaultdict(int)  # (contract, severity) -> count
         self.started_at = datetime.now(timezone.utc)
         self._latencies: list = []  # recent latency values for percentile computation
-        self._events: deque = deque(maxlen=10_000)  # (timestamp, contract, context, valid, latency_ms)
+        self._events: deque = deque(maxlen=10_000)  # (timestamp, contract, context, valid, latency_ms, agent_id)
 
     def record(self, contract: str, context: str, valid: bool, error_count: int,
                warning_count: int, latency_ms: float, errors: list = None, mode: str = "single",
-               batch_size: int = 0):
+               batch_size: int = 0, agent_id: str = ""):
         ctx = context or "none"
         with self._lock:
             # Update totals
@@ -122,7 +122,7 @@ class ValidationStats:
                 self._latencies = self._latencies[-1000:]
 
             # Timestamped event log for windowed queries (capped at maxlen=10_000)
-            self._events.append((time.time(), contract, ctx, valid, latency_ms))
+            self._events.append((time.time(), contract, ctx, valid, latency_ms, agent_id or ""))
 
             # Append to history (ring buffer)
             self.history.append({
@@ -204,8 +204,9 @@ class ValidationStats:
         cutoff = time.time() - window_hours * 3600
         windowed_totals: dict = defaultdict(lambda: {"pass": 0, "fail": 0, "errors": 0, "warnings": 0})
         windowed_latencies: list = []
+        by_agent: dict = defaultdict(lambda: {"pass": 0, "fail": 0})
         with self._lock:
-            for ts, contract, ctx, valid, latency_ms in self._events:
+            for ts, contract, ctx, valid, latency_ms, agent_id in self._events:
                 if ts < cutoff:
                     continue
                 key = f"{contract}:{ctx}"
@@ -214,6 +215,11 @@ class ValidationStats:
                 else:
                     windowed_totals[key]["fail"] += 1
                 windowed_latencies.append(latency_ms)
+                if agent_id:
+                    if valid:
+                        by_agent[agent_id]["pass"] += 1
+                    else:
+                        by_agent[agent_id]["fail"] += 1
 
         total_pass = sum(v["pass"] for v in windowed_totals.values())
         total_fail = sum(v["fail"] for v in windowed_totals.values())
@@ -226,6 +232,16 @@ class ValidationStats:
         summary["total_fail"] = total_fail
         summary["pass_rate"] = round(total_pass / total * 100, 1) if total > 0 else 0
         summary["window_hours"] = window_hours
+        if len(by_agent) > 1:
+            summary["by_agent"] = {
+                aid: {
+                    "pass": v["pass"],
+                    "fail": v["fail"],
+                    "total": v["pass"] + v["fail"],
+                    "pass_rate": round(v["pass"] / (v["pass"] + v["fail"]), 4) if (v["pass"] + v["fail"]) > 0 else 1.0,
+                }
+                for aid, v in sorted(by_agent.items(), key=lambda x: x[1]["pass"] + x[1]["fail"], reverse=True)
+            }
         return summary
 
     def _latency_stats(self) -> dict:

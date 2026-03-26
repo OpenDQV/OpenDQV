@@ -67,6 +67,7 @@ from .models import (
     ContractHistoryResponse, ContractDiffResponse, ContractReloadResponse,
     AnalyticsSummaryItem, AnalyticsSummaryResponse,
     RuleHeatmapItem, RuleHeatmapResponse,
+    RuleVelocityBucket, RuleVelocityResponse,
 )
 from core.explainer import explain_rule, quick_fix
 
@@ -391,6 +392,7 @@ async def validate_single(
             contract=contract.name, context=body.context, valid=result["valid"],
             error_count=len(result["errors"]), warning_count=len(result["warnings"]),
             latency_ms=elapsed_ms, errors=result["errors"], mode="single",
+            agent_id=body.agent_id or "",
         )
         heartbeat.record_validation(contract.name, contract.version)
         # Persist to SQLite so pass rates survive restarts (same as batch path)
@@ -407,6 +409,7 @@ async def validate_single(
                 passed=1 if result["valid"] else 0,
                 failed=0 if result["valid"] else 1,
                 rule_failure_counts=rule_failure_counts,
+                agent_id=body.agent_id or "",
             )
         except Exception:
             logger.exception("quality_stats.record_batch (single) failed — non-blocking")
@@ -529,6 +532,7 @@ async def validate_batch_endpoint(
                 error_count=len(r["errors"]), warning_count=len(r["warnings"]),
                 latency_ms=elapsed_ms / max(len(result["results"]), 1),
                 errors=r["errors"], mode="batch",
+                agent_id=body.agent_id or "",
             )
         heartbeat.record_validation(contract.name, contract.version)
 
@@ -560,6 +564,7 @@ async def validate_batch_endpoint(
                 passed=result["summary"]["passed"],
                 failed=result["summary"]["failed"],
                 rule_failure_counts=result["summary"].get("rule_failure_counts", {}),
+                agent_id=body.agent_id or "",
             )
         except Exception:
             logger.exception("quality_stats.record_batch failed — non-blocking")
@@ -2237,6 +2242,43 @@ async def get_analytics_rule_heatmap(
         days=days,
         rules=[RuleHeatmapItem(**i) for i in items],
         total_rules=len(items),
+    )
+
+
+@router.get("/analytics/rule-velocity", response_model=RuleVelocityResponse)
+@_default_limit
+async def get_analytics_rule_velocity(
+    request: Request,
+    contract: str = Query(..., description="Contract name"),
+    window_hours: int = Query(24, ge=1, le=168, description="Look-back window in hours (1–168)"),
+    bucket_minutes: int = Query(5, ge=1, le=60, description="Bucket width in minutes (1–60)"),
+    user=Depends(get_current_user),
+):
+    """
+    Time-series failure counts per rule for a single contract.
+
+    Shows whether failures are accelerating or decelerating — the difference
+    between a slow drip and a sudden spike. Returns the top 5 rules by total
+    failures within the window, bucketed by bucket_minutes intervals.
+
+    Use this when pass_rate is degrading to diagnose whether it's a sudden
+    spike (fix the upstream source now) or a slow drip (investigate root cause).
+
+    Requires reader role or above.
+    """
+    data = _quality_analytics.rule_failure_velocity(
+        contract_name=contract,
+        window_hours=window_hours,
+        bucket_minutes=bucket_minutes,
+    )
+    return RuleVelocityResponse(
+        contract=data["contract"],
+        window_hours=data["window_hours"],
+        bucket_minutes=data["bucket_minutes"],
+        series={
+            rule: [RuleVelocityBucket(**b) for b in buckets]
+            for rule, buckets in data["series"].items()
+        },
     )
 
 
