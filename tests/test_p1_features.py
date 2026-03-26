@@ -15,6 +15,8 @@ Covers:
 
 import os
 import sys
+from pathlib import Path
+
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -570,9 +572,17 @@ class TestEngineVersionInResponse:
         ev = r.json()["engine_version"]
         assert isinstance(ev, str) and len(ev) > 0
 
-    def test_engine_version_constant_matches_expected(self):
+    def test_engine_version_constant_matches_pyproject(self):
+        import tomllib
         import config
-        assert config.ENGINE_VERSION == "1.0.0"
+        pyproject = tomllib.loads(
+            (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text()
+        )
+        expected = pyproject["tool"]["poetry"]["version"]
+        assert config.ENGINE_VERSION == expected, (
+            f"ENGINE_VERSION {config.ENGINE_VERSION!r} does not match "
+            f"pyproject.toml {expected!r}"
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
