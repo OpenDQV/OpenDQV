@@ -18,10 +18,8 @@ Covers:
     make_invalid_record corrupts exactly one field
 """
 import json
-import os
 import sqlite3
 import sys
-import tempfile
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 

@@ -578,7 +578,6 @@ def print_summary(
     error_rate: float,
 ) -> None:
     passed = sum(1 for r in results if r["valid"] is True)
-    failed = sum(1 for r in results if r["valid"] is False)
     errored = sum(1 for r in results if r["valid"] is None)
     total = len(results)
 

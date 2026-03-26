@@ -11,13 +11,12 @@ import json
 import sys
 import time
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from mcp_server import _tool_get_contract, _tool_get_quality_metrics, _stats
+from mcp_server import _tool_get_contract, _tool_get_quality_metrics
 from monitoring import ValidationStats
 
 
@@ -141,7 +140,7 @@ class TestGetWindowedSummary:
 class TestDataConfidence:
 
     async def test_no_data_confidence_when_zero_validations(self):
-        data = _parse(await _tool_get_quality_metrics({"contract": "banking_transaction"}))
+        await _tool_get_quality_metrics({"contract": "banking_transaction"})
         # The entry may or may not have validations in the test environment.
         # Seed a fresh stats object and verify the logic directly.
         pass  # covered by unit tests below — MCP test just checks field is present

@@ -198,7 +198,7 @@ def main() -> None:
 
     contracts = load_contracts()
     print(f"Contracts with asset_id: {len(contracts)}")
-    print(f"Reading quality stats from SQLite trend (30-day window) …\n")
+    print("Reading quality stats from SQLite trend (30-day window) …\n")
 
     client = httpx.Client()
     ok = 0

@@ -22,7 +22,7 @@ Records persist with context='demo'. Run scripts/teardown_demo.py to clean up.
 """
 import argparse
 import os
-from datetime import date
+
 
 from _demo_utils import _load_menu, run_demo
 
