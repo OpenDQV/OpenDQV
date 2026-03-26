@@ -367,6 +367,10 @@ async def list_tools() -> list[types.Tool]:
                         "default": 24,
                         "description": "Filters the look-back window. In-memory events used when available; SQLite used as fallback after restarts.",
                     },
+                    "agent_id": {
+                        "type": "string",
+                        "description": "Optional: filter metrics to a specific source/agent (e.g. 'broadsign-prod'). Omit to see all sources combined.",
+                    },
                 },
             },
         ),
@@ -395,6 +399,36 @@ async def list_tools() -> list[types.Tool]:
                         "type": "integer",
                         "default": 5,
                         "description": "Bucket width in minutes (1–60). Default 5.",
+                    },
+                },
+                "required": ["contract"],
+            },
+        ),
+        types.Tool(
+            name="get_quality_trend",
+            description=(
+                "Return daily pass-rate trend for a single contract over the last N days. "
+                "Use this when pass_rate in get_quality_metrics is degrading — it shows whether "
+                "quality is declining, recovering, or stable, and which rules are driving the change. "
+                "Returns one data point per calendar day with total_records, passed, failed, pass_rate, "
+                "and top_failing_rules for that day. Also returns a summary.trend field: "
+                "'improving', 'declining', or 'stable'."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "contract": {
+                        "type": "string",
+                        "description": "Contract name (required).",
+                    },
+                    "days": {
+                        "type": "integer",
+                        "default": 7,
+                        "description": "Look-back window in calendar days (1–90). Default 7.",
+                    },
+                    "context": {
+                        "type": "string",
+                        "description": "Optional: filter to a specific context (e.g. 'billing').",
                     },
                 },
                 "required": ["contract"],
@@ -474,6 +508,8 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             return await _tool_get_quality_metrics(arguments)
         elif name == "get_rule_velocity":
             return await _tool_get_rule_velocity(arguments)
+        elif name == "get_quality_trend":
+            return await _tool_get_quality_trend(arguments)
         else:
             return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
     except Exception as exc:
@@ -794,6 +830,7 @@ async def _tool_create_contract_draft(args: dict) -> list[types.TextContent]:
 async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
     contract_name = args.get("contract", "")
     window_hours = args.get("window_hours", 24)
+    agent_id_filter = args.get("agent_id", "")
     governance_tip = (
         "Pass this contract's asset_id to your catalog MCP server to retrieve "
         "lineage and ownership context."
@@ -804,6 +841,8 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
         resp = _remote_client.get("/api/v1/stats", params=params)
         resp.raise_for_status()
         summary = resp.json()
+    elif agent_id_filter:
+        summary = _stats.get_windowed_summary_for_agent(window_hours or 24, agent_id_filter)
     else:
         summary = _stats.get_windowed_summary(window_hours) if window_hours else _stats.get_summary()
         # SQLite fallback: if in-memory events are empty (e.g. after a restart), use persisted data
@@ -890,7 +929,10 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
             "data_confidence": confidence,
             "confidence_note": confidence_note,
             "top_failing_rules": top_rules,
-            "latency": summary.get("latency", {}),
+            "latency": (
+                _stats.get_contract_latency(cname, window_hours or 24)
+                if not _remote_client else summary.get("latency", {})
+            ),
             "catalog_hint": f"marmot:assets/{cname}",
             "governance_tip": governance_tip if total_val > 0 else "No validation data recorded yet for this contract.",
         }
@@ -931,6 +973,41 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
 
     output = result[0] if (contract_name and result) else result
     return [types.TextContent(type="text", text=json.dumps(output, default=str))]
+
+
+async def _tool_get_quality_trend(args: dict) -> list[types.TextContent]:
+    contract_name = args.get("contract", "")
+    if not contract_name:
+        return [types.TextContent(type="text", text=json.dumps({"error": "contract is required"}))]
+    days = max(1, min(90, int(args.get("days", 7))))
+    context = args.get("context") or None
+
+    if _remote_client:
+        params: dict = {"days": days}
+        if context:
+            params["context"] = context
+        resp = _remote_client.get(f"/api/v1/contracts/{contract_name}/quality-trend", params=params)
+        resp.raise_for_status()
+        return [types.TextContent(type="text", text=json.dumps(resp.json(), default=str))]
+
+    points = _quality_stats.get_trend(contract_name, days=days, context=context)
+    result = {
+        "contract": contract_name,
+        "days": days,
+        "context": context,
+        "points": points,
+        "summary": {
+            "total_days_with_data": len(points),
+            "latest_pass_rate": points[-1]["pass_rate"] if points else None,
+            "earliest_pass_rate": points[0]["pass_rate"] if points else None,
+            "trend": (
+                "improving" if len(points) >= 2 and points[-1]["pass_rate"] > points[0]["pass_rate"]
+                else "declining" if len(points) >= 2 and points[-1]["pass_rate"] < points[0]["pass_rate"]
+                else "stable"
+            ),
+        },
+    }
+    return [types.TextContent(type="text", text=json.dumps(result, default=str))]
 
 
 async def _tool_get_rule_velocity(args: dict) -> list[types.TextContent]:

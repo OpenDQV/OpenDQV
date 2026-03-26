@@ -244,6 +244,54 @@ class ValidationStats:
             }
         return summary
 
+    def get_contract_latency(self, contract_name: str, window_hours: int) -> dict:
+        """Compute latency stats for a single contract from the events window."""
+        cutoff = time.time() - window_hours * 3600
+        latencies = []
+        with self._lock:
+            for ts, contract, ctx, valid, latency_ms, agent_id in self._events:
+                if ts >= cutoff and contract == contract_name:
+                    latencies.append(latency_ms)
+        if not latencies:
+            return {"avg_ms": None, "p50_ms": None, "p95_ms": None, "p99_ms": None, "sample_size": 0}
+        sorted_lat = sorted(latencies)
+        n = len(sorted_lat)
+        def _pct(p):
+            idx = max(0, int(n * p / 100) - 1)
+            return round(sorted_lat[idx], 1)
+        return {
+            "avg_ms": round(sum(sorted_lat) / n, 1),
+            "p50_ms": _pct(50),
+            "p95_ms": _pct(95),
+            "p99_ms": _pct(99),
+            "sample_size": n,
+        }
+
+    def get_windowed_summary_for_agent(self, window_hours: int, agent_id: str) -> dict:
+        """Return windowed summary scoped to a single agent_id."""
+        cutoff = time.time() - window_hours * 3600
+        windowed_totals: dict = defaultdict(lambda: {"pass": 0, "fail": 0, "errors": 0, "warnings": 0})
+        with self._lock:
+            for ts, contract, ctx, valid, latency_ms, aid in self._events:
+                if ts < cutoff or aid != agent_id:
+                    continue
+                key = f"{contract}:{ctx}"
+                if valid:
+                    windowed_totals[key]["pass"] += 1
+                else:
+                    windowed_totals[key]["fail"] += 1
+        summary = self.get_summary()
+        summary["by_contract"] = dict(windowed_totals)
+        total_pass = sum(v["pass"] for v in windowed_totals.values())
+        total_fail = sum(v["fail"] for v in windowed_totals.values())
+        total = total_pass + total_fail
+        summary["total_validations"] = total
+        summary["total_pass"] = total_pass
+        summary["total_fail"] = total_fail
+        summary["pass_rate"] = round(total_pass / total * 100, 1) if total > 0 else 0
+        summary["agent_id_filter"] = agent_id
+        return summary
+
     def _latency_stats(self) -> dict:
         """Compute avg/p50/p95/p99 from recent latency values. Called under self._lock."""
         if not self._latencies:

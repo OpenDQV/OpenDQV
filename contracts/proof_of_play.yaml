@@ -4,7 +4,7 @@ contract:
   description: >
     OOH panel impression validation — out-of-home advertising proof-of-play feed.
     Validates impression records before billing reconciliation and regulatory reporting.
-    Authored with reference to Landmark Global Media requirements (Roundtable 6, 2026-03-08).
+    Authored with reference to OOH industry requirements (Roundtable 6, 2026-03-08).
   owner: Data Governance Team
   status: active
   asset_id: urn:opendqv:proof_of_play
