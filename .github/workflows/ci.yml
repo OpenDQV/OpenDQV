@@ -33,6 +33,16 @@ jobs:
       - name: Install missing test dependencies
         run: poetry run pip install regex pyarrow questionary pytest-timeout
 
+      - name: Assert ENGINE_VERSION matches pyproject.toml
+        run: |
+          poetry run python -c "
+          import tomllib, importlib.metadata
+          pkg = tomllib.load(open('pyproject.toml', 'rb'))['tool']['poetry']['version']
+          eng = importlib.metadata.version('opendqv')
+          assert pkg == eng, f'VERSION MISMATCH: pyproject={pkg} installed={eng}'
+          print(f'ENGINE_VERSION OK: {eng}')
+          "
+
       - name: Run tests
         run: poetry run python -m pytest tests/ --ignore=tests/test_e2e.py -p no:playwright --tb=short --timeout=60 -q --cov=core --cov=api --cov=security --cov=sdk --cov-branch --cov-report=xml
         env:

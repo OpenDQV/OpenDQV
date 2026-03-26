@@ -4,10 +4,24 @@ Central configuration — all settings from environment variables.
 
 import os
 import socket
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
-# Engine version — single source of truth for regulatory audit trails
-ENGINE_VERSION = "1.0.0"
+# Engine version — single source of truth for regulatory audit trails.
+# Priority: pyproject.toml (source / dev installs) → package metadata (pip install) → "unknown"
+# tomllib is stdlib from Python 3.11, so no extra dependency.
+try:
+    import tomllib as _tomllib
+    _pyproject = Path(__file__).resolve().parent / "pyproject.toml"
+    if _pyproject.exists():
+        ENGINE_VERSION = _tomllib.loads(_pyproject.read_text())["tool"]["poetry"]["version"]
+    else:
+        ENGINE_VERSION = version("opendqv")
+except Exception:
+    try:
+        ENGINE_VERSION = version("opendqv")
+    except PackageNotFoundError:
+        ENGINE_VERSION = "unknown"
 
 # Paths
 BASE_DIR = Path(__file__).resolve().parent
