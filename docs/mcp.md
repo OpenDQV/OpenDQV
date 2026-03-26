@@ -124,7 +124,9 @@ Observability tools:
 
 | Tool | What it does |
 |------|--------------|
-| `get_quality_metrics` | Return rejection rates, top failing rules, and latency histogram (`avg_ms`, `p50_ms`, `p95_ms`, `p99_ms`) per contract. Accepts `window_hours` (integer) to scope stats to the last N hours — only validations within the window are counted. Each entry includes `data_confidence` (`no_data` / `low` / `medium` / `high`) and `confidence_note` (plain-English caution when fewer than 10 validations have been recorded). Includes a `catalog_hint` for chaining to Marmot or any catalog MCP server. |
+| `get_quality_metrics` | Return rejection rates, top failing rules, and per-contract latency histogram (`avg_ms`, `p50_ms`, `p95_ms`, `p99_ms`) per contract. Accepts `window_hours` to scope stats and optional `agent_id` to filter metrics to a single data source (e.g. `"broadsign-prod"`). Each entry includes `data_confidence` (`no_data` / `low` / `medium` / `high`), `confidence_note`, and a `catalog_hint` for chaining to Marmot or any catalog MCP server. |
+| `get_quality_trend` | Return daily pass-rate trend for a single contract over the last N days. Shows whether quality is improving, declining, or stable, and which rules are driving the change. Each data point includes `total_records`, `passed`, `failed`, `pass_rate`, and `top_failing_rules`. Accepts `contract` (required), `days` (default 7, max 90), and optional `context`. |
+| `get_rule_velocity` | Return a time-series breakdown of rule failure counts bucketed by time interval. Useful for spotting which rules are spiking. Accepts `contract`, `window_hours`, and `bucket_minutes`. Returns a `series` dict keyed by rule name, each with a list of `{bucket, failures}` points. |
 
 Write tools:
 
@@ -151,7 +153,8 @@ These guardrails exist because "trust is cheaper to build than to repair." A con
 | Read any contract | Activate a contract |
 | Validate any record (single or batch) | Mutate an ACTIVE contract |
 | Explain any validation error | Bypass the review workflow |
-| Propose new DRAFT contracts (if writes enabled) | Remove or weaken inherited rules |
+| Query quality metrics, trends, and rule velocity | Remove or weaken inherited rules |
+| Propose new DRAFT contracts (if writes enabled) | |
 
 For more detail on the write guardrail threat model, see `docs/security/threat_model.md`.
 
