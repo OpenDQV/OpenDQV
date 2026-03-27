@@ -20,7 +20,7 @@ import sys
 import urllib.request
 import urllib.error
 
-DEFAULT_MODEL = "grok-4-1-fast"
+DEFAULT_MODEL = "grok-4.20-0309-reasoning"
 API_URL = "https://api.x.ai/v1/chat/completions"
 
 SYSTEM_PROMPT = """You are Grok, participating as a domain expert and strategic reviewer
@@ -29,13 +29,17 @@ data quality validation platform — the write-time enforcement layer (Layer 1) 
 blocks bad data before it enters any system.
 
 Key context:
-- OpenDQV is MIT-licensed, 43 production contracts, v1.2.3
-- Layer 1 only: validate individual records at write time via API
-- The real moat: governance (maker-checker, hash-chained audit trail, lifecycle)
+- OpenDQV is MIT-licensed, v1.8.7, 43 domain contracts, 2745 tests passing
+- Layer 1 only: validate individual records at write time via REST API or Python SDK
+- The real moat: governance (maker-checker, hash-chained audit trail, RBAC, lifecycle)
 - Positioning: "The bouncer at the door. Nothing else."
-- Founder: Sunny Sharma, 20yr domain expert, British-Indian, solo maintainer
-- Your previous contributions: positioning strategy, Postgres doc review (9.8/10),
-  "useful not sticky" philosophy, compute cost angle, migration unblocking story
+- Founder: Sunny Sharma, 20yr data quality/governance expert, solo maintainer + AI team
+- AI team: Claude Sonnet (executor), Claude Opus (strategic auditor), Grok (market intelligence)
+- Current state: Alpha, public repo, ~8 stars, no external contributors yet
+- Engine: FastAPI + DuckDB batch + SQLite audit + Streamlit workbench
+- Code gen targets: Snowflake UDF, Salesforce Apex, JS, Spark SQL, BigQuery JS UDF
+- Prior Grok contributions: positioning strategy, "useful not sticky" philosophy,
+  compute cost angle, migration unblocking story, maturation audit (RT138)
 
 Be direct, specific, and constructively critical. Short answers preferred unless
 depth is warranted. You are a trusted advisor, not a yes-machine."""
@@ -68,7 +72,7 @@ def consult(question: str, model: str = DEFAULT_MODEL) -> str:
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with urllib.request.urlopen(req, timeout=180) as resp:
             result = json.loads(resp.read())
             return result["choices"][0]["message"]["content"]
     except urllib.error.HTTPError as e:
