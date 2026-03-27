@@ -195,6 +195,27 @@ class OpenDQVClient:
                         return json.load(f)
             raise
 
+    def lint(self, name: str) -> dict:
+        """
+        Lint a contract for logical errors.
+
+        Returns a dict with keys: contract_name, passed, error_count, warning_count, issues.
+        Raises httpx.HTTPStatusError (422) when errors are found, so callers can gate
+        on exception type without inspecting the body.
+
+        Example:
+            try:
+                result = client.lint("customer")
+                print(f"Contract OK — {result['warning_count']} warning(s)")
+            except httpx.HTTPStatusError as e:
+                body = e.response.json()
+                for issue in body["detail"]["issues"]:
+                    print(f"  {issue['severity'].upper()}: {issue['message']}")
+        """
+        resp = self._client.get(f"/api/v1/contracts/{name}/lint")
+        resp.raise_for_status()
+        return resp.json()
+
     def guard(
         self,
         contract: str,
@@ -352,6 +373,39 @@ class AsyncOpenDQVClient:
             body["context"] = context
         params = {"allow_draft": "true"} if allow_draft else {}
         resp = await self._client.post("/api/v1/validate/batch", json=body, params=params)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def contracts(self, include_all: bool = False) -> list[dict]:
+        """
+        List available data contracts. Async — does not block.
+
+        Returns:
+            list of dicts with keys: name, version, description, owner, status, rule_count
+        """
+        params = {}
+        if include_all:
+            params["include_all"] = "true"
+        resp = await self._client.get("/api/v1/contracts", params=params)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def lint(self, name: str) -> dict:
+        """
+        Lint a contract for logical errors. Async — does not block.
+
+        Returns a dict with keys: contract_name, passed, error_count, warning_count, issues.
+        Raises httpx.HTTPStatusError (422) when errors are found.
+
+        Example:
+            try:
+                result = await client.lint("customer")
+            except httpx.HTTPStatusError as e:
+                body = e.response.json()
+                for issue in body["detail"]["issues"]:
+                    print(f"  {issue['severity'].upper()}: {issue['message']}")
+        """
+        resp = await self._client.get(f"/api/v1/contracts/{name}/lint")
         resp.raise_for_status()
         return resp.json()
 
