@@ -270,7 +270,58 @@ Mount persistent volumes for contracts and the SQLite database so data survives 
 
 ---
 
-## 8. Further Reading
+## 8. SQLite Scaling Limits and Upgrade Path
+
+OpenDQV uses SQLite by default. SQLite is suitable for most deployments up to moderate
+concurrent load, but has known limits that operators should be aware of before going to
+production at scale.
+
+### When SQLite is fine
+
+- Single-node deployments with up to ~50 concurrent validation clients
+- Write throughput below ~200 writes/second to the audit/stats tables
+- No requirement for multi-node shared state (federated mode excluded)
+- Development, staging, and single-tenant production use
+
+### When to consider PostgreSQL
+
+- **Multi-node / federated deployments** — SQLite is local to each node; the federation
+  log backend is not yet implemented for SQLite (it raises `NotImplementedError` for
+  cross-node sync). Use PostgreSQL if you need a shared audit log across nodes.
+- **High write concurrency** — SQLite uses file-level write locking. Under sustained
+  concurrent write load (auth token creation, audit log entries, quality stats), you may
+  see `database is locked` errors. Switch to PostgreSQL (`OPENDQV_DB_BACKEND=postgres`)
+  to eliminate these.
+- **>500 req/s sustained** — at this throughput, SQLite write contention becomes a ceiling.
+  PostgreSQL removes it.
+
+### Switching to PostgreSQL
+
+```bash
+# .env or environment
+OPENDQV_DB_BACKEND=postgres
+OPENDQV_DB_URL=postgresql://user:password@host:5432/opendqv
+```
+
+Install the postgres extra:
+```bash
+pip install opendqv[postgres]
+```
+
+The schema is created automatically on first startup. Existing SQLite data is not
+migrated automatically — export audit history before switching if continuity matters.
+
+### SQLite operational notes
+
+- Always mount the SQLite file on a persistent volume (see section 7 above)
+- Do not run two API processes pointing at the same SQLite file without connection pooling
+- Back up the `.db` file regularly — see `docs/disaster-recovery.md`
+- The `opendqv audit-verify` CLI command verifies the hash chain integrity of the SQLite
+  audit log at any time without stopping the service
+
+---
+
+## 9. Further Reading
 
 - `docs/runbook.md` — operational runbook for common tasks
 - `docs/disaster-recovery.md` — backup and recovery procedures

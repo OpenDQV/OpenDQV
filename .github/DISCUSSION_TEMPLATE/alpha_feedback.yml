@@ -1,0 +1,83 @@
+title: "[Alpha Feedback] "
+labels: ["alpha-feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Alpha Feedback Wanted
+
+        OpenDQV is in Alpha. Your feedback directly shapes what gets built next.
+        There are no silly questions and no wrong answers — if something is confusing,
+        that is a bug in the documentation or design, not a gap in your knowledge.
+
+        This template takes ~5 minutes. Thank you for taking the time.
+
+  - type: dropdown
+    id: feedback_type
+    attributes:
+      label: What type of feedback is this?
+      options:
+        - Something didn't work as expected
+        - Something was confusing or hard to understand
+        - A feature I need that doesn't exist yet
+        - A performance or scale concern
+        - Something worked well and I want to flag it
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: What were you trying to do?
+      description: What was your goal? What data or pipeline were you working with?
+      placeholder: "I was trying to validate CSV files from our ETL pipeline against a contract..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: What did you observe? Include error messages, unexpected output, or what was confusing.
+      placeholder: "I got this error... / The documentation said X but Y happened..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: what_you_expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: how_far
+    attributes:
+      label: How far did you get with OpenDQV?
+      options:
+        - Just installed / first look
+        - Got the API running
+        - Created my first contract
+        - Ran my first validation
+        - Integrated into a pipeline or workflow
+        - Running in production (or close to it)
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment (optional)
+      description: Python version, OS, Docker or bare-metal, any relevant config.
+      placeholder: "Python 3.11, Ubuntu 22.04, Docker Compose, AUTH_MODE=token"
+    validations:
+      required: false
+
+  - type: textarea
+    id: anything_else
+    attributes:
+      label: Anything else?
+      description: Links, screenshots, contract YAML snippets — anything that helps.
+    validations:
+      required: false

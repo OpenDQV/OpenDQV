@@ -19,6 +19,7 @@ Isolation events:
 import json
 import logging
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -61,6 +62,23 @@ class FederationLog(FederationLogBackend):
         if self._mem_conn is not None:
             return self._mem_conn
         return sqlite3.connect(self.db_path, check_same_thread=False)
+
+    @contextmanager
+    def _get_conn(self):
+        """Context manager for per-operation connections.
+
+        Yields the shared in-memory connection unchanged (no close).
+        For file-backed databases, opens a new connection and guarantees
+        it is closed after the operation — even on exception.
+        """
+        if self._mem_conn is not None:
+            yield self._mem_conn
+        else:
+            conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            try:
+                yield conn
+            finally:
+                conn.close()
 
     def _init_db(self):
         conn = self._connect()
@@ -116,9 +134,7 @@ class FederationLog(FederationLogBackend):
         payload_json = json.dumps(payload or {}, sort_keys=True)
         created_at = datetime.now(timezone.utc).isoformat()
 
-        conn = self._connect()
-        is_shared = self._mem_conn is not None
-        try:
+        with self._get_conn() as conn:
             cur = conn.execute(
                 "INSERT INTO federation_log "
                 "(event_type, contract_name, contract_version, source_node, "
@@ -129,9 +145,6 @@ class FederationLog(FederationLogBackend):
             )
             conn.commit()
             return cur.lastrowid
-        finally:
-            if not is_shared:
-                conn.close()
 
     def update_status(self, lsn: int, status: str) -> bool:
         """
@@ -142,18 +155,13 @@ class FederationLog(FederationLogBackend):
         if status not in FEDERATION_STATUSES:
             raise ValueError(f"Unknown federation status: {status!r}")
 
-        conn = self._connect()
-        is_shared = self._mem_conn is not None
-        try:
+        with self._get_conn() as conn:
             cur = conn.execute(
                 "UPDATE federation_log SET status = ? WHERE lsn = ?",
                 (status, lsn),
             )
             conn.commit()
             return cur.rowcount == 1
-        finally:
-            if not is_shared:
-                conn.close()
 
     def get_since(self, lsn: int, contract_name: Optional[str] = None) -> list[dict]:
         """
@@ -162,9 +170,7 @@ class FederationLog(FederationLogBackend):
         Optionally filter by contract_name. Results are ordered by lsn ascending
         so callers can process them in order and advance their cursor.
         """
-        conn = self._connect()
-        is_shared = self._mem_conn is not None
-        try:
+        with self._get_conn() as conn:
             if contract_name:
                 rows = conn.execute(
                     "SELECT lsn, event_type, contract_name, contract_version, "
@@ -180,9 +186,6 @@ class FederationLog(FederationLogBackend):
                     "FROM federation_log WHERE lsn > ? ORDER BY lsn",
                     (lsn,),
                 ).fetchall()
-        finally:
-            if not is_shared:
-                conn.close()
 
         return [
             {
@@ -201,9 +204,7 @@ class FederationLog(FederationLogBackend):
 
     def get_pending(self, contract_name: Optional[str] = None) -> list[dict]:
         """Return all events with status='pending', optionally filtered by contract."""
-        conn = self._connect()
-        is_shared = self._mem_conn is not None
-        try:
+        with self._get_conn() as conn:
             if contract_name:
                 rows = conn.execute(
                     "SELECT lsn, event_type, contract_name, contract_version, "
@@ -218,9 +219,6 @@ class FederationLog(FederationLogBackend):
                     "source_node, target_node, payload, status, created_at "
                     "FROM federation_log WHERE status = 'pending' ORDER BY lsn",
                 ).fetchall()
-        finally:
-            if not is_shared:
-                conn.close()
 
         return [
             {
