@@ -1503,7 +1503,7 @@ async def get_schema_registry_entry(
 async def generate_code_endpoint(
     request: Request,
     contract_name: str = Query(..., description="Contract to generate code for"),
-    target: str = Query(..., description="Target platform: snowflake, salesforce, js"),
+    target: str = Query(..., description="Target platform: snowflake, salesforce, js, spark, bigquery"),
     version: str = Query("latest"),
     context: str = Query(None, description="Optional context to apply (e.g. 'salesforce', 'kids_app')"),
     user=Depends(get_current_user),

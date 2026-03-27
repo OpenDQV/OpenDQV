@@ -19,7 +19,7 @@ Commands:
     import-odcs <file>             Import ODCS 3.1 contract (YAML/JSON) and save as OpenDQV contract
     export-odcs <contract>         Export contract as ODCS 3.1 YAML
     export-dbt <contract>          Export contract as dbt schema.yml
-    generate <contract> <target>   Generate validation code (salesforce/js/snowflake)
+    generate <contract> <target>   Generate validation code (salesforce/js/snowflake/spark/bigquery)
     onboard                        Interactive setup wizard — first validation in 90 seconds
     submit-review <contract>       Submit a DRAFT contract for review (DRAFT → REVIEW)
     approve <contract>             Approve a REVIEW contract (REVIEW → ACTIVE)
@@ -541,7 +541,7 @@ def cmd_generate(args):
         print(f"Error: Contract '{args.contract}' not found.", file=sys.stderr)
         sys.exit(1)
 
-    valid_targets = ("salesforce", "js", "snowflake")
+    valid_targets = ("salesforce", "js", "snowflake", "spark", "bigquery")
     if args.target not in valid_targets:
         print(f"Error: Invalid target '{args.target}'. Must be one of: {', '.join(valid_targets)}", file=sys.stderr)
         sys.exit(1)
@@ -867,7 +867,7 @@ def main():
     # generate
     p_gen = subparsers.add_parser("generate", help="Generate validation code for a target platform")
     p_gen.add_argument("contract", help="Contract name")
-    p_gen.add_argument("target", help="Target platform: salesforce, js, snowflake")
+    p_gen.add_argument("target", help="Target platform: salesforce, js, snowflake, spark, bigquery")
     p_gen.add_argument("--context", default=None, help="Context to apply before generation")
 
     # validate-file

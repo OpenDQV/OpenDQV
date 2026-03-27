@@ -230,3 +230,138 @@ class TestJsStructure:
     def test_js_empty_rules(self):
         out = generate_code([], target="js")
         assert "errors.length === 0" in out
+
+
+# ---------------------------------------------------------------------------
+# Spark SQL generator
+# ---------------------------------------------------------------------------
+
+class TestSparkGenerator:
+    def test_spark_produces_with_clause(self):
+        out = generate_code([], target="spark")
+        assert "WITH _dqv_checks AS" in out
+        assert "_dqv_errors" in out
+        assert "_dqv_valid" in out
+        assert "__SOURCE_TABLE__" in out
+
+    def test_spark_header_with_contract(self):
+        out = generate_code([], target="spark", contract_name="customer", contract_version="1.0")
+        assert "Contract: customer v1.0" in out
+        assert "opendqv generate customer spark" in out
+
+    def test_spark_not_empty(self):
+        out = generate_code([_rule("not_empty", field="email")], target="spark")
+        assert "email IS NULL OR TRIM" in out
+        assert "CASE WHEN" in out
+
+    def test_spark_regex(self):
+        out = generate_code([_rule("regex", field="email", pattern=r"^[\w]+@[\w]+$")], target="spark")
+        assert "regexp_like" in out
+        assert "TODO" not in out
+
+    def test_spark_min(self):
+        out = generate_code([_rule("min", field="age", min_value=0)], target="spark")
+        assert "CAST(age AS DOUBLE) < 0" in out
+
+    def test_spark_max(self):
+        out = generate_code([_rule("max", field="score", max_value=100)], target="spark")
+        assert "CAST(score AS DOUBLE) > 100" in out
+
+    def test_spark_range(self):
+        out = generate_code([_rule("range", field="amount", min_value=0, max_value=1000)], target="spark")
+        assert "CAST(amount AS DOUBLE) < 0" in out
+        assert "CAST(amount AS DOUBLE) > 1000" in out
+
+    def test_spark_min_length(self):
+        out = generate_code([_rule("min_length", field="code", min_length=3)], target="spark")
+        assert "LENGTH(CAST(code AS STRING)) < 3" in out
+
+    def test_spark_max_length(self):
+        out = generate_code([_rule("max_length", field="code", max_length=20)], target="spark")
+        assert "LENGTH(CAST(code AS STRING)) > 20" in out
+
+    def test_spark_date_format(self):
+        out = generate_code([_rule("date_format", field="created_date")], target="spark")
+        assert "to_date" in out
+        assert "yyyy-MM-dd" in out
+
+    def test_spark_allowed_values(self):
+        out = generate_code([_rule("allowed_values", field="status", allowed_values=["A", "B", "C"])], target="spark")
+        assert "NOT IN" in out
+        assert "'A'" in out
+
+    def test_spark_unique_emits_comment(self):
+        out = generate_code([_rule("unique", field="id")], target="spark")
+        assert "window function" in out.lower() or "window" in out.lower() or "PARTITION BY" in out
+
+    def test_spark_api_only_emits_comment(self):
+        out = generate_code([_rule("lookup", field="country")], target="spark")
+        assert "requires API" in out
+        assert "CASE WHEN" not in out
+
+    def test_spark_multi_rule_array(self):
+        rules = [
+            _rule("not_empty", name="r1", field="email"),
+            _rule("min", name="r2", field="age", min_value=18),
+        ]
+        out = generate_code(rules, target="spark")
+        assert out.count("CASE WHEN") == 2
+
+    def test_spark_sql_injection_safe(self):
+        """Single quotes in error messages are escaped for SQL."""
+        rule = _rule("not_empty", field="email", error_message="It's required")
+        out = generate_code([rule], target="spark")
+        assert "It''s required" in out
+
+    def test_spark_strftime_conversion(self):
+        """Python strftime format is converted to Spark SQL date format."""
+        out = generate_code([_rule("date_format", field="dt", format="%d/%m/%Y")], target="spark")
+        assert "dd/MM/yyyy" in out
+
+
+# ---------------------------------------------------------------------------
+# BigQuery JS UDF generator
+# ---------------------------------------------------------------------------
+
+class TestBigQueryGenerator:
+    def test_bigquery_creates_udf(self):
+        out = generate_code([], target="bigquery")
+        assert "CREATE OR REPLACE FUNCTION" in out
+        assert "LANGUAGE js" in out
+        assert "STRUCT<valid BOOL, errors ARRAY<STRING>>" in out
+
+    def test_bigquery_header_with_contract(self):
+        out = generate_code([], target="bigquery", contract_name="customer", contract_version="2.0")
+        assert "Contract: customer v2.0" in out
+        assert "opendqv generate customer bigquery" in out
+
+    def test_bigquery_usage_comment(self):
+        out = generate_code([], target="bigquery")
+        assert "TO_JSON_STRING" in out
+
+    def test_bigquery_regex_rule(self):
+        out = generate_code([_rule("regex", field="email", pattern=r"^[\w]+$")], target="bigquery")
+        assert "RegExp" in out
+        assert "TODO" not in out
+
+    def test_bigquery_not_empty(self):
+        out = generate_code([_rule("not_empty", field="name")], target="bigquery")
+        assert "row['name']" in out
+
+    def test_bigquery_range(self):
+        out = generate_code([_rule("range", field="score", min_value=0, max_value=100)], target="bigquery")
+        assert "parseFloat" in out
+        assert "0" in out and "100" in out
+
+    def test_bigquery_api_only_emits_note(self):
+        out = generate_code([_rule("lookup", field="country")], target="bigquery")
+        assert "NOTE" in out or "requires API" in out
+
+    def test_bigquery_returns_valid_and_errors(self):
+        out = generate_code([], target="bigquery")
+        assert "errors.length === 0" in out
+        assert "return" in out
+
+    def test_bigquery_json_parse(self):
+        out = generate_code([], target="bigquery")
+        assert "JSON.parse" in out

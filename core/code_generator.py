@@ -1,10 +1,11 @@
 """
 Code generator — generates validation code for target platforms.
 
-Supports: Snowflake (JS UDF), Salesforce (Apex), JavaScript.
-Covers: regex, min, max, range, not_empty, min_length, max_length, date_format, unique, age_match.
+Supports: Snowflake (JS UDF), Salesforce (Apex), JavaScript, Spark SQL, BigQuery (JS UDF).
+Covers: regex, min, max, range, not_empty, min_length, max_length, date_format,
+        allowed_values, unique, age_match.
 
-Rule types not yet implemented emit a // TODO comment rather than being silently dropped.
+Rule types not yet implemented emit a comment rather than being silently dropped.
 This is a "push-down" feature: deploy OpenDQV rules directly into source systems
 as a complement to the centralized API validation.
 """
@@ -48,8 +49,12 @@ def generate_code(
         return _generate_salesforce(rule_dicts, contract_name, contract_version)
     elif target == "js":
         return _generate_js(rule_dicts, contract_name, contract_version)
+    elif target == "spark":
+        return _generate_spark(rule_dicts, contract_name, contract_version)
+    elif target == "bigquery":
+        return _generate_bigquery(rule_dicts, contract_name, contract_version)
     else:
-        raise ValueError(f"Unsupported target: {target}")
+        raise ValueError(f"Unsupported target: {target!r}. Supported: snowflake, salesforce, js, spark, bigquery")
 
 
 def _generate_snowflake(rules: list, contract_name: str = "", contract_version: str = "") -> str:
@@ -256,3 +261,205 @@ def _js_rule_check(rule: dict, indent: str = "    ", age_checked: set = None) ->
         snippet += f"{indent}}}\n"
 
     return snippet
+
+
+# ── Spark SQL generator ───────────────────────────────────────────────────────
+
+_STRFTIME_TO_SPARK = {
+    "%Y": "yyyy", "%m": "MM", "%d": "dd",
+    "%H": "HH", "%M": "mm", "%S": "ss",
+}
+
+
+def _strftime_to_spark(fmt: str) -> str:
+    """Convert Python strftime format string to Spark SQL date format."""
+    result = fmt
+    for py, spark in _STRFTIME_TO_SPARK.items():
+        result = result.replace(py, spark)
+    return result
+
+
+def _escape_sql(s: str) -> str:
+    """Escape a value for embedding in a SQL single-quoted string literal."""
+    return s.replace("'", "''")
+
+
+def _spark_case_when(rule: dict):
+    """
+    Return (case_expr, api_note, todo_note) for one rule.
+
+    Exactly one member will be a non-empty string; the others will be None.
+    - case_expr  → a CASE WHEN … THEN '…' ELSE NULL END expression
+    - api_note   → rules that require full-context or API validation
+    - todo_note  → unimplemented rule types
+    """
+    field = rule["field"]
+    error = _escape_sql(rule.get("error_message", f"Failed rule {rule['name']}"))
+    rtype = rule["type"]
+    name = rule["name"]
+
+    _api_types = frozenset({
+        "required_if", "lookup", "compare", "date_diff", "checksum",
+        "cross_field_range", "field_sum", "forbidden_if", "conditional_value",
+        "ratio_check", "geospatial_bounds", "conditional_lookup",
+    })
+
+    def case(cond: str) -> tuple:
+        return f"CASE WHEN ({cond}) THEN '{error}' ELSE NULL END", None, None
+
+    if rtype == "not_empty":
+        return case(f"{field} IS NULL OR TRIM(CAST({field} AS STRING)) = ''")
+    elif rtype == "regex" and rule.get("pattern"):
+        pat = _escape_sql(rule["pattern"])
+        return case(f"NOT regexp_like(CAST({field} AS STRING), '{pat}')")
+    elif rtype == "min" and rule.get("min_value") is not None:
+        return case(f"CAST({field} AS DOUBLE) < {rule['min_value']}")
+    elif rtype == "max" and rule.get("max_value") is not None:
+        return case(f"CAST({field} AS DOUBLE) > {rule['max_value']}")
+    elif rtype == "range" and rule.get("min_value") is not None and rule.get("max_value") is not None:
+        return case(
+            f"CAST({field} AS DOUBLE) < {rule['min_value']} "
+            f"OR CAST({field} AS DOUBLE) > {rule['max_value']}"
+        )
+    elif rtype == "min_length" and rule.get("min_length") is not None:
+        return case(f"LENGTH(CAST({field} AS STRING)) < {rule['min_length']}")
+    elif rtype == "max_length" and rule.get("max_length") is not None:
+        return case(f"LENGTH(CAST({field} AS STRING)) > {rule['max_length']}")
+    elif rtype == "date_format":
+        spark_fmt = _strftime_to_spark(rule.get("format") or "%Y-%m-%d")
+        return case(f"to_date(CAST({field} AS STRING), '{spark_fmt}') IS NULL")
+    elif rtype == "allowed_values" and rule.get("allowed_values"):
+        vals = ", ".join(f"'{_escape_sql(str(v))}'" for v in rule["allowed_values"])
+        return case(f"CAST({field} AS STRING) NOT IN ({vals})")
+    elif rtype == "unique":
+        note = f"rule '{name}' (unique on '{field}'): use COUNT(*) OVER (PARTITION BY {field}) > 1 as a window function"
+        return None, None, note
+    elif rtype in _api_types:
+        return None, f"rule '{name}' (type={rtype}): requires API validation", None
+    else:
+        return None, None, f"rule '{name}' (type={rtype}): not yet implemented for Spark SQL"
+
+
+def _generate_spark(rules: list, contract_name: str = "", contract_version: str = "") -> str:
+    """
+    Generate a Spark SQL push-down validation query.
+
+    Produces a WITH … SELECT pattern that adds _dqv_errors (array) and
+    _dqv_valid (bool) columns to any source table. Rules that require
+    API-side context are emitted as comments rather than dropped silently.
+    """
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    lines = []
+
+    if contract_name:
+        lines += [
+            "-- Generated by OpenDQV — push-down validation snapshot",
+            f"-- Contract: {contract_name} v{contract_version} | Generated: {ts}",
+            "-- SYNC REMINDER: This query is a snapshot. Re-run if the contract has been updated:",
+            f"--   opendqv generate {contract_name} spark",
+            "-- For live governance, use the OpenDQV API integration.",
+            "--",
+            "-- Usage: Replace __SOURCE_TABLE__ with your table or subquery.",
+            "--        Filter WHERE _dqv_valid = false to find failing rows.",
+            "",
+        ]
+
+    case_exprs, api_notes, todo_notes = [], [], []
+    for rule in rules:
+        expr, api, todo = _spark_case_when(rule)
+        if expr:
+            case_exprs.append(expr)
+        if api:
+            api_notes.append(api)
+        if todo:
+            todo_notes.append(todo)
+
+    if api_notes or todo_notes:
+        lines.append("-- Rules not emitted as SQL (require API validation or not yet implemented):")
+        for n in api_notes + todo_notes:
+            lines.append(f"--   {n}")
+        lines.append("")
+
+    lines.append("WITH _dqv_checks AS (")
+    lines.append("  SELECT")
+    lines.append("    *,")
+    lines.append("    ARRAY(")
+
+    if case_exprs:
+        for i, expr in enumerate(case_exprs):
+            comma = "," if i < len(case_exprs) - 1 else ""
+            lines.append(f"      {expr}{comma}")
+    else:
+        lines.append("      CAST(NULL AS STRING)  -- no push-down rules for this contract")
+
+    lines += [
+        "    ) AS _dqv_raw",
+        "  FROM __SOURCE_TABLE__",
+        ")",
+        "SELECT",
+        "  *,",
+        "  FILTER(_dqv_raw, x -> x IS NOT NULL) AS _dqv_errors,",
+        "  SIZE(FILTER(_dqv_raw, x -> x IS NOT NULL)) = 0 AS _dqv_valid",
+        "FROM _dqv_checks",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+# ── BigQuery JS UDF generator ─────────────────────────────────────────────────
+
+def _generate_bigquery(rules: list, contract_name: str = "", contract_version: str = "") -> str:
+    """
+    Generate a BigQuery JavaScript UDF.
+
+    The UDF accepts a row serialised as JSON (via TO_JSON_STRING) and returns
+    STRUCT<valid BOOL, errors ARRAY<STRING>>. Reuses the same JS rule checks
+    as the Snowflake and plain-JS generators.
+
+    Caller usage:
+        SELECT *, `project.dataset`.opendqv_validate(TO_JSON_STRING(t)) AS _dqv
+        FROM `project.dataset.table` AS t
+    """
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    header = ""
+    if contract_name:
+        header = (
+            f"-- Generated by OpenDQV — push-down validation snapshot\n"
+            f"-- Contract: {contract_name} v{contract_version} | Generated: {ts}\n"
+            f"-- SYNC REMINDER: This UDF is a snapshot. Re-run if the contract has been updated:\n"
+            f"--   opendqv generate {contract_name} bigquery\n"
+            f"-- For live governance, use the OpenDQV API integration.\n"
+            f"--\n"
+            f"-- Deploy: paste into BigQuery console or bq query --use_legacy_sql=false\n"
+            f"-- Usage:\n"
+            f"--   SELECT *, `project.dataset`.opendqv_validate(TO_JSON_STRING(t)) AS _dqv\n"
+            f"--   FROM `project.dataset.table` AS t\n"
+            f"\n"
+        )
+
+    # Build the JS validation body (shared logic with Snowflake/JS generators)
+    age_checked: set = set()
+    js_lines = []
+    for rule in rules:
+        chunk = _js_rule_check(rule, indent="  ", age_checked=age_checked)
+        if chunk:
+            js_lines.append(chunk.rstrip("\n"))
+
+    js_body = "\n".join(js_lines)
+
+    udf = (
+        "-- Usage: SELECT *, `project.dataset`.opendqv_validate(TO_JSON_STRING(t)) AS _dqv\n"
+        "--        FROM `project.dataset.table` AS t\n"
+        "CREATE OR REPLACE FUNCTION `project.dataset`.opendqv_validate(row_json STRING)\n"
+        "RETURNS STRUCT<valid BOOL, errors ARRAY<STRING>>\n"
+        "LANGUAGE js AS r\"\"\"\n"
+        "const row = JSON.parse(row_json);\n"
+        "const errors = [];\n"
+        "\n"
+        f"{js_body}\n"
+        "\n"
+        "return {valid: errors.length === 0, errors: errors};\n"
+        "\"\"\";\n"
+    )
+
+    return header + udf
