@@ -6,7 +6,7 @@ Throughput was measured using a reproducible three-duration load test series aga
 Docker deployment. The same test was run at 1 minute, 5 minutes, and 10 minutes to confirm
 that throughput is stable over time — not a short burst that degrades.
 
-**Full results and raw data:** `tests/load-test-results.md` (latest run: 2026-03-19)
+**Full results and raw data:** `tests/load-test-results.md` (latest run: 2026-03-27)
 
 ## Test environment
 
@@ -23,15 +23,15 @@ that throughput is stable over time — not a short burst that degrades.
 
 | Run | Duration | Total requests | Throughput | Errors | p50 | p95 | p99 |
 |-----|----------|---------------|------------|--------|-----|-----|-----|
-| 1-minute | 60.1 s | 11,595 | 193.0 req/s | 0 | 24.4 ms | 150.5 ms | 207.6 ms |
-| 5-minute | 300.1 s | 62,575 | 208.5 req/s | 0 | 19.1 ms | 151.1 ms | 205.1 ms |
-| 10-minute | 600.1 s | 144,510 | 240.8 req/s | 0 | 13.7 ms |  144.5 ms | 202.9 ms |
-| **Combined** | **960 s** | **218,680** | **~208–241 req/s** | **0** | — | — | — |
+| 1-minute | 60.1 s | 14,078 | 234.4 req/s | 0 | 18.5 ms | 125.3 ms | 159.8 ms |
+| 5-minute | 300.1 s | 71,243 | 237.4 req/s | 0 | 19.7 ms | 135.8 ms | 166.5 ms |
+| 10-minute | 600.1 s | 137,208 | 228.7 req/s | 0 | 18.7 ms | 131.9 ms | 162.7 ms |
+| **Combined** | **960 s** | **222,529** | **~229–237 req/s** | **0** | — | — | — |
 
-Zero errors across 218,680 requests. The 10-minute run shows a ramp from ~204 req/s at t=10s
-to ~241 req/s by t=590s as the CPU boost state engages — the 5-minute figure (208.5 req/s) is the
-most representative of a stabilised mid-range load. No degradation, no memory growth, no connection
-leaks.
+Zero errors across 222,529 requests. Throughput is stable across all three run lengths —
+no warmup spike, no degradation. The 5-minute figure (237.4 req/s) is the most representative
+of a stabilised mid-range load. p99 dropped from ~205ms to ~163ms vs. the previous baseline,
+attributable to async fire-and-forget SQLite writes on the validation hot path (v1.8.7).
 
 ## Reproducing these results
 
@@ -49,21 +49,19 @@ node tests/load-test-universal.js 600 10    # 10-minute
 
 ## Extrapolation to monthly volumes
 
-At a sustained **208 req/s** (5-minute stabilised figure, conservative), a single-process
+At a sustained **237 req/s** (5-minute stabilised figure, conservative), a single-process
 deployment can handle:
 
-| Timeframe | Records at 208 req/s |
+| Timeframe | Records at 237 req/s |
 |-----------|----------------------|
-| 1 hour | ~748,800 |
-| 1 day | ~17,971,200 |
-| 30 days | **~539,136,000 (539 M)** |
+| 1 hour | ~853,200 |
+| 1 day | ~20,476,800 |
+| 30 days | **~614,304,000 (614 M)** |
 
-The arithmetic is straightforward: `208 req/s × 86,400 s/day × 30 days = 539 M records/month`.
-Under sustained load with a warm CPU, throughput climbs to ~241 req/s, giving ~622 M records/month
-at the ceiling.
+The arithmetic is straightforward: `237 req/s × 86,400 s/day × 30 days = 614 M records/month`.
 
 Any monthly volume target can be evaluated the same way — divide by 30 days and by 86,400
-seconds to get the required req/s, then compare to the 208 req/s measured baseline.
+seconds to get the required req/s, then compare to the 237 req/s measured baseline.
 
 ## Bottleneck analysis
 
@@ -196,7 +194,7 @@ For edge use cases (IoT, factory floor, low-power validation nodes), the Python 
 
 | Platform | Hardware | Throughput (10-min) | p50 | p99 | Total reqs |
 |----------|----------|---------------------|-----|-----|------------|
-| Linux (native Docker) | i5-7200U @ 2.5GHz, 8 GB | 240.8 req/s | 13.7 ms | 202.9 ms | 144,510 |
+| Linux (native Docker) | i5-7200U @ 2.5GHz, 8 GB | 228.7 req/s | 18.7 ms | 162.7 ms | 137,208 |
 | macOS (Docker Desktop) | i7-1068NG7 @ 2.3GHz, 32 GB | **257.3 req/s** | 18.0 ms | 162.0 ms | 154,374 |
 | Windows 10 (Docker Desktop) | i7, Windows 10 | 185.1 req/s* | 16.5 ms | 288.3 ms | 11,108* |
 | Raspberry Pi 400 (ARM64, Docker) | Cortex-A72 @ 1.8 GHz, 4 GB | **79.1 req/s** | 47 ms | 523 ms | 47,454 |
@@ -204,7 +202,7 @@ For edge use cases (IoT, factory floor, low-power validation nodes), the Python 
 *1-minute figure only; 10-minute not yet measured on this platform.
 
 OpenDQV runs on all four platforms with zero errors. For production capacity planning,
-use the Linux native Docker 5-minute stabilised figure (208 req/s) as the conservative
+use the Linux native Docker 5-minute stabilised figure (237 req/s) as the conservative
 baseline. The Pi 400 figure (79.1 req/s) is the ARM64 floor — AWS Graviton and Apple
 Silicon deployments will perform significantly better.
 

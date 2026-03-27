@@ -36,8 +36,9 @@ All notable changes to OpenDQV are documented here.
 - **Async fire-and-forget storage on validation hot path** — SQLite writes (`quality_stats`,
   `heartbeat`) are now decoupled from the HTTP response on `/validate` and `/validate/batch`.
   `asyncio.to_thread()` wraps sync writes; `asyncio.create_task()` schedules them as background
-  tasks. Response returns before disk write completes. Eliminates ~1–5 ms SQLite write latency
-  per validation call (~200–1000 ms freed per second at 208 req/s sustained throughput).
+  tasks. Response returns before disk write completes. Measured improvement: 208 req/s → 237 req/s
+  sustained (+14%), p99 205ms → 163ms (−20%) on Dell XPS 13, 4 workers, zero errors across
+  222,529 requests (1+5+10 minute runs, 2026-03-27).
 
 ### Tests
 
