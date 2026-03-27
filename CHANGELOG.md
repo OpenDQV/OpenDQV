@@ -40,6 +40,17 @@ All notable changes to OpenDQV are documented here.
   sustained (+14%), p99 205ms → 163ms (−20%) on Dell XPS 13, 4 workers, zero errors across
   222,529 requests (1+5+10 minute runs, 2026-03-27).
 
+  MacBook reference (updated macOS + Docker Desktop, 4 workers, 2026-03-27):
+
+  | Run    | Total reqs | Throughput  | p95     | p99     | Errors |
+  |--------|------------|-------------|---------|---------|--------|
+  | 1-min  | 13,506     | 224.9 req/s | 127.1ms | 174.8ms | 0      |
+  | 5-min  | 67,468     | 224.8 req/s | 123.7ms | 171.2ms | 0      |
+  | 10-min | 133,926    | 223.2 req/s | 124.8ms | 174.0ms | 0      |
+
+  Throughput ~5.5% lower than XPS 13/Ubuntu baseline (Docker-on-Mac virtualisation overhead).
+  Zero errors, no degradation under sustained load.
+
 ### Tests
 
 - **Smoke test suite** (`tests/test_smoke.py`, 39 tests) — wide-coverage, shallow-depth tests
