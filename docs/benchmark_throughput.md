@@ -109,38 +109,28 @@ This is the recommended baseline for capacity planning.
 ### macOS — MacBook Pro 13" 2020 (Docker Desktop)
 
 **Hardware:** Intel Core i7-1068NG7 @ 2.30GHz, 32 GB RAM
-**OS:** macOS 26.0.1
-**Docker:** Docker Desktop (containers run inside a Linux VM — adds network virtualisation overhead)
+**OS:** macOS (Darwin 25.4.0, updated)
+**Docker:** Docker Desktop (updated; containers run inside a Linux VM — adds network virtualisation overhead)
 **Config:** 4 workers (`WEB_CONCURRENCY=4`), rate limiting disabled
+**Date:** 2026-03-27 (v1.8.7, async fire-and-forget SQLite)
 
-| Run | Duration | Total requests | Throughput | Errors | p50 | p99 |
+| Run | Duration | Total requests | Throughput | Errors | p95 | p99 |
 |-----|----------|---------------|------------|--------|-----|-----|
-| 1-minute | 60.1 s | 14,702 | **244.6 req/s** | 0 | 18.7 ms | 187.9 ms |
-| 5-minute | 300.1 s | 64,764 | **215.8 req/s** | 0 | 19.5 ms | 210.7 ms |
-| 10-minute | 600.0 s | 154,374 | **257.3 req/s** | 0 | 18.0 ms | 162.0 ms |
+| 1-minute | 60 s | 13,506 | **224.9 req/s** | 0 | 127.1 ms | 174.8 ms |
+| 5-minute | 300 s | 67,468 | **224.8 req/s** | 0 | 123.7 ms | 171.2 ms |
+| 10-minute | 600 s | 133,926 | **223.2 req/s** | 0 | 124.8 ms | 174.0 ms |
 
-**Combined: 233,840 requests, zero errors.**
+**Combined: 214,900 requests, zero errors.**
 
-**Note:** A single p99 spike to ~17,600ms occurred at t=171s in the 5-minute run — a Docker Desktop VM scheduling pause, not the validation engine. It does not recur and does not affect the overall p99 (210.7ms) meaningfully across 64,764 requests.
-
-**Observed vs predicted:** The original prediction (Docker Desktop 10–20% slower than Linux)
-did not hold — the Mac outperforms the Linux reference on throughput because the i7-1068NG7
-(10th-gen Ice Lake, 2020) is a significantly faster chip than the i5-7200U (7th-gen Kaby Lake,
-2017) used in the Linux reference. The Mac has 4× the RAM and a newer CPU microarchitecture.
-
-**Key difference between platforms:**
-
-| Metric | Linux (i5-7200U, native Docker) | macOS (i7-1068NG7, Docker Desktop) |
-|--------|--------------------------------|-------------------------------------|
-| 1-min throughput | 193.0 req/s | **244.6 req/s** |
-| p50 latency | 24.4 ms | **18.7 ms** |
-| p99 latency | 207.6 ms | **187.9 ms** |
-| Stabilised (10-min) | 240.8 req/s | **257.3 req/s** |
+**Throughput note:** ~5.5% lower than Linux native Docker (228.7 req/s 10-min) — expected Docker
+Desktop VM overhead. Throughput is rock-solid across all three durations (224.9 → 224.8 → 223.2 req/s),
+confirming no degradation under sustained load. The Linux native Docker figures remain the
+authoritative benchmark for production capacity planning.
 
 **Interpretation:** For production capacity planning, use the Linux 5-minute stabilised figure
-(208 req/s) as the conservative baseline — it reflects a realistic server-class deployment.
-The macOS figures reflect developer-laptop performance and should not be used for production
-sizing. A cloud VM (e.g. 4-core compute-optimised) will outperform both.
+(237 req/s) as the conservative baseline — it reflects native Docker on real server-class hardware.
+The macOS figures reflect developer-laptop Docker Desktop performance and should not be used for
+production sizing. A cloud VM (e.g. 4-core compute-optimised) will outperform both.
 
 ### Windows 10 — Dell XPS 13 (Docker Desktop)
 
@@ -192,12 +182,12 @@ For edge use cases (IoT, factory floor, low-power validation nodes), the Python 
 
 ### Four-platform comparison
 
-| Platform | Hardware | Throughput (10-min) | p50 | p99 | Total reqs |
-|----------|----------|---------------------|-----|-----|------------|
-| Linux (native Docker) | i5-7200U @ 2.5GHz, 8 GB | 228.7 req/s | 18.7 ms | 162.7 ms | 137,208 |
-| macOS (Docker Desktop) | i7-1068NG7 @ 2.3GHz, 32 GB | **257.3 req/s** | 18.0 ms | 162.0 ms | 154,374 |
-| Windows 10 (Docker Desktop) | i7, Windows 10 | 185.1 req/s* | 16.5 ms | 288.3 ms | 11,108* |
-| Raspberry Pi 400 (ARM64, Docker) | Cortex-A72 @ 1.8 GHz, 4 GB | **79.1 req/s** | 47 ms | 523 ms | 47,454 |
+| Platform | Hardware | Throughput (10-min) | p99 | Total reqs |
+|----------|----------|---------------------|-----|------------|
+| Linux (native Docker) | i5-7200U @ 2.5GHz, 8 GB | 228.7 req/s | 162.7 ms | 137,208 |
+| macOS (Docker Desktop) | i7-1068NG7 @ 2.3GHz, 32 GB | 223.2 req/s | 174.0 ms | 133,926 |
+| Windows 10 (Docker Desktop) | i7, Windows 10 | 185.1 req/s* | 288.3 ms | 11,108* |
+| Raspberry Pi 400 (ARM64, Docker) | Cortex-A72 @ 1.8 GHz, 4 GB | 79.1 req/s | 523 ms | 47,454 |
 
 *1-minute figure only; 10-minute not yet measured on this platform.
 
