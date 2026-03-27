@@ -208,6 +208,46 @@ use the Linux native Docker 5-minute stabilised figure (208 req/s) as the conser
 baseline. The Pi 400 figure (79.1 req/s) is the ARM64 floor — AWS Graviton and Apple
 Silicon deployments will perform significantly better.
 
+## Five Standard Workloads (in-process, no Docker required)
+
+These workloads run via `pytest tests/test_benchmark.py -v -s` and measure engine throughput
+in-process without network or HTTP overhead. They are the reproducible baseline for
+cross-tool comparison. Add `-s` to see per-workload throughput printed to stdout.
+
+| Workload | Description | Path | Threshold |
+|----------|-------------|------|-----------|
+| W1 | Single-record, `universal_benchmark` (14 rules), 1,000 sequential calls | Pure Python | < 10 s |
+| W2 | Batch, mixed 10-rule contract, 1,000 rows | DuckDB | < 30 s |
+| W3 | Batch, mixed 10-rule contract, 10,000 rows | DuckDB | < 60 s |
+| W4 | Batch, 5-regex-rule contract, 1,000 rows | DuckDB | < 30 s |
+| W5 | Batch, 5-range-rule contract, 1,000 rows | DuckDB | < 30 s |
+
+Thresholds are conservative CI guards. On a development laptop the actual times are
+typically 5–20× faster than the threshold. Run with `-s` to see the real numbers.
+
+## Comparative Methodology (community-submitted)
+
+OpenDQV does not publish comparative benchmarks against dbt tests, Great Expectations,
+or Soda Core, because:
+
+1. Fair comparison requires installing and configuring each tool correctly — a one-person
+   task that is likely to produce a biased setup.
+2. These tools have different scopes: dbt tests run post-load in a warehouse, GE and Soda
+   run against DataFrames or warehouse connections. OpenDQV runs write-time at the API
+   boundary. The comparison is architectural, not just speed.
+
+**If you run a comparison and want to contribute your results:**
+
+1. Use the five standard workloads above as the OpenDQV baseline
+2. Run equivalent checks in dbt / GE / Soda against the same data using their recommended
+   patterns (not naive Python loops)
+3. Record hardware, tool version, and configuration
+4. Open a PR adding a `docs/community_benchmarks/` file with your results and methodology
+
+The comparison that matters most for regulated pipelines is not raw throughput — it is
+**time-to-failure-detection**: how quickly does a bad record surface an error at the point
+of write vs. at the next pipeline run or after warehouse ingestion?
+
 ## See also
 
 - `tests/load-test-results.md` — full raw benchmark data and run history
