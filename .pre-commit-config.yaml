@@ -1,0 +1,7 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.2
+    hooks:
+      # Mirrors CI exactly: ruff check . --select E,W,F --ignore E501,E402,E701
+      - id: ruff
+        args: [--select, "E,W,F", --ignore, "E501,E402,E701", --fix]
