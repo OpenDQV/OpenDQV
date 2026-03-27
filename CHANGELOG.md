@@ -67,6 +67,12 @@ All notable changes to OpenDQV are documented here.
   constraint enforcement on peer names; low severity).
 - **`requests` bumped to `>=2.33.0`** — fixes GHSA-gc5v-m9x4-r6x2 (medium severity).
   `pyproject.toml` updated to `^2.33` accordingly.
+- **`starlette` bumped to `>=1.0.0`** — covers GHSA-2c2j-9gv5-cj73 (fix: 0.47.2) and
+  GHSA-7f5h-v6xp-fcq8 (fix: 0.49.1); also tracks new stable release.
+- **Dockerfile: `pip>=26.0` added to pre-install step** — fixes CVE-2026-1703 in pip itself
+  before requirements are installed.
+- **`pygments` (transitive via `rich`)** — CVE-2026-4539 (GHSA-5239-wwwm-4pmq); no upstream
+  fix available as of 2026-03-27. Acknowledged; will resolve when pygments ships a patch.
 
 ---
 

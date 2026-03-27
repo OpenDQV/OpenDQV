@@ -13,7 +13,7 @@ COPY requirements.txt .
 # privilege escalation). Both CVEs affect setuptools' internal _vendor/ copies;
 # upgrading setuptools is the correct fix — patching jaraco.context/wheel alone
 # does not update the vendored copies that Trivy scans.
-RUN pip install --no-cache-dir "setuptools>=82.0.0" "wheel>=0.46.2" "jaraco.context>=6.1.0" && \
+RUN pip install --no-cache-dir "pip>=26.0" "setuptools>=82.0.0" "wheel>=0.46.2" "jaraco.context>=6.1.0" && \
     pip install --no-cache-dir -r requirements.txt
 
 COPY . .
