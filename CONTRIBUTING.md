@@ -244,6 +244,42 @@ enforces a fixed allowed-values list:
 3. Add tests in `tests/test_core.py`
 4. Update the Rule Types table in `README.md`
 
+### Adding a New Importer
+
+Importers translate external rule formats (dbt, Great Expectations, CSV rule sheets, etc.) into
+OpenDQV contract YAML. The pattern is consistent across all importers.
+
+Reference implementation: `core/importers/csv_rules.py`
+
+1. **Create `core/importers/your_format.py`**
+2. **Define handler functions** — one per rule type your format supports:
+   ```python
+   def _handle_not_empty(field: str, value: str) -> dict:
+       return {"type": "not_empty", "field": field, "error_message": f"{field} must not be empty"}
+   ```
+3. **Build a dispatcher dict** mapping format-specific type names to your handlers:
+   ```python
+   _RULE_HANDLERS: dict[str, Any] = {
+       "not_empty": _handle_not_empty,
+       "regex": _handle_regex,
+   }
+   ```
+4. **Write the main import function** — parse the input, call handlers, return the standard structure:
+   ```python
+   def import_your_format(content: str, contract_name: str = "import") -> dict:
+       # ... parse content ...
+       return {
+           "contract": {"name": contract_name, "version": "1.0", "rules": rules, ...},
+           "stats": {"total_rules": total, "imported": len(rules), "skipped": len(skipped)},
+           "skipped": skipped,
+       }
+   ```
+5. **Wire into `api/routes.py`** — add an import endpoint following the existing `POST /api/v1/import/csv` pattern
+6. **Add tests** in `tests/test_importers.py` with a representative sample input
+7. **Add sample input** in `tests/sample_data/` if useful for manual testing
+
+The `skipped` list is important — callers need to know which rules could not be translated, not just the ones that succeeded.
+
 ### Adding a New Contract
 
 1. Create a YAML file in `contracts/`
@@ -266,6 +302,7 @@ enforces a fixed allowed-values list:
 - [ ] No secrets or credentials committed
 - [ ] README updated if adding user-facing features
 - [ ] Contracts are valid YAML (API loads without errors)
+- [ ] `CHANGELOG.md` updated with a brief entry under `[Unreleased]`
 
 ## Reporting Issues
 
@@ -301,6 +338,13 @@ this" response is better than silence.
 **Issue triage labels:** `bug`, `question`, `enhancement`, `good first issue`,
 `needs-investigation`. Apply on first read.
 
+**What qualifies as `good first issue`:** Self-contained tasks with a clear acceptance
+criterion, no auth or validation-engine changes required, and a test that can be written
+in under 30 minutes. Examples: adding a new importer for a format we don't support,
+adding a sample contract for a new domain, improving an error message, adding a missing
+test case for an existing rule type. Do not label issues that touch `core/validator.py`,
+`security/auth.py`, or `api/routes.py` as good first issues.
+
 ## High-Sensitivity Files
 
 Changes to the following files require extra care and a higher bar for review:
@@ -312,6 +356,12 @@ Changes to the following files require extra care and a higher bar for review:
 | `api/routes.py` | All 50 endpoints. ACTIVE contract immutability guards (HTTP 409) must not be relaxed. |
 
 If you are unsure whether your change affects these files, open a Discussion before submitting a PR.
+
+## Code of Conduct
+
+This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).
+By participating, you agree to uphold it. Please report unacceptable behaviour to
+**opendqv@bgmsconsultants.com**.
 
 ## Licence
 

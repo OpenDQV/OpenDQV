@@ -81,16 +81,17 @@ def _sanitise_record_keys(record: dict) -> dict:
 
 class FieldError:
     """A single field-level validation failure."""
-    __slots__ = ("field", "rule", "message", "severity")
+    __slots__ = ("field", "rule", "message", "severity", "error_code")
 
-    def __init__(self, field: str, rule: str, message: str, severity: str):
+    def __init__(self, field: str, rule: str, message: str, severity: str, error_code: str = ""):
         self.field = field
         self.rule = rule
         self.message = message
         self.severity = severity
+        self.error_code = error_code
 
     def to_dict(self) -> dict:
-        return {"field": self.field, "rule": self.rule, "message": self.message, "severity": self.severity}
+        return {"field": self.field, "rule": self.rule, "message": self.message, "severity": self.severity, "error_code": self.error_code}
 
 
 # ── Single-record validation (pure Python, no DuckDB) ───────────────
@@ -128,6 +129,7 @@ def validate_record(
                 rule=rule.name,
                 message=failure,
                 severity=rule.severity.value,
+                error_code=f"OPENDQV_{rule.type.upper()}_001",
             ).to_dict()
 
             if rule.severity == Severity.ERROR:
@@ -968,6 +970,7 @@ def validate_batch(
                 "rule": rule.name,
                 "message": rule.error_message,
                 "severity": rule.severity.value,
+                "error_code": f"OPENDQV_{rule.type.upper()}_001",
             }
 
             for idx in failing_indices:

@@ -38,6 +38,7 @@ class FieldErrorResponse(BaseModel):
     rule: str = Field(..., description="The rule name that failed, as defined in the contract YAML")
     message: str = Field(..., description="Human-readable description of the failure")
     severity: str = Field(..., description="Blocking level: 'error' prevents the record from being accepted; 'warning' is informational only")
+    error_code: str = Field("", description="Stable machine-readable error code derived from rule type, e.g. OPENDQV_REGEX_001. Safe to use as a routing key in dead-letter queues and alerting rules.")
     suggested_fix: Optional[str] = Field(None, description="Concise actionable fix hint — use to self-correct and resubmit without a separate explain_error call")
 
 

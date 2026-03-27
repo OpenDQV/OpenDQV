@@ -9,6 +9,7 @@ Commands:
     list                           List all contracts
     show <contract>                Show contract details
     validate <contract> <json>     Validate a JSON record against a contract
+    validate-file <contract> <path>  Validate a CSV or Parquet file (no API server required)
     export-gx <contract>           Export contract as GX expectation suite JSON
     import-gx <file>               Import GX suite JSON and save as YAML contract
     import-dbt <file>              Import dbt schema.yml and save as YAML contract(s)
@@ -38,7 +39,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 import sqlite3
 
 from core.contracts import ContractRegistry, _compute_entry_hash
-from core.validator import validate_record
+from core.validator import validate_record, validate_batch
 from core.code_generator import generate_code
 from core.importers.great_expectations import import_gx_suite, gx_suite_to_yaml, export_gx_suite
 from core.importers.soda import import_soda_checks, soda_checks_to_yaml
@@ -412,6 +413,86 @@ def cmd_export_dbt(args):
         print(yaml_str, end="")
 
 
+def cmd_validate_file(args):
+    """Validate a CSV or Parquet file against a contract without starting the API server."""
+    import csv as _csv
+    import io
+
+    registry = get_registry()
+    _validate_contract_name(args.contract)
+    contract = registry.get(args.contract)
+    if not contract:
+        print(f"Error: Contract '{args.contract}' not found.", file=sys.stderr)
+        sys.exit(1)
+
+    path = Path(args.path)
+    if not path.exists():
+        print(f"Error: File not found: {path}", file=sys.stderr)
+        sys.exit(1)
+
+    suffix = path.suffix.lower()
+    try:
+        if suffix == ".parquet":
+            import pandas as _pd
+            df = _pd.read_parquet(path)
+            records = df.to_dict(orient="records")
+        elif suffix in (".csv", ".tsv", ""):
+            import pandas as _pd
+            sep = "\t" if suffix == ".tsv" else ","
+            df = _pd.read_csv(path, sep=sep, dtype=str)
+            df = df.where(df.notna(), None)
+            records = df.to_dict(orient="records")
+        else:
+            print(f"Error: Unsupported file type '{suffix}'. Supported: .csv, .tsv, .parquet", file=sys.stderr)
+            sys.exit(1)
+    except Exception as e:
+        print(f"Error reading file: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if not records:
+        print("File is empty — nothing to validate.")
+        sys.exit(0)
+
+    rules = registry.get_rules_with_context(contract, args.context)
+    result = validate_batch(records, rules, contract_name=args.contract)
+    summary = result["summary"]
+
+    status = "PASS" if summary["failed"] == 0 else "FAIL"
+    print(f"Contract : {args.contract}")
+    print(f"File     : {path}")
+    print(f"Records  : {summary['total']}")
+    print(f"Result   : {status}")
+    print(f"Passed   : {summary['passed']}")
+    print(f"Failed   : {summary['failed']}")
+    if summary["warning_count"]:
+        print(f"Warnings : {summary['warning_count']}")
+
+    if summary["rule_failure_counts"]:
+        print("\nFailures by rule:")
+        for rule_name, count in sorted(summary["rule_failure_counts"].items(), key=lambda x: -x[1]):
+            print(f"  {rule_name:<40} {count} record(s)")
+
+    if args.output_failures and summary["failed"] > 0:
+        failed_rows = []
+        for r in result["results"]:
+            if not r["valid"]:
+                row = dict(records[r["index"]])
+                row["_errors"] = "; ".join(
+                    f"[{e['error_code']}] {e['field']}: {e['message']}" for e in r["errors"]
+                )
+                failed_rows.append(row)
+        out_path = Path(args.output_failures)
+        if failed_rows:
+            fieldnames = list(failed_rows[0].keys())
+            with open(out_path, "w", newline="", encoding="utf-8") as f:
+                writer = _csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(failed_rows)
+            print(f"\nFailed records written to: {out_path}")
+
+    sys.exit(0 if summary["failed"] == 0 else 1)
+
+
 def cmd_onboard(args):
     """Launch the interactive onboarding wizard."""
     from core.onboarding import OnboardingWizard
@@ -685,10 +766,16 @@ def main():
         prog="opendqv",
         description="OpenDQV CLI — Data quality contract management and validation",
     )
+    try:
+        from importlib.metadata import version as _pkg_version
+        _cli_version = _pkg_version("opendqv")
+    except Exception:
+        import config as _config
+        _cli_version = _config.ENGINE_VERSION
     parser.add_argument(
         "--version", "-V",
         action="version",
-        version="opendqv 1.0.0\nTrust is cheaper to build than to repair.",
+        version=f"opendqv {_cli_version}\nTrust is cheaper to build than to repair.",
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -750,6 +837,19 @@ def main():
     p_gen.add_argument("contract", help="Contract name")
     p_gen.add_argument("target", help="Target platform: salesforce, js, snowflake")
     p_gen.add_argument("--context", default=None, help="Context to apply before generation")
+
+    # validate-file
+    p_validate_file = subparsers.add_parser(
+        "validate-file",
+        help="Validate a CSV or Parquet file against a contract (no API server required)",
+    )
+    p_validate_file.add_argument("contract", help="Contract name")
+    p_validate_file.add_argument("path", help="Path to CSV or Parquet file")
+    p_validate_file.add_argument("--context", default=None, help="Context override to apply")
+    p_validate_file.add_argument(
+        "--output-failures", default=None, metavar="FILE",
+        help="Write failed records to a CSV file (e.g. failed.csv)",
+    )
 
     # onboard
     subparsers.add_parser("onboard", help="Interactive setup wizard — first validation in 90 seconds")
@@ -831,6 +931,7 @@ def main():
         "export-odcs": cmd_export_odcs,
         "export-dbt": cmd_export_dbt,
         "generate": cmd_generate,
+        "validate-file": cmd_validate_file,
         "audit-verify": cmd_audit_verify,
         "contracts-import-dir": cmd_contracts_import_dir,
         "onboard": cmd_onboard,
