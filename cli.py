@@ -416,7 +416,6 @@ def cmd_export_dbt(args):
 def cmd_validate_file(args):
     """Validate a CSV or Parquet file against a contract without starting the API server."""
     import csv as _csv
-    import io
 
     registry = get_registry()
     _validate_contract_name(args.contract)
