@@ -61,6 +61,13 @@ All notable changes to OpenDQV are documented here.
 
 - **Test suite total:** 2745 passed, 6 skipped, 0 failed (77 tests added this sprint).
 
+### Security
+
+- **`cryptography` bumped to `>=46.0.6`** — fixes GHSA-m959-cc7f-wv43 (incomplete DNS name
+  constraint enforcement on peer names; low severity).
+- **`requests` bumped to `>=2.33.0`** — fixes GHSA-gc5v-m9x4-r6x2 (medium severity).
+  `pyproject.toml` updated to `^2.33` accordingly.
+
 ---
 
 ### Observation-Only Mode
