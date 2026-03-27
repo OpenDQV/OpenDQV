@@ -10,6 +10,7 @@ Commands:
     show <contract>                Show contract details
     validate <contract> <json>     Validate a JSON record against a contract
     validate-file <contract> <path>  Validate a CSV or Parquet file (no API server required)
+    lint <contract>                Lint a contract YAML for logical errors
     export-gx <contract>           Export contract as GX expectation suite JSON
     import-gx <file>               Import GX suite JSON and save as YAML contract
     import-dbt <file>              Import dbt schema.yml and save as YAML contract(s)
@@ -492,6 +493,38 @@ def cmd_validate_file(args):
     sys.exit(0 if summary["failed"] == 0 else 1)
 
 
+def cmd_lint(args):
+    """Lint a contract YAML for logical errors before deployment."""
+    import json as _json
+    from core.linter import lint_contract_file
+
+    _validate_contract_name(args.contract)
+    contract_path = CONTRACTS_DIR / f"{args.contract}.yaml"
+    if not contract_path.exists():
+        print(f"Error: Contract '{args.contract}' not found at {contract_path}", file=sys.stderr)
+        sys.exit(1)
+
+    result = lint_contract_file(str(contract_path))
+
+    fmt = getattr(args, "format", "text")
+    if fmt == "json":
+        print(_json.dumps(result.to_dict(), indent=2))
+    else:
+        status = "PASS" if result.passed else "FAIL"
+        print(f"Contract : {args.contract}")
+        print(f"Result   : {status}  ({len(result.errors)} error(s), {len(result.warnings)} warning(s))")
+        if result.issues:
+            print()
+            for issue in result.issues:
+                label = "ERROR  " if issue.severity == "error" else "WARNING"
+                rule_tag = f"[{issue.rule_name}] " if issue.rule_name else ""
+                print(f"  {label}  {rule_tag}{issue.message}")
+        else:
+            print("  No issues found.")
+
+    sys.exit(0 if result.passed else 1)
+
+
 def cmd_onboard(args):
     """Launch the interactive onboarding wizard."""
     from core.onboarding import OnboardingWizard
@@ -850,6 +883,19 @@ def main():
         help="Write failed records to a CSV file (e.g. failed.csv)",
     )
 
+    # lint
+    p_lint = subparsers.add_parser(
+        "lint",
+        help="Lint a contract YAML for logical errors before deployment",
+    )
+    p_lint.add_argument("contract", help="Contract name")
+    p_lint.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
+
     # onboard
     subparsers.add_parser("onboard", help="Interactive setup wizard — first validation in 90 seconds")
 
@@ -931,6 +977,7 @@ def main():
         "export-dbt": cmd_export_dbt,
         "generate": cmd_generate,
         "validate-file": cmd_validate_file,
+        "lint": cmd_lint,
         "audit-verify": cmd_audit_verify,
         "contracts-import-dir": cmd_contracts_import_dir,
         "onboard": cmd_onboard,

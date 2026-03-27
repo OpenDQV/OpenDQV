@@ -879,6 +879,34 @@ async def explain_error(
     )
 
 
+@router.get("/contracts/{name}/lint", tags=["Contracts"])
+async def lint_contract(
+    name: str,
+    user: str = Depends(get_current_user),
+):
+    """
+    Lint a contract's YAML for logical errors before deployment.
+
+    Returns a structured list of issues (errors and warnings). Responds with
+    HTTP 200 and `"passed": true` when no errors are found; HTTP 422 when
+    errors are present so CI pipelines can gate on status code.
+    """
+    from core.linter import lint_contract_file
+    from pathlib import Path as _Path
+
+    contract_path = _Path(config.CONTRACTS_DIR) / f"{name}.yaml"
+    if not contract_path.exists():
+        raise HTTPException(status_code=404, detail=f"Contract '{name}' not found")
+
+    result = lint_contract_file(str(contract_path))
+    payload = result.to_dict()
+
+    if not result.passed:
+        raise HTTPException(status_code=422, detail=payload)
+
+    return payload
+
+
 @router.get("/contracts/{name}/quality-trend", response_model=QualityTrendResponse)
 @_default_limit
 async def get_quality_trend(
