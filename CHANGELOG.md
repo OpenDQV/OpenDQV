@@ -2,6 +2,47 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.8.6] - 2026-03-27
+
+### Features
+
+- **Typed error codes** — every validation failure now carries a stable `error_code` field
+  (`OPENDQV_{RULE_TYPE}_001`, e.g. `OPENDQV_REGEX_001`). Derived deterministically from rule
+  type. Present in single-record, batch, and GraphQL responses. Safe to use as a routing key
+  in Kafka DLQs, PagerDuty rules, and ServiceNow auto-tickets. Full catalogue: `docs/error_codes.md`.
+
+- **`opendqv validate-file` CLI** — validate a CSV, TSV, or Parquet file against a contract
+  without starting the API server. `opendqv validate-file <contract> <path>`. Outputs pass/fail
+  summary, failed-record count, per-rule failure breakdown. Optional `--output-failures <file>`
+  flag writes failed records to CSV. Exits 1 on failures, 0 on clean data.
+
+- **Benchmark suite — five standard workloads** — `tests/test_benchmark.py` extended with
+  W1 (single-record, 1K sequential), W2 (batch 1K mixed), W3 (batch 10K mixed),
+  W4 (batch 1K regex-heavy), W5 (batch 1K numeric-range). Workloads W2–W5 use the DuckDB
+  batch path with inline Rule objects — no file I/O, reproducible in CI.
+  `docs/benchmark_throughput.md` updated with five-workload table and comparative methodology
+  for community-contributed tool comparisons.
+
+### Changes
+
+- **`CONTRIBUTING.md`** — added "Adding a New Importer" section with step-by-step pattern
+  (reference: `core/importers/csv_rules.py`); CHANGELOG entry added to PR checklist;
+  good-first-issue qualification criteria; Code of Conduct pointer.
+
+- **`opendqv --version`** — was hardcoded `1.0.0`; now reads from `importlib.metadata`
+  (matches `pyproject.toml` version).
+
+- **pre-commit lint gate** — `.pre-commit-config.yaml` added. Mirrors CI ruff check exactly:
+  `--select E,W,F --ignore E501,E402,E701 --fix`. Auto-fixes safe issues (unused imports)
+  before commit.
+
+### Bug Fixes
+
+- **`ENGINE_VERSION` mismatch** (v1.8.5) — was hardcoded `"1.0.0"` since initial release.
+  Every audit trail entry since v1.1.0 was stamped with the wrong version. Now derived from
+  `pyproject.toml` at source installs and `importlib.metadata` at pip installs. CI assertion
+  added. `tests/test_p1_features.py` updated to validate against `pyproject.toml`.
+
 ## [1.8.2] - 2026-03-25
 
 ### Features
