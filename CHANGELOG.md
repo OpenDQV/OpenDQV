@@ -2,6 +2,55 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.8.7] - 2026-03-27
+
+### Features
+
+- **Contract linter** (`opendqv lint <contract>` + `GET /api/v1/contracts/{name}/lint`) — static
+  analysis of contract YAML before deployment. Works at raw-dict level (pre-Pydantic) to catch
+  logical errors silently swallowed at runtime. 20+ check codes including `DUPLICATE_RULE_NAME`,
+  `RANGE_MIN_GT_MAX`, `REGEX_INVALID_PATTERN`, `COMPARE_INVALID_OP`, `CHECKSUM_UNKNOWN_ALGORITHM`,
+  `ALLOWED_VALUES_EMPTY`, and full coverage for cross_field_range, field_sum, geospatial_bounds,
+  ratio_check, required_if, forbidden_if, conditional_value. HTTP 422 on errors (CI-gatable on
+  status code). JSON output mode for pipeline integration. SDK `lint()` on both sync and async
+  clients.
+
+- **Spark SQL code generator** (`target="spark"`) — generates `WITH _dqv_checks AS (...)` CTE
+  pattern with `FILTER()` + `SIZE()` for `_dqv_errors`/`_dqv_valid` output columns. Supports
+  `not_empty`, `regex`, `min`, `max`, `range`, `min_length`, `max_length`, `date_format`,
+  `allowed_values`, `unique`. Python strftime → Spark date format conversion built-in.
+  SQL single-quote escaping on all error messages.
+
+- **BigQuery JS UDF code generator** (`target="bigquery"`) — generates
+  `CREATE OR REPLACE FUNCTION ... RETURNS STRUCT<valid BOOL, errors ARRAY<STRING>> LANGUAGE js`
+  UDF. Accepts `row_json STRING` via `TO_JSON_STRING(t)`. Reuses `_js_rule_check()` from
+  Snowflake/JS generators — no logic duplication. Supported targets now: `snowflake`, `salesforce`,
+  `js`, `spark`, `bigquery`.
+
+- **Async Python SDK parity** — `AsyncOpenDQVClient` was missing `contracts()` (gap vs sync
+  client). Both clients now have `lint()`. 13 new async tests covering validate, validate_batch,
+  contracts, contract detail, lint, context manager, and guard decorator.
+
+### Performance
+
+- **Async fire-and-forget storage on validation hot path** — SQLite writes (`quality_stats`,
+  `heartbeat`) are now decoupled from the HTTP response on `/validate` and `/validate/batch`.
+  `asyncio.to_thread()` wraps sync writes; `asyncio.create_task()` schedules them as background
+  tasks. Response returns before disk write completes. Eliminates ~1–5 ms SQLite write latency
+  per validation call (~200–1000 ms freed per second at 208 req/s sustained throughput).
+
+### Tests
+
+- **Smoke test suite** (`tests/test_smoke.py`, 39 tests) — wide-coverage, shallow-depth tests
+  serving as both a first-gate CI check and living documentation of the API contract. Covers
+  health, contracts, single validation, error codes, batch, contract linter, code generation
+  (all 5 targets), quality trend, explain, stats, auth boundary, validate-file CLI, lint CLI,
+  and LocalValidator SDK. Runs in ~8 seconds.
+
+- **Test suite total:** 2745 passed, 6 skipped, 0 failed (77 tests added this sprint).
+
+---
+
 ## [1.8.6] - 2026-03-27
 
 ### Features
