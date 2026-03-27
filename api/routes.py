@@ -169,6 +169,48 @@ EXPLAIN_PUBLIC: bool = os.environ.get("OPENDQV_EXPLAIN_PUBLIC", "false").lower()
 # SEC-012: Upload file size limit
 MAX_UPLOAD_MB: int = int(os.environ.get("OPENDQV_MAX_UPLOAD_MB", "10"))
 
+
+# ── Async storage helpers — fire-and-forget for hot-path SQLite writes ────────
+# validate_record() and validate_batch() are synchronous CPU work; their results
+# do not depend on the storage writes below. Offloading these to asyncio.to_thread
+# lets the event loop return the HTTP response immediately while the DB write
+# completes concurrently in a thread-pool worker.
+
+async def _async_record_quality_stats(
+    contract_name: str,
+    contract_version: str,
+    context,
+    total: int,
+    passed: int,
+    failed: int,
+    rule_failure_counts: dict,
+    agent_id: str,
+) -> None:
+    """Offload quality_stats SQLite INSERT to a thread-pool worker."""
+    try:
+        await asyncio.to_thread(
+            _quality_stats.record_batch,
+            contract_name=contract_name,
+            contract_version=contract_version,
+            context=context,
+            total=total,
+            passed=passed,
+            failed=failed,
+            rule_failure_counts=rule_failure_counts,
+            agent_id=agent_id,
+        )
+    except Exception:
+        logger.exception("async quality_stats.record_batch failed — stats may be incomplete")
+
+
+async def _async_heartbeat(contract_name: str, contract_version: str) -> None:
+    """Offload heartbeat SQLite upsert to a thread-pool worker."""
+    try:
+        await asyncio.to_thread(heartbeat.record_validation, contract_name, contract_version)
+    except Exception:
+        logger.exception("async heartbeat.record_validation failed")
+
+
 def _parse_upload(content: bytes, filename: str):
     """Parse an uploaded CSV or Parquet file into a DataFrame.
 
@@ -394,25 +436,23 @@ async def validate_single(
             latency_ms=elapsed_ms, errors=result["errors"], mode="single",
             agent_id=body.agent_id or "",
         )
-        heartbeat.record_validation(contract.name, contract.version)
-        # Persist to SQLite so pass rates survive restarts (same as batch path)
-        try:
-            rule_failure_counts: dict = {}
-            for e in result["errors"]:
-                rule = e.get("rule", "unknown")
-                rule_failure_counts[rule] = rule_failure_counts.get(rule, 0) + 1
-            _quality_stats.record_batch(
-                contract_name=contract.name,
-                contract_version=contract.version,
-                context=body.context,
-                total=1,
-                passed=1 if result["valid"] else 0,
-                failed=0 if result["valid"] else 1,
-                rule_failure_counts=rule_failure_counts,
-                agent_id=body.agent_id or "",
-            )
-        except Exception:
-            logger.exception("quality_stats.record_batch (single) failed — non-blocking")
+        # Fire-and-forget: SQLite writes offloaded to thread pool so the response
+        # returns to the caller without waiting for disk I/O to complete.
+        asyncio.create_task(_async_heartbeat(contract.name, contract.version))
+        rule_failure_counts: dict = {}
+        for e in result["errors"]:
+            _rule = e.get("rule", "unknown")
+            rule_failure_counts[_rule] = rule_failure_counts.get(_rule, 0) + 1
+        asyncio.create_task(_async_record_quality_stats(
+            contract_name=contract.name,
+            contract_version=contract.version,
+            context=body.context,
+            total=1,
+            passed=1 if result["valid"] else 0,
+            failed=0 if result["valid"] else 1,
+            rule_failure_counts=rule_failure_counts,
+            agent_id=body.agent_id or "",
+        ))
 
     # Webhook notifications (fire-and-forget)
     if not result["valid"] and not body.dry_run:
@@ -534,7 +574,18 @@ async def validate_batch_endpoint(
                 errors=r["errors"], mode="batch",
                 agent_id=body.agent_id or "",
             )
-        heartbeat.record_validation(contract.name, contract.version)
+        # Fire-and-forget: SQLite writes offloaded to thread pool
+        asyncio.create_task(_async_heartbeat(contract.name, contract.version))
+        asyncio.create_task(_async_record_quality_stats(
+            contract_name=contract.name,
+            contract_version=contract.version,
+            context=body.context,
+            total=result["summary"]["total"],
+            passed=result["summary"]["passed"],
+            failed=result["summary"]["failed"],
+            rule_failure_counts=result["summary"].get("rule_failure_counts", {}),
+            agent_id=body.agent_id or "",
+        ))
 
         # Webhook notification for batch failures (fire-and-forget)
         if result["summary"]["failed"] > 0:
@@ -553,21 +604,6 @@ async def validate_batch_endpoint(
                 "error_count": len(failed_errors),
                 "violations": failed_errors[:50],  # cap to avoid huge payloads
             })
-
-        # Record quality stats for trend endpoint (best-effort, non-blocking)
-        try:
-            _quality_stats.record_batch(
-                contract_name=contract.name,
-                contract_version=contract.version,
-                context=body.context,
-                total=result["summary"]["total"],
-                passed=result["summary"]["passed"],
-                failed=result["summary"]["failed"],
-                rule_failure_counts=result["summary"].get("rule_failure_counts", {}),
-                agent_id=body.agent_id or "",
-            )
-        except Exception:
-            logger.exception("quality_stats.record_batch failed — non-blocking")
 
     # ACT-038-05: include contract hash (entry_hash from hash chain) for audit evidence
     _contract_hash = _get_contract_hash(contract.name)
