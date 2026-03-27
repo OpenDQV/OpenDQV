@@ -31,6 +31,7 @@ class FieldError:
     rule: str
     message: str
     severity: str
+    error_code: str = ""
 
 
 @strawberry.type

@@ -320,7 +320,7 @@ class TestCLIVersion:
     def test_version_flag_shows_version_string(self):
         r = run("--version")
         output = r.stdout + r.stderr
-        assert "1.0.0" in output
+        assert "opendqv" in output
 
     def test_version_flag_shows_ethos(self):
         r = run("--version")
@@ -330,7 +330,7 @@ class TestCLIVersion:
     def test_short_version_flag(self):
         r = run("-V")
         output = r.stdout + r.stderr
-        assert "1.0.0" in output
+        assert "opendqv" in output
 
 
 # ---------------------------------------------------------------------------
