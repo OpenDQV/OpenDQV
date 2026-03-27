@@ -87,13 +87,20 @@ class OpenDQVClient:
         context: Optional[str] = None,
         record_id: Optional[str] = None,
         allow_draft: bool = False,
+        observe_only: bool = False,
     ) -> dict:
         """
         Validate a single record against a data contract.
 
+        Args:
+            observe_only: If True, run in observation-only mode — violations are
+                logged but the record is never rejected. The response includes
+                ``mode`` and ``would_have_failed`` fields.
+
         Returns:
             dict with keys: valid (bool), errors (list), warnings (list),
-            contract (str), version (str), record_id (str|None)
+            contract (str), version (str), record_id (str|None).
+            When observe_only=True, also: mode (str), would_have_failed (bool).
 
         Example:
             result = client.validate(
@@ -111,6 +118,8 @@ class OpenDQVClient:
             body["context"] = context
         if record_id:
             body["record_id"] = record_id
+        if observe_only:
+            body["observe_only"] = True
 
         params = {}
         if allow_draft:
@@ -128,12 +137,19 @@ class OpenDQVClient:
         version: str = "latest",
         context: Optional[str] = None,
         allow_draft: bool = False,
+        observe_only: bool = False,
     ) -> dict:
         """
         Validate a batch of records against a data contract.
 
+        Args:
+            observe_only: If True, run in observation-only mode — violations are
+                logged but records are never rejected. The response includes
+                ``mode`` and ``would_have_failed`` fields.
+
         Returns:
-            dict with keys: summary (dict), results (list), contract (str), version (str)
+            dict with keys: summary (dict), results (list), contract (str), version (str).
+            When observe_only=True, also: mode (str), would_have_failed (bool).
 
         Example:
             result = client.validate_batch(
@@ -145,6 +161,8 @@ class OpenDQVClient:
         body = {"records": records, "contract": contract, "version": version}
         if context:
             body["context"] = context
+        if observe_only:
+            body["observe_only"] = True
 
         params = {}
         if allow_draft:
@@ -335,19 +353,27 @@ class AsyncOpenDQVClient:
         context: Optional[str] = None,
         record_id: Optional[str] = None,
         allow_draft: bool = False,
+        observe_only: bool = False,
     ) -> dict:
         """
         Validate a single record against a data contract. Async — does not block.
 
+        Args:
+            observe_only: If True, run in observation-only mode — violations are
+                logged but the record is never rejected.
+
         Returns:
             dict with keys: valid (bool), errors (list), warnings (list),
-            contract (str), version (str), record_id (str|None)
+            contract (str), version (str), record_id (str|None).
+            When observe_only=True, also: mode (str), would_have_failed (bool).
         """
         body = {"record": record, "contract": contract, "version": version}
         if context:
             body["context"] = context
         if record_id:
             body["record_id"] = record_id
+        if observe_only:
+            body["observe_only"] = True
         params = {"allow_draft": "true"} if allow_draft else {}
         resp = await self._client.post("/api/v1/validate", json=body, params=params)
         resp.raise_for_status()
@@ -361,16 +387,24 @@ class AsyncOpenDQVClient:
         version: str = "latest",
         context: Optional[str] = None,
         allow_draft: bool = False,
+        observe_only: bool = False,
     ) -> dict:
         """
         Validate a batch of records against a data contract. Async — does not block.
 
+        Args:
+            observe_only: If True, run in observation-only mode — violations are
+                logged but records are never rejected.
+
         Returns:
-            dict with keys: summary (dict), results (list), contract (str), version (str)
+            dict with keys: summary (dict), results (list), contract (str), version (str).
+            When observe_only=True, also: mode (str), would_have_failed (bool).
         """
         body = {"records": records, "contract": contract, "version": version}
         if context:
             body["context"] = context
+        if observe_only:
+            body["observe_only"] = True
         params = {"allow_draft": "true"} if allow_draft else {}
         resp = await self._client.post("/api/v1/validate/batch", json=body, params=params)
         resp.raise_for_status()

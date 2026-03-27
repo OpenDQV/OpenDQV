@@ -19,6 +19,7 @@ class ValidateRequest(BaseModel):
     record_id: Optional[str] = Field(None, description="Caller's correlation ID for tracking")
     agent_id: Optional[str] = Field(None, description="Caller identity — AI agent name, service name, or team. Echoed in response for session correlation.")
     dry_run: bool = Field(False, description="If true, validate without recording results in quality metrics. Use for testing and demos.")
+    observe_only: bool = Field(False, description="If true, run in observation-only mode: log violations but do not block. Always returns HTTP 200.")
 
     model_config = {
         "json_schema_extra": {
@@ -63,6 +64,8 @@ class ValidateResponse(BaseModel):
     validated_at: Optional[str] = Field(None, description="ISO 8601 UTC timestamp of validation — use for time-series correlation with quality metrics")
     latency_ms: Optional[float] = Field(None, description="Server-side validation latency in milliseconds")
     agent_id: Optional[str] = Field(None, description="Echo of caller's agent_id — for session and caller attribution")
+    mode: Optional[str] = Field(None, description="Validation mode: 'enforcement' (default) or 'observation_only'")
+    would_have_failed: Optional[bool] = Field(None, description="Present only in observation_only mode: true if the record would have been rejected under enforcement")
 
 
 # ── Batch validation request/response ────────────────────────────────
@@ -75,6 +78,7 @@ class BatchValidateRequest(BaseModel):
     context: Optional[str] = Field(None, description="Context override")
     agent_id: Optional[str] = Field(None, description="Caller identity — AI agent name, service name, or team. Echoed in response for session correlation.")
     dry_run: bool = Field(False, description="If true, validate without recording results in quality metrics. Use for testing and demos.")
+    observe_only: bool = Field(False, description="If true, run in observation-only mode: log violations but do not block. Always returns HTTP 200.")
 
     model_config = {
         "json_schema_extra": {
@@ -123,6 +127,8 @@ class BatchValidateResponse(BaseModel):
     validated_at: Optional[str] = Field(None, description="ISO 8601 UTC timestamp of batch validation — use for time-series correlation with quality metrics")
     latency_ms: Optional[float] = Field(None, description="Server-side batch validation latency in milliseconds (total wall-clock time for the batch)")
     agent_id: Optional[str] = Field(None, description="Echo of caller's agent_id — for session and caller attribution")
+    mode: Optional[str] = Field(None, description="Validation mode: 'enforcement' (default) or 'observation_only'")
+    would_have_failed: Optional[bool] = Field(None, description="Present only in observation_only mode: true if any record would have been rejected under enforcement")
 
 
 # ── Contract models ──────────────────────────────────────────────────

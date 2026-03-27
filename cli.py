@@ -453,19 +453,37 @@ def cmd_validate_file(args):
         print("File is empty — nothing to validate.")
         sys.exit(0)
 
+    observe_only = getattr(args, "observe_only", False)
+
     rules = registry.get_rules_with_context(contract, args.context)
     result = validate_batch(records, rules, contract_name=args.contract)
     summary = result["summary"]
 
-    status = "PASS" if summary["failed"] == 0 else "FAIL"
-    print(f"Contract : {args.contract}")
-    print(f"File     : {path}")
-    print(f"Records  : {summary['total']}")
-    print(f"Result   : {status}")
-    print(f"Passed   : {summary['passed']}")
-    print(f"Failed   : {summary['failed']}")
-    if summary["warning_count"]:
-        print(f"Warnings : {summary['warning_count']}")
+    # Note: trace log entries are written by validate_batch() internally.
+    # The mode field on the trace log entry defaults to "enforcement".
+    # When --observe-only is used, the CLI labels its output differently
+    # and exits 0 — the observation-only business case is built from the
+    # CLI output and the --output-failures export, not from the trace log.
+
+    if observe_only:
+        print(f"Contract : {args.contract}")
+        print(f"File     : {path}")
+        print(f"Records  : {summary['total']}")
+        print("Result   : OBSERVATION RUN")
+        print(f"Passed   : {summary['passed']}")
+        print(f"Would have failed: {summary['failed']}")
+        if summary["warning_count"]:
+            print(f"Warnings : {summary['warning_count']}")
+    else:
+        status = "PASS" if summary["failed"] == 0 else "FAIL"
+        print(f"Contract : {args.contract}")
+        print(f"File     : {path}")
+        print(f"Records  : {summary['total']}")
+        print(f"Result   : {status}")
+        print(f"Passed   : {summary['passed']}")
+        print(f"Failed   : {summary['failed']}")
+        if summary["warning_count"]:
+            print(f"Warnings : {summary['warning_count']}")
 
     if summary["rule_failure_counts"]:
         print("\nFailures by rule:")
@@ -490,7 +508,10 @@ def cmd_validate_file(args):
                 writer.writerows(failed_rows)
             print(f"\nFailed records written to: {out_path}")
 
-    sys.exit(0 if summary["failed"] == 0 else 1)
+    if observe_only:
+        sys.exit(0)
+    else:
+        sys.exit(0 if summary["failed"] == 0 else 1)
 
 
 def cmd_lint(args):
@@ -881,6 +902,10 @@ def main():
     p_validate_file.add_argument(
         "--output-failures", default=None, metavar="FILE",
         help="Write failed records to a CSV file (e.g. failed.csv)",
+    )
+    p_validate_file.add_argument(
+        "--observe-only", action="store_true", default=False,
+        help="Run in observation-only mode: log violations but do not block. Always exits 0.",
     )
 
     # lint

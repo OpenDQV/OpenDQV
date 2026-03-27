@@ -483,8 +483,14 @@ async def validate_single(
     # ACT-038-05: include contract hash (entry_hash from hash chain) for audit evidence
     _contract_hash = _get_contract_hash(contract.name)
 
+    # Observation-only mode: override valid to True, include mode metadata
+    _observe = getattr(body, "observe_only", False)
+    _effective_valid = True if _observe else result["valid"]
+    _mode = "observation_only" if _observe else None
+    _would_have_failed = (not result["valid"]) if _observe else None
+
     return ValidateResponse(
-        valid=result["valid"],
+        valid=_effective_valid,
         record_id=body.record_id,
         errors=[FieldErrorResponse(**e) for e in _mask_errors(_add_suggested_fixes(result["errors"], rules))],
         warnings=[FieldErrorResponse(**w) for w in _mask_errors(_add_suggested_fixes(result["warnings"], rules))],
@@ -497,6 +503,8 @@ async def validate_single(
         validated_at=datetime.now(timezone.utc).isoformat(),
         latency_ms=round(elapsed_ms, 1),
         agent_id=body.agent_id,
+        mode=_mode,
+        would_have_failed=_would_have_failed,
     )
 
 
@@ -608,6 +616,11 @@ async def validate_batch_endpoint(
     # ACT-038-05: include contract hash (entry_hash from hash chain) for audit evidence
     _contract_hash = _get_contract_hash(contract.name)
 
+    # Observation-only mode: include mode metadata, report would_have_failed
+    _observe = getattr(body, "observe_only", False)
+    _mode = "observation_only" if _observe else None
+    _would_have_failed = (result["summary"]["failed"] > 0) if _observe else None
+
     return BatchValidateResponse(
         summary=BatchSummary(**result["summary"]),
         results=[
@@ -627,6 +640,8 @@ async def validate_batch_endpoint(
         validated_at=datetime.now(timezone.utc).isoformat(),
         latency_ms=round(elapsed_ms, 1),
         agent_id=body.agent_id,
+        mode=_mode,
+        would_have_failed=_would_have_failed,
     )
 
 

@@ -140,6 +140,7 @@ def write_trace_entry(
     fields_validated: list[str],
     sensitive_fields: list[str],
     failed_rules: list[str],
+    mode: str = "enforcement",
 ) -> None:
     """
     Write a single trace entry. Thread-safe. No-op if TRACE_LOG is not enabled.
@@ -169,6 +170,7 @@ def write_trace_entry(
         "fields_validated": sorted(set(fields_validated or []) - sensitive_set),
         "sensitive_fields_suppressed": sorted(sensitive_set & set(fields_validated or [])),
         "failed_rules": safe_failed_rules,
+        "mode": mode,
     }
     payload_str = json.dumps(payload_obj, sort_keys=True, separators=(",", ":"))
 

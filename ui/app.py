@@ -1043,6 +1043,13 @@ if section == "Validate":
     else:
         val_allow_draft = st.checkbox("Allow DRAFT contracts (for testing)", value=False, key="val_allow_draft")
 
+    val_observe_only = st.checkbox(
+        "Observation-only mode",
+        value=False,
+        key="val_observe_only",
+        help="Log violations but do not block. Always returns PASS. Use to build the business case for enforcement.",
+    )
+
     st.markdown("---")
 
     # ── Mode toggle ──
@@ -1086,18 +1093,28 @@ if section == "Validate":
                     _body["context"] = val_context
                 if val_record_id:
                     _body["record_id"] = val_record_id
+                if val_observe_only:
+                    _body["observe_only"] = True
                 _r = api_post("/api/v1/validate", json=_body, params=_val_params)
                 if _r and _r.status_code == 200:
                     _res = _r.json()
                     _errs = _res.get("errors", [])
                     _warns = _res.get("warnings", [])
                     _ok = _res["valid"]
-                    if _ok:
+                    _is_observe = _res.get("mode") == "observation_only"
+                    if _is_observe:
+                        _whf = _res.get("would_have_failed", False)
+                        if _whf:
+                            st.warning(f"OBSERVATION RUN — would have failed with {len(_errs)} error(s)  |  contract: **{_res['contract']}** v{_res['version']}")
+                        else:
+                            st.info(f"OBSERVATION RUN — would have passed  |  contract: **{_res['contract']}** v{_res['version']}")
+                    elif _ok:
                         st.success(f"✓ PASS — valid against **{_res['contract']}** v{_res['version']}")
                     else:
                         st.error(f"✗ FAIL — {len(_errs)} error(s)  |  contract: **{_res['contract']}** v{_res['version']}")
                     _m1, _m2, _m3 = st.columns(3)
-                    _m1.metric("Result", "PASS" if _ok else "FAIL")
+                    _result_label = "OBSERVATION" if _is_observe else ("PASS" if _ok else "FAIL")
+                    _m1.metric("Result", _result_label)
                     _m2.metric("Errors", len(_errs))
                     _m3.metric("Warnings", len(_warns))
                     if _res.get("owner"):
@@ -1115,16 +1132,26 @@ if section == "Validate":
                 _body = {"records": parsed, "contract": val_contract, "version": val_version}
                 if val_context:
                     _body["context"] = val_context
+                if val_observe_only:
+                    _body["observe_only"] = True
                 _r = api_post("/api/v1/validate/batch", json=_body, params=_val_params)
                 if _r and _r.status_code == 200:
                     _res = _r.json()
                     _sum = _res["summary"]
+                    _is_observe_batch = _res.get("mode") == "observation_only"
+                    if _is_observe_batch:
+                        _whf_batch = _res.get("would_have_failed", False)
+                        if _whf_batch:
+                            st.warning(f"OBSERVATION RUN — {_sum['failed']} record(s) would have been rejected")
+                        else:
+                            st.info("OBSERVATION RUN — all records would have passed")
                     if _res.get("owner"):
                         st.caption(f"Contract owner: {_res['owner']}")
                     _c1, _c2, _c3, _c4 = st.columns(4)
                     _c1.metric("Total", _sum["total"])
                     _c2.metric("Passed", _sum["passed"])
-                    _c3.metric("Failed", _sum["failed"])
+                    _failed_label = "Would have failed" if _is_observe_batch else "Failed"
+                    _c3.metric(_failed_label, _sum["failed"])
                     _c4.metric("Errors", _sum["error_count"])
                     _rule_counts = _sum.get("rule_failure_counts", {})
                     if _rule_counts:

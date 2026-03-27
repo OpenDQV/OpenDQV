@@ -1,5 +1,7 @@
 # Production Deployment Guide
 
+> ⚠️ **Alpha software.** OpenDQV is in Alpha. This guide documents the production hardening steps available today. Until OpenDQV reaches a stable release, review all configuration changes carefully and maintain your own security assessment before any regulated deployment.
+
 This guide covers hardening an OpenDQV deployment for production use.
 The default configuration (`AUTH_MODE=open`) is for local development only
 and must not be exposed to untrusted networks.

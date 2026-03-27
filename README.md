@@ -18,6 +18,8 @@
 | [Docs](docs/) | [Quickstart](docs/quickstart.md) | [Benchmark](docs/benchmark_throughput.md) | [Rules Reference](docs/rules/) | [Salesforce](docs/salesforce_integration.md) | [Postgres](docs/postgres_integration.md) | [Databricks](docs/databricks_integration.md) | [Snowflake](docs/snowflake_integration.md) | [Ethos](docs/ethos.md) | [FAQ](docs/faq.md) |
 |---|---|---|---|---|---|---|---|---|---|
 
+> **Alpha software.** OpenDQV is in active Alpha development. APIs may change between releases. Not recommended for production deployments without your own security assessment. See [SECURITY.md](SECURITY.md) for full disclosure of known limitations.
+
 **OpenDQV — the validation bouncer that stops bad data at the door.**
 
 **Legacy check factories, scattered scripts, and post-load reports only tell you how bad it already got.**
@@ -230,6 +232,8 @@ of write, before the data reaches your pipeline.
 - **Not a semantic layer** — it does not define business meaning or ontology mappings
 - **Not an SLA monitor** — it does not track or alert on service level obligations
 - **Not a lineage tracker** — it does not model upstream data dependencies
+- **Not a format normaliser or ETL preprocessor** — OpenDQV validates business rules on well-formed, structured data. It does not parse malformed Excel files, normalise inconsistent column names across agency feeds, or fix upstream format chaos. If your data arrives in structurally inconsistent formats, that is a data submission standards problem. OpenDQV enforces the rules once data arrives in structured form.
+- **Not an ETL pipeline observer** — OpenDQV validates at the write boundary, before data is stored. It does not sit inside an ETL pipeline after ingestion to observe data at rest. If you need post-ingestion monitoring, use Great Expectations, Soda, or dbt tests alongside OpenDQV — they are complementary.
 - **Not a replacement for Collibra, DataHub, Atlan, Purview, or Marmot** — it complements them. A governance team running Atlan, Collibra, or Marmot for stewardship should think of OpenDQV as the enforcement layer that sits upstream of everything their catalog manages — it ensures the data being governed was clean before it arrived.
 
 - **Not a data profiler or drift monitor** — it does not monitor data distributions over time or detect schema drift. For that, use [Great Expectations](https://greatexpectations.io), [Soda](https://www.soda.io), or [Evidently](https://evidentlyai.com). The built-in `profile_records()` function generates *suggested validation rules* from a sample of records — a one-time bootstrapping aid, not a monitoring system.

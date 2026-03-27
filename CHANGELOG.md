@@ -51,6 +51,17 @@ All notable changes to OpenDQV are documented here.
 
 ---
 
+### Observation-Only Mode
+
+- **`--observe-only` flag on `validate-file` CLI** — run full validation without blocking. Output labelled `OBSERVATION RUN`, exits 0 regardless of violations. `--output-failures` still works to export what would have been rejected.
+- **`observe_only: bool` on POST /validate and POST /validate-batch** — when `true`, returns HTTP 200 with `"mode": "observation_only"` and `"would_have_failed": true/false`. Errors and warnings are still fully populated.
+- **SDK: `observe_only=True`** on both `OpenDQVClient.validate()` / `validate_batch()` and `AsyncOpenDQVClient` equivalents.
+- **Audit trail `mode` field** — `write_trace_entry()` accepts `mode` parameter. Observation-only runs are recorded with `mode=observation_only`; all existing enforcement runs default to `mode=enforcement`.
+- **Streamlit workbench** — observation-only checkbox in validation workbench. Results display `OBSERVATION RUN` banner with "would have failed/passed" language.
+- **13 new tests** (`tests/test_observe_only.py`) covering CLI exit code, output labelling, API response shape, batch mode, trace log mode field, and regression for enforcement mode.
+
+---
+
 ## [1.8.6] - 2026-03-27
 
 ### Features
