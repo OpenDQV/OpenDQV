@@ -18,7 +18,7 @@
 | [Docs](docs/) | [Quickstart](docs/quickstart.md) | [Benchmark](docs/benchmark_throughput.md) | [Rules Reference](docs/rules/) | [Salesforce](docs/salesforce_integration.md) | [Postgres](docs/postgres_integration.md) | [Databricks](docs/databricks_integration.md) | [Snowflake](docs/snowflake_integration.md) | [Ethos](docs/ethos.md) | [FAQ](docs/faq.md) |
 |---|---|---|---|---|---|---|---|---|---|
 
-> **Alpha software.** OpenDQV is in active Alpha development. APIs may change between releases. Not recommended for production deployments without your own security assessment. See [SECURITY.md](SECURITY.md) for full disclosure of known limitations.
+> **Alpha software.** OpenDQV is in early Alpha (v1.x). It is under active development with frequent breaking changes. Not recommended for production or regulated environments without thorough testing and your own validation. We are seeking real-world feedback to move toward a stable Beta. See Contributing and Feedback below. Expect breaking changes in the v1.x series. We will stabilise and move to Beta once we have external user feedback and real deployment stories.
 
 **OpenDQV — the validation bouncer that stops bad data at the door.**
 
