@@ -1,4 +1,5 @@
 """Tests for the quality trend endpoint and QualityStats store."""
+import time
 import pytest
 from fastapi.testclient import TestClient
 
@@ -113,6 +114,11 @@ class TestQualityTrendAPI:
                                  json={"records": records, "contract": "customer"},
                                  headers=auth_headers)
         assert batch_resp.status_code == 200
+
+        # Allow the async fire-and-forget SQLite write (asyncio.create_task) to complete
+        # before querying the quality trend. The background task runs on a thread pool
+        # via asyncio.to_thread(); 150ms is well clear of the observed write latency.
+        time.sleep(0.15)
 
         trend_resp = client.get("/api/v1/contracts/customer/quality-trend?days=1")
         assert trend_resp.status_code == 200
