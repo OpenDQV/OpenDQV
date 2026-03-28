@@ -224,6 +224,7 @@ _SECTIONS = [
     "Contracts",
     "Validate",
     "Monitoring",
+    "Observation",
     "Audit Trail",
     "Catalogs & AI",
     "Integration Guide",
@@ -236,7 +237,7 @@ _SECTIONS = [
 ]
 
 _NAV_GROUPS = {
-    "CORE": ["Contracts", "Validate", "Monitoring", "Audit Trail"],
+    "CORE": ["Contracts", "Validate", "Monitoring", "Observation", "Audit Trail"],
     "INTEGRATIONS": ["Catalogs & AI", "Integration Guide", "Code Export", "Webhooks", "Federation"],
     "CONTRACT TOOLS": ["Import Rules", "Profiler", "CLI Guide"],
 }
@@ -1696,6 +1697,104 @@ if section == "Monitoring":
 
     elif r:
         st.error(f"Failed to load stats: {r.status_code} — {r.text}")
+
+# ── Observation Mode ──────────────────────────────────────────────────
+
+if section == "Observation":
+    st.header("Observation Mode — Real-time")
+    st.markdown("Monitor what *would* fail without blocking writes. Enable observation mode in the Validate section.")
+
+    # ── Panel A: Real-time observation data from /stats recent_history ──
+    _obs_r = api_get("/api/v1/stats")
+    if _obs_r and _obs_r.status_code == 200:
+        _obs_data = _obs_r.json()
+        _obs_history = _obs_data.get("recent_history", [])
+        _obs_filtered = [item for item in _obs_history if item.get("mode") == "observation_only"]
+
+        if not _obs_filtered:
+            st.info("No observation runs yet. Enable observation mode in the Validate section to start.")
+        else:
+            _obs_total = len(_obs_filtered)
+            _obs_would_fail = sum(1 for item in _obs_filtered if not item.get("valid", True))
+            _obs_would_pass = _obs_total - _obs_would_fail
+            _obs_readiness = round(100 * _obs_would_pass / _obs_total, 1) if _obs_total > 0 else 0.0
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Observation Records", f"{_obs_total:,}")
+            c2.metric("Would Fail", f"{_obs_would_fail:,}")
+            c3.metric("Would Pass", f"{_obs_would_pass:,}")
+            c4.metric("Enforcement Readiness %", f"{_obs_readiness}%")
+
+            _obs_df = pd.DataFrame(_obs_filtered)
+            _obs_display_cols = [col for col in ["ts", "contract", "context", "result", "errors", "warnings", "latency_ms"] if col in _obs_df.columns]
+            if "valid" in _obs_df.columns and "result" not in _obs_df.columns:
+                _obs_df["result"] = _obs_df["valid"].map({True: "Pass", False: "Fail"})
+                _obs_display_cols = [col for col in ["ts", "contract", "context", "result", "errors", "warnings", "latency_ms"] if col in _obs_df.columns]
+            with st.expander("Observation event log", expanded=True):
+                st.dataframe(
+                    _obs_df[_obs_display_cols].sort_values("ts", ascending=False) if "ts" in _obs_df.columns else _obs_df[_obs_display_cols],
+                    hide_index=True,
+                )
+    elif _obs_r:
+        st.error(f"Failed to load stats: {_obs_r.status_code} — {_obs_r.text}")
+
+    # ── Panel B: Historical Analysis ──
+    st.markdown("---")
+    st.subheader("Historical Analysis")
+
+    _obs_contracts_r = api_get("/api/v1/contracts")
+    _obs_contract_names = []
+    if _obs_contracts_r and _obs_contracts_r.status_code == 200:
+        _obs_contract_names = [c["name"] for c in _obs_contracts_r.json()]
+
+    if not _obs_contract_names:
+        st.info("No contracts found. Create a contract first to view historical observation data.")
+    else:
+        _obs_col1, _obs_col2 = st.columns(2)
+        with _obs_col1:
+            _obs_selected_contract = st.selectbox("Contract", _obs_contract_names, key="obs_contract_select")
+        with _obs_col2:
+            _obs_days = st.selectbox("Day range", [7, 14, 30], key="obs_days_select")
+
+        # ── Summary metrics ──
+        _obs_summary_r = api_get(f"/api/v1/observation/summary", params={"days": _obs_days, "contract": _obs_selected_contract})
+        if _obs_summary_r and _obs_summary_r.status_code == 200:
+            _obs_summary = _obs_summary_r.json()
+            _obs_s_total = _obs_summary.get("total_records", 0)
+            _obs_s_failed = _obs_summary.get("would_have_failed", 0)
+            _obs_s_readiness = _obs_summary.get("enforcement_readiness_pct", 0.0)
+
+            sc1, sc2, sc3 = st.columns(3)
+            sc1.metric("Total Records", f"{_obs_s_total:,}")
+            sc2.metric("Would Have Failed", f"{_obs_s_failed:,}")
+            sc3.metric("Enforcement Readiness %", f"{_obs_s_readiness}%")
+        elif _obs_summary_r and _obs_summary_r.status_code == 404:
+            st.info("No observation data found for this contract and time range.")
+        elif _obs_summary_r:
+            st.error(f"Failed to load observation summary: {_obs_summary_r.status_code}")
+
+        # ── Trend chart ──
+        _obs_trend_r = api_get(f"/api/v1/observation/trend", params={"contract": _obs_selected_contract, "days": _obs_days})
+        if _obs_trend_r and _obs_trend_r.status_code == 200:
+            _obs_trend_data = _obs_trend_r.json()
+            if _obs_trend_data:
+                _obs_trend_df = pd.DataFrame(_obs_trend_data)
+                if "date" in _obs_trend_df.columns and "would_have_failed" in _obs_trend_df.columns:
+                    _obs_trend_df["date"] = pd.to_datetime(_obs_trend_df["date"])
+                    st.markdown("**Would-Have-Failed Trend**")
+                    st.line_chart(_obs_trend_df.set_index("date")["would_have_failed"])
+            else:
+                st.info("No trend data available for this contract and time range.")
+
+        # ── Top failing fields ──
+        _obs_fields_r = api_get(f"/api/v1/observation/fields", params={"contract": _obs_selected_contract, "days": _obs_days})
+        if _obs_fields_r and _obs_fields_r.status_code == 200:
+            _obs_fields_data = _obs_fields_r.json()
+            if _obs_fields_data:
+                with st.expander("Top Failing Rules / Fields", expanded=False):
+                    st.dataframe(pd.DataFrame(_obs_fields_data), hide_index=True)
+            else:
+                st.info("No field-level observation data available for this contract and time range.")
 
 # ── Catalogs & AI ─────────────────────────────────────────────────────
 

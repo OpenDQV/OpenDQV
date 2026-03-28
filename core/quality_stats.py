@@ -25,17 +25,19 @@ CREATE TABLE IF NOT EXISTS quality_stats (
     failed           INTEGER NOT NULL,
     pass_rate        REAL    NOT NULL,
     rule_failure_counts TEXT NOT NULL DEFAULT '{}',
-    agent_id         TEXT    NOT NULL DEFAULT ''
+    agent_id         TEXT    NOT NULL DEFAULT '',
+    mode             TEXT    NOT NULL DEFAULT 'enforcement'
 )
 """
 
 _MIGRATE_AGENT_ID = "ALTER TABLE quality_stats ADD COLUMN agent_id TEXT NOT NULL DEFAULT ''"
+_MIGRATE_MODE = "ALTER TABLE quality_stats ADD COLUMN mode TEXT NOT NULL DEFAULT 'enforcement'"
 
 _INSERT = """
 INSERT INTO quality_stats
     (contract_name, contract_version, context, recorded_at,
-     total_records, passed, failed, pass_rate, rule_failure_counts, agent_id)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     total_records, passed, failed, pass_rate, rule_failure_counts, agent_id, mode)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 _DELETE_BY_CONTEXT = "DELETE FROM quality_stats WHERE context = ?"
@@ -101,6 +103,12 @@ class QualityStats:
                 conn.commit()
             except sqlite3.OperationalError:
                 pass  # column already exists
+            # Migration: add mode to existing DBs (idempotent)
+            try:
+                conn.execute(_MIGRATE_MODE)
+                conn.commit()
+            except sqlite3.OperationalError:
+                pass  # column already exists
         finally:
             if self._db_path != ":memory:":
                 conn.close()
@@ -115,6 +123,7 @@ class QualityStats:
         failed: int,
         rule_failure_counts: dict,
         agent_id: str = "",
+        mode: str = "enforcement",
     ) -> None:
         """Persist one batch validation result."""
         pass_rate = passed / total if total > 0 else 1.0
@@ -127,6 +136,7 @@ class QualityStats:
                 total, passed, failed, pass_rate,
                 json.dumps(rule_failure_counts),
                 agent_id or "",
+                mode or "enforcement",
             ))
             conn.commit()
         except (sqlite3.Error, OSError, ValueError) as exc:

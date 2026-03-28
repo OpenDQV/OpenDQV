@@ -116,8 +116,8 @@ Once connected, the agent will see these tools:
 |------|--------------|
 | `list_contracts` | List all active contracts with name, version, status, rule count |
 | `get_contract` | Get full contract detail including all rules. Each rule includes constraint fields: `allowed_values`, `pattern`, `min_value`, `max_value`, `min_length`, `max_length` (null when not applicable for that rule type). |
-| `validate_record` | Validate a single JSON record against a named contract. Supports `agent_id` (attribution), `dry_run` (skip metrics), `context`. Returns `latency_ms` and `suggested_fix` inline on errors. |
-| `validate_batch` | Validate multiple records in one call; returns per-row results and a summary. Same `agent_id`, `dry_run`, `context` params as `validate_record`. Returns `latency_ms` on the batch envelope. |
+| `validate_record` | Validate a single JSON record against a named contract. Supports `agent_id` (attribution), `dry_run` (skip metrics), `context`, `observe_only` (bool, optional, default false) — when true, violations are logged but the record is accepted. Response includes `mode="observation_only"` and `would_have_failed`. Returns `latency_ms` and `suggested_fix` inline on errors. |
+| `validate_batch` | Validate multiple records in one call; returns per-row results and a summary. Same `agent_id`, `dry_run`, `context` params as `validate_record`. Supports `observe_only` (bool, optional, default false) — when true, violations are logged but records are accepted. Response includes `mode="observation_only"` and `would_have_failed`. Returns `latency_ms` on the batch envelope. |
 | `explain_error` | Get a plain-English explanation of a rule failure with valid/invalid examples |
 
 Observability tools:

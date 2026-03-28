@@ -68,6 +68,7 @@ from .models import (
     AnalyticsSummaryItem, AnalyticsSummaryResponse,
     RuleHeatmapItem, RuleHeatmapResponse,
     RuleVelocityBucket, RuleVelocityResponse,
+    ObservationSummaryResponse, ObservationTrendPoint, ObservationFieldFailure,
 )
 from core.explainer import explain_rule, quick_fix
 
@@ -185,6 +186,7 @@ async def _async_record_quality_stats(
     failed: int,
     rule_failure_counts: dict,
     agent_id: str,
+    mode: str = "enforcement",
 ) -> None:
     """Offload quality_stats SQLite INSERT to a thread-pool worker."""
     try:
@@ -198,6 +200,7 @@ async def _async_record_quality_stats(
             failed=failed,
             rule_failure_counts=rule_failure_counts,
             agent_id=agent_id,
+            mode=mode,
         )
     except Exception:
         logger.exception("async quality_stats.record_batch failed — stats may be incomplete")
@@ -454,6 +457,7 @@ async def validate_single(
             failed=0 if result["valid"] else 1,
             rule_failure_counts=rule_failure_counts,
             agent_id=body.agent_id or "",
+            mode="observation_only" if getattr(body, "observe_only", False) else "enforcement",
         )
 
     # Webhook notifications (fire-and-forget)
@@ -597,6 +601,7 @@ async def validate_batch_endpoint(
             failed=result["summary"]["failed"],
             rule_failure_counts=result["summary"].get("rule_failure_counts", {}),
             agent_id=body.agent_id or "",
+            mode="observation_only" if getattr(body, "observe_only", False) else "enforcement",
         )
 
         # Webhook notification for batch failures (fire-and-forget)
@@ -2363,6 +2368,72 @@ async def get_analytics_rule_velocity(
             for rule, buckets in data["series"].items()
         },
     )
+
+
+# ── Observation-only analytics ──────────────────────────────────────────
+
+@router.get("/observation/summary", response_model=ObservationSummaryResponse)
+@_default_limit
+async def get_observation_summary(
+    request: Request,
+    days: int = Query(7, ge=1, le=90, description="Analytics window in calendar days"),
+    contract: Optional[str] = Query(None, description="Filter to a single contract (default: all)"),
+    user=Depends(get_current_user),
+):
+    """
+    Cross-contract summary of observation-only validation runs.
+
+    Shows total records validated in observation mode, how many would have
+    failed under enforcement, and an enforcement readiness percentage.
+
+    Use this to decide when a contract is ready to switch from observation
+    mode to enforcement.
+
+    Requires reader role or above.
+    """
+    data = _quality_analytics.observation_summary(days=days, contract=contract)
+    return ObservationSummaryResponse(**data)
+
+
+@router.get("/observation/trend", response_model=list[ObservationTrendPoint])
+@_default_limit
+async def get_observation_trend(
+    request: Request,
+    contract: str = Query(..., description="Contract name"),
+    days: int = Query(7, ge=1, le=90, description="Analytics window in calendar days"),
+    user=Depends(get_current_user),
+):
+    """
+    Daily time-series for one contract in observation mode.
+
+    Returns a list of daily data points showing total records validated,
+    how many would have failed, and how many would have passed.
+
+    Requires reader role or above.
+    """
+    points = _quality_analytics.observation_trend(contract=contract, days=days)
+    return [ObservationTrendPoint(**p) for p in points]
+
+
+@router.get("/observation/fields", response_model=list[ObservationFieldFailure])
+@_default_limit
+async def get_observation_fields(
+    request: Request,
+    contract: str = Query(..., description="Contract name"),
+    days: int = Query(7, ge=1, le=90, description="Analytics window in calendar days"),
+    user=Depends(get_current_user),
+):
+    """
+    Top failing rules/fields for a contract in observation mode.
+
+    Returns up to 50 rules ranked by failure count descending. Use this to
+    identify which rules would cause the most rejections if enforcement were
+    enabled.
+
+    Requires reader role or above.
+    """
+    items = _quality_analytics.observation_fields(contract=contract, days=days)
+    return [ObservationFieldFailure(**i) for i in items]
 
 
 # ── Federation API (OSS skeleton) ─────────────────────────────────────

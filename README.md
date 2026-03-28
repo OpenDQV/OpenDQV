@@ -101,6 +101,8 @@ No full-table scans. No re-runs. Just clean data and dramatically lower DQ-relat
 
 ---
 
+**Observation mode** — run validation without blocking to quantify what would be rejected before enforcing. Full audit trail, zero disruption. See [docs/observation_mode.md](docs/observation_mode.md).
+
 **90 seconds to a working contract.** Drop a YAML file in `contracts/`, call `/api/v1/contracts/reload`, start validating. No GUI. No SDK to install in every system. One API, every caller.
 
 > ⚠️ **Before any regulated or production deployment**, review the [Security Policy](SECURITY.md) and complete the mandatory deployment checklist.

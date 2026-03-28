@@ -2,6 +2,47 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.8.8] - 2026-03-28
+
+### Features
+
+- **Observation mode analytics** — three new API endpoints to analyse observation-only runs
+  separately from enforcement runs:
+  - `GET /api/v1/observation/summary?days=7&contract=X` — total observation records,
+    would_have_failed_count, would_have_passed_count, enforcement_readiness_pct, by_contract breakdown
+  - `GET /api/v1/observation/trend?contract=X&days=7` — daily time-series of observation
+    violations (same shape as `/quality/trend`, mode-filtered)
+  - `GET /api/v1/observation/fields?contract=X&days=7` — top failing rules/fields under
+    observation mode, sorted by frequency
+  - DuckDB-backed via three new `QualityAnalytics` methods: `observation_summary()`,
+    `observation_trend()`, `observation_fields()`
+
+- **Observation mode persistence** — `quality_stats` SQLite table now stores a `mode` column
+  (`'enforcement'` or `'observation_only'`). Idempotent schema migration runs on startup
+  (existing deployments upgrade automatically). Observation runs no longer pollute enforcement
+  analytics.
+
+- **Workbench Observation dashboard** — new "Observation" section in the Streamlit governance
+  workbench. Two panels:
+  - Real-time: KPI metrics (Observation Records, Would Fail, Would Pass, Enforcement Readiness %),
+    filtered event table from in-memory stats
+  - Historical: contract + day selector, daily trend line chart, top failing fields table,
+    enforcement readiness score — all backed by the new DuckDB analytics endpoints
+
+- **Observation mode documentation** — `docs/observation_mode.md` (new): practical guide
+  covering the prospect workflow (observe → analyse → enforce), API/CLI/SDK usage examples,
+  workbench dashboard interpretation, and `--output-failures` export.
+
+### Tests
+
+- 2773 passed, 21 skipped (was 2745 in v1.8.7; +28 new tests):
+  - `TestObserveOnlyPersistence` (3 tests) — verify `mode` column written correctly to SQLite
+    for both observation and enforcement calls
+  - `TestObservationAnalyticsEndpoints` (6 tests) — all three new endpoints: shape, auth boundary,
+    required params
+  - `TestObservationModeSmoke` (3 tests) — 16th smoke coverage area; happy path + endpoint
+    reachability
+
 ## [1.8.7] - 2026-03-27
 
 ### Features

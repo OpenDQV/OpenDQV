@@ -1,0 +1,50 @@
+No config file found, using defaults and environment variables
+Starting Marmot...
+Error: Failed to initialize database: pinging database: failed to connect to `user=postgres database=marmot`: 127.0.0.1:5432 (localhost): server error: FATAL: the database system is starting up (SQLSTATE 57P03)
+Usage:
+  marmot run [flags]
+
+Flags:
+  -h, --help   help for run
+
+Global Flags:
+      --config string   config file (default is ./config.yaml)
+
+No config file found, using defaults and environment variables
+Starting Marmot...
+{"level":"info","version":36,"time":"2026-03-24T11:00:17Z","message":"Database schema is up to date"}
+{"level":"info","task":"asset-statistics-refresh","interval":300000,"lock_id":293575008631010211,"time":"2026-03-24T11:00:17Z","message":"Singleton task started"}
+{"level":"info","task":"metrics-partition-management","interval":86400000,"lock_id":7582849948759330251,"time":"2026-03-24T11:00:17Z","message":"Singleton task started"}
+{"level":"info","task":"metrics-cleanup","interval":86400000,"lock_id":4822836174225312423,"time":"2026-03-24T11:00:17Z","message":"Singleton task started"}
+{"level":"info","task":"metadata-value-counts-refresh","interval":300000,"lock_id":8882932975672041777,"time":"2026-03-24T11:00:17Z","message":"Singleton task started"}
+{"level":"info","time":"2026-03-24T11:00:17Z","message":"Metrics service started (array-based storage, no aggregation jobs)"}
+{"level":"info","pool":"notification-fanout","max_workers":5,"queue_size":200,"time":"2026-03-24T11:00:17Z","message":"Worker pool started"}
+{"level":"info","task":"notification-prune","interval":86400000,"lock_id":5116040669654884067,"time":"2026-03-24T11:00:17Z","message":"Singleton task started"}
+{"level":"info","time":"2026-03-24T11:00:17Z","message":"Notification service started"}
+{"level":"info","pool":"membership-evaluator","max_workers":5,"queue_size":200,"time":"2026-03-24T11:00:17Z","message":"Worker pool started"}
+{"level":"info","processor":"membership-batcher","batch_size":50,"flush_interval":500,"time":"2026-03-24T11:00:17Z","message":"Batch processor started"}
+{"level":"info","time":"2026-03-24T11:00:17Z","message":"Membership service started"}
+{"level":"info","task":"dataproduct-reconcile","interval":1800000,"lock_id":3786677417478613317,"time":"2026-03-24T11:00:17Z","message":"Singleton task started"}
+{"level":"info","pool":"assetrule-membership-evaluator","max_workers":5,"queue_size":200,"time":"2026-03-24T11:00:17Z","message":"Worker pool started"}
+{"level":"info","processor":"assetrule-membership-batcher","batch_size":50,"flush_interval":500,"time":"2026-03-24T11:00:17Z","message":"Batch processor started"}
+{"level":"info","time":"2026-03-24T11:00:17Z","message":"Asset rule membership service started"}
+{"level":"info","task":"assetrule-reconcile","interval":1800000,"lock_id":366455123278224380,"time":"2026-03-24T11:00:17Z","message":"Singleton task started"}
+{"level":"info","time":"2026-03-24T11:00:17Z","message":"WebSocket hub (Centrifuge) started and ready"}
+═══════════════════════════════════════════════════════════════
+⚠️  ENCRYPTION KEY REQUIRED
+═══════════════════════════════════════════════════════════════
+Marmot requires an encryption key to protect sensitive pipeline credentials.
+
+To generate a key, run:
+  marmot generate-encryption-key
+
+Then set it via:
+  export MARMOT_SERVER_ENCRYPTION_KEY="your-generated-key"
+
+Or to run WITHOUT encryption (NOT RECOMMENDED):
+  export MARMOT_SERVER_ALLOW_UNENCRYPTED=true
+
+⚠️  Running unencrypted means pipeline credentials will be stored
+    in PLAINTEXT in the database. This is a SECURITY RISK.
+═══════════════════════════════════════════════════════════════
+{"level":"fatal","time":"2026-03-24T11:00:17Z","message":"Encryption key required"}

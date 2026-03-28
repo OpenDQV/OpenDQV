@@ -329,3 +329,31 @@ class RuleVelocityResponse(BaseModel):
     series: dict[str, list[RuleVelocityBucket]] = Field(
         ..., description="Per-rule time-series (top 5 rules by total failures)"
     )
+
+
+# ── Observation-only analytics models ──────────────────────────────────
+
+class ObservationSummaryResponse(BaseModel):
+    """Cross-contract summary of observation-only validation runs."""
+    days: int = Field(..., description="Analytics window in days")
+    contract: Optional[str] = Field(None, description="Contract filter (None = all contracts)")
+    total_observation_records: int = Field(..., description="Total records validated in observation mode")
+    would_have_failed_count: int = Field(..., description="Records that would have been rejected under enforcement")
+    would_have_passed_count: int = Field(..., description="Records that would have passed under enforcement")
+    enforcement_readiness_pct: float = Field(..., description="Percentage of records that would pass enforcement (0.0–100.0)")
+    by_contract: list[dict] = Field(default_factory=list, description="Per-contract breakdown")
+
+
+class ObservationTrendPoint(BaseModel):
+    """Daily observation-mode statistics for one contract."""
+    date: str = Field(..., description="Calendar date (UTC), YYYY-MM-DD")
+    total: int = Field(..., description="Total records validated in observation mode")
+    would_have_failed: int = Field(..., description="Records that would have been rejected")
+    would_have_passed: int = Field(..., description="Records that would have passed")
+
+
+class ObservationFieldFailure(BaseModel):
+    """Failure count for one rule/field in observation mode."""
+    rule: str = Field(..., description="Rule name")
+    field: str = Field(..., description="Field name (derived from rule)")
+    count: int = Field(..., description="Total failures for this rule in the window")

@@ -227,3 +227,155 @@ class QualityAnalytics:
             "bucket_minutes": bucket_minutes,
             "series": formatted_series,
         }
+
+    # ── Observation-only analytics ─────────────────────────────────────
+
+    def observation_summary(self, days: int = 7, contract: str | None = None) -> dict:
+        """
+        Cross-contract summary of observation-only runs.
+
+        Returns: total_observation_records, would_have_failed_count,
+                 would_have_passed_count, enforcement_readiness_pct,
+                 by_contract list.
+        """
+        since = self._since(days)
+        conn = self._conn()
+        try:
+            params: list = [since]
+            contract_filter = ""
+            if contract:
+                contract_filter = " AND contract_name = ?"
+                params.append(contract)
+
+            # Per-contract breakdown
+            rows = conn.execute(
+                f"""
+                SELECT
+                    contract_name,
+                    CAST(SUM(total_records) AS INTEGER) AS total_records,
+                    CAST(SUM(passed)        AS INTEGER) AS passed,
+                    CAST(SUM(failed)        AS INTEGER) AS failed
+                FROM   qs.quality_stats
+                WHERE  recorded_at >= ?
+                  AND  mode = 'observation_only'
+                  {contract_filter}
+                GROUP  BY contract_name
+                ORDER  BY contract_name
+                """,
+                params,
+            ).fetchall()
+        finally:
+            conn.close()
+
+        by_contract = []
+        total_obs = 0
+        total_failed = 0
+        total_passed = 0
+        for contract_name, total, passed, failed in rows:
+            total_obs += int(total)
+            total_passed += int(passed)
+            total_failed += int(failed)
+            readiness = round(100 * passed / total, 1) if total else 0.0
+            by_contract.append({
+                "contract": contract_name,
+                "total": int(total),
+                "would_have_passed": int(passed),
+                "would_have_failed": int(failed),
+                "enforcement_readiness_pct": readiness,
+            })
+
+        overall_readiness = round(100 * total_passed / total_obs, 1) if total_obs else 0.0
+
+        return {
+            "days": days,
+            "contract": contract,
+            "total_observation_records": total_obs,
+            "would_have_failed_count": total_failed,
+            "would_have_passed_count": total_passed,
+            "enforcement_readiness_pct": overall_readiness,
+            "by_contract": by_contract,
+        }
+
+    def observation_trend(self, contract: str, days: int = 7) -> list[dict]:
+        """
+        Daily time-series for one contract in observation mode.
+
+        Returns: list of {date, total, would_have_failed, would_have_passed}.
+        """
+        since = self._since(days)
+        conn = self._conn()
+        try:
+            rows = conn.execute(
+                """
+                SELECT
+                    CAST(recorded_at AS DATE) AS day,
+                    CAST(SUM(total_records) AS INTEGER) AS total,
+                    CAST(SUM(passed)        AS INTEGER) AS passed,
+                    CAST(SUM(failed)        AS INTEGER) AS failed
+                FROM   qs.quality_stats
+                WHERE  contract_name = ?
+                  AND  recorded_at  >= ?
+                  AND  mode = 'observation_only'
+                GROUP  BY day
+                ORDER  BY day
+                """,
+                [contract, since],
+            ).fetchall()
+        finally:
+            conn.close()
+
+        return [
+            {
+                "date": str(day),
+                "total": int(total),
+                "would_have_failed": int(failed),
+                "would_have_passed": int(passed),
+            }
+            for day, total, passed, failed in rows
+        ]
+
+    def observation_fields(self, contract: str, days: int = 7) -> list[dict]:
+        """
+        Top failing rules/fields for a contract in observation mode.
+
+        Returns: list of {rule, field, count} sorted by count desc.
+        Uses the same Python-side JSON parsing pattern as rule_heatmap().
+        """
+        since = self._since(days)
+        conn = self._conn()
+        try:
+            rows = conn.execute(
+                """
+                SELECT rule_failure_counts
+                FROM   qs.quality_stats
+                WHERE  contract_name = ?
+                  AND  recorded_at  >= ?
+                  AND  mode = 'observation_only'
+                  AND  rule_failure_counts IS NOT NULL
+                """,
+                [contract, since],
+            ).fetchall()
+        finally:
+            conn.close()
+
+        # Aggregate rule failures in Python — same pattern as rule_heatmap()
+        aggregated: dict[str, int] = {}
+        for (rfc_json,) in rows:
+            if not rfc_json or rfc_json in ("{}", "null"):
+                continue
+            try:
+                rfc = json.loads(rfc_json)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            for rule, count in rfc.items():
+                aggregated[rule] = aggregated.get(rule, 0) + int(count)
+
+        result = sorted(
+            [
+                {"rule": rule, "field": rule, "count": v}
+                for rule, v in aggregated.items()
+            ],
+            key=lambda x: x["count"],
+            reverse=True,
+        )
+        return result[:50]

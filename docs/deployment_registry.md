@@ -117,6 +117,12 @@ watching the repository with "Security alerts" enabled.
 
 ---
 
+## Onboarding Recommendation
+
+Use [observation mode](observation_mode.md) when onboarding a new data source. Run in observe mode for 1-2 weeks to quantify real violation rates against production traffic before switching to enforcement. This generates evidence for stakeholder sign-off and reduces the risk of disruption on go-live.
+
+---
+
 ## Annual Review
 
 This registry is reviewed annually (or after any P0/P1 incident) to:

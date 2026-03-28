@@ -5,14 +5,18 @@ Covers:
   - API observe_only=True: returns 200, response contains mode=observation_only
   - Trace log: entries written with correct mode value
   - Existing enforcement behaviour unchanged (regression)
+  - DB persistence: mode column written correctly to quality_stats
+  - Analytics endpoints: /observation/summary, /observation/trend, /observation/fields
 """
 
 import csv
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -305,3 +309,124 @@ class TestTraceLogMode:
             assert result["entries"] == 2
         finally:
             os.unlink(log_path)
+
+
+# ---------------------------------------------------------------------------
+# DB persistence — mode column in quality_stats
+# ---------------------------------------------------------------------------
+
+class TestObserveOnlyPersistence:
+    """Verify that the mode column is correctly persisted to quality_stats."""
+
+    def _latest_mode(self):
+        """Query the most recent quality_stats row and return its mode value."""
+        import config
+        # Give the async fire-and-forget task time to flush to SQLite
+        time.sleep(0.3)
+        conn = sqlite3.connect(config.DB_PATH)
+        try:
+            row = conn.execute(
+                "SELECT mode FROM quality_stats ORDER BY rowid DESC LIMIT 1"
+            ).fetchone()
+            assert row is not None, "No quality_stats rows found"
+            return row[0]
+        finally:
+            conn.close()
+
+    def test_observation_mode_persisted_to_db(self, client, auth_headers):
+        """POST with observe_only=True persists mode='observation_only'."""
+        body = {
+            "record": {"email": "not-an-email", "age": -5, "name": ""},
+            "contract": "customer",
+            "observe_only": True,
+        }
+        r = client.post("/api/v1/validate", json=body, headers=auth_headers)
+        assert r.status_code == 200
+        assert self._latest_mode() == "observation_only"
+
+    def test_enforcement_mode_persisted_to_db(self, client, auth_headers):
+        """POST without observe_only persists mode='enforcement'."""
+        body = {
+            "record": {"email": "not-an-email", "age": -5, "name": ""},
+            "contract": "customer",
+        }
+        r = client.post("/api/v1/validate", json=body, headers=auth_headers)
+        assert r.status_code == 200
+        assert self._latest_mode() == "enforcement"
+
+    def test_batch_observation_mode_persisted(self, client, auth_headers):
+        """POST batch with observe_only=True persists mode='observation_only'."""
+        body = {
+            "records": [
+                {"email": "a@b.com", "age": 25, "name": "Alice"},
+                {"email": "bad-email", "age": -5, "name": ""},
+            ],
+            "contract": "customer",
+            "observe_only": True,
+        }
+        r = client.post("/api/v1/validate/batch", json=body, headers=auth_headers)
+        assert r.status_code == 200
+        assert self._latest_mode() == "observation_only"
+
+
+# ---------------------------------------------------------------------------
+# Observation analytics endpoints
+# ---------------------------------------------------------------------------
+
+class TestObservationAnalyticsEndpoints:
+    """Tests for /observation/summary, /observation/trend, /observation/fields."""
+
+    def test_observation_summary_returns_200(self, client, auth_headers):
+        r = client.get("/api/v1/observation/summary", headers=auth_headers)
+        assert r.status_code == 200
+        data = r.json()
+        for key in (
+            "total_observation_records",
+            "would_have_failed_count",
+            "would_have_passed_count",
+            "enforcement_readiness_pct",
+            "by_contract",
+        ):
+            assert key in data, f"Missing key '{key}' in observation summary"
+
+    def test_observation_summary_with_contract_filter(self, client, auth_headers):
+        r = client.get(
+            "/api/v1/observation/summary",
+            params={"contract": "customer"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert "total_observation_records" in data
+        assert "enforcement_readiness_pct" in data
+
+    def test_observation_trend_requires_contract(self, client, auth_headers):
+        r = client.get("/api/v1/observation/trend", headers=auth_headers)
+        assert r.status_code == 422
+
+    def test_observation_trend_returns_list(self, client, auth_headers):
+        r = client.get(
+            "/api/v1/observation/trend",
+            params={"contract": "customer"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_observation_fields_returns_list(self, client, auth_headers):
+        r = client.get(
+            "/api/v1/observation/fields",
+            params={"contract": "customer"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_observation_endpoints_require_auth(self, client):
+        for path in (
+            "/api/v1/observation/summary",
+            "/api/v1/observation/trend?contract=customer",
+            "/api/v1/observation/fields?contract=customer",
+        ):
+            r = client.get(path)
+            assert r.status_code == 401, f"{path} returned {r.status_code}, expected 401"

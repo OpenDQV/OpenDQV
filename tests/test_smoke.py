@@ -21,6 +21,7 @@ Coverage:
   13. Auth boundary — unauthenticated requests return 401
   14. Validate-file CLI smoke — valid and invalid file
   15. LocalValidator in-process SDK smoke
+  16. Observation mode — basic happy path
 """
 
 import csv
@@ -475,3 +476,35 @@ class TestLocalValidatorSmoke:
         assert result["summary"]["total"] == 2
         assert result["summary"]["passed"] == 1
         assert result["summary"]["failed"] == 1
+
+
+# ── 16. Observation mode ────────────────────────────────────────────────────
+
+class TestObservationModeSmoke:
+    """16. Observation mode — basic happy path"""
+
+    def test_observe_only_single_returns_valid_true(self, client, auth_headers):
+        r = client.post(
+            "/api/v1/validate",
+            json={"record": _INVALID_CUSTOMER, "contract": "customer", "observe_only": True},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["valid"] is True
+        assert data["mode"] == "observation_only"
+
+    def test_observe_only_mode_field_in_response(self, client, auth_headers):
+        r = client.post(
+            "/api/v1/validate",
+            json={"record": _INVALID_CUSTOMER, "contract": "customer", "observe_only": True},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["mode"] == "observation_only"
+        assert data["would_have_failed"] is True
+
+    def test_observation_summary_endpoint_reachable(self, client, auth_headers):
+        r = client.get("/api/v1/observation/summary", headers=auth_headers)
+        assert r.status_code == 200
