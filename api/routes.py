@@ -22,7 +22,7 @@ import yaml as _yaml
 import httpx
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Body, Depends, File, Header, HTTPException, Query, Request, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, File, Header, HTTPException, Query, Request, Response, UploadFile
 from typing import Optional
 from fastapi.responses import StreamingResponse
 from slowapi import Limiter
@@ -327,6 +327,7 @@ def set_registry(reg: ContractRegistry):
 async def validate_single(
     request: Request,
     body: ValidateRequest,
+    background_tasks: BackgroundTasks,
     allow_draft: bool = Query(False, description="Allow validation against DRAFT contracts (for testing)"),
     as_of: Optional[str] = Query(
         None,
@@ -436,14 +437,15 @@ async def validate_single(
             latency_ms=elapsed_ms, errors=result["errors"], mode="single",
             agent_id=body.agent_id or "",
         )
-        # Fire-and-forget: SQLite writes offloaded to thread pool so the response
-        # returns to the caller without waiting for disk I/O to complete.
-        asyncio.create_task(_async_heartbeat(contract.name, contract.version))
+        # Background: SQLite writes offloaded via FastAPI BackgroundTasks so the
+        # response returns before disk I/O completes, without racing in tests.
+        background_tasks.add_task(_async_heartbeat, contract.name, contract.version)
         rule_failure_counts: dict = {}
         for e in result["errors"]:
             _rule = e.get("rule", "unknown")
             rule_failure_counts[_rule] = rule_failure_counts.get(_rule, 0) + 1
-        asyncio.create_task(_async_record_quality_stats(
+        background_tasks.add_task(
+            _async_record_quality_stats,
             contract_name=contract.name,
             contract_version=contract.version,
             context=body.context,
@@ -452,7 +454,7 @@ async def validate_single(
             failed=0 if result["valid"] else 1,
             rule_failure_counts=rule_failure_counts,
             agent_id=body.agent_id or "",
-        ))
+        )
 
     # Webhook notifications (fire-and-forget)
     if not result["valid"] and not body.dry_run:
@@ -513,6 +515,7 @@ async def validate_single(
 async def validate_batch_endpoint(
     request: Request,
     body: BatchValidateRequest,
+    background_tasks: BackgroundTasks,
     allow_draft: bool = Query(False, description="Allow validation against DRAFT contracts"),
     user=Depends(get_current_user),
 ):
@@ -582,9 +585,10 @@ async def validate_batch_endpoint(
                 errors=r["errors"], mode="batch",
                 agent_id=body.agent_id or "",
             )
-        # Fire-and-forget: SQLite writes offloaded to thread pool
-        asyncio.create_task(_async_heartbeat(contract.name, contract.version))
-        asyncio.create_task(_async_record_quality_stats(
+        # Background: SQLite writes offloaded via FastAPI BackgroundTasks
+        background_tasks.add_task(_async_heartbeat, contract.name, contract.version)
+        background_tasks.add_task(
+            _async_record_quality_stats,
             contract_name=contract.name,
             contract_version=contract.version,
             context=body.context,
@@ -593,7 +597,7 @@ async def validate_batch_endpoint(
             failed=result["summary"]["failed"],
             rule_failure_counts=result["summary"].get("rule_failure_counts", {}),
             agent_id=body.agent_id or "",
-        ))
+        )
 
         # Webhook notification for batch failures (fire-and-forget)
         if result["summary"]["failed"] > 0:
