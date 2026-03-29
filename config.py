@@ -14,7 +14,7 @@ try:
     import tomllib as _tomllib
     _pyproject = Path(__file__).resolve().parent / "pyproject.toml"
     if _pyproject.exists():
-        ENGINE_VERSION = _tomllib.loads(_pyproject.read_text())["tool"]["poetry"]["version"]
+        ENGINE_VERSION = _tomllib.loads(_pyproject.read_text(encoding="utf-8"))["tool"]["poetry"]["version"]
     else:
         ENGINE_VERSION = version("opendqv")
 except Exception:

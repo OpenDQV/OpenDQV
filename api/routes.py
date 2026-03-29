@@ -2084,6 +2084,7 @@ async def generate_token(
     expiry_days: int = Query(None, description="Token lifetime in days (default: TOKEN_EXPIRY_DAYS from config)"),
     role: str = Query("validator", description="Token role: validator, reader, auditor, editor, approver, admin (default: validator)"),
     _current_user: str = Depends(get_current_user),
+    caller_role: str = Depends(get_current_role),
 ):
     """
     Generate a PAT for a source system.
@@ -2091,10 +2092,15 @@ async def generate_token(
     Each source system should have its own token for audit trail and revocation.
     The token is included in the response — store it securely, it won't be shown again.
 
+    Requires the 'admin' role in AUTH_MODE=token.
     In AUTH_MODE=open, elevated roles (admin, approver, editor) are capped to 'validator'.
-    Elevated tokens can only be issued in AUTH_MODE=token to prevent privilege escalation
-    tokens from being persisted in development environments.
     """
+    if not config.IS_OPEN_MODE and caller_role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Generating tokens requires the 'admin' role."
+        )
+
     if role not in VALID_ROLES:
         raise HTTPException(
             status_code=422,

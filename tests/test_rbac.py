@@ -334,3 +334,38 @@ class TestReloadRoles:
         headers = request.getfixturevalue(headers_fixture)
         r = client.post("/api/v1/contracts/reload", headers=headers)
         assert r.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Token generation — admin only (C1 fix, RT148)
+# ---------------------------------------------------------------------------
+
+class TestTokenGenerateRoles:
+    """POST /tokens/generate requires admin role in AUTH_MODE=token."""
+
+    def test_generate_token_admin_allowed(self, client, admin_headers):
+        r = client.post(
+            "/api/v1/tokens/generate",
+            params={"username": "rbac-test-system", "role": "validator"},
+            headers=admin_headers,
+        )
+        assert r.status_code == 200
+        assert r.json()["role"] == "validator"
+
+    @pytest.mark.parametrize("headers_fixture", [
+        "auth_headers",      # validator
+        "reader_headers",
+        "auditor_headers",
+        "editor_headers",
+        "approver_headers",
+    ])
+    def test_generate_token_forbidden_for_non_admin(self, request, client, headers_fixture):
+        headers = request.getfixturevalue(headers_fixture)
+        r = client.post(
+            "/api/v1/tokens/generate",
+            params={"username": "rbac-test-system", "role": "validator"},
+            headers=headers,
+        )
+        assert r.status_code == 403, (
+            f"{headers_fixture} should be forbidden from generating tokens"
+        )

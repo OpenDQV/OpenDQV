@@ -2,6 +2,28 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.8.9] - 2026-03-29
+
+### Security
+
+- **C1 fix (RT148): Token generation now requires `admin` role** — `POST /tokens/generate`
+  previously had no role guard in `AUTH_MODE=token`, allowing any authenticated user to mint
+  tokens for any role including `admin`. Now restricted to `admin` callers only. Open mode
+  behaviour unchanged (elevated roles continue to be capped to `validator`).
+  (`api/routes.py`, `security/auth.py`)
+
+- **M2 fix (RT148):** `config.py` — `read_text(encoding="utf-8")` on `pyproject.toml` read.
+  Was missing `encoding=` in violation of CLAUDE.md Windows portability rule. (`config.py:17`)
+
+### Tests
+
+- `tests/test_rbac.py` — new `TestTokenGenerateRoles` class: 1 admin-allowed test + 5 parametrised
+  forbidden-for-non-admin tests. `test_rbac.py` now covers all role-gated endpoints including
+  token generation.
+- `tests/test_api.py` — `TestTokens` and `TestTokenRoles` updated to use `admin_headers` for
+  token generation calls (required by C1 fix).
+- **2779 tests passing, 21 skipped** (+6 from v1.8.8)
+
 ## [1.8.8] - 2026-03-28
 
 ### Features

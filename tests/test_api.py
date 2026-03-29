@@ -17,8 +17,8 @@ class TestHealth:
 
 
 class TestTokens:
-    def test_generate_token(self, client, auth_headers):
-        r = client.post("/api/v1/tokens/generate", params={"username": "testuser"}, headers=auth_headers)
+    def test_generate_token(self, client, admin_headers):
+        r = client.post("/api/v1/tokens/generate", params={"username": "testuser"}, headers=admin_headers)
         assert r.status_code == 200
         data = r.json()
         assert "pat" in data
@@ -26,15 +26,15 @@ class TestTokens:
         assert "expires_at" in data
         assert "expiry_days" in data
 
-    def test_generate_token_custom_expiry(self, client, auth_headers):
-        r = client.post("/api/v1/tokens/generate", params={"username": "short-lived", "expiry_days": 7}, headers=auth_headers)
+    def test_generate_token_custom_expiry(self, client, admin_headers):
+        r = client.post("/api/v1/tokens/generate", params={"username": "short-lived", "expiry_days": 7}, headers=admin_headers)
         assert r.status_code == 200
         assert r.json()["expiry_days"] == 7
 
-    def test_revoke_token(self, client, auth_headers):
-        r = client.post("/api/v1/tokens/generate", params={"username": "revokeuser"}, headers=auth_headers)
+    def test_revoke_token(self, client, admin_headers):
+        r = client.post("/api/v1/tokens/generate", params={"username": "revokeuser"}, headers=admin_headers)
         token = r.json()["pat"]
-        r = client.post("/api/v1/tokens/revoke", content=token, headers={"Content-Type": "text/plain", **auth_headers})
+        r = client.post("/api/v1/tokens/revoke", content=token, headers={"Content-Type": "text/plain", **admin_headers})
         assert r.status_code == 200
         assert r.json()["status"] == "revoked"
 
@@ -236,47 +236,47 @@ class TestCodeGeneration:
 
 
 class TestTokenRoles:
-    """Token role field — default and custom."""
+    """Token role field — default and custom. Requires admin role (C1 fix, RT148)."""
 
-    def test_generate_token_has_role_field(self, client, auth_headers):
-        r = client.post("/api/v1/tokens/generate", params={"username": "roletest"}, headers=auth_headers)
+    def test_generate_token_has_role_field(self, client, admin_headers):
+        r = client.post("/api/v1/tokens/generate", params={"username": "roletest"}, headers=admin_headers)
         assert r.status_code == 200
         data = r.json()
         assert "role" in data
         assert data["role"] == "validator"
 
-    def test_list_tokens_after_generate(self, client, auth_headers):
-        client.post("/api/v1/tokens/generate", params={"username": "listrole"}, headers=auth_headers)
-        r = client.get("/api/v1/tokens", headers=auth_headers)
+    def test_list_tokens_after_generate(self, client, admin_headers):
+        client.post("/api/v1/tokens/generate", params={"username": "listrole"}, headers=admin_headers)
+        r = client.get("/api/v1/tokens", headers=admin_headers)
         assert r.status_code == 200
         tokens = r.json()
         assert any(t["username"] == "listrole" for t in tokens)
 
-    def test_generate_token_with_custom_role(self, client, auth_headers):
+    def test_generate_token_with_custom_role(self, client, admin_headers):
         r = client.post(
             "/api/v1/tokens/generate",
             params={"username": "editor-role-test", "role": "editor"},
-            headers=auth_headers,
+            headers=admin_headers,
         )
         assert r.status_code == 200
         assert r.json()["role"] == "editor"
 
-    def test_token_role_appears_in_list(self, client, auth_headers):
+    def test_token_role_appears_in_list(self, client, admin_headers):
         client.post(
             "/api/v1/tokens/generate",
             params={"username": "auditor-role-test", "role": "auditor"},
-            headers=auth_headers,
+            headers=admin_headers,
         )
-        tokens = client.get("/api/v1/tokens", headers=auth_headers).json()
+        tokens = client.get("/api/v1/tokens", headers=admin_headers).json()
         match = next((t for t in tokens if t["username"] == "auditor-role-test"), None)
         assert match is not None
         assert match["role"] == "auditor"
 
-    def test_generate_token_invalid_role_rejected(self, client, auth_headers):
+    def test_generate_token_invalid_role_rejected(self, client, admin_headers):
         r = client.post(
             "/api/v1/tokens/generate",
             params={"username": "test", "role": "superadmin"},
-            headers=auth_headers,
+            headers=admin_headers,
         )
         assert r.status_code == 422
 
