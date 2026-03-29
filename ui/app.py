@@ -1757,7 +1757,7 @@ if section == "Observation":
             _obs_days = st.selectbox("Day range", [7, 14, 30], key="obs_days_select")
 
         # ── Summary metrics ──
-        _obs_summary_r = api_get(f"/api/v1/observation/summary", params={"days": _obs_days, "contract": _obs_selected_contract})
+        _obs_summary_r = api_get("/api/v1/observation/summary", params={"days": _obs_days, "contract": _obs_selected_contract})
         if _obs_summary_r and _obs_summary_r.status_code == 200:
             _obs_summary = _obs_summary_r.json()
             _obs_s_total = _obs_summary.get("total_records", 0)
@@ -1774,7 +1774,7 @@ if section == "Observation":
             st.error(f"Failed to load observation summary: {_obs_summary_r.status_code}")
 
         # ── Trend chart ──
-        _obs_trend_r = api_get(f"/api/v1/observation/trend", params={"contract": _obs_selected_contract, "days": _obs_days})
+        _obs_trend_r = api_get("/api/v1/observation/trend", params={"contract": _obs_selected_contract, "days": _obs_days})
         if _obs_trend_r and _obs_trend_r.status_code == 200:
             _obs_trend_data = _obs_trend_r.json()
             if _obs_trend_data:
@@ -1787,7 +1787,7 @@ if section == "Observation":
                 st.info("No trend data available for this contract and time range.")
 
         # ── Top failing fields ──
-        _obs_fields_r = api_get(f"/api/v1/observation/fields", params={"contract": _obs_selected_contract, "days": _obs_days})
+        _obs_fields_r = api_get("/api/v1/observation/fields", params={"contract": _obs_selected_contract, "days": _obs_days})
         if _obs_fields_r and _obs_fields_r.status_code == 200:
             _obs_fields_data = _obs_fields_r.json()
             if _obs_fields_data:
