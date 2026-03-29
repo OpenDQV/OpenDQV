@@ -1,6 +1,6 @@
 # OpenDQV Documentation
 
-OpenDQV is a centralised data quality validation API for the enterprise — validation is ephemeral, record values are never stored.
+OpenDQV Core is a centralised data quality validation API for the enterprise — validation is ephemeral, record values are never stored.
 
 **Bad data blocked at the door. Not discovered three weeks later.**
 A `422` at the point of write closes the feedback loop — producers see failures immediately and fix them upstream. This is why rejection rates drop over time.
@@ -233,7 +233,7 @@ Trivy results are uploaded to the **GitHub Security tab** (SARIF format) after e
 
 ## Ecosystem
 
-OpenDQV is the source-layer anchor of the modern data quality stack — designed to complement Soda, Great Expectations, dbt, and observability tools, not replace them. For organizations using Data Mesh, OpenDQV serves as a write-time quality enforcement layer at the data product port — validating records before they leave the producer's boundary.
+OpenDQV Core is the source-layer anchor of the modern data quality stack — designed to complement Soda, Great Expectations, dbt, and observability tools, not replace them. For organizations using Data Mesh, OpenDQV serves as a write-time quality enforcement layer at the data product port — validating records before they leave the producer's boundary.
 
 | Document | Purpose |
 |----------|---------|

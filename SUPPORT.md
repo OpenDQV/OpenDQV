@@ -2,7 +2,7 @@
 
 ## Community Support (Free)
 
-OpenDQV is a community-supported open-source project. The primary support channel is **GitHub Issues**.
+OpenDQV Core is a community-supported open-source project. The primary support channel is **GitHub Issues**.
 
 - **Bug reports:** [github.com/OpenDQV/OpenDQV/issues](https://github.com/OpenDQV/OpenDQV/issues)
 - **Feature requests:** [github.com/OpenDQV/OpenDQV/issues](https://github.com/OpenDQV/OpenDQV/issues)

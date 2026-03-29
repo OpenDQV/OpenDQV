@@ -4,7 +4,7 @@
 > Snippets are examples; pin your own version in `requirements.txt`.
 > [Check for updates](https://pypi.org/project/pyatlan/)
 
-OpenDQV and Atlan serve complementary roles: OpenDQV is the validation and contract governance layer, while Atlan is the active metadata platform that surfaces data discovery, trust scores, and lineage to data consumers. This guide shows six approaches to connecting them, from a simple one-off metadata push to a real-time webhook-driven pipeline with column-level rule visibility.
+OpenDQV and Atlan serve complementary roles: OpenDQV Core is the validation and contract governance layer, while Atlan is the active metadata platform that surfaces data discovery, trust scores, and lineage to data consumers. This guide shows six approaches to connecting them, from a simple one-off metadata push to a real-time webhook-driven pipeline with column-level rule visibility.
 
 ---
 

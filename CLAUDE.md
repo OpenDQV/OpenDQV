@@ -7,7 +7,7 @@ effectively on this repository without re-exploring the codebase each session.
 
 ## What this project is
 
-OpenDQV is an **open-source, contract-driven data quality validation platform**.
+OpenDQV Core is an **open-source, contract-driven data quality validation platform**.
 It validates records against YAML data contracts at the point of write — before
 data enters the pipeline ("shift-left"). It is **not** a pipeline monitoring tool
 (that's Monte Carlo) or a pipeline test framework (that's dbt/Soda).

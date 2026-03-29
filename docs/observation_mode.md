@@ -4,7 +4,7 @@
 
 ## What it is
 
-OpenDQV is the bouncer at the door — but observation mode makes it a bouncer who **watches and takes notes** instead of blocking. Full validation runs against every record. Every violation is logged, timestamped, and attributed. But nothing is rejected. HTTP 200 always. Records always pass through. The audit trail is tagged `mode=observation_only` and includes `would_have_failed: true` on records that would have been blocked under enforcement.
+OpenDQV Core is the bouncer at the door — but observation mode makes it a bouncer who **watches and takes notes** instead of blocking. Full validation runs against every record. Every violation is logged, timestamped, and attributed. But nothing is rejected. HTTP 200 always. Records always pass through. The audit trail is tagged `mode=observation_only` and includes `would_have_failed: true` on records that would have been blocked under enforcement.
 
 ## When to use it
 

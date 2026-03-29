@@ -6,7 +6,7 @@ This document describes how the OpenDQV project is governed. It is intended for 
 
 ## Project Structure
 
-OpenDQV is an open source project maintained under the MIT License. It is currently in an early-growth stage: there is one primary maintainer who makes final decisions on roadmap, releases, and architecture, with a small number of active contributors.
+OpenDQV Core is an open source project maintained under the MIT License. It is currently in an early-growth stage: there is one primary maintainer who makes final decisions on roadmap, releases, and architecture, with a small number of active contributors.
 
 The project is not backed by a foundation or a governing board at this time. Decisions about breaking changes, release timing, and feature direction are made by the primary maintainer in consultation with active contributors and community feedback via GitHub Issues and Discussions. This is intentional — small, fast, and transparent is preferable to governance theatre.
 

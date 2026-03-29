@@ -18,7 +18,7 @@
 | [Docs](docs/) | [Quickstart](docs/quickstart.md) | [Benchmark](docs/benchmark_throughput.md) | [Rules Reference](docs/rules/) | [Salesforce](docs/salesforce_integration.md) | [Postgres](docs/postgres_integration.md) | [Databricks](docs/databricks_integration.md) | [Snowflake](docs/snowflake_integration.md) | [Ethos](docs/ethos.md) | [FAQ](docs/faq.md) |
 |---|---|---|---|---|---|---|---|---|---|
 
-> **Alpha software.** OpenDQV is in early Alpha (v1.x). It is under active development with frequent breaking changes. Not recommended for production or regulated environments without thorough testing and your own validation. We are seeking real-world feedback to move toward a stable Beta. See Contributing and Feedback below. Expect breaking changes in the v1.x series. We will stabilise and move to Beta once we have external user feedback and real deployment stories.
+> **Alpha software.** OpenDQV Core is in early Alpha (v1.x). It is under active development with frequent breaking changes. Not recommended for production or regulated environments without thorough testing and your own validation. We are seeking real-world feedback to move toward a stable Beta. See Contributing and Feedback below. Expect breaking changes in the v1.x series. We will stabilise and move to Beta once we have external user feedback and real deployment stories.
 
 **OpenDQV — the validation bouncer that stops bad data at the door.**
 
@@ -44,11 +44,11 @@ A mature data governance programme operates across three layers, each with a dis
 | **2. Catalog / governance / stewardship** | Ownership, glossary, lineage, policy, stewardship workflows | Alation, Atlan, Collibra, Purview, DataHub, Marmot |
 | **3. Pipeline testing / observability** | Detect drift, freshness issues, residual quality after ingestion | Great Expectations, Soda Core, dbt tests, Monte Carlo |
 
-OpenDQV owns layer one. Your catalog handles layer two, your pipeline tools handle layer three. OpenDQV is the bouncer — nothing else. The Layer 3 teams tell you how bad it got; OpenDQV stops it before it lands.
+OpenDQV Core owns layer one. Your catalog handles layer two, your pipeline tools handle layer three. OpenDQV Core is the bouncer — nothing else. The Layer 3 teams tell you how bad it got; OpenDQV stops it before it lands.
 
 **Whether you're maintaining 400 outsourced stored procedures, 1,200 Great Expectations checks, or a folder of ad-hoc validation scripts** — OpenDQV replaces custom-check spaghetti with a single governed contract layer. One YAML file, one API, enforced everywhere, owned by your governance team.
 
-**Still running hundreds of outsourced stored procedures?** OpenDQV is the shift-left solution. Replace scattered validation logic with one version-controlled contract per entity. Generate Snowflake UDFs, Salesforce Apex, or JavaScript from the same YAML — and get maker-checker governance, a hash-chained audit trail, and Prometheus rejection metrics that your proc factory never had. See [docs/faq.md](docs/faq.md).
+**Still running hundreds of outsourced stored procedures?** OpenDQV Core is the shift-left solution. Replace scattered validation logic with one version-controlled contract per entity. Generate Snowflake UDFs, Salesforce Apex, or JavaScript from the same YAML — and get maker-checker governance, a hash-chained audit trail, and Prometheus rejection metrics that your proc factory never had. See [docs/faq.md](docs/faq.md).
 
 ### Compute cost reality
 
@@ -109,7 +109,7 @@ No full-table scans. No re-runs. Just clean data and dramatically lower DQ-relat
 
 ---
 
-OpenDQV is the bouncer at the door for your enterprise data. Source systems (Salesforce, SAP, Dynamics, Oracle, Postgres, etc.) call the OpenDQV API *before* writing data. Bad data returns a `422` with per-field errors. Good data passes through. No payload is stored — OpenDQV is a pure validation service.
+OpenDQV Core is the bouncer at the door for your enterprise data. Source systems (Salesforce, SAP, Dynamics, Oracle, Postgres, etc.) call the OpenDQV API *before* writing data. Bad data returns a `422` with per-field errors. Good data passes through. No payload is stored — OpenDQV is a pure validation service.
 
 **The core insight:** A `422` at the point of write changes behaviour. A data quality report three weeks later does not. Every system that calls OpenDQV before writing data creates a real-time feedback loop — developers and data producers see failures immediately and fix them upstream. This is why rejection rates drop over time: the tool changes the incentive, not just the outcome.
 
@@ -164,7 +164,7 @@ The phrase "shift-left data quality" has been used for years — but it has almo
 | Find problems minutes or hours later | Return a per-field error in milliseconds |
 | Fix it in the pipeline | Fix it at source, before it is ever stored |
 
-Every tool in the open-source data contract ecosystem — datacontract-cli, Soda Core, Great Expectations, dbt tests — tests data after it lands. OpenDQV is the only open-source tool built as a live validation service that blocks data before it is written.
+Every tool in the open-source data contract ecosystem — datacontract-cli, Soda Core, Great Expectations, dbt tests — tests data after it lands. OpenDQV Core is the only open-source tool built as a live validation service that blocks data before it is written.
 
 ---
 
@@ -194,7 +194,7 @@ These are excellent tools -- but they solve a *different problem*:
 
 ### vs. the rest of the data-contract ecosystem
 
-The data-contract ecosystem is excellent — but every tool in it is built around testing data *after it lands*. OpenDQV is the only one built as a live validation service that blocks data *before it's written*.
+The data-contract ecosystem is excellent — but every tool in it is built around testing data *after it lands*. OpenDQV Core is the only one built as a live validation service that blocks data *before it's written*.
 
 | | [datacontract-cli](https://github.com/datacontract/datacontract-cli) | [DataPact](https://github.com/meetnishant/DataPact) | [Soda Core](https://github.com/sodadata/soda-core) | **OpenDQV** |
 |---|---|---|---|---|
@@ -210,11 +210,11 @@ The data-contract ecosystem is excellent — but every tool in it is built aroun
 | **Kafka fail-open/closed** | ❌ | ❌ | ❌ | ✅ |
 | **Salesforce integration** | ❌ | ❌ | ❌ | ✅ Before trigger + Apex generation |
 
-**OpenDQV is the only open-source pre-write data validation service.** The tools above are pipeline validators — they tell you what went wrong after the fact. OpenDQV stops it from going wrong in the first place.
+**OpenDQV Core is the only open-source pre-write data validation service.** The tools above are pipeline validators — they tell you what went wrong after the fact. OpenDQV stops it from going wrong in the first place.
 
 ### vs. JSON Schema / Pydantic / Cerberus
 
-These are validation *libraries*. OpenDQV is a validation *service*:
+These are validation *libraries*. OpenDQV Core is a validation *service*:
 
 - **One API, many callers.** Salesforce Apex, JavaScript, Python, Power Automate -- they all call the same endpoint. No library to install in each system.
 - **Context-aware.** Same contract, different validation criteria per system: stricter for production, relaxed for sandbox, region-specific for EMEA.
@@ -224,9 +224,9 @@ These are validation *libraries*. OpenDQV is a validation *service*:
 
 ---
 
-## What OpenDQV is NOT
+## What OpenDQV Core is NOT
 
-OpenDQV does one thing: it rejects records that violate quality rules, at the moment
+OpenDQV Core does one thing: it rejects records that violate quality rules, at the moment
 of write, before the data reaches your pipeline.
 
 - **Not a data catalog** — it does not store or manage metadata about your datasets

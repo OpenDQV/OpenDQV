@@ -18,7 +18,7 @@ This is not a soft principle. It has a quantifiable cost structure:
 
 ## What it obligates the project to
 
-Every design decision in OpenDQV is accountable to this phrase. Practically, that means:
+Every design decision in OpenDQV Core is accountable to this phrase. Practically, that means:
 
 - **Write guardrails are not optional.** ACTIVE contracts are immutable. Agents cannot mutate contracts silently. This is not a nice-to-have — it is the minimum bar for a tool that claims to protect data quality.
 - **Error messages must be honest.** A raw Python traceback is not an error message. A "500 Internal Server Error" with no explanation is not an error message. Users deserve to understand what went wrong and how to fix it.

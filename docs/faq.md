@@ -32,7 +32,7 @@ These are excellent tools — and they solve a different problem.
 | **Compute cost** | Full or sampled table scans inside the warehouse | Sub-second API call or UDF — no warehouse needed |
 | **Governance** | Test results | Versioned contracts with maker-checker approval and hash-chained audit trail |
 
-OpenDQV is Layer 1. GE/Soda/dbt are Layer 3. They are designed to work together. See the [three-layer model](../README.md#who-is-this-for) in the README.
+OpenDQV Core is Layer 1. GE/Soda/dbt are Layer 3. They are designed to work together. See the [three-layer model](../README.md#who-is-this-for) in the README.
 
 ---
 
@@ -58,7 +58,7 @@ OpenDQV removes that dependency. Replace the stored procedures with portable YAM
 
 ## Does OpenDQV replace my data catalog?
 
-No. OpenDQV is Layer 1 (write-time enforcement). Your data catalog (Alation, Collibra, Atlan, DataHub, Purview) is Layer 2 (ownership, lineage, glossary, stewardship). They are complementary.
+No. OpenDQV Core is Layer 1 (write-time enforcement). Your data catalog (Alation, Collibra, Atlan, DataHub, Purview) is Layer 2 (ownership, lineage, glossary, stewardship). They are complementary.
 
 Think of OpenDQV as the enforcement layer that sits upstream of everything your catalog manages — it ensures the data being governed was clean before it arrived.
 
@@ -66,7 +66,7 @@ Think of OpenDQV as the enforcement layer that sits upstream of everything your 
 
 ## Is this production-ready?
 
-Yes. OpenDQV is MIT-licensed, published to PyPI (`pip install opendqv`), ships a multi-arch Docker image, has 2,000+ passing tests, an OpenSSF Best Practices badge (100%), and an OpenSSF Scorecard of 6.5+. It has been validated on Linux (x86-64), macOS (Intel), Windows (Docker Desktop), and Raspberry Pi 400 (ARM64).
+Yes. OpenDQV Core is MIT-licensed, published to PyPI (`pip install opendqv`), ships a multi-arch Docker image, has 2,000+ passing tests, an OpenSSF Best Practices badge (100%), and an OpenSSF Scorecard of 6.5+. It has been validated on Linux (x86-64), macOS (Intel), Windows (Docker Desktop), and Raspberry Pi 400 (ARM64).
 
 See the [benchmark results](benchmark_throughput.md) for throughput figures across all platforms.
 

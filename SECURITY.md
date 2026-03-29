@@ -4,9 +4,9 @@
 
 If you are evaluating OpenDQV as a pilot or design partner, this section covers the questions your security team will ask.
 
-**Alpha software — explicit disclosure.** OpenDQV is Alpha. This means: no production SLA, APIs may change between releases, and the engine has not been through a formal third-party penetration test. Do not deploy in a regulated production environment without your own security assessment. See [Known Limitations and Mitigations](#known-limitations-and-mitigations) for full disclosure of current known issues.
+**Alpha software — explicit disclosure.** OpenDQV Core is Alpha. This means: no production SLA, APIs may change between releases, and the engine has not been through a formal third-party penetration test. Do not deploy in a regulated production environment without your own security assessment. See [Known Limitations and Mitigations](#known-limitations-and-mitigations) for full disclosure of current known issues.
 
-**No external network calls during validation.** OpenDQV is fully self-contained. It makes no external network calls during validation. Your data does not leave your environment. The only outbound network activity is optional: webhook notifications to URLs you configure, and Prometheus metrics scraping if you enable it.
+**No external network calls during validation.** OpenDQV Core is fully self-contained. It makes no external network calls during validation. Your data does not leave your environment. The only outbound network activity is optional: webhook notifications to URLs you configure, and Prometheus metrics scraping if you enable it.
 
 **GDPR-by-design audit trail.** The hash-chained audit trail stores a cryptographic hash of each record's content — never the record values themselves. Field values, PII, or sensitive data are never written to the audit store. The audit trail proves a record was validated and what the outcome was; it does not retain what the record contained.
 
