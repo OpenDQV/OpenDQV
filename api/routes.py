@@ -1138,7 +1138,10 @@ async def change_contract_status(
                 detail=f"Contract '{name}' is not ready for activation: " + "; ".join(issues),
             )
 
-    contract = registry.set_status(name, version, new_status)
+    try:
+        contract = registry.set_status(name, version, new_status)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
 
     logger.info(
         "contract_status_change: name=%s version=%s status=%s caller=%s role=%s",

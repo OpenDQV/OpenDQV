@@ -649,11 +649,28 @@ class ContractRegistry:
                 })
         return result
 
+    # Valid transitions for set_status(). Archived contracts must re-enter the
+    # lifecycle via DRAFT — jumping from ARCHIVED directly to ACTIVE or REVIEW
+    # would bypass the maker-checker review workflow entirely.
+    _VALID_TRANSITIONS: dict = {
+        ContractStatus.DRAFT:     {ContractStatus.ACTIVE, ContractStatus.ARCHIVED},
+        ContractStatus.REVIEW:    {ContractStatus.ACTIVE, ContractStatus.DRAFT, ContractStatus.ARCHIVED},
+        ContractStatus.ACTIVE:    {ContractStatus.ARCHIVED, ContractStatus.DRAFT},
+        ContractStatus.ARCHIVED:  {ContractStatus.DRAFT},
+    }
+
     def set_status(self, name: str, version: str, status: ContractStatus) -> Optional[DataContract]:
         """Change a contract's lifecycle status and persist it to the source YAML file."""
         contract = self.get(name, version)
         if not contract:
             return None
+        allowed = self._VALID_TRANSITIONS.get(contract.status, set())
+        if status not in allowed:
+            raise ValueError(
+                f"Invalid transition: {contract.status.value} → {status.value}. "
+                f"Allowed from {contract.status.value}: "
+                f"{', '.join(s.value for s in sorted(allowed, key=lambda s: s.value)) or 'none'}."
+            )
         # Capture snapshot when transitioning TO draft from active
         if status == ContractStatus.DRAFT and contract.status == ContractStatus.ACTIVE:
             contract.last_active_snapshot = copy.deepcopy([r.model_dump(by_alias=True) for r in contract.rules])
