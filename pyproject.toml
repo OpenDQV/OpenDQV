@@ -33,7 +33,7 @@ opendqv = "cli:main"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-fastapi = "^0.115"
+fastapi = ">=0.115,<0.136"
 uvicorn = {version = "^0.34", extras = ["standard"]}
 pydantic = "^2.10"
 pyyaml = "^6.0"
