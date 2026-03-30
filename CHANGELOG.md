@@ -2,6 +2,30 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.9.0] - 2026-03-30
+
+### Security
+
+- **C2 fix (RT148): Contract state machine now enforces valid transitions** — `set_status()`
+  previously accepted any transition including `archived → active`, allowing an approver to
+  bypass the maker-checker review workflow entirely. A transition map is now enforced:
+  archived contracts must re-enter via `draft`; `archived → active` returns HTTP 409.
+  (`core/contracts.py`)
+
+  Valid transitions:
+  - `draft → active | archived`
+  - `review → active | draft | archived`
+  - `active → archived | draft`
+  - `archived → draft` only (must re-enter lifecycle; cannot jump to active or review)
+
+### Tests
+
+- `tests/test_lifecycle.py` — new `TestStatusTransitionValidation` class: 5 tests covering
+  `archived → active` blocked (API + registry), `active → archived` allowed, `active → draft`
+  allowed, `archived → draft` allowed. Cleanup of `TestArchivedFilter` fixed to use
+  valid `archived → draft → active` restore path.
+- **2784 tests passing, 21 skipped** (+5 from v1.8.9)
+
 ## [1.8.9] - 2026-03-29
 
 ### Security

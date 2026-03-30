@@ -123,8 +123,11 @@ class TestArchivedFilter:
         names = [c["name"] for c in contracts]
         assert "customer" in names
 
-        # Reset
-        registry.set_status("customer", "latest", original_status)
+        # Reset: ARCHIVED → DRAFT → original_status (direct ARCHIVED → ACTIVE is blocked by
+        # transition map; archived contracts must re-enter the lifecycle via draft).
+        registry.set_status("customer", "latest", ContractStatus.DRAFT)
+        if original_status != ContractStatus.DRAFT:
+            registry.set_status("customer", "latest", original_status)
 
 
 class TestActiveContractImmutability:
@@ -729,3 +732,63 @@ class TestWriteGuardrailBypass:
         )
         assert r.status_code == 409
         assert "ACTIVE" in r.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# State machine transition validation (C2 fix, RT148)
+# ---------------------------------------------------------------------------
+
+class TestStatusTransitionValidation:
+    """Contract state machine enforces valid transitions — invalid ones return 409.
+
+    Setup/cleanup uses registry directly to avoid rate-limit exhaustion on the
+    status endpoint (10 req/min). API is used only for the assertion under test.
+    """
+
+    def test_archived_to_active_blocked_via_api(self, client, approver_headers):
+        """ARCHIVED → ACTIVE must be blocked — would bypass review workflow."""
+        registry.set_status("customer", "latest", ContractStatus.ARCHIVED)
+        try:
+            r = client.post(
+                "/api/v1/contracts/customer/status",
+                params={"status": "active"},
+                headers=approver_headers,
+            )
+            assert r.status_code == 409
+            assert "archived" in r.json()["detail"].lower()
+        finally:
+            registry.set_status("customer", "latest", ContractStatus.DRAFT)
+            registry.set_status("customer", "latest", ContractStatus.ACTIVE)
+
+    def test_archived_to_active_blocked_via_registry(self):
+        """Registry-level guard: set_status raises ValueError on archived → active."""
+        registry.set_status("customer", "latest", ContractStatus.ARCHIVED)
+        try:
+            with pytest.raises(ValueError, match="archived"):
+                registry.set_status("customer", "latest", ContractStatus.ACTIVE)
+        finally:
+            registry.set_status("customer", "latest", ContractStatus.DRAFT)
+            registry.set_status("customer", "latest", ContractStatus.ACTIVE)
+
+    def test_active_to_archived_allowed(self):
+        """ACTIVE → ARCHIVED is a valid transition (retiring a contract)."""
+        registry.set_status("customer", "latest", ContractStatus.ARCHIVED)
+        assert registry.get("customer").status == ContractStatus.ARCHIVED
+        # Cleanup
+        registry.set_status("customer", "latest", ContractStatus.DRAFT)
+        registry.set_status("customer", "latest", ContractStatus.ACTIVE)
+
+    def test_active_to_draft_allowed(self):
+        """ACTIVE → DRAFT is valid (rollback for revision)."""
+        registry.set_status("customer", "latest", ContractStatus.DRAFT)
+        assert registry.get("customer").status == ContractStatus.DRAFT
+        # Cleanup
+        registry.set_status("customer", "latest", ContractStatus.ACTIVE)
+
+    def test_archived_to_draft_allowed(self):
+        """ARCHIVED → DRAFT is valid (restore for revision)."""
+        registry.set_status("customer", "latest", ContractStatus.ARCHIVED)
+        registry.set_status("customer", "latest", ContractStatus.DRAFT)
+        assert registry.get("customer").status == ContractStatus.DRAFT
+        # Cleanup
+        registry.set_status("customer", "latest", ContractStatus.ACTIVE)

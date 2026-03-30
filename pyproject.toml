@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "opendqv"
-version = "1.8.9"
+version = "1.9.0"
 description = "OpenDQV Core — open-source, contract-driven data quality validation engine for data pipelines and API boundaries"
 authors = ["Sunny Sharma"]
 license = "MIT"
