@@ -44,7 +44,9 @@ A mature data governance programme operates across three layers, each with a dis
 | **2. Catalog / governance / stewardship** | Ownership, glossary, lineage, policy, stewardship workflows | Alation, Atlan, Collibra, Purview, DataHub, Marmot |
 | **3. Pipeline testing / observability** | Detect drift, freshness issues, residual quality after ingestion | Great Expectations, Soda Core, dbt tests, Monte Carlo |
 
-OpenDQV Core owns layer one. Your catalog handles layer two, your pipeline tools handle layer three. OpenDQV Core is the bouncer — nothing else. The Layer 3 teams tell you how bad it got; OpenDQV stops it before it lands.
+OpenDQV Core owns layer one. Your catalog handles layer two, your pipeline tools handle layer three. OpenDQV Core is the bouncer — nothing else gets in the door. The Layer 3 teams tell you how bad it got; OpenDQV stops it before it lands.
+
+The enforcement engine (`/validate`, `/validate/batch`) is stateless and focused. The surrounding features — contract management, format importers, governance workbench, MCP server, code generators — exist to help teams define contracts, integrate the bouncer into their workflow, and observe data quality before switching enforcement on. The bouncer doesn't work without a door.
 
 **Whether you're maintaining 400 outsourced stored procedures, 1,200 Great Expectations checks, or a folder of ad-hoc validation scripts** — OpenDQV replaces custom-check spaghetti with a single governed contract layer. One YAML file, one API, enforced everywhere, owned by your governance team.
 
