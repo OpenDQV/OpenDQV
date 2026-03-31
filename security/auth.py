@@ -8,7 +8,7 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager
 
-from fastapi import Depends, HTTPException, Header
+from fastapi import HTTPException, Header
 import jwt
 from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
@@ -56,7 +56,15 @@ def init_db():
         conn.commit()
 
 
-init_db()
+_db_initialized = False
+
+
+def _ensure_db() -> None:
+    """Lazy-initialise the auth DB on first use. Idempotent."""
+    global _db_initialized
+    if not _db_initialized:
+        init_db()
+        _db_initialized = True
 
 
 def _ensure_utc(dt: datetime) -> datetime:
@@ -76,6 +84,7 @@ def create_pat(username: str, scopes: str = "read:write", expiry_days: int = Non
     Returns:
         dict with token, username, expires_at, expiry_days
     """
+    _ensure_db()
     days = expiry_days if expiry_days is not None else TOKEN_EXPIRY_DAYS
     expire = datetime.now(timezone.utc) + timedelta(days=days)
     to_encode = {"sub": username, "exp": expire, "scopes": scopes, "role": role}
@@ -97,6 +106,7 @@ def create_pat(username: str, scopes: str = "read:write", expiry_days: int = Non
 
 def list_tokens() -> list[dict]:
     """List all active (non-expired) tokens with metadata."""
+    _ensure_db()
     with get_db() as conn:
         rows = conn.execute(
             "SELECT username, expiry, scopes, role FROM tokens ORDER BY username"
@@ -120,6 +130,7 @@ def list_tokens() -> list[dict]:
 
 def revoke_pat(token: str) -> dict:
     """Revoke a PAT."""
+    _ensure_db()
     with get_db() as conn:
         conn.execute("DELETE FROM tokens WHERE token = ?", (token,))
         conn.commit()
@@ -128,6 +139,7 @@ def revoke_pat(token: str) -> dict:
 
 def revoke_by_username(username: str) -> dict:
     """Revoke all tokens for a given source system."""
+    _ensure_db()
     with get_db() as conn:
         cursor = conn.execute("DELETE FROM tokens WHERE username = ?", (username,))
         conn.commit()
@@ -141,6 +153,7 @@ async def get_current_user(authorization: str = Header(None)) -> str:
     In open mode (AUTH_MODE=open), auth is skipped and returns "anonymous".
     In token mode (AUTH_MODE=token), a valid PAT is required.
     """
+    _ensure_db()
     if config.AUTH_MODE == "open":
         # Open mode — no auth required. Extract username from token if present, else anonymous.
         if authorization and authorization.startswith("Bearer "):
@@ -203,24 +216,3 @@ async def get_current_role(authorization: str = Header(None)) -> str:
         return "validator"
 
 
-def require_role(*allowed_roles: str):
-    """
-    FastAPI dependency factory — enforces that the caller holds one of the allowed roles.
-
-    Usage in a route:
-        @router.post("/admin/action")
-        async def admin_action(_=Depends(require_role("admin", "governance_admin"))):
-            ...
-    """
-    async def _check(
-        username: str = Depends(get_current_user),
-        role: str = Depends(get_current_role),
-    ) -> str:
-        if role not in allowed_roles:
-            raise HTTPException(
-                status_code=403,
-                detail=f"Role '{role}' is not permitted for this action. "
-                       f"Required: {list(allowed_roles)}",
-            )
-        return username
-    return _check

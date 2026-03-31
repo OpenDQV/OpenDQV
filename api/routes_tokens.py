@@ -61,8 +61,18 @@ async def list_all_tokens(request: Request, user=Depends(get_current_user)):
 
 @sub_router.post("/tokens/revoke")
 @_d._tokens_limit
-async def revoke_token(request: Request, token: str = Body(..., media_type="text/plain"), user=Depends(get_current_user)):
-    """Revoke a specific PAT by token value. Requires authentication."""
+async def revoke_token(
+    request: Request,
+    token: str = Body(..., media_type="text/plain"),
+    user=Depends(get_current_user),
+    caller_role: str = Depends(get_current_role),
+):
+    """Revoke a specific PAT by token value. Requires admin role."""
+    if not config.IS_OPEN_MODE and caller_role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Revoking tokens requires the 'admin' role."
+        )
     return revoke_pat(token)
 
 

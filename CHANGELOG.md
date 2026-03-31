@@ -2,6 +2,39 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.9.1] - 2026-03-31
+
+### Refactoring
+
+- **H1 (RT148): `api/routes.py` split into 8 domain modules** — 2,764-line monolith replaced with
+  `api/deps.py` (shared state/helpers) + 8 domain sub-routers. No URL paths or API behaviour
+  changed. All 2790 tests pass. Contributor onboarding significantly improved.
+
+### Security
+
+- **M1 (RT148): Webhook SSRF — IP re-validated at send time** — `_check_resolved_ips()` now
+  called in `_send()` before dispatch, mitigating DNS rebinding attacks where a hostname
+  resolves to a public IP at registration but is changed to an internal IP before dispatch.
+  (`core/webhooks.py`)
+
+- **H2 (RT148): `require_role()` dead code removed** — unused dependency factory in
+  `security/auth.py` deleted. All 20+ routes already use inline role checks; the factory
+  created a false sense of centralised enforcement. (`security/auth.py`)
+
+- **L1 (RT148): `auth.py` — `init_db()` no longer fires at module import** — replaced with lazy
+  `_ensure_db()` guard called by each DB-touching function. Side-effect-free import; DB
+  initialised on first use or application lifespan startup. (`security/auth.py`, `main.py`)
+
+- **L2 (RT148): Token revocation restricted to `admin` role** — `POST /tokens/revoke` previously
+  allowed any authenticated user to revoke any token, enabling DoS against integrations.
+  Now requires `admin` role in `AUTH_MODE=token`. (`api/routes_tokens.py`)
+
+### Tests
+
+- `tests/test_rbac.py` — new `TestTokenRevokeRoles`: admin allowed, all 5 non-admin roles
+  forbidden for `POST /tokens/revoke`.
+- **2790 tests passing, 21 skipped** (+6 from v1.9.0)
+
 ## [1.9.0] - 2026-03-30
 
 ### Security

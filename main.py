@@ -26,6 +26,7 @@ from strawberry.fastapi import GraphQLRouter
 
 import config
 from api.routes import router, limiter, set_registry as set_routes_registry
+from security.auth import init_db as _init_auth_db
 from api.graphql_schema import schema, set_registry as set_graphql_registry
 from core.contracts import ContractRegistry
 from core.worker_heartbeat import heartbeat as worker_heartbeat
@@ -46,6 +47,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan: startup and graceful shutdown."""
     # ── Startup ───────────────────────────────────────────────────────
     logger.info("OpenDQV worker starting (pid=%d)", __import__("os").getpid())
+    _init_auth_db()
     yield
     # ── Shutdown — flush any pending in-memory heartbeat counts ───────
     try:

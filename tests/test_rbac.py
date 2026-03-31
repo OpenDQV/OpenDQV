@@ -369,3 +369,42 @@ class TestTokenGenerateRoles:
         assert r.status_code == 403, (
             f"{headers_fixture} should be forbidden from generating tokens"
         )
+
+
+# ---------------------------------------------------------------------------
+# Token revocation — admin only (L2 fix, RT148)
+# ---------------------------------------------------------------------------
+
+class TestTokenRevokeRoles:
+    """POST /tokens/revoke requires admin role in AUTH_MODE=token."""
+
+    def test_revoke_token_admin_allowed(self, client, admin_headers):
+        pat = client.post(
+            "/api/v1/tokens/generate",
+            params={"username": "rbac-revoke-test", "role": "validator"},
+            headers=admin_headers,
+        ).json()["pat"]
+        r = client.post(
+            "/api/v1/tokens/revoke",
+            content=pat,
+            headers={"Content-Type": "text/plain", **admin_headers},
+        )
+        assert r.status_code == 200
+
+    @pytest.mark.parametrize("headers_fixture", [
+        "auth_headers",
+        "reader_headers",
+        "auditor_headers",
+        "editor_headers",
+        "approver_headers",
+    ])
+    def test_revoke_token_forbidden_for_non_admin(self, request, client, headers_fixture):
+        headers = request.getfixturevalue(headers_fixture)
+        r = client.post(
+            "/api/v1/tokens/revoke",
+            content="sometoken",
+            headers={"Content-Type": "text/plain", **headers},
+        )
+        assert r.status_code == 403, (
+            f"{headers_fixture} should be forbidden from revoking tokens"
+        )

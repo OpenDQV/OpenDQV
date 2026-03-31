@@ -95,6 +95,31 @@ def _is_private_ip(ip_str: str) -> bool:
         return False
 
 
+def _check_resolved_ips(hostname: str, url: str) -> None:
+    """
+    Resolve hostname and verify none of the returned IPs are private/reserved.
+
+    Fails closed on NXDOMAIN. Called at both registration time (_validate_webhook_url)
+    and send time (_send) to mitigate DNS rebinding attacks where a hostname resolves
+    to a public IP at registration but is changed to an internal IP before dispatch.
+    """
+    try:
+        addr_infos = socket.getaddrinfo(hostname, None)
+    except socket.gaierror as exc:
+        raise ValueError(
+            f"Webhook URL hostname could not be resolved (DNS failure — rejecting for safety): "
+            f"{hostname!r}: {exc}"
+        ) from exc
+
+    for addr_info in addr_infos:
+        resolved_ip = addr_info[4][0]
+        if _is_private_ip(resolved_ip):
+            raise ValueError(
+                f"Webhook URL hostname {hostname!r} resolves to a private/reserved IP address "
+                f"({resolved_ip}) — DNS rebinding attack rejected: {url!r}"
+            )
+
+
 def _validate_webhook_url(url: str) -> None:
     """
     Reject webhook URLs that could be used for SSRF attacks.
@@ -139,24 +164,8 @@ def _validate_webhook_url(url: str) -> None:
             raise
         # Not a valid IP literal — proceed to DNS resolution
 
-    # SEC-008: DNS rebinding protection — resolve hostname and check all returned IPs
-    try:
-        addr_infos = socket.getaddrinfo(hostname, None)
-    except socket.gaierror as exc:
-        raise ValueError(
-            f"Webhook URL hostname could not be resolved (DNS failure — rejecting for safety): "
-            f"{hostname!r}: {exc}"
-        ) from exc
-
-    for addr_info in addr_infos:
-        # addr_info is (family, type, proto, canonname, sockaddr)
-        # sockaddr is (address, port) for IPv4 or (address, port, flow, scope) for IPv6
-        resolved_ip = addr_info[4][0]
-        if _is_private_ip(resolved_ip):
-            raise ValueError(
-                f"Webhook URL hostname {hostname!r} resolves to a private/reserved IP address "
-                f"({resolved_ip}) — DNS rebinding attack rejected: {url!r}"
-            )
+    # SEC-008: DNS rebinding protection — resolve at registration time
+    _check_resolved_ips(hostname, url)
 
 
 class WebhookManager:
@@ -293,6 +302,19 @@ class WebhookManager:
     async def _send(self, url: str, payload: dict):
         """POST payload to a single URL. Logs errors but never raises."""
         try:
+            # SEC-008: Re-validate IP at send time to mitigate DNS rebinding.
+            # A hostname may have resolved to a public IP at registration but the
+            # DNS record could have changed to point at internal infrastructure
+            # between registration and this dispatch.
+            parsed = urlparse(url)
+            hostname = parsed.hostname or ""
+            try:
+                ipaddress.ip_address(hostname)
+                # Literal IP — already validated at registration; no re-check needed.
+            except ValueError:
+                # Hostname — re-resolve and re-check all returned IPs.
+                _check_resolved_ips(hostname, url)
+
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.post(url, json=payload)
                 logger.debug("webhook sent: url=%s status=%d", url, resp.status_code)
