@@ -57,7 +57,7 @@ async def import_great_expectations(
         yaml_content = _yaml.dump(_dd, default_flow_style=False, allow_unicode=True, sort_keys=False)
         contracts_dir = str(config.CONTRACTS_DIR)
         file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
-        with open(file_path, "w") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             f.write(yaml_content)
         _d.registry.reload()
         result["saved_to"] = file_path
@@ -105,7 +105,7 @@ async def import_dbt(
                         _dd["created_by"] = created_by
                     yaml_content = _yaml.dump(_dd, default_flow_style=False, allow_unicode=True, sort_keys=False)
                     file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
-                    with open(file_path, "w") as f:
+                    with open(file_path, "w", encoding="utf-8") as f:
                         f.write(yaml_content)
                     saved_files.append(file_path)
                     break
@@ -153,7 +153,7 @@ async def import_soda(
                 _dd["created_by"] = created_by
             yaml_content = _yaml.dump(_dd, default_flow_style=False, allow_unicode=True, sort_keys=False)
             file_path = os.path.join(contracts_dir, f"{name}.yaml")
-            with open(file_path, "w") as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(yaml_content)
             saved_files.append(file_path)
         _d.registry.reload()
@@ -199,7 +199,7 @@ async def import_csv(
         yaml_content = _yaml.dump(_dd, default_flow_style=False, allow_unicode=True, sort_keys=False)
         contracts_dir = str(config.CONTRACTS_DIR)
         file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
-        with open(file_path, "w") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             f.write(yaml_content)
         _d.registry.reload()
         result["saved_to"] = file_path
@@ -248,7 +248,7 @@ async def import_odcs_contract(
         yaml_content = _yaml.dump(_dd, default_flow_style=False, allow_unicode=True, sort_keys=False)
         contracts_dir = str(config.CONTRACTS_DIR)
         file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
-        with open(file_path, "w") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             f.write(yaml_content)
         _d.registry.reload()
         result["saved_to"] = file_path
@@ -301,7 +301,7 @@ async def import_from_csvw(
         if save:
             contracts_dir = str(config.CONTRACTS_DIR)
             file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
-            with open(file_path, "w") as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(yaml_output)
             _d.registry.reload()
             resp["saved_to"] = file_path
@@ -354,7 +354,7 @@ async def import_from_otel(
         if save:
             contracts_dir = str(config.CONTRACTS_DIR)
             file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
-            with open(file_path, "w") as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(yaml_output)
             _d.registry.reload()
             resp["saved_to"] = file_path
@@ -408,7 +408,7 @@ async def import_from_ndc(
         if save:
             contracts_dir = str(config.CONTRACTS_DIR)
             file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
-            with open(file_path, "w") as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(yaml_output)
             _d.registry.reload()
             resp["saved_to"] = file_path

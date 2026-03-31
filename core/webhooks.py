@@ -313,7 +313,9 @@ class WebhookManager:
                 # Literal IP — already validated at registration; no re-check needed.
             except ValueError:
                 # Hostname — re-resolve and re-check all returned IPs.
-                _check_resolved_ips(hostname, url)
+                # socket.getaddrinfo() is blocking; run in a thread so the
+                # event loop is not stalled under high webhook volume.
+                await asyncio.to_thread(_check_resolved_ips, hostname, url)
 
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.post(url, json=payload)

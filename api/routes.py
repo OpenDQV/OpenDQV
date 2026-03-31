@@ -26,6 +26,14 @@ router.include_router(_analytics_router)
 router.include_router(_federation_router)
 
 
+# Names intentionally re-exported from this module for backward compatibility
+# (all live in api/deps.py):
+#   router, registry, set_registry, webhook_manager,
+#   MASK_RECORD_VALUES, EXPLAIN_PUBLIC, MAX_UPLOAD_MB
+# __getattr__ below handles all lookups; ruff F822 prevents a static __all__
+# since these names are not defined in this file.
+
+
 def __getattr__(name: str):
     """Module-level __getattr__ — delegates to api.deps for live lookup."""
     return getattr(_d, name)

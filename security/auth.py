@@ -60,7 +60,13 @@ _db_initialized = False
 
 
 def _ensure_db() -> None:
-    """Lazy-initialise the auth DB on first use. Idempotent."""
+    """Lazy-initialise the auth DB on first use. Idempotent.
+
+    Thread safety: a race between two threads both seeing _db_initialized=False
+    is benign — init_db() uses CREATE TABLE IF NOT EXISTS (SQLite serialises DDL)
+    and PRAGMA journal_mode/synchronous are idempotent. The flag is set by both
+    threads; only one write is visible, and that is fine.
+    """
     global _db_initialized
     if not _db_initialized:
         init_db()

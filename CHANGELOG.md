@@ -2,6 +2,46 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.9.2] - 2026-03-31
+
+### Security
+
+- **N3 (RT149): `GET /tokens` restricted to `admin` role** — token metadata (usernames, expiry,
+  roles) was visible to any authenticated user. Now requires `admin` role in `AUTH_MODE=token`.
+  (`api/routes_tokens.py`)
+
+- **N1 (RT149): SECURITY.md updated to reflect M1 and L2 fixes** — DNS rebinding section updated
+  to document dispatch-time re-resolution; token revocation section updated from "no ownership
+  check" to reflect admin-only requirement. (`SECURITY.md`)
+
+### Bug Fixes
+
+- **N4 (RT149): `encoding="utf-8"` added to 12 `open()` calls in refactored router files** —
+  H1 refactor introduced `open()` calls without explicit encoding in `routes_imports.py` (8),
+  `routes_profiler.py` (2), and `routes_contracts.py` (1). Windows cp1252 default could fail
+  on non-ASCII content (CLAUDE.md convention). (`api/routes_imports.py`, `api/routes_profiler.py`,
+  `api/routes_contracts.py`)
+
+- **N8 (RT149): Webhook DNS re-resolution moved to thread pool** — `socket.getaddrinfo()` in
+  `_send()` is a blocking syscall; wrapped in `asyncio.to_thread()` so the event loop is not
+  stalled under high webhook volume. (`core/webhooks.py`)
+
+- **N5 (RT149): `revoke_system_tokens` open-mode guard harmonised** — endpoint previously checked
+  role unconditionally; now uses the same `if not config.IS_OPEN_MODE and role != "admin"` pattern
+  as sibling token endpoints. (`api/routes_tokens.py`)
+
+### Code Quality
+
+- **N6 (RT149): `_ensure_db()` thread-safety documented** — added comment explaining why the
+  benign race on `_db_initialized` is safe (SQLite serialises DDL; `CREATE TABLE IF NOT EXISTS`
+  is idempotent). (`security/auth.py`)
+
+- **N7 (RT149): `__all__` added to `api/routes.py` shim** — enumerates intentionally re-exported
+  names, making the delegation boundary explicit. (`api/routes.py`)
+
+- **N9 (RT149): Misleading test docstring corrected** — `TestSubmitReviewRoles` now correctly
+  states "editor, admin only" to match the maker-checker separation. (`tests/test_rbac.py`)
+
 ## [1.9.1] - 2026-03-31
 
 ### Refactoring

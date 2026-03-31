@@ -54,8 +54,17 @@ async def generate_token(
 
 @sub_router.get("/tokens")
 @_d._tokens_limit
-async def list_all_tokens(request: Request, user=Depends(get_current_user)):
-    """List all registered tokens with expiry info. Tokens values are not shown."""
+async def list_all_tokens(
+    request: Request,
+    user=Depends(get_current_user),
+    caller_role: str = Depends(get_current_role),
+):
+    """List all registered tokens with expiry info. Token values are not shown. Requires admin role."""
+    if not config.IS_OPEN_MODE and caller_role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Listing tokens requires the 'admin' role.",
+        )
     return list_tokens()
 
 
@@ -80,6 +89,6 @@ async def revoke_token(
 @_d._tokens_limit
 async def revoke_system_tokens(request: Request, username: str, user=Depends(get_current_user), role: str = Depends(get_current_role)):
     """Revoke all tokens for a source system. Requires admin role."""
-    if role != "admin":
+    if not config.IS_OPEN_MODE and role != "admin":
         raise HTTPException(status_code=403, detail="Revoking all tokens for a system requires the 'admin' role.")
     return revoke_by_username(username)

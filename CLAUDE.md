@@ -12,7 +12,7 @@ It validates records against YAML data contracts at the point of write — befor
 data enters the pipeline ("shift-left"). It is **not** a pipeline monitoring tool
 (that's Monte Carlo) or a pipeline test framework (that's dbt/Soda).
 
-**Version:** 1.9.1
+**Version:** 1.9.2
 **Stack:** FastAPI + Gunicorn/Uvicorn, Streamlit UI, SQLite/PostgreSQL, DuckDB (batch), MCP
 
 ---
@@ -128,7 +128,7 @@ States: `draft` → `review` → `active` | `archived`
 - SEC-004: Field name SQL injection protection (parameterised queries)
 - SEC-008: Webhook SSRF protection (RFC 1918 + loopback + link-local blocked)
 - SEC-009: Token role whitelist — `/tokens/generate` rejects unknown roles with HTTP 422
-- SEC-010: Import/webhook/reload role guards — `POST /import/*`, `POST/DELETE /webhooks` require `editor`/`admin`; `POST /contracts/reload` requires `admin`
+- SEC-010: Import/webhook/reload/token role guards — `POST /import/*`, `POST/DELETE /webhooks` require `editor`/`admin`; `POST /contracts/reload` requires `admin`; `GET/POST /tokens/*` require `admin`
 - ACTIVE contracts are immutable — rule mutations return 409
 
 ---

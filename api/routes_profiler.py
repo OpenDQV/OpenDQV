@@ -29,7 +29,7 @@ async def profile_data(
         yaml_content = _yaml.dump(contract_data, default_flow_style=False, sort_keys=False, allow_unicode=True)
         contracts_dir = str(config.CONTRACTS_DIR)
         file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
-        with open(file_path, "w") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             f.write(yaml_content)
         _d.registry.reload()
         result["saved_to"] = file_path
@@ -67,7 +67,7 @@ async def profile_file(
         yaml_content = _yaml.dump(contract_data, default_flow_style=False, sort_keys=False, allow_unicode=True)
         contracts_dir = str(config.CONTRACTS_DIR)
         file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
-        with open(file_path, "w") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             f.write(yaml_content)
         _d.registry.reload()
         result["saved_to"] = file_path

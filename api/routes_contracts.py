@@ -42,7 +42,7 @@ async def get_contract(request: Request, name: str, version: str = Query("latest
             return None
         try:
             fp = _d.registry.contracts_dir / r.lookup_file
-            with open(fp) as _f:
+            with open(fp, encoding="utf-8") as _f:
                 vals = [line.strip() for line in _f if line.strip()]
             return vals if vals else None
         except Exception:

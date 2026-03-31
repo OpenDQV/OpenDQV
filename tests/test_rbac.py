@@ -110,7 +110,7 @@ class TestRuleMutationRoles:
 # ---------------------------------------------------------------------------
 
 class TestSubmitReviewRoles:
-    """Only editor, approver, admin may submit a contract for review."""
+    """Only editor or admin may submit a contract for review (approver is excluded — maker-checker)."""
 
     @pytest.mark.parametrize("headers_fixture,contract", [
         ("auth_headers",    "customer"),
@@ -407,4 +407,31 @@ class TestTokenRevokeRoles:
         )
         assert r.status_code == 403, (
             f"{headers_fixture} should be forbidden from revoking tokens"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Token listing — admin only (N3 fix, RT149)
+# ---------------------------------------------------------------------------
+
+class TestTokenListRoles:
+    """GET /tokens requires admin role in AUTH_MODE=token."""
+
+    def test_list_tokens_admin_allowed(self, client, admin_headers):
+        r = client.get("/api/v1/tokens", headers=admin_headers)
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    @pytest.mark.parametrize("headers_fixture", [
+        "auth_headers",      # validator
+        "reader_headers",
+        "auditor_headers",
+        "editor_headers",
+        "approver_headers",
+    ])
+    def test_list_tokens_forbidden_for_non_admin(self, request, client, headers_fixture):
+        headers = request.getfixturevalue(headers_fixture)
+        r = client.get("/api/v1/tokens", headers=headers)
+        assert r.status_code == 403, (
+            f"{headers_fixture} should be forbidden from listing tokens"
         )

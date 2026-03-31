@@ -63,13 +63,13 @@ The following limitations are known, disclosed proactively, and should be review
 2. **Redis-backed rate limiter:** Set `RATE_LIMIT_BACKEND=redis` and configure `REDIS_URL` — this shares counters across all workers via Redis, giving accurate per-IP limiting.
 3. **Single worker:** Set `WEB_CONCURRENCY=1` for strict single-process rate enforcement. This reduces throughput to roughly 1× but gives accurate rate limiting without external dependencies.
 
-### 2. Webhook SSRF — DNS Resolution at Registration Time
+### 2. Webhook SSRF — DNS Resolution at Registration and Dispatch Time
 
 > ℹ️ **Fixed in current release.** (webhook registration is an authenticated, privileged operation)
 
-Webhook URL validation blocks RFC 1918 IP ranges (10.x, 172.16.x, 192.168.x), loopback (127.x), and link-local (169.254.x) addresses. Hostnames are now **DNS-resolved at registration time** via `socket.getaddrinfo()` and all returned IPs are checked against the blocked ranges. Registration **fails closed** on DNS resolution failure (NXDOMAIN).
+Webhook URL validation blocks RFC 1918 IP ranges (10.x, 172.16.x, 192.168.x), loopback (127.x), and link-local (169.254.x) addresses. Hostnames are **DNS-resolved at both registration time and dispatch time** via `socket.getaddrinfo()` and all returned IPs are checked against the blocked ranges. Registration **fails closed** on DNS resolution failure (NXDOMAIN). At dispatch time, `_check_resolved_ips()` is called again via `asyncio.to_thread()` before the HTTP connection is made, mitigating DNS rebinding (TTL-expiry) attacks.
 
-**Residual risk:** DNS rebinding after registration (TTL expiry between registration and webhook dispatch) is not mitigated by this check alone. For high-security deployments, also configure egress firewall rules on the host to block outbound connections to RFC 1918 ranges from the OpenDQV container.
+**Residual risk:** A narrow TOCTOU window exists between the dispatch-time DNS check and the actual TCP connection. For high-security deployments, also configure egress firewall rules on the host to block outbound connections to RFC 1918 ranges from the OpenDQV container — this is the definitive mitigation.
 
 ### 3. Open Authentication Mode (Default)
 
@@ -250,18 +250,9 @@ This checklist is required as a deployment sign-off artefact for any regulated f
 
 ### Token Revocation Ownership
 
-`POST /api/v1/tokens/revoke` accepts a token value and revokes it. Any authenticated
-user can revoke any token by value — there is no ownership check (the endpoint does not
-verify that the caller owns the token being revoked). `POST /api/v1/tokens/revoke/{username}`
-requires the `admin` role.
-
-**Impact:** An authenticated user with a valid token could revoke another user's token,
-causing a denial of service to that integration. This requires the attacker to already
-hold a valid token and know another token's value.
-
-**Mitigation for sensitive deployments:** Restrict token generation to admins, rotate
-tokens on a schedule, and monitor for unexpected 401 errors on integration accounts.
-A future release will add ownership validation to `POST /tokens/revoke`.
+**Fixed in v1.9.1.** `POST /api/v1/tokens/revoke` now requires the `admin` role in
+`AUTH_MODE=token`. Non-admin callers receive HTTP 403. `POST /api/v1/tokens/revoke/{username}`
+also requires the `admin` role. Token listing (`GET /api/v1/tokens`) requires admin role.
 
 ---
 
