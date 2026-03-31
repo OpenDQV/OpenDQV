@@ -50,7 +50,7 @@ class TestExplainAuthMode:
         """/explain must be accessible without a token when EXPLAIN_PUBLIC=true,
         regardless of AUTH_MODE."""
         with patch.object(config, 'AUTH_MODE', 'token'):
-            with patch("api.routes.EXPLAIN_PUBLIC", True):
+            with patch("api.deps.EXPLAIN_PUBLIC", True):
                 resp = _no_auth(client, "GET", "/api/v1/contracts/customer/explain")
         assert resp.status_code == 200, (
             f"EXPLAIN_PUBLIC=true should allow unauthenticated access but got {resp.status_code}"

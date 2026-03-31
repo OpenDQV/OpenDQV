@@ -328,7 +328,7 @@ class TestProfileFile:
 
     def test_profile_file_too_large(self, client, auth_headers, monkeypatch):
         import io
-        import api.routes as routes_module
+        import api.deps as routes_module
         monkeypatch.setattr(routes_module, "MAX_UPLOAD_MB", 0)
         csv_content = b"a,b\n1,2\n"
         r = client.post(

@@ -447,7 +447,7 @@ class TestMaskRecordValues:
 
     def test_validate_endpoint_masks_values(self, client, auth_headers, monkeypatch):
         """POST /validate error response has values masked when MASK_RECORD_VALUES='true'."""
-        import api.routes as routes_module
+        import api.deps as routes_module
         monkeypatch.setattr(routes_module, "MASK_RECORD_VALUES", "true")
 
         response = client.post(
@@ -481,7 +481,7 @@ class TestExplainAuth:
 
     def test_explain_requires_auth_by_default(self, client):
         """GET /contracts/{name}/explain returns 401/403 without auth when EXPLAIN_PUBLIC=false."""
-        import api.routes as routes_module
+        import api.deps as routes_module
         # Save and restore
         original = getattr(routes_module, "EXPLAIN_PUBLIC", False)
         try:
@@ -505,7 +505,7 @@ class TestExplainAuth:
 
     def test_explain_public_flag_allows_unauthenticated(self, client, monkeypatch):
         """When EXPLAIN_PUBLIC=true, unauthenticated access is allowed."""
-        import api.routes as routes_module
+        import api.deps as routes_module
         original = getattr(routes_module, "EXPLAIN_PUBLIC", False)
         try:
             routes_module.EXPLAIN_PUBLIC = True
@@ -540,7 +540,7 @@ class TestFileUploadSizeLimit:
     def test_file_exceeding_limit_returns_413(self, client, auth_headers, monkeypatch):
         """A file exceeding MAX_UPLOAD_MB is rejected with HTTP 413."""
         import io
-        import api.routes as routes_module
+        import api.deps as routes_module
 
         # Set a tiny limit (1 byte) to trigger the check
         monkeypatch.setattr(routes_module, "MAX_UPLOAD_MB", 0)  # 0 MB limit means any file fails
@@ -559,7 +559,7 @@ class TestFileUploadSizeLimit:
 
     def test_default_limit_is_10mb(self):
         """Default MAX_UPLOAD_MB is 10."""
-        import api.routes as routes_module
+        import api.deps as routes_module
         # The default from os.environ should be 10 if OPENDQV_MAX_UPLOAD_MB is not set
         # We just check the attribute exists and is positive
         assert hasattr(routes_module, "MAX_UPLOAD_MB")

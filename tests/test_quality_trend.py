@@ -20,7 +20,7 @@ def reset_quality_stats(monkeypatch):
     same object, so there is no cross-connection visibility gap.
     """
     from core.quality_stats import QualityStats
-    import api.routes as routes_module
+    import api.deps as routes_module
 
     fresh_qs = QualityStats(":memory:")
     monkeypatch.setattr(routes_module, "_quality_stats", fresh_qs)

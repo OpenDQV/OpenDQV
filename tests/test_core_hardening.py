@@ -258,7 +258,7 @@ class TestSSEConnectionCap:
         assert r.status_code == 429
 
     def test_sse_under_cap_connects(self, client, auth_headers, monkeypatch):
-        import api.routes as routes_module
+        import api.deps as routes_module
         monkeypatch.setattr(config, "MAX_SSE_CONNECTIONS", 100)
         # Reset counter
         with routes_module._sse_lock:
