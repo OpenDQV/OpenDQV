@@ -2,6 +2,26 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.9.5] - 2026-04-02
+
+### Quality
+
+- **Coverage sprint: 80.4% → 89.8%** — aimed for 100%, landed at 89.8%. Threshold raised from 80% to 89% (`fail_under = 89`).
+
+- **3251 tests** (up from 2933 / +318 tests). New test files and extensions:
+  - `tests/test_cli_extended.py` (new, 69 tests): in-process `cmd_*` function calls covering all CLI commands — validate, lint, generate, audit-verify, workflow, token-generate, import-dir
+  - `tests/test_explainer.py` (new, 63 tests): all 20+ rule type handlers in `explain_rule()` + `quick_fix()`. `core/explainer.py` → **100%**
+  - `tests/test_linter_extended.py` (new → extended, 31 tests): invalid YAML structures, required_if, allowed_values, date_diff, age bounds, non-numeric bound edge cases
+  - `tests/test_storage_extended.py` (new, 15 tests): PostgreSQL backend via psycopg2 mocking — `record_version`, `get_as_of`, `get_history`, `diff`. `core/storage.py` → **99.3%**
+  - `tests/test_rule_coverage.py` extended (60 new batch tests): DuckDB `validate_batch()` paths for all 17 rule types — min/max/range, not_empty, lengths, date_format, unique (global + group_by), compare (numeric/date/sentinel), required_if, allowed_values, checksum, cross_field_range, field_sum, forbidden_if, conditional_value, date_diff, ratio_check, geospatial_bounds, min_age
+  - `tests/test_mcp_server.py` extended: `call_tool` dispatcher for all 9 tools, `_tool_get_quality_metrics`, `_tool_get_quality_trend`, `_tool_get_rule_velocity`, governance tip edge cases
+  - `tests/test_trace_log.py` extended: JSON parse error, prev_hash mismatch, HMAC mismatch, no-key-but-HMAC-in-log, pre-HMAC backward compat, rotation with existing segments, write failure
+  - `tests/test_federation_api.py` extended: sync-status with unreachable peer, peer divergence detection, SSE stream connected event, 429 connection limit
+  - `tests/test_contracts_extended.py` (new, 28 tests): explain_contract auth paths, rule description branches (all rule types), history/timestamp endpoints, diff errors, workflow role errors, rule mutation role errors, schema registry endpoints, generate endpoint
+  - `tests/test_worker_heartbeat.py` extended: file-based DB (covers non-shared conn.close() paths), zero-pending flush skip, exception handling
+
+- **`marmot_proxy.py` excluded from coverage** — infrastructure bridge to external Marmot service; not application logic. Removes 97 statements from measurement denominator for more meaningful coverage reporting.
+
 ## [1.9.4] - 2026-04-02
 
 ### Quality

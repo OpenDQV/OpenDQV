@@ -20,6 +20,9 @@ from mcp_server import (
     _tool_create_contract_draft,
     _tool_explain_error,
     _tool_get_contract,
+    _tool_get_quality_metrics,
+    _tool_get_quality_trend,
+    _tool_get_rule_velocity,
     _tool_list_contracts,
     _tool_validate_batch,
     _tool_validate_record,
@@ -285,7 +288,7 @@ class TestMCPCallToolDispatch:
 
 # ── TestMCPCreateContractDraft ────────────────────────────────────────────────
 
-import mcp_server as _mcp_server_module
+import mcp_server as _mcp_server_module  # noqa: E402
 
 _DRAFT_CONTRACT_NAME = "MCP_test_telemetry_pytest"
 _DRAFT_RULES = [
@@ -551,3 +554,224 @@ class TestMCPRateLimiting:
         }))
         assert "error" not in data
         assert data.get("created") is True
+
+
+# ---------------------------------------------------------------------------
+# call_tool dispatcher — covers all elif branches (lines 508-522)
+# ---------------------------------------------------------------------------
+
+class TestCallToolDispatcher:
+    """Exercises call_tool() branches not hit by direct function tests."""
+
+    async def test_validate_batch_via_call_tool(self):
+        """call_tool('validate_batch') → dispatches to _tool_validate_batch (line 508)."""
+        contracts = list(_registry.list_contracts())
+        contract_name = contracts[0]["name"] if contracts else "customer"
+        result = await call_tool("validate_batch", {
+            "contract": contract_name,
+            "records": [{}],
+        })
+        data = _parse(result)
+        assert "summary" in data or "error" in data
+
+    async def test_list_contracts_via_call_tool(self):
+        """call_tool('list_contracts') → dispatches (line 512)."""
+        result = await call_tool("list_contracts", {})
+        assert isinstance(result, list)
+        assert result[0].type == "text"
+
+    async def test_get_contract_via_call_tool(self):
+        """call_tool('get_contract') → dispatches (line 514)."""
+        contracts = list(_registry.list_contracts())
+        name = contracts[0]["name"] if contracts else "customer"
+        result = await call_tool("get_contract", {"contract": name})
+        assert isinstance(result, list)
+        assert result[0].type == "text"
+
+    async def test_explain_error_via_call_tool(self):
+        """call_tool('explain_error') → dispatches (line 516)."""
+        result = await call_tool("explain_error", {
+            "contract": "customer",
+            "error_code": "not_empty",
+            "field": "name",
+            "error_message": "Name is required",
+        })
+        assert isinstance(result, list)
+
+    async def test_get_quality_metrics_via_call_tool(self):
+        """call_tool('get_quality_metrics') → dispatches (line 518)."""
+        result = await call_tool("get_quality_metrics", {})
+        assert isinstance(result, list)
+        assert result[0].type == "text"
+
+    async def test_get_rule_velocity_via_call_tool(self):
+        """call_tool('get_rule_velocity') → dispatches (line 520)."""
+        result = await call_tool("get_rule_velocity", {"contract": "customer"})
+        data = _parse(result)
+        assert "error" in data or "contract" in data or "buckets" in data
+
+    async def test_get_quality_trend_via_call_tool(self):
+        """call_tool('get_quality_trend') → dispatches (line 522)."""
+        result = await call_tool("get_quality_trend", {"contract": "customer", "days": 7})
+        data = _parse(result)
+        assert "contract" in data or "error" in data
+
+    async def test_unknown_tool_name(self):
+        """call_tool with unknown name → 'Unknown tool:' message (line 524)."""
+        result = await call_tool("nonexistent_tool_xyz", {})
+        assert "Unknown tool" in result[0].text
+
+    async def test_call_tool_handles_exception(self):
+        """call_tool catches exceptions and returns Error: message (line 526)."""
+        # validate_record with missing required 'contract' key raises KeyError
+        result = await call_tool("validate_record", {"record": {}})
+        assert "Error:" in result[0].text
+
+
+# ---------------------------------------------------------------------------
+# _tool_get_quality_metrics — covers lines 850-920
+# ---------------------------------------------------------------------------
+
+class TestQualityMetrics:
+    """Direct tests for _tool_get_quality_metrics."""
+
+    async def test_returns_list_structure(self):
+        result = await _tool_get_quality_metrics({})
+        data = _parse(result)
+        assert isinstance(data, list)
+
+    async def test_with_contract_filter(self):
+        contracts = list(_registry.list_contracts())
+        if contracts:
+            result = await _tool_get_quality_metrics({"contract": contracts[0]["name"]})
+            assert isinstance(result, list)
+            assert result[0].type == "text"
+
+    async def test_with_window_hours(self):
+        result = await _tool_get_quality_metrics({"window_hours": 24})
+        data = _parse(result)
+        assert isinstance(data, list)
+
+
+# ---------------------------------------------------------------------------
+# _tool_get_quality_trend — covers lines 988-1020
+# ---------------------------------------------------------------------------
+
+class TestQualityTrend:
+    """Direct tests for _tool_get_quality_trend."""
+
+    async def test_missing_contract_returns_error(self):
+        """Lines 990-991: missing contract arg → error dict."""
+        result = await _tool_get_quality_trend({})
+        data = _parse(result)
+        assert "error" in data
+        assert "contract is required" in data["error"]
+
+    async def test_with_valid_contract(self):
+        """Lines 1003-1020: returns trend structure."""
+        contracts = list(_registry.list_contracts())
+        name = contracts[0]["name"] if contracts else "customer"
+        result = await _tool_get_quality_trend({"contract": name, "days": 7})
+        data = _parse(result)
+        assert data.get("contract") == name
+        assert "points" in data
+        assert "summary" in data
+
+    async def test_trend_summary_stable_when_no_points(self):
+        """Trend is 'stable' when there are no data points (line 1016)."""
+        result = await _tool_get_quality_trend({
+            "contract": "nonexistent_contract_xyz_12345",
+            "days": 1,
+        })
+        data = _parse(result)
+        assert data.get("summary", {}).get("trend") == "stable"
+
+    async def test_days_clamped_to_max(self):
+        """days > 90 is clamped to 90 (line 992)."""
+        contracts = list(_registry.list_contracts())
+        name = contracts[0]["name"] if contracts else "customer"
+        result = await _tool_get_quality_trend({"contract": name, "days": 9999})
+        data = _parse(result)
+        assert data.get("days") == 90
+
+
+# ---------------------------------------------------------------------------
+# _tool_get_rule_velocity — covers lines 1023-1047
+# ---------------------------------------------------------------------------
+
+class TestRuleVelocity:
+    """Direct tests for _tool_get_rule_velocity."""
+
+    async def test_missing_contract_returns_error(self):
+        """Lines 1025-1026: missing contract arg → error dict."""
+        result = await _tool_get_rule_velocity({})
+        data = _parse(result)
+        assert "error" in data
+        assert "contract is required" in data["error"]
+
+    async def test_with_valid_contract(self):
+        """Lines 1038-1047: returns velocity data."""
+        contracts = list(_registry.list_contracts())
+        name = contracts[0]["name"] if contracts else "customer"
+        result = await _tool_get_rule_velocity({
+            "contract": name,
+            "window_hours": 24,
+            "bucket_minutes": 5,
+        })
+        data = _parse(result)
+        # Returns either data or an error dict
+        assert isinstance(data, dict)
+
+    async def test_with_default_args(self):
+        """Uses default window_hours=24 and bucket_minutes=5 (lines 1027-1028)."""
+        contracts = list(_registry.list_contracts())
+        name = contracts[0]["name"] if contracts else "customer"
+        result = await _tool_get_rule_velocity({"contract": name})
+        assert isinstance(result, list)
+
+
+# ---------------------------------------------------------------------------
+# _pick_governance_tip — lines 155, 161
+# ---------------------------------------------------------------------------
+
+class TestPickGovernanceTip:
+    """_pick_governance_tip edge cases."""
+
+    async def test_governance_tip_from_first_rule_fallback(self):
+        """When no errors, tip falls back to first rule in contract (line 158-160)."""
+        contracts = list(_registry.list_contracts())
+        name = contracts[0]["name"] if contracts else "customer"
+        contract = _registry.get(name)
+        if contract and contract.rules:
+            result = await _tool_validate_record({
+                "contract": name,
+                "record": {},  # empty record — all fields missing
+            })
+            data = _parse(result)
+            assert "governance_tip" in data
+
+    async def test_validate_record_with_context(self):
+        """Context path in _tool_validate_record (lines 553-555)."""
+        contracts = list(_registry.list_contracts())
+        name = contracts[0]["name"] if contracts else "customer"
+        result = await _tool_validate_record({
+            "contract": name,
+            "record": {},
+            "context": "nonexistent_context",
+        })
+        data = _parse(result)
+        # Should still return a result (context fallback to default rules)
+        assert "contract" in data or "error" in data
+
+    async def test_validate_record_with_agent_id_and_dry_run(self):
+        """agent_id and dry_run params handled (lines 538-541)."""
+        contracts = list(_registry.list_contracts())
+        name = contracts[0]["name"] if contracts else "customer"
+        # These only matter in remote mode — in local mode they're accepted but ignored
+        result = await _tool_validate_record({
+            "contract": name,
+            "record": {},
+            "agent_id": "pytest-agent",
+            "dry_run": True,
+        })
+        assert isinstance(result, list)

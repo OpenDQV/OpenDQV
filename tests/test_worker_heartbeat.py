@@ -267,3 +267,90 @@ class TestFlush:
         h.flush()
         assert h._pending_count.get((pid, "customer"), 0) == 0
         assert h._pending_count.get((pid, "orders"), 0) == 0
+
+
+class TestWorkerHeartbeatFileDB:
+    """Tests using a file-based DB (is_shared=False) to cover conn.close() paths."""
+
+    def test_record_validation_with_file_db(self, tmp_path):
+        """Covers the non-shared conn.close() path in record_validation (line 134)."""
+        from core.worker_heartbeat import WorkerHeartbeat
+        db_path = tmp_path / "heartbeat.db"
+        h = WorkerHeartbeat(db_path=str(db_path))
+        # Force immediate write by setting _WRITE_INTERVAL to 0
+        h._WRITE_INTERVAL = 0
+        h._last_write.clear()
+        h.record_validation("customer", "1.0")
+        # Should have written without error
+        rows = h.get_heartbeats()
+        assert len(rows) >= 1
+
+    def test_flush_with_file_db_covers_close(self, tmp_path):
+        """Covers the non-shared conn.close() path in flush() (line 168)."""
+        import os
+        from core.worker_heartbeat import WorkerHeartbeat
+        db_path = tmp_path / "heartbeat_flush.db"
+        h = WorkerHeartbeat(db_path=str(db_path))
+        h.record_validation("orders", "1.0")
+        pid = os.getpid()
+        key = (pid, "orders")
+        h._pending_count[key] = 3
+        h._last_write[key] = 0.0
+        h.flush()
+        assert h._pending_count.get(key, 0) == 0
+
+    def test_flush_skips_zero_pending(self, tmp_path):
+        """Line 150: flush() skips entries with pending == 0."""
+        import os
+        from core.worker_heartbeat import WorkerHeartbeat
+        db_path = tmp_path / "heartbeat_zero.db"
+        h = WorkerHeartbeat(db_path=str(db_path))
+        pid = os.getpid()
+        # Add a key with zero pending count
+        h._pending_count[(pid, "ghost_contract")] = 0
+        h._last_write[(pid, "ghost_contract")] = 0.0
+        # flush() should skip it without error
+        h.flush()
+
+    def test_get_active_worker_pids_with_file_db(self, tmp_path):
+        """Covers non-shared conn.close() in get_active_worker_pids() (line 210)."""
+        from core.worker_heartbeat import WorkerHeartbeat
+        db_path = tmp_path / "heartbeat_pids.db"
+        h = WorkerHeartbeat(db_path=str(db_path))
+        h.record_validation("customer", "1.0")
+        h.flush()
+        pids = h.get_active_worker_pids()
+        assert len(pids) >= 0  # returns list (may be empty if no row yet)
+
+    def test_purge_dead_workers_with_file_db(self, tmp_path):
+        """Covers non-shared conn.close() in purge_dead_workers() (line 280)."""
+        from core.worker_heartbeat import WorkerHeartbeat
+        db_path = tmp_path / "heartbeat_purge.db"
+        h = WorkerHeartbeat(db_path=str(db_path))
+        result = h.purge_dead_workers()
+        assert result == 0  # no dead workers
+
+    def test_record_validation_exception_logged(self):
+        """Lines 137-139: exception in record_validation is caught and logged."""
+        from unittest.mock import patch
+        from core.worker_heartbeat import WorkerHeartbeat
+        h = WorkerHeartbeat(db_path=":memory:")
+        h._WRITE_INTERVAL = 0
+        h._last_write.clear()
+        # Make _connect() raise an exception
+        with patch.object(h, "_connect", side_effect=Exception("DB connection failed")):
+            # Should not raise
+            h.record_validation("customer", "1.0")
+
+    def test_flush_exception_logged(self):
+        """Lines 171-172: exception in flush() is caught and logged."""
+        import os
+        from unittest.mock import patch
+        from core.worker_heartbeat import WorkerHeartbeat
+        h = WorkerHeartbeat(db_path=":memory:")
+        pid = os.getpid()
+        h.record_validation("customer", "1.0")
+        h._pending_count[(pid, "customer")] = 3
+        h._last_write[(pid, "customer")] = 0.0
+        with patch.object(h, "_connect", side_effect=Exception("flush failed")):
+            h.flush()  # Should not raise

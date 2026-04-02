@@ -280,3 +280,204 @@ class TestTraceLogRotation:
         # After rotation, the hash dict should not hold the rotated path's hash
         # (it's been cleared for that path)
         assert isinstance(tl._trace_last_hash, dict)
+
+
+# ---------------------------------------------------------------------------
+# Targeted coverage for missed lines
+# ---------------------------------------------------------------------------
+
+class TestTraceLogMissedLines:
+    """Cover remaining missed lines in trace_log.py."""
+
+    def _write_raw_entries(self, log_path, entries):
+        """Write raw NDJSON entries to a log file."""
+        with open(log_path, "w", encoding="utf-8") as f:
+            for entry in entries:
+                f.write(json.dumps(entry) + "\n")
+
+    def test_json_parse_error_in_verify(self, tmp_path, monkeypatch):
+        """verify_trace_log returns valid=False when a line is malformed JSON (lines 232-233)."""
+        log_file = tmp_path / "bad_json.jsonl"
+        log_file.write_text("not valid json\n", encoding="utf-8")
+        monkeypatch.delenv("OPENDQV_TRACE_HMAC_KEY", raising=False)
+        result = verify_trace_log(str(log_file))
+        assert result["valid"] is False
+        assert "JSON parse error" in result["error"]
+
+    def test_prev_hash_mismatch_in_verify(self, tmp_path, monkeypatch):
+        """verify_trace_log returns valid=False when prev_hash doesn't chain (line 239)."""
+        import hashlib
+        from core.trace_log import _GENESIS_HASH
+
+        log_file = tmp_path / "broken_chain.jsonl"
+        monkeypatch.delenv("OPENDQV_TRACE_HMAC_KEY", raising=False)
+
+        # Build a valid first entry
+        payload = json.dumps({"contract": "x", "valid": True}, sort_keys=True, separators=(",", ":"))
+        entry_hash = hashlib.sha256(f"{_GENESIS_HASH}|{payload}".encode()).hexdigest()
+        entry1 = {"contract": "x", "valid": True, "prev_hash": _GENESIS_HASH, "entry_hash": entry_hash}
+
+        # Build a second entry with WRONG prev_hash
+        entry2 = {"contract": "x", "valid": True, "prev_hash": "wronghash", "entry_hash": "doesnotmatter"}
+
+        self._write_raw_entries(log_file, [entry1, entry2])
+        result = verify_trace_log(str(log_file))
+        assert result["valid"] is False
+        assert "prev_hash mismatch" in result["error"]
+
+    def test_hmac_mismatch_in_verify(self, tmp_path, monkeypatch):
+        """verify_trace_log returns valid=False when HMAC doesn't match (line 267)."""
+        import hashlib
+        from core.trace_log import _GENESIS_HASH
+
+        log_file = tmp_path / "bad_hmac.jsonl"
+        hmac_key = "test-secret"
+        monkeypatch.setenv("OPENDQV_TRACE_HMAC_KEY", hmac_key)
+
+        payload = json.dumps({"contract": "x", "valid": True}, sort_keys=True, separators=(",", ":"))
+        entry_hash = hashlib.sha256(f"{_GENESIS_HASH}|{payload}".encode()).hexdigest()
+        entry = {
+            "contract": "x",
+            "valid": True,
+            "prev_hash": _GENESIS_HASH,
+            "entry_hash": entry_hash,
+            "hmac": "badhmacdoesnotmatch" + "0" * 45,  # wrong but 64 chars
+        }
+        self._write_raw_entries(log_file, [entry])
+        result = verify_trace_log(str(log_file))
+        assert result["valid"] is False
+        assert "HMAC mismatch" in result["error"]
+
+    def test_no_key_but_hmac_present_in_log(self, tmp_path, monkeypatch):
+        """hmac_all_verified=False when log has hmac field but no key configured (line 280)."""
+        import hashlib
+        from core.trace_log import _GENESIS_HASH
+
+        log_file = tmp_path / "hmac_no_key.jsonl"
+        monkeypatch.delenv("OPENDQV_TRACE_HMAC_KEY", raising=False)
+
+        payload = json.dumps({"contract": "x", "valid": True}, sort_keys=True, separators=(",", ":"))
+        entry_hash = hashlib.sha256(f"{_GENESIS_HASH}|{payload}".encode()).hexdigest()
+        entry = {
+            "contract": "x",
+            "valid": True,
+            "prev_hash": _GENESIS_HASH,
+            "entry_hash": entry_hash,
+            "hmac": "a" * 64,
+        }
+        self._write_raw_entries(log_file, [entry])
+
+        # Patch the module-level key too so it's really absent
+        from core import trace_log as tl
+        original_key = tl._TRACE_HMAC_KEY
+        tl._TRACE_HMAC_KEY = None
+        try:
+            result = verify_trace_log(str(log_file))
+        finally:
+            tl._TRACE_HMAC_KEY = original_key
+
+        assert result["valid"] is True
+        assert result["hmac_verified"] is False  # can't verify without key
+
+    def test_pre_hmac_entries_skipped_when_key_set(self, tmp_path, monkeypatch):
+        """Key present but no stored hmac → hmac_all_verified=False (line 229)."""
+        import hashlib
+        from core.trace_log import _GENESIS_HASH
+
+        log_file = tmp_path / "pre_hmac.jsonl"
+        hmac_key = "some-key"
+        monkeypatch.setenv("OPENDQV_TRACE_HMAC_KEY", hmac_key)
+
+        payload = json.dumps({"contract": "x", "valid": True}, sort_keys=True, separators=(",", ":"))
+        entry_hash = hashlib.sha256(f"{_GENESIS_HASH}|{payload}".encode()).hexdigest()
+        entry = {
+            "contract": "x",
+            "valid": True,
+            "prev_hash": _GENESIS_HASH,
+            "entry_hash": entry_hash,
+            # No 'hmac' field — pre-HMAC entry
+        }
+        self._write_raw_entries(log_file, [entry])
+
+        from core import trace_log as tl
+        original_key = tl._TRACE_HMAC_KEY
+        tl._TRACE_HMAC_KEY = hmac_key
+        try:
+            result = verify_trace_log(str(log_file))
+        finally:
+            tl._TRACE_HMAC_KEY = original_key
+
+        assert result["valid"] is True
+        assert result["hmac_verified"] is False  # backward compat: entries without hmac skip verification
+
+    def test_rotation_with_existing_dot1(self, tmp_path, monkeypatch):
+        """Rotation deletes existing .1 before renaming current to .1 (lines 115-118)."""
+        from core import trace_log as tl
+        from core.trace_log import _rotate_if_needed
+
+        log_file = tmp_path / "trace.jsonl"
+        # Create log file with some content (> 1 byte)
+        log_file.write_text("some content\n", encoding="utf-8")
+        # Create existing .1 file
+        dot1 = tmp_path / "trace.jsonl.1"
+        dot1.write_text("old content\n", encoding="utf-8")
+
+        # Patch module-level size to 1 byte so rotation triggers
+        original_size = tl._TRACE_MAX_SIZE_BYTES
+        tl._TRACE_MAX_SIZE_BYTES = 1
+        tl._trace_last_hash.clear()
+        try:
+            _rotate_if_needed(log_file)
+        finally:
+            tl._TRACE_MAX_SIZE_BYTES = original_size
+
+        # After rotation, .1 should contain what was in the original log
+        assert dot1.exists()
+
+    def test_rotation_with_multiple_existing_segments(self, tmp_path, monkeypatch):
+        """Rotation shifts segment chain .2 → .3, .1 → .2, current → .1 (lines 102-110)."""
+        from core import trace_log as tl
+        from core.trace_log import _rotate_if_needed
+
+        log_file = tmp_path / "trace.jsonl"
+        log_file.write_text("current\n" * 10, encoding="utf-8")
+
+        # Create existing segments .1 and .2
+        (tmp_path / "trace.jsonl.1").write_text("seg1\n", encoding="utf-8")
+        (tmp_path / "trace.jsonl.2").write_text("seg2\n", encoding="utf-8")
+
+        original_size = tl._TRACE_MAX_SIZE_BYTES
+        tl._TRACE_MAX_SIZE_BYTES = 1
+        tl._trace_last_hash.clear()
+        try:
+            _rotate_if_needed(log_file)
+        finally:
+            tl._TRACE_MAX_SIZE_BYTES = original_size
+
+        # .1 now contains what was in the original current log
+        dot1 = tmp_path / "trace.jsonl.1"
+        assert dot1.exists()
+
+    def test_write_failure_logged(self, tmp_path, monkeypatch):
+        """write_trace_entry logs an error when the file write fails (lines 198-199)."""
+        from unittest.mock import patch
+        from core.trace_log import write_trace_entry
+        from core import trace_log as tl
+
+        log_file = tmp_path / "trace_fail.jsonl"
+        monkeypatch.setenv("OPENDQV_TRACE_LOG_PATH", str(log_file))
+        tl._trace_last_hash.clear()
+
+        with patch("core.trace_log.open", side_effect=OSError("disk full")):
+            # Should not raise — error is caught and logged
+            write_trace_entry(
+                contract_name="test",
+                context=None,
+                record_index=0,
+                valid=True,
+                error_count=0,
+                warning_count=0,
+                fields_validated=["name"],
+                sensitive_fields=[],
+                failed_rules=[],
+            )

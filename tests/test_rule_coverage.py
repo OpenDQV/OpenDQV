@@ -433,3 +433,440 @@ class TestCompareRuleEdgeCases:
             compare_to="missing_field", compare_op="gt",
         )
         assert result["valid"] is False
+
+
+# ---------------------------------------------------------------------------
+# DuckDB batch validation — exercises _batch_check_rule() paths (lines 1059-1395)
+# ---------------------------------------------------------------------------
+
+from core.validator import validate_batch  # noqa: E402
+
+
+def _batch(records, **rule_kwargs):
+    rule = _rule(**rule_kwargs)
+    return validate_batch(records, [rule], contract_name="batch_test")
+
+
+class TestBatchValidation:
+    """validate_batch() + _batch_check_rule() — all rule type DuckDB paths."""
+
+    def test_empty_records(self):
+        result = validate_batch([], [], contract_name="test")
+        assert result["summary"]["total"] == 0
+        assert result["results"] == []
+
+    def test_min_passes(self):
+        result = _batch([{"value": 25}, {"value": 30}], type="min", min_value=18)
+        assert result["summary"]["failed"] == 0
+
+    def test_min_fails(self):
+        result = _batch([{"value": 5}, {"value": 30}], type="min", min_value=18)
+        assert result["summary"]["failed"] == 1
+
+    def test_max_passes(self):
+        result = _batch([{"value": 50}, {"value": 99}], type="max", max_value=100)
+        assert result["summary"]["failed"] == 0
+
+    def test_max_fails(self):
+        result = _batch([{"value": 200}, {"value": 50}], type="max", max_value=100)
+        assert result["summary"]["failed"] == 1
+
+    def test_range_passes(self):
+        result = _batch([{"value": 5}, {"value": 10}], type="range", min_value=1, max_value=20)
+        assert result["summary"]["failed"] == 0
+
+    def test_range_fails(self):
+        result = _batch([{"value": 0}, {"value": 25}], type="range", min_value=1, max_value=20)
+        assert result["summary"]["failed"] == 2
+
+    def test_not_empty_passes(self):
+        result = _batch([{"value": "hello"}, {"value": "world"}], type="not_empty")
+        assert result["summary"]["failed"] == 0
+
+    def test_not_empty_fails(self):
+        result = _batch([{"value": ""}, {"value": None}], type="not_empty")
+        assert result["summary"]["failed"] == 2
+
+    def test_min_length_passes(self):
+        result = _batch([{"value": "hello"}], type="min_length", min_length=3)
+        assert result["summary"]["failed"] == 0
+
+    def test_min_length_fails(self):
+        result = _batch([{"value": "hi"}, {"value": "a"}], type="min_length", min_length=3)
+        assert result["summary"]["failed"] == 2
+
+    def test_max_length_passes(self):
+        result = _batch([{"value": "hi"}], type="max_length", max_length=5)
+        assert result["summary"]["failed"] == 0
+
+    def test_max_length_fails(self):
+        result = _batch([{"value": "toolongstring"}], type="max_length", max_length=5)
+        assert result["summary"]["failed"] == 1
+
+    def test_date_format_passes(self):
+        result = _batch([{"value": "2026-01-15"}], type="date_format")
+        assert result["summary"]["failed"] == 0
+
+    def test_date_format_fails(self):
+        result = _batch([{"value": "not-a-date"}, {"value": None}], type="date_format")
+        assert result["summary"]["failed"] == 2
+
+    def test_unique_global_passes(self):
+        result = _batch([{"value": "a"}, {"value": "b"}, {"value": "c"}], type="unique")
+        assert result["summary"]["failed"] == 0
+
+    def test_unique_global_fails(self):
+        result = _batch([{"value": "a"}, {"value": "a"}, {"value": "b"}], type="unique")
+        assert result["summary"]["failed"] == 2
+
+    def test_unique_with_group_by_passes(self):
+        rule = _rule(type="unique", group_by=["cat"])
+        records = [
+            {"value": "x", "cat": "A"},
+            {"value": "x", "cat": "B"},  # same value but different group — OK
+        ]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 0
+
+    def test_unique_with_group_by_fails(self):
+        rule = _rule(type="unique", group_by=["cat"])
+        records = [
+            {"value": "x", "cat": "A"},
+            {"value": "x", "cat": "A"},  # duplicate within same group
+        ]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 2
+
+    def test_unique_group_by_invalid_col_fallback(self):
+        """group_by references a column not in the data → falls back to global unique."""
+        rule = _rule(type="unique", group_by=["nonexistent_col"])
+        records = [{"value": "a"}, {"value": "a"}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 2
+
+    def test_compare_batch_numeric_passes(self):
+        rule = _rule(type="compare", compare_to="other", compare_op="gt")
+        records = [{"value": 10, "other": 5}, {"value": 20, "other": 15}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 0
+
+    def test_compare_batch_numeric_fails(self):
+        rule = _rule(type="compare", compare_to="other", compare_op="gt")
+        records = [{"value": 3, "other": 10}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 1
+
+    def test_compare_batch_date_strings(self):
+        rule = _rule(type="compare", compare_to="end_date", compare_op="lt")
+        records = [{"value": "2025-01-01", "end_date": "2026-01-01"}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 0
+
+    def test_compare_batch_today_sentinel(self):
+        rule = _rule(type="compare", compare_to="today", compare_op="lte")
+        records = [{"value": "2000-01-01"}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 0
+
+    def test_compare_batch_null_value_fails(self):
+        rule = _rule(type="compare", compare_to="other", compare_op="gt")
+        records = [{"value": None, "other": 5}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 1
+
+    def test_compare_batch_null_other_fails(self):
+        rule = _rule(type="compare", compare_to="other", compare_op="gt")
+        records = [{"value": 10, "other": None}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 1
+
+    def test_compare_batch_missing_field_warns(self):
+        """compare_to references a field not in data → warning, no crash."""
+        rule = _rule(type="compare", compare_to="ghost_field", compare_op="gt")
+        records = [{"value": 10}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["total"] == 1
+
+    def test_required_if_batch_passes(self):
+        rule = _rule(
+            type="required_if",
+            required_if={"field": "status", "value": "premium"},
+        )
+        records = [{"value": "gold@email.com", "status": "premium"}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 0
+
+    def test_required_if_batch_fails(self):
+        rule = _rule(
+            type="required_if",
+            required_if={"field": "status", "value": "premium"},
+        )
+        records = [{"value": "", "status": "premium"}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 1
+
+    def test_required_if_batch_missing_trigger_warns(self):
+        rule = _rule(
+            type="required_if",
+            required_if={"field": "ghost_trigger", "value": "x"},
+        )
+        records = [{"value": "something"}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["total"] == 1
+
+    def test_allowed_values_batch_passes(self):
+        rule = _rule(type="allowed_values", allowed_values=["active", "inactive"])
+        records = [{"value": "active"}, {"value": "inactive"}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 0
+
+    def test_allowed_values_batch_fails(self):
+        rule = _rule(type="allowed_values", allowed_values=["active", "inactive"])
+        records = [{"value": "unknown"}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 1
+
+    def test_checksum_batch_iban_passes(self):
+        rule = _rule(type="checksum", checksum_algorithm="iban_mod97")
+        records = [{"value": "GB82WEST12345698765432"}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 0
+
+    def test_checksum_batch_iban_fails(self):
+        rule = _rule(type="checksum", checksum_algorithm="iban_mod97")
+        records = [{"value": "BADIBAN"}, {"value": None}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 2
+
+    def test_cross_field_range_batch_passes(self):
+        rule = _rule(
+            type="cross_field_range",
+            cross_min_field="lo",
+            cross_max_field="hi",
+        )
+        records = [{"value": 5, "lo": 1, "hi": 10}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 0
+
+    def test_cross_field_range_batch_fails(self):
+        rule = _rule(
+            type="cross_field_range",
+            cross_min_field="lo",
+            cross_max_field="hi",
+        )
+        records = [{"value": 15, "lo": 1, "hi": 10}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 1
+
+    def test_cross_field_range_batch_null_value(self):
+        rule = _rule(type="cross_field_range", cross_min_field="lo", cross_max_field="hi")
+        records = [{"value": None, "lo": 1, "hi": 10}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 1
+
+    def test_field_sum_batch_passes(self):
+        rule = _rule(
+            type="field_sum",
+            sum_fields=["a", "b"],
+            sum_equals=10.0,
+        )
+        records = [{"value": 0, "a": 3.0, "b": 7.0}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 0
+
+    def test_field_sum_batch_fails(self):
+        rule = _rule(
+            type="field_sum",
+            sum_fields=["a", "b"],
+            sum_equals=10.0,
+        )
+        records = [{"value": 0, "a": 1.0, "b": 2.0}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 1
+
+    def test_forbidden_if_batch_passes(self):
+        rule = _rule(
+            type="forbidden_if",
+            forbidden_if={"field": "status", "value": "CANCELLED"},
+        )
+        records = [{"value": None, "status": "CANCELLED"}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 0
+
+    def test_forbidden_if_batch_fails(self):
+        rule = _rule(
+            type="forbidden_if",
+            forbidden_if={"field": "status", "value": "CANCELLED"},
+        )
+        records = [{"value": "some_discount", "status": "CANCELLED"}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 1
+
+    def test_conditional_value_batch_passes(self):
+        rule = _rule(type="conditional_value", must_equal="PENDING")
+        records = [{"value": "PENDING"}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 0
+
+    def test_conditional_value_batch_fails(self):
+        rule = _rule(type="conditional_value", must_equal="PENDING")
+        records = [{"value": "APPROVED"}, {"value": None}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 2
+
+    def test_date_diff_batch_passes(self):
+        rule = _rule(
+            type="date_diff",
+            date_diff_field="end_date",
+            min_value=1.0,
+        )
+        records = [{"value": "2026-03-01", "end_date": "2026-01-01"}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 0
+
+    def test_date_diff_batch_fails(self):
+        rule = _rule(
+            type="date_diff",
+            date_diff_field="end_date",
+            min_value=100.0,
+        )
+        records = [{"value": "2026-01-02", "end_date": "2026-01-01"}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 1
+
+    def test_date_diff_batch_null_fails(self):
+        rule = _rule(type="date_diff", date_diff_field="end_date", min_value=1.0)
+        records = [{"value": None, "end_date": "2026-01-01"}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 1
+
+    def test_date_diff_batch_missing_field_warns(self):
+        rule = _rule(type="date_diff", date_diff_field="ghost_field", min_value=1.0)
+        records = [{"value": "2026-01-02"}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["total"] == 1
+
+    def test_ratio_check_batch_passes(self):
+        rule = _rule(
+            type="ratio_check",
+            ratio_numerator="num",
+            ratio_denominator="den",
+            min_value=0.1,
+            max_value=1.0,
+        )
+        records = [{"value": 0, "num": 5.0, "den": 10.0}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 0
+
+    def test_ratio_check_batch_fails_too_low(self):
+        rule = _rule(
+            type="ratio_check",
+            ratio_numerator="num",
+            ratio_denominator="den",
+            min_value=0.5,
+        )
+        records = [{"value": 0, "num": 1.0, "den": 10.0}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 1
+
+    def test_ratio_check_batch_zero_denominator(self):
+        rule = _rule(
+            type="ratio_check",
+            ratio_numerator="num",
+            ratio_denominator="den",
+        )
+        records = [{"value": 0, "num": 5.0, "den": 0}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 1
+
+    def test_ratio_check_batch_missing_fields_warns(self):
+        rule = _rule(
+            type="ratio_check",
+            ratio_numerator="ghost_num",
+            ratio_denominator="ghost_den",
+        )
+        records = [{"value": 0}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["total"] == 1
+
+    def test_geospatial_batch_passes(self):
+        rule = _rule(
+            type="geospatial_bounds",
+            geo_min_lat=49.0,
+            geo_max_lat=60.0,
+            geo_lon_field="lon",
+            geo_min_lon=-8.0,
+            geo_max_lon=2.0,
+        )
+        records = [{"value": 51.5, "lon": -0.1}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 0
+
+    def test_geospatial_batch_lat_out_of_range(self):
+        rule = _rule(
+            type="geospatial_bounds",
+            geo_min_lat=49.0,
+            geo_max_lat=60.0,
+        )
+        records = [{"value": 40.0}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 1
+
+    def test_geospatial_batch_lon_out_of_range(self):
+        rule = _rule(
+            type="geospatial_bounds",
+            geo_lon_field="lon",
+            geo_min_lon=-8.0,
+            geo_max_lon=2.0,
+        )
+        records = [{"value": 51.5, "lon": 50.0}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 1
+
+    def test_geospatial_batch_null_value(self):
+        rule = _rule(type="geospatial_bounds")
+        records = [{"value": None}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 1
+
+    def test_geospatial_batch_invalid_lat_range(self):
+        """Latitude outside -90..90 fails."""
+        rule = _rule(type="geospatial_bounds")
+        records = [{"value": 95.0}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 1
+
+    def test_min_age_batch_passes(self):
+        rule = _rule(type="min_age", min_age=18, field="dob")
+        records = [{"dob": "2000-01-01"}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 0
+
+    def test_min_age_batch_fails(self):
+        rule = _rule(type="min_age", min_age=18, field="dob")
+        records = [{"dob": "2025-01-01"}]  # too young
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 1
+
+    def test_field_not_in_data_skipped(self):
+        """Rule field absent from records → skipped (no crash, no failures)."""
+        rule = _rule(type="not_empty", field="ghost_field")
+        records = [{"value": "x"}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 0
+
+    def test_multiple_rules_mixed(self):
+        """Multiple rules — one passes, one fails per record."""
+        rules = [
+            _rule(name="age", type="min", min_value=18),
+            _rule(name="email", type="not_empty", field="email"),
+        ]
+        records = [
+            {"value": 25, "email": "a@b.com"},  # pass both
+            {"value": 10, "email": "a@b.com"},  # fail age
+            {"value": 25, "email": ""},          # fail email
+        ]
+        result = validate_batch(records, rules, contract_name="test")
+        assert result["summary"]["total"] == 3
+        assert result["summary"]["passed"] == 1
+        assert result["summary"]["failed"] == 2
