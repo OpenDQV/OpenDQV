@@ -18,7 +18,9 @@
 | [Docs](docs/) | [Quickstart](docs/quickstart.md) | [Benchmark](docs/benchmark_throughput.md) | [Rules Reference](docs/rules/) | [Salesforce](docs/salesforce_integration.md) | [Postgres](docs/postgres_integration.md) | [Databricks](docs/databricks_integration.md) | [Snowflake](docs/snowflake_integration.md) | [Ethos](docs/ethos.md) | [FAQ](docs/faq.md) |
 |---|---|---|---|---|---|---|---|---|---|
 
-> **Alpha software.** OpenDQV Core is in early Alpha (v1.x). It is under active development with frequent breaking changes. Not recommended for production or regulated environments without thorough testing and your own validation. We are seeking real-world feedback to move toward a stable Beta. See Contributing and Feedback below. Expect breaking changes in the v1.x series. We will stabilise and move to Beta once we have external user feedback and real deployment stories.
+> **Alpha software.** OpenDQV Core is in Alpha (v1.x). It is under active development. Not recommended for production or regulated environments without thorough testing and your own validation. The v1.x series may include breaking changes between minor versions; pinning to a specific version is recommended for any non-development use.
+
+> **What OpenDQV is — and is not.** OpenDQV enforces data quality rules at write time: it validates records against YAML contracts before they enter any system. Its analytics layer surfaces enforcement telemetry — pass rates, failure trends, rule performance — so operators can tune their contracts. It does not scan warehouses, detect drift in landed data, or monitor pipeline freshness. Tools like Monte Carlo and Soda serve that post-landing observability role. OpenDQV operates before data lands.
 
 **OpenDQV — the validation bouncer that stops bad data at the door.**
 
@@ -1632,6 +1634,17 @@ Every star helps more teams block bad data at the door instead of discovering it
 If OpenDQV saves you from a late-night data incident, a compliance headache, or a week of downstream fixes — give it a star. It keeps the project visible and signals to others that shift-left data quality is worth taking seriously.
 
 ---
+
+## API Stability
+
+OpenDQV is in Alpha. The following stability commitments apply to the v1.x series:
+
+- **REST API endpoints** — paths, request bodies, and response shapes may change between minor versions (`1.x`). Patch versions (`1.x.y`) will not change existing endpoint behaviour.
+- **YAML contract format** — the contract schema (rules, fields, types) is stable within a minor version. New rule types may be added without notice; existing rules will not change semantics within a minor version.
+- **Python SDK** — `OpenDQVClient`, `AsyncOpenDQVClient`, and `LocalValidator` public method signatures are stable within a minor version. Internal helpers (prefixed `_`) are not covered.
+- **MCP tools** — tool names and parameters are stable within a minor version.
+
+When OpenDQV moves to Beta, the REST API will be considered stable within major versions (`v2.x`) and backwards-incompatible changes will require a major version bump.
 
 ## Contributing
 

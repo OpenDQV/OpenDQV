@@ -341,3 +341,122 @@ class TestMakeInvalidRecord:
         # Original should not be modified
         assert valid["status"] == "active"
         assert invalid["status"] != "active"
+
+
+# ── Part D: Uncovered API endpoints ────────────────────────────────────────────
+
+class TestRejectionSummaryEndpoint:
+
+    def test_returns_200(self, client, auth_headers):
+        resp = client.get("/api/v1/rejection-summary", headers=auth_headers)
+        assert resp.status_code == 200
+
+    def test_returns_list(self, client, auth_headers):
+        resp = client.get("/api/v1/rejection-summary", headers=auth_headers)
+        assert isinstance(resp.json(), list)
+
+    def test_limit_param_accepted(self, client, auth_headers):
+        resp = client.get("/api/v1/rejection-summary?limit=5", headers=auth_headers)
+        assert resp.status_code == 200
+        assert len(resp.json()) <= 5
+
+    def test_requires_auth(self, client):
+        resp = client.get("/api/v1/rejection-summary")
+        assert resp.status_code == 401
+
+    def test_result_shape_when_data_present(self, client, auth_headers):
+        # Seed a failing validation
+        client.post(
+            "/api/v1/validate",
+            json={"contract": "customer", "record": {"name": "", "email": "bad", "age": -1}},
+            headers=auth_headers,
+        )
+        resp = client.get("/api/v1/rejection-summary", headers=auth_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        if body:
+            item = body[0]
+            assert "contract" in item
+            assert "total_validations" in item
+            assert "failed" in item
+            assert "pass_rate" in item
+            assert "top_failing_rules" in item
+
+
+class TestRuleVelocityEndpoint:
+
+    def test_returns_200(self, client, auth_headers):
+        resp = client.get(
+            "/api/v1/analytics/rule-velocity?contract=customer",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+
+    def test_response_shape(self, client, auth_headers):
+        resp = client.get(
+            "/api/v1/analytics/rule-velocity?contract=customer&window_hours=24&bucket_minutes=5",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "contract" in body
+        assert "window_hours" in body
+        assert "bucket_minutes" in body
+        assert "series" in body
+        assert isinstance(body["series"], dict)
+
+    def test_requires_auth(self, client):
+        resp = client.get("/api/v1/analytics/rule-velocity?contract=customer")
+        assert resp.status_code == 401
+
+
+class TestStatsWindowedEndpoint:
+
+    def test_windowed_stats_200(self, client, auth_headers):
+        resp = client.get("/api/v1/stats?window_hours=24", headers=auth_headers)
+        assert resp.status_code == 200
+
+    def test_windowed_stats_has_governance(self, client, auth_headers):
+        resp = client.get("/api/v1/stats?window_hours=1", headers=auth_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "governance" in body
+
+    def test_requires_auth(self, client):
+        resp = client.get("/api/v1/stats?window_hours=1")
+        assert resp.status_code == 401
+
+
+class TestObservationEndpoints:
+
+    def test_observation_summary_200(self, client, auth_headers):
+        resp = client.get("/api/v1/observation/summary", headers=auth_headers)
+        assert resp.status_code == 200
+
+    def test_observation_summary_requires_auth(self, client):
+        resp = client.get("/api/v1/observation/summary")
+        assert resp.status_code == 401
+
+    def test_observation_trend_200(self, client, auth_headers):
+        resp = client.get(
+            "/api/v1/observation/trend?contract=customer",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
+    def test_observation_trend_requires_auth(self, client):
+        resp = client.get("/api/v1/observation/trend?contract=customer")
+        assert resp.status_code == 401
+
+    def test_observation_fields_200(self, client, auth_headers):
+        resp = client.get(
+            "/api/v1/observation/fields?contract=customer",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
+    def test_observation_fields_requires_auth(self, client):
+        resp = client.get("/api/v1/observation/fields?contract=customer")
+        assert resp.status_code == 401

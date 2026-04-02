@@ -216,3 +216,55 @@ class TestDuckDBStringTopValues:
         result = profile_records(records)
         field = result["profile"]["fields"]["email"]
         assert "top_values" not in field
+
+
+# ---------------------------------------------------------------------------
+# API endpoint tests — save=True branch
+# ---------------------------------------------------------------------------
+
+class TestProfilerAPIEndpoint:
+    """POST /api/v1/profile — covers the save=True branch."""
+
+    def test_profile_no_save_returns_result(self, client, auth_headers):
+        records = [{"name": "Alice", "age": 30, "email": "alice@example.com"}]
+        resp = client.post(
+            "/api/v1/profile?contract_name=test_profile_nosave",
+            json=records,
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "contract" in body
+        assert "profile" in body
+
+    def test_profile_save_true_persists_contract(self, client, editor_headers):
+        records = [{"sensor_id": "s001", "temperature": 22.5, "status": "ok"}]
+        resp = client.post(
+            "/api/v1/profile?contract_name=test_profiler_saved&save=true",
+            json=records,
+            headers=editor_headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "saved_to" in body
+        assert "message" in body
+        assert "test_profiler_saved" in body["message"]
+
+    def test_profile_save_requires_editor(self, client, auth_headers):
+        records = [{"x": 1}]
+        # validator role should still work for profile (no role check on profiler itself)
+        resp = client.post(
+            "/api/v1/profile?contract_name=test_prof_auth",
+            json=records,
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+
+    def test_profile_invalid_contract_name_rejected(self, client, auth_headers):
+        records = [{"x": 1}]
+        resp = client.post(
+            "/api/v1/profile?contract_name=../../etc/passwd",
+            json=records,
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422

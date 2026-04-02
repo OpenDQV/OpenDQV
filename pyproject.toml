@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "opendqv"
-version = "1.9.3"
+version = "1.9.4"
 description = "OpenDQV Core — open-source, contract-driven data quality validation engine for data pipelines and API boundaries"
 authors = ["Sunny Sharma"]
 license = "MIT"
@@ -91,7 +91,7 @@ omit = [
 ]
 
 [tool.coverage.report]
-fail_under = 77
+fail_under = 80
 precision = 1
 exclude_lines = [
     "pragma: no cover",

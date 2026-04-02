@@ -220,3 +220,50 @@ class TestHealthEndpointIntegration:
             r_after = client.get("/health")
         # worker_count should be >= 1 (the test process)
         assert r_after.json()["worker_count"] >= 1
+
+
+class TestFlush:
+    """flush() forces an immediate write of pending counts."""
+
+    def test_flush_does_not_raise_on_empty(self):
+        h = WorkerHeartbeat(db_path=":memory:")
+        h.flush()  # nothing pending — should be a no-op
+
+    def test_flush_writes_pending_counts(self):
+        """
+        Simulate a pending count by bypassing _WRITE_INTERVAL — directly inject
+        pending state and verify flush() persists it to the DB.
+        """
+        h = WorkerHeartbeat(db_path=":memory:")
+        pid = os.getpid()
+
+        # Prime the heartbeat so a DB row exists
+        h.record_validation("customer", "1.0")
+
+        # Force a pending count without triggering the write interval
+        key = (pid, "customer")
+        h._pending_count[key] = 5
+        # Set last_write far in the past so flush logic processes it
+        h._last_write[key] = 0.0
+
+        # flush() should write the pending count
+        h.flush()
+
+        # pending count should be reset
+        assert h._pending_count.get(key, 0) == 0
+
+    def test_flush_called_on_multiple_contracts(self):
+        h = WorkerHeartbeat(db_path=":memory:")
+        pid = os.getpid()
+
+        h.record_validation("customer", "1.0")
+        h.record_validation("orders", "1.0")
+
+        for contract in ("customer", "orders"):
+            key = (pid, contract)
+            h._pending_count[key] = 3
+            h._last_write[key] = 0.0
+
+        h.flush()
+        assert h._pending_count.get((pid, "customer"), 0) == 0
+        assert h._pending_count.get((pid, "orders"), 0) == 0

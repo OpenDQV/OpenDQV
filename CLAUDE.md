@@ -12,7 +12,7 @@ It validates records against YAML data contracts at the point of write — befor
 data enters the pipeline ("shift-left"). It is **not** a pipeline monitoring tool
 (that's Monte Carlo) or a pipeline test framework (that's dbt/Soda).
 
-**Version:** 1.9.3
+**Version:** 1.9.4
 **Stack:** FastAPI + Gunicorn/Uvicorn, Streamlit UI, SQLite/PostgreSQL, DuckDB (batch), MCP
 
 ---

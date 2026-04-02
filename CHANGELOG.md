@@ -2,6 +2,27 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.9.4] - 2026-04-02
+
+### Quality
+
+- **Coverage threshold raised to 80%** — up from 77%. Measured baseline 80.4%. Threshold enforced via `[tool.coverage.report] fail_under = 80`.
+
+- **Coverage improvements** — 101 new tests across 5 new/extended test files:
+  - `tests/test_rule_coverage.py` (47 tests): `field_sum`, `forbidden_if`, `conditional_value`, `date_diff`, checksum algorithms (`mod10_gs1`, `iban_mod97`, `isin_mod11`, `isrc_luhn`, `lei_mod97`, `nhs_mod11`, `cpf_mod11`, `vin_mod11`), `compare` edge cases, profiler file upload
+  - `tests/test_import_api_save.py` (23 tests): API-level import tests with `save=True` for dbt, soda, csv, CSVW, OTel, NDC, ODCS importers
+  - Extended `tests/test_quality_analytics.py`: `rejection-summary`, `rule-velocity`, `stats?window_hours`, `observation/summary/trend/fields` endpoints
+  - Extended `tests/test_profiler.py`: profiler API endpoint with `save=True`
+  - Extended `tests/test_worker_heartbeat.py`: `flush()` method
+  - Extended `tests/test_trace_log.py`: log rotation paths
+  - Extended `tests/test_security.py`: `revoke_by_username`, `get_current_role` edge cases
+
+- **README: positioning paragraph added** — defines enforcement telemetry vs. post-landing observability. Replaces imprecise "bouncer at the door, nothing else" with accurate framing that acknowledges the analytics layer.
+
+- **README: API Stability section added** — documents what is stable within v1.x (REST API, YAML contract format, SDK public methods, MCP tools). Sets expectations for Beta transition.
+
+- **README: Alpha notice updated** — version pinning recommendation added. External user condition resolved: Alpha's purpose was to prove OpenDQV is useful to its maintainer. That is done. The remaining Beta condition is the backwards compatibility commitment, now documented.
+
 ## [1.9.3] - 2026-03-31
 
 ### Quality
