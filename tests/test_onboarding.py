@@ -1604,7 +1604,8 @@ class TestBuildValidFromRegexMissingBranches:
 
     def test_email_keyword_in_error_message(self):
         # 'email' in msg_lower → line 418
-        result = _build_valid_from_regex(r"^[^@]+$", "must be a valid email address")
+        # Pattern must NOT contain '@' (structural '@' check fires first and returns early)
+        result = _build_valid_from_regex(r"^[A-Za-z0-9_]+$", "must be a valid email address")
         assert result == "alice@example.com"
 
 

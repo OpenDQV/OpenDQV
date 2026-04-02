@@ -5,6 +5,8 @@ Focused on: explain_contract auth paths, explain_contract rule description
 branches, history/timestamp endpoints, workflow error paths (submit/approve/reject),
 diff error paths, rule mutation error paths, registry endpoints.
 """
+import textwrap
+
 import pytest
 from fastapi.testclient import TestClient
 from main import app
@@ -392,3 +394,478 @@ class TestGenerateCodeErrors:
             headers=auth_headers,
         )
         assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Helpers shared by the new test classes below
+# ---------------------------------------------------------------------------
+
+def _insert_draft(name: str, rules=None):
+    """Insert a synthetic DRAFT contract into the registry with a YAML file."""
+    import yaml
+    from api.routes import registry
+    from core.contracts import DataContract
+    from core.rule_parser import ContractStatus, Rule
+
+    if rules is None:
+        rules = [
+            Rule(
+                name="test_rule",
+                field="email",
+                type="not_empty",
+                error_message="email is required",
+            )
+        ]
+    contract = DataContract(
+        name=name,
+        version="1.0",
+        description="Test draft contract",
+        owner="pytest",
+        status=ContractStatus.DRAFT,
+        rules=rules,
+    )
+    # Write a real YAML file so _write_contract_yaml can persist mutations.
+    path = registry.contracts_dir / f"{name}.yaml"
+    yaml_data = {
+        "name": name,
+        "version": "1.0",
+        "description": "Test draft contract",
+        "owner": "pytest",
+        "status": "draft",
+        "rules": [
+            {
+                "name": r.name,
+                "field": r.field,
+                "type": r.type,
+                "error_message": r.error_message,
+            }
+            for r in rules
+        ],
+    }
+    path.write_text(yaml.dump(yaml_data), encoding="utf-8")
+    registry._contracts.setdefault(name, {})[contract.version] = contract
+    registry._contract_paths[name] = path
+    return contract
+
+
+def _remove_contract(name: str):
+    """Remove a contract from the registry (in-memory only, no YAML written)."""
+    from api.routes import registry
+    registry._contracts.pop(name, None)
+    path = registry.contracts_dir / f"{name}.yaml"
+    if path.exists():
+        path.unlink()
+
+
+# ---------------------------------------------------------------------------
+# TestListContractsIncludeAll — list endpoint include_all param (lines 48-49)
+# ---------------------------------------------------------------------------
+
+
+class TestListContractsIncludeAll:
+    """GET /contracts?include_all=true — archived contracts are included."""
+
+    _ARCH_NAME = "include_all_arch_test_xyz"
+
+    def setup_method(self):
+        _insert_draft(self._ARCH_NAME)
+
+    def teardown_method(self):
+        _remove_contract(self._ARCH_NAME)
+
+    def test_include_all_includes_archived(self, client, auth_headers):
+        """include_all=true returns >= count without include_all."""
+        # Archive the dedicated test draft contract (DRAFT → ARCHIVED is always valid).
+        client.post(
+            f"/api/v1/contracts/{self._ARCH_NAME}/status",
+            params={"status": "archived"},
+            headers=auth_headers,
+        )
+
+        r_all = client.get("/api/v1/contracts?include_all=true", headers=auth_headers)
+        assert r_all.status_code == 200
+        count_all = len(r_all.json())
+
+        r_default = client.get("/api/v1/contracts", headers=auth_headers)
+        assert r_default.status_code == 200
+        count_default = len(r_default.json())
+
+        assert count_all >= count_default
+
+    def test_default_excludes_archived(self, client, auth_headers):
+        """Without include_all the list never contains archived status."""
+        r = client.get("/api/v1/contracts", headers=auth_headers)
+        assert r.status_code == 200
+        for entry in r.json():
+            assert entry.get("status") != "archived"
+
+
+# ---------------------------------------------------------------------------
+# TestWorkflowSuccessPaths — submit/approve/reject happy paths (lines 485-547)
+# ---------------------------------------------------------------------------
+
+
+class TestWorkflowSuccessPaths:
+    """Happy-path workflow: DRAFT → REVIEW → ACTIVE and DRAFT → REVIEW → DRAFT."""
+
+    _SUBMIT_NAME = "wf_submit_test_xyz"
+    _APPROVE_NAME = "wf_approve_test_xyz"
+    _REJECT_NAME = "wf_reject_test_xyz"
+
+    def teardown_method(self):
+        for name in (self._SUBMIT_NAME, self._APPROVE_NAME, self._REJECT_NAME):
+            _remove_contract(name)
+
+    def test_submit_review_success(self, client, editor_headers):
+        """POST .../submit-review on a DRAFT contract → 200 status=submitted."""
+        _insert_draft(self._SUBMIT_NAME)
+        r = client.post(
+            f"/api/v1/contracts/{self._SUBMIT_NAME}/1.0/submit-review",
+            json={"proposed_by": "tester"},
+            headers=editor_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["status"] == "submitted"
+        assert data["contract"] == self._SUBMIT_NAME
+
+    def test_approve_success(self, client, editor_headers, approver_headers):
+        """POST .../approve on a REVIEW contract → 200 status=approved."""
+        _insert_draft(self._APPROVE_NAME)
+        # First submit it so it enters REVIEW state.
+        client.post(
+            f"/api/v1/contracts/{self._APPROVE_NAME}/1.0/submit-review",
+            json={"proposed_by": "tester"},
+            headers=editor_headers,
+        )
+        r = client.post(
+            f"/api/v1/contracts/{self._APPROVE_NAME}/1.0/approve",
+            json={"approved_by": "approver"},
+            headers=approver_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["status"] == "approved"
+        assert data["contract"] == self._APPROVE_NAME
+
+    def test_reject_success(self, client, editor_headers, approver_headers):
+        """POST .../reject on a REVIEW contract → 200 status=rejected."""
+        _insert_draft(self._REJECT_NAME)
+        # Submit first.
+        client.post(
+            f"/api/v1/contracts/{self._REJECT_NAME}/1.0/submit-review",
+            json={"proposed_by": "tester"},
+            headers=editor_headers,
+        )
+        r = client.post(
+            f"/api/v1/contracts/{self._REJECT_NAME}/1.0/reject",
+            json={"rejected_by": "approver", "reason": "not ready"},
+            headers=approver_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["status"] == "rejected"
+        assert data["contract"] == self._REJECT_NAME
+
+
+# ---------------------------------------------------------------------------
+# TestRuleMutationValueErrors — add/update/delete ValueError → 422 (lines 638-639 etc.)
+# ---------------------------------------------------------------------------
+
+
+class TestRuleMutationValueErrors:
+    """Rule mutation operations that raise ValueError return HTTP 422."""
+
+    _NAME = "rule_mutation_val_err_xyz"
+
+    def setup_method(self):
+        _insert_draft(self._NAME)
+
+    def teardown_method(self):
+        _remove_contract(self._NAME)
+
+    def test_add_duplicate_rule_name_returns_422(self, client, editor_headers):
+        """Adding a rule whose name already exists returns 422 (ValueError from registry)."""
+        # test_rule already exists in the draft inserted by setup_method.
+        r = client.post(
+            f"/api/v1/contracts/{self._NAME}/rules",
+            json={
+                "name": "test_rule",
+                "field": "email",
+                "type": "not_empty",
+                "error_message": "duplicate",
+            },
+            headers=editor_headers,
+        )
+        assert r.status_code == 422
+
+    def test_update_rule_nonexistent_returns_422(self, client, editor_headers):
+        """Updating a non-existent rule name returns 422 (ValueError from registry)."""
+        r = client.put(
+            f"/api/v1/contracts/{self._NAME}/rules/nonexistent_rule_xyz",
+            json={
+                "name": "nonexistent_rule_xyz",
+                "field": "email",
+                "type": "not_empty",
+                "error_message": "required",
+            },
+            headers=editor_headers,
+        )
+        assert r.status_code == 422
+
+    def test_delete_rule_nonexistent_returns_422(self, client, editor_headers):
+        """Deleting a non-existent rule name returns 422 (ValueError from registry)."""
+        r = client.delete(
+            f"/api/v1/contracts/{self._NAME}/rules/nonexistent_rule_xyz",
+            headers=editor_headers,
+        )
+        assert r.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# TestUpdateRuleBreakingChange — update_rule breaking_change_warning (lines 706-716)
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateRuleBreakingChange:
+    """PUT .../rules/{rule_name} with breaking change returns breaking_change_warning."""
+
+    _NAME = "rule_breaking_change_xyz"
+
+    def setup_method(self):
+        from core.rule_parser import Rule
+        rules = [
+            Rule(
+                name="check_name",
+                field="name",
+                type="not_empty",
+                error_message="name is required",
+            )
+        ]
+        _insert_draft(self._NAME, rules=rules)
+
+    def teardown_method(self):
+        _remove_contract(self._NAME)
+
+    def test_update_rule_breaking_change_warning(self, client, editor_headers):
+        """Changing rule type (not_empty → regex) sets breaking_change_warning in response."""
+        r = client.put(
+            f"/api/v1/contracts/{self._NAME}/rules/check_name",
+            json={
+                "name": "check_name",
+                "field": "name",
+                "type": "regex",
+                "pattern": r"^[A-Za-z]+$",
+                "error_message": "name must contain only letters",
+            },
+            headers=editor_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert "breaking_change_warning" in data
+
+    def test_update_rule_no_breaking_change(self, client, editor_headers):
+        """Changing only error_message (non-breaking field) omits breaking_change_warning."""
+        r = client.put(
+            f"/api/v1/contracts/{self._NAME}/rules/check_name",
+            json={
+                "name": "check_name",
+                "field": "name",
+                "type": "not_empty",
+                "error_message": "updated message — non-breaking",
+            },
+            headers=editor_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert "breaking_change_warning" not in data
+
+
+# ---------------------------------------------------------------------------
+# TestChangeContractStatusArchive — change_contract_status paths (lines 351-367)
+# ---------------------------------------------------------------------------
+
+
+class TestChangeContractStatusArchive:
+    """POST /contracts/{name}/status — archive and invalid status paths."""
+
+    _NAME = "status_archive_test_xyz"
+
+    def setup_method(self):
+        _insert_draft(self._NAME)
+
+    def teardown_method(self):
+        _remove_contract(self._NAME)
+
+    def test_archive_draft_contract(self, client, auth_headers):
+        """Archiving a DRAFT contract (DRAFT→ARCHIVED) returns 200 with status=archived."""
+        r = client.post(
+            f"/api/v1/contracts/{self._NAME}/status",
+            params={"status": "archived"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["status"] == "archived"
+
+    def test_invalid_status_returns_400(self, client, auth_headers):
+        """An unrecognised status value returns 400."""
+        r = client.post(
+            f"/api/v1/contracts/{self._NAME}/status",
+            params={"status": "invalid_xyz"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 400
+        assert "Invalid status" in r.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# TestContractOnboardingFormat — _parse_onboarding_format (core/contracts.py 561-606)
+# ---------------------------------------------------------------------------
+
+
+class TestContractOnboardingFormat:
+    """ContractRegistry._parse_onboarding_format — field-keyed YAML parsing."""
+
+    def _make_registry(self, tmp_path, yaml_content: str, filename: str = "ob_test.yaml"):
+        from core.contracts import ContractRegistry
+        (tmp_path / filename).write_text(yaml_content, encoding="utf-8")
+        return ContractRegistry(tmp_path)
+
+    def test_basic_loading(self, tmp_path):
+        """Field-keyed YAML with metadata section loads as a DataContract."""
+        yaml_content = textwrap.dedent("""\
+            metadata:
+              version: "1.0"
+              description: "Basic onboarding test"
+              author: "test-author"
+            rules:
+              email:
+                error_message: "email required"
+              name:
+                error_message: "name required"
+        """)
+        registry = self._make_registry(tmp_path, yaml_content, "ob_basic.yaml")
+        contract = registry.get("ob_basic")
+        assert contract is not None
+        assert contract.name == "ob_basic"
+        fields = [r.field for r in contract.rules]
+        assert "email" in fields
+        assert "name" in fields
+
+    def test_required_field_generates_not_empty(self, tmp_path):
+        """required: true in a field definition adds an extra not_empty rule (lines 590-595)."""
+        yaml_content = textwrap.dedent("""\
+            metadata:
+              version: "1.0"
+              description: "Required field test"
+              author: "test-author"
+            rules:
+              email:
+                type: regex
+                regex: "^[^@]+@[^@]+$"
+                error_message: "must be a valid email"
+                required: true
+        """)
+        registry = self._make_registry(tmp_path, yaml_content, "ob_required.yaml")
+        contract = registry.get("ob_required")
+        assert contract is not None
+        email_rules = [r for r in contract.rules if r.field == "email"]
+        assert any(r.type == "not_empty" for r in email_rules), (
+            "required: true should generate an additional not_empty rule"
+        )
+
+    def test_date_format_field(self, tmp_path):
+        """type: date with format key generates a date_format rule (lines 597-600)."""
+        yaml_content = textwrap.dedent("""\
+            metadata:
+              version: "1.0"
+              description: "Date format test"
+              author: "test-author"
+            rules:
+              created_at:
+                type: date
+                format: "%Y-%m-%d"
+                error_message: "invalid date"
+        """)
+        registry = self._make_registry(tmp_path, yaml_content, "ob_date.yaml")
+        contract = registry.get("ob_date")
+        assert contract is not None
+        date_rules = [r for r in contract.rules if r.field == "created_at"]
+        assert any(r.type == "date_format" for r in date_rules)
+
+    def test_non_numeric_min_skipped(self, tmp_path):
+        """Non-numeric min value does not crash — it is silently skipped (lines 578-582)."""
+        yaml_content = textwrap.dedent("""\
+            metadata:
+              version: "1.0"
+              description: "Non-numeric min test"
+              author: "test-author"
+            rules:
+              score:
+                min: "not-a-number"
+                error_message: "invalid score"
+        """)
+        registry = self._make_registry(tmp_path, yaml_content, "ob_nonnumeric_min.yaml")
+        contract = registry.get("ob_nonnumeric_min")
+        assert contract is not None
+        # Contract loads without error; the rule uses default not_empty type.
+        score_rules = [r for r in contract.rules if r.field == "score"]
+        assert len(score_rules) >= 1
+
+    def test_today_max_skipped(self, tmp_path):
+        """max: 'today' is skipped — does not become a numeric max (lines 584-589)."""
+        yaml_content = textwrap.dedent("""\
+            metadata:
+              version: "1.0"
+              description: "today max test"
+              author: "test-author"
+            rules:
+              expiry:
+                max: "today"
+                error_message: "expiry cannot be today"
+        """)
+        registry = self._make_registry(tmp_path, yaml_content, "ob_today_max.yaml")
+        contract = registry.get("ob_today_max")
+        assert contract is not None
+        expiry_rules = [r for r in contract.rules if r.field == "expiry"]
+        assert len(expiry_rules) >= 1
+        # max_value should not be set (today was not converted to a float).
+        for r in expiry_rules:
+            assert r.max_value is None
+
+    def test_min_length_field(self, tmp_path):
+        """min_length key on a field generates min_length in the rule dict (lines 571-572)."""
+        yaml_content = textwrap.dedent("""\
+            metadata:
+              version: "1.0"
+              description: "min_length test"
+              author: "test-author"
+            rules:
+              username:
+                min_length: 3
+                error_message: "username too short"
+        """)
+        registry = self._make_registry(tmp_path, yaml_content, "ob_min_length.yaml")
+        contract = registry.get("ob_min_length")
+        assert contract is not None
+        username_rules = [r for r in contract.rules if r.field == "username"]
+        assert any(r.min_length == 3 for r in username_rules)
+
+    def test_max_length_field(self, tmp_path):
+        """max_length key on a field generates max_length in the rule dict (lines 573-574)."""
+        yaml_content = textwrap.dedent("""\
+            metadata:
+              version: "1.0"
+              description: "max_length test"
+              author: "test-author"
+            rules:
+              bio:
+                max_length: 200
+                error_message: "bio too long"
+        """)
+        registry = self._make_registry(tmp_path, yaml_content, "ob_max_length.yaml")
+        contract = registry.get("ob_max_length")
+        assert contract is not None
+        bio_rules = [r for r in contract.rules if r.field == "bio"]
+        assert any(r.max_length == 200 for r in bio_rules)

@@ -2,6 +2,25 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.9.7] - 2026-04-02
+
+### Quality
+
+- **Coverage: 90.87% → 93.0%** — targeted sprint covering JSON decode exception handlers, auth function edge paths, Spark code generator fallback, batch validation edge cases, and file-based storage paths. Threshold raised from 90% to 93% (`fail_under = 93`).
+- **3398 tests** (up from 3314 / +84 tests).
+
+#### New / extended test classes
+- `TestQualityAnalyticsInvalidJson` — covers `except (json.JSONDecodeError, TypeError): continue` branches in `rule_heatmap`, `rule_failure_velocity`, and `observation_fields` (lines 109-110, 174-175, 197-198, 368-369).
+- `TestQualityStatsFileBased` — covers `conn.close()` in non-memory `get_windowed_totals` finally blocks (lines 235, 251).
+- `TestAuthDirectFunctions` — covers open-mode invalid Bearer fallback (lines 170-171), non-Bearer 401 (line 178), and `get_current_role` validator fallback paths (lines 215, 221-222).
+- `TestBatchValidationEdgeCases` — covers `compare_to="now"` sentinel, date-parse string fallback, null batch lookup, missing lookup file swallowed, and non-numeric cross_field_range.
+- `TestValidatorEdgeCases` — covers checksum NHS/CPF/VIN/LEI edge cases, geospatial lon bounds, age_match edge cases, and unknown rule type path.
+- `TestCodeGeneratorEdgeCases` — covers `_js_rule_check` default `age_checked=set()` init (line 212) and Spark `else` todo_note (line 340).
+- `TestTokensExtended` — covers `POST /tokens/revoke/{username}` (line 94) and IS_OPEN_MODE role downgrade (line 43).
+- `TestTraceLogMissedLines` extensions — rotation with 4+ segments, stat OSError early return, rename OSError logging, unlink OSError swallowed.
+
+---
+
 ## [1.9.6] - 2026-04-02
 
 ### Quality

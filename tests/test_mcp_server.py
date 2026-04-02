@@ -27,6 +27,7 @@ from mcp_server import (
     _tool_validate_batch,
     _tool_validate_record,
     _registry,
+    _pick_governance_tip,
     call_tool,
 )
 
@@ -775,3 +776,97 @@ class TestPickGovernanceTip:
             "dry_run": True,
         })
         assert isinstance(result, list)
+
+
+# ---------------------------------------------------------------------------
+# Additional targeted tests for remaining missed lines
+# ---------------------------------------------------------------------------
+
+class TestPickGovernanceTipDefault:
+    """_pick_governance_tip default path (line 161)."""
+
+    async def test_default_tip_when_no_rule_type_in_tips(self):
+        """Line 161: fallback to 'default' tip when rule type not in _GOVERNANCE_TIPS dict."""
+        from mcp_server import _pick_governance_tip
+        from core.rule_parser import Rule
+
+        # Use a rule type that is NOT in _GOVERNANCE_TIPS (checksum has no tip entry)
+        rule = Rule(name="iban_check", field="iban", type="checksum",
+                    error_message="Invalid IBAN")
+        tip = _pick_governance_tip([rule], [])
+        # Should fall back to the 'default' tip (line 161)
+        assert "ingestion" in tip or "downstream" in tip
+
+    async def test_default_tip_with_empty_rules(self):
+        """Line 161: empty rules list hits the final default return."""
+        tip = _pick_governance_tip([], [])
+        assert len(tip) > 0  # default tip always returns something
+
+
+class TestQualityMetricsAgentIdFilter:
+    """_tool_get_quality_metrics with agent_id filter (line 855)."""
+
+    async def test_agent_id_filter_path(self):
+        """Passing agent_id calls get_windowed_summary_for_agent (line 855)."""
+        result = await _tool_get_quality_metrics({
+            "agent_id": "pytest-test-agent",
+            "window_hours": 24,
+        })
+        data = _parse(result)
+        # Returns either a list (possibly empty) or dict with error
+        assert isinstance(data, list)
+
+
+class TestValidateBatchDraftNotice:
+    """_tool_validate_batch draft_notice field (line 598)."""
+
+    async def test_batch_draft_contract_includes_draft_notice(self):
+        """Batch validate with DRAFT contract → draft_notice in result (line 598)."""
+        import yaml
+        from core.rule_parser import Rule, ContractStatus
+        from core.contracts import DataContract
+        import mcp_server as ms
+
+        name = "mcp_draft_batch_test_xyz"
+        rule = Rule(name="r", field="x", type="not_empty", error_message="req")
+        contract = DataContract(
+            name=name, version="1.0", description="Draft batch test",
+            owner="test", status=ContractStatus.DRAFT, rules=[rule],
+        )
+        # Write YAML file and register
+        path = ms._registry.contracts_dir / f"{name}.yaml"
+        yaml_data = {"name": name, "version": "1.0", "status": "draft",
+                     "description": "test", "owner": "test",
+                     "rules": [{"name": "r", "field": "x", "type": "not_empty",
+                                 "error_message": "req"}]}
+        path.write_text(yaml.dump(yaml_data), encoding="utf-8")
+        ms._registry._contracts.setdefault(name, {})["1.0"] = contract
+        ms._registry._contract_paths[name] = path
+
+        try:
+            result = await _tool_validate_batch({
+                "contract": name,
+                "records": [{"x": "hello"}],
+            })
+            data = _parse(result)
+            assert "draft_notice" in data
+        finally:
+            ms._registry._contracts.pop(name, None)
+            if path.exists():
+                path.unlink()
+
+
+class TestRuleVelocityException:
+    """_tool_get_rule_velocity exception path (lines 1044-1045)."""
+
+    async def test_exception_in_rule_failure_velocity_returns_error(self):
+        """rule_failure_velocity raising an exception → error dict (lines 1044-1045)."""
+        from unittest.mock import patch
+        import mcp_server as ms
+
+        with patch.object(ms._quality_analytics, "rule_failure_velocity",
+                          side_effect=RuntimeError("DB failure")):
+            result = await _tool_get_rule_velocity({"contract": "customer"})
+            data = _parse(result)
+            assert "error" in data
+            assert "DB failure" in data["error"]

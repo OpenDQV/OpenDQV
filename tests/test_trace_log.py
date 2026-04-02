@@ -465,6 +465,7 @@ class TestTraceLogMissedLines:
         from core import trace_log as tl
 
         log_file = tmp_path / "trace_fail.jsonl"
+        monkeypatch.setenv("OPENDQV_TRACE_LOG", "true")
         monkeypatch.setenv("OPENDQV_TRACE_LOG_PATH", str(log_file))
         tl._trace_last_hash.clear()
 
@@ -481,3 +482,210 @@ class TestTraceLogMissedLines:
                 sensitive_fields=[],
                 failed_rules=[],
             )
+
+    def test_blank_line_in_verify_is_skipped(self, tmp_path, monkeypatch):
+        """verify_trace_log skips blank lines without error (line 229 continue)."""
+        import hashlib
+        from core.trace_log import _GENESIS_HASH
+
+        log_file = tmp_path / "blank_line.jsonl"
+        monkeypatch.delenv("OPENDQV_TRACE_HMAC_KEY", raising=False)
+
+        # Build one valid entry then a blank line then another valid entry
+        payload = json.dumps({"contract": "x", "valid": True}, sort_keys=True, separators=(",", ":"))
+        h1 = hashlib.sha256(f"{_GENESIS_HASH}|{payload}".encode()).hexdigest()
+        entry1 = {"contract": "x", "valid": True, "prev_hash": _GENESIS_HASH, "entry_hash": h1}
+
+        payload2 = json.dumps({"contract": "x", "valid": True}, sort_keys=True, separators=(",", ":"))
+        h2 = hashlib.sha256(f"{h1}|{payload2}".encode()).hexdigest()
+        entry2 = {"contract": "x", "valid": True, "prev_hash": h1, "entry_hash": h2}
+
+        with open(log_file, "w", encoding="utf-8") as f:
+            f.write(json.dumps(entry1) + "\n")
+            f.write("\n")  # blank line — must be skipped
+            f.write(json.dumps(entry2) + "\n")
+
+        result = verify_trace_log(str(log_file))
+        assert result["valid"] is True
+        assert result["entries"] == 2
+
+    def test_rotation_unlinks_existing_dst_before_rename(self, tmp_path):
+        """When dst segment exists, it is unlinked before src is renamed (lines 103-106)."""
+        from core import trace_log as tl
+        from core.trace_log import _rotate_if_needed
+
+        log_file = tmp_path / "trace.jsonl"
+        log_file.write_text("x" * 100, encoding="utf-8")
+
+        # Create segments .4 and .5 — when i=4, dst=.5 already exists so it gets unlinked.
+        (tmp_path / "trace.jsonl.4").write_text("seg4\n", encoding="utf-8")
+        (tmp_path / "trace.jsonl.5").write_text("seg5\n", encoding="utf-8")
+
+        original_size = tl._TRACE_MAX_SIZE_BYTES
+        original_keep = tl._TRACE_ROTATE_KEEP
+        tl._TRACE_MAX_SIZE_BYTES = 1
+        tl._TRACE_ROTATE_KEEP = 5
+        tl._trace_last_hash.clear()
+        try:
+            _rotate_if_needed(log_file)
+        finally:
+            tl._TRACE_MAX_SIZE_BYTES = original_size
+            tl._TRACE_ROTATE_KEEP = original_keep
+
+        # .5 was unlinked and then .4 renamed to .5 — verify .4 is gone
+        assert not (tmp_path / "trace.jsonl.4").exists()
+
+    def test_rotation_stat_oserror_returns_early(self, tmp_path):
+        """OSError from stat() in _rotate_if_needed is swallowed (lines 94-95)."""
+        from unittest.mock import patch
+        from pathlib import Path
+        from core import trace_log as tl
+        from core.trace_log import _rotate_if_needed
+
+        log_file = tmp_path / "trace.jsonl"
+        log_file.write_text("x" * 100, encoding="utf-8")
+
+        original_size = tl._TRACE_MAX_SIZE_BYTES
+        tl._TRACE_MAX_SIZE_BYTES = 1
+        original_stat = Path.stat
+
+        def mock_stat(self, *args, **kwargs):
+            if str(self) == str(log_file):
+                raise OSError("permission denied")
+            return original_stat(self, *args, **kwargs)
+
+        try:
+            with patch.object(Path, "stat", mock_stat):
+                _rotate_if_needed(log_file)  # Must not raise
+        finally:
+            tl._TRACE_MAX_SIZE_BYTES = original_size
+
+    def test_rotation_rename_oserror_logged(self, tmp_path):
+        """OSError from rename() during shift loop is logged (lines 109-110)."""
+        from unittest.mock import patch
+        from core import trace_log as tl
+        from core.trace_log import _rotate_if_needed
+        from pathlib import Path
+
+        log_file = tmp_path / "trace.jsonl"
+        log_file.write_text("x" * 100, encoding="utf-8")
+        (tmp_path / "trace.jsonl.1").write_text("seg1\n", encoding="utf-8")
+
+        original_size = tl._TRACE_MAX_SIZE_BYTES
+        tl._TRACE_MAX_SIZE_BYTES = 1
+        tl._trace_last_hash.clear()
+
+        original_rename = Path.rename
+
+        def mock_rename(self, target):
+            # Fail only the first rename (shifting .1 → .2)
+            if str(self).endswith(".1"):
+                raise OSError("rename failed")
+            return original_rename(self, target)
+
+        try:
+            with patch.object(Path, "rename", mock_rename):
+                _rotate_if_needed(log_file)  # Must not raise
+        finally:
+            tl._TRACE_MAX_SIZE_BYTES = original_size
+
+    def test_dst_unlink_oserror_swallowed(self, tmp_path):
+        """OSError from dst.unlink() in shift loop is swallowed (lines 105-106)."""
+        from unittest.mock import patch
+        from pathlib import Path
+        from core import trace_log as tl
+        from core.trace_log import _rotate_if_needed
+
+        log_file = tmp_path / "trace.jsonl"
+        log_file.write_text("x" * 100, encoding="utf-8")
+        # Create .4 and .5 so dst=.5 exists when i=4, triggering dst.unlink()
+        (tmp_path / "trace.jsonl.4").write_text("seg4\n", encoding="utf-8")
+        (tmp_path / "trace.jsonl.5").write_text("seg5\n", encoding="utf-8")
+
+        original_size = tl._TRACE_MAX_SIZE_BYTES
+        tl._TRACE_MAX_SIZE_BYTES = 1
+        tl._TRACE_ROTATE_KEEP = 5
+        tl._trace_last_hash.clear()
+
+        original_unlink = Path.unlink
+
+        def mock_unlink(self, missing_ok=False):
+            # Make .5's unlink() fail (OSError → lines 105-106)
+            if str(self).endswith(".5"):
+                raise OSError("permission denied")
+            return original_unlink(self, missing_ok=missing_ok)
+
+        try:
+            with patch.object(Path, "unlink", mock_unlink):
+                _rotate_if_needed(log_file)  # Must not raise
+        finally:
+            tl._TRACE_MAX_SIZE_BYTES = original_size
+
+    def test_rotated_unlink_oserror_swallowed(self, tmp_path):
+        """OSError from rotated.unlink() at final step is swallowed (lines 117-118).
+
+        Setup: loop rename of .1→.2 fails (so .1 stays), then final unlink of .1 also fails.
+        """
+        from unittest.mock import patch
+        from pathlib import Path
+        from core import trace_log as tl
+        from core.trace_log import _rotate_if_needed
+
+        log_file = tmp_path / "trace.jsonl"
+        log_file.write_text("x" * 100, encoding="utf-8")
+        # Create .1 — loop will try to rename it to .2 (fail), then final step tries to unlink it (fail)
+        (tmp_path / "trace.jsonl.1").write_text("seg1\n", encoding="utf-8")
+
+        original_size = tl._TRACE_MAX_SIZE_BYTES
+        tl._TRACE_MAX_SIZE_BYTES = 1
+        tl._TRACE_ROTATE_KEEP = 5
+        tl._trace_last_hash.clear()
+
+        original_rename = Path.rename
+        original_unlink = Path.unlink
+
+        def mock_rename(self, target):
+            if str(self).endswith(".jsonl.1"):
+                raise OSError("rename failed")
+            return original_rename(self, target)
+
+        def mock_unlink(self, missing_ok=False):
+            # After rename fails, .1 still exists; final unlink also fails → lines 117-118
+            if str(self).endswith(".jsonl.1"):
+                raise OSError("unlink failed")
+            return original_unlink(self, missing_ok=missing_ok)
+
+        try:
+            with patch.object(Path, "rename", mock_rename), \
+                 patch.object(Path, "unlink", mock_unlink):
+                _rotate_if_needed(log_file)  # Must not raise
+        finally:
+            tl._TRACE_MAX_SIZE_BYTES = original_size
+
+    def test_final_rotation_rename_oserror(self, tmp_path):
+        """OSError on the final log_path.rename returns early (lines 121-123)."""
+        from unittest.mock import patch
+        from core import trace_log as tl
+        from core.trace_log import _rotate_if_needed
+        from pathlib import Path
+
+        log_file = tmp_path / "trace.jsonl"
+        log_file.write_text("x" * 100, encoding="utf-8")
+        # No .1 file so loop doesn't touch it; mock the final rename only
+        original_size = tl._TRACE_MAX_SIZE_BYTES
+        tl._TRACE_MAX_SIZE_BYTES = 1
+        tl._trace_last_hash.clear()
+
+        original_rename = Path.rename
+
+        def mock_rename(self, target):
+            # Fail the rename of the main log to .1
+            if str(self) == str(log_file):
+                raise OSError("disk full")
+            return original_rename(self, target)
+
+        try:
+            with patch.object(Path, "rename", mock_rename):
+                _rotate_if_needed(log_file)  # Must not raise
+        finally:
+            tl._TRACE_MAX_SIZE_BYTES = original_size

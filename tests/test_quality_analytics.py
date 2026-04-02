@@ -460,3 +460,74 @@ class TestObservationEndpoints:
     def test_observation_fields_requires_auth(self, client):
         resp = client.get("/api/v1/observation/fields?contract=customer")
         assert resp.status_code == 401
+
+
+# ── JSON decode exception handlers (lines 109-110, 174-175, 197-198, 368-369) ─
+
+class TestQualityAnalyticsInvalidJson:
+    """Cover the except (json.JSONDecodeError, TypeError): continue branches."""
+
+    def _insert_bad_json_row(self, db_path: str, mode: str = "enforcement") -> None:
+        raw_conn = sqlite3.connect(db_path)
+        raw_conn.execute(
+            "INSERT INTO quality_stats "
+            "(contract_name, contract_version, context, recorded_at, "
+            "total_records, passed, failed, pass_rate, rule_failure_counts, agent_id, mode) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "qa_badj_ctr", "1.0", "default",
+                datetime.now(timezone.utc).isoformat(),
+                5, 3, 2, 0.6, "NOT_VALID_JSON", "", mode,
+            ),
+        )
+        raw_conn.commit()
+        raw_conn.close()
+
+    def test_rule_heatmap_skips_invalid_json_row(self, tmp_path):
+        """rule_heatmap: invalid JSON in rfc_json → except branch lines 109-110."""
+        db_path = str(tmp_path / "qa_heatmap_bad.db")
+        qs = QualityStats(db_path)
+        qs.record_batch("qa_badj_ctr", "1.0", "default", 10, 8, 2, {"rule1": 2})
+        self._insert_bad_json_row(db_path)
+        qa = QualityAnalytics(db_path)
+        result = qa.rule_heatmap(days=7)
+        assert isinstance(result, list)
+        # Invalid row is skipped; valid row's rule1 still present
+        assert any(r["rule"] == "rule1" for r in result)
+
+    def test_rule_failure_velocity_skips_invalid_json_rows(self, tmp_path):
+        """rule_failure_velocity: invalid JSON → except branches lines 174-175, 197-198."""
+        db_path = str(tmp_path / "qa_trend_bad.db")
+        qs = QualityStats(db_path)
+        qs.record_batch("qa_badj_ctr", "1.0", "default", 10, 8, 2, {"rule1": 2})
+        self._insert_bad_json_row(db_path)
+        qa = QualityAnalytics(db_path)
+        result = qa.rule_failure_velocity("qa_badj_ctr", window_hours=24)
+        assert isinstance(result, dict)
+        assert "series" in result
+
+    def test_observation_fields_skips_invalid_json_row(self, tmp_path):
+        """observation_fields: invalid JSON in observation_only row → except lines 368-369."""
+        db_path = str(tmp_path / "qa_obs_bad.db")
+        qs = QualityStats(db_path)
+        qs.record_batch("qa_badj_ctr", "1.0", "default", 10, 8, 2,
+                        {"rule1": 2}, mode="observation_only")
+        self._insert_bad_json_row(db_path, mode="observation_only")
+        qa = QualityAnalytics(db_path)
+        result = qa.observation_fields("qa_badj_ctr", days=7)
+        assert isinstance(result, list)
+
+
+# ── QualityStats file-based conn.close() paths (lines 235, 251) ───────────────
+
+class TestQualityStatsFileBased:
+    """Cover the `if self._db_path != ":memory:": conn.close()` branches."""
+
+    def test_get_windowed_totals_file_based_closes_connections(self, tmp_path):
+        """File-based QualityStats triggers conn.close() in finally (lines 235, 251)."""
+        db_path = str(tmp_path / "qs_file_based.db")
+        qs = QualityStats(db_path)
+        qs.record_batch("file_ctr", "1.0", "default", 20, 16, 4, {"rule_x": 4})
+        result = qs.get_windowed_totals("file_ctr", window_hours=24)
+        assert result["total"] == 20
+        assert result["passed"] == 16

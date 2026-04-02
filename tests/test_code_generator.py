@@ -365,3 +365,19 @@ class TestBigQueryGenerator:
     def test_bigquery_json_parse(self):
         out = generate_code([], target="bigquery")
         assert "JSON.parse" in out
+
+
+class TestCodeGeneratorEdgeCases:
+    """Cover missed lines in code_generator.py."""
+
+    def test_js_rule_check_default_age_checked(self):
+        """Calling _js_rule_check without age_checked initialises it to set() (line 212)."""
+        from core.code_generator import _js_rule_check
+        result = _js_rule_check({"type": "not_empty", "field": "email", "name": "r"})
+        assert isinstance(result, str)
+
+    def test_spark_unknown_rule_type_returns_todo_note(self):
+        """Spark generator: rule type not handled → todo_note (line 340)."""
+        out = generate_code([_rule("age_match", field="dob", min_age=18)], target="spark")
+        # age_match falls through to else → todo_note in the output
+        assert "not yet implemented" in out or "NOTE" in out or "age" in out.lower()

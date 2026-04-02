@@ -12,7 +12,7 @@ It validates records against YAML data contracts at the point of write — befor
 data enters the pipeline ("shift-left"). It is **not** a pipeline monitoring tool
 (that's Monte Carlo) or a pipeline test framework (that's dbt/Soda).
 
-**Version:** 1.9.6
+**Version:** 1.9.7
 **Stack:** FastAPI + Gunicorn/Uvicorn, Streamlit UI, SQLite/PostgreSQL, DuckDB (batch), MCP
 
 ---
@@ -32,7 +32,7 @@ examples/       Starter contracts + sample records by domain
 scripts/        Demo, wizard, perf-test, smoke tests, diagnostics
 sdk/            Python SDK: sync client, async client, local validator
 security/       JWT PAT auth (auth.py)
-tests/          3,314+ unit/integration tests (45 test files)
+tests/          3,398+ unit/integration tests (45 test files)
 ui/             Streamlit governance workbench (app.py ~2,500 lines)
 ```
 

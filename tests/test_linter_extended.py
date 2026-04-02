@@ -461,3 +461,18 @@ class TestLintInvalidTopLevel:
         result = lint_contract_yaml(yaml_str, "test")
         codes = [i.code for i in result.issues]
         assert "YAML_PARSE_ERROR" in codes
+
+    def test_min_age_non_numeric_does_not_crash(self):
+        """min_age/max_age with non-numeric values → except (TypeError, ValueError) swallowed (lines 247-248)."""
+        yaml_str = (
+            "contract_name: test\n"
+            "rules:\n"
+            "  - name: r1\n"
+            "    type: min_age\n"
+            "    field: dob\n"
+            "    min_age: not_a_number\n"
+            "    max_age: also_not_a_number\n"
+        )
+        result = lint_contract_yaml(yaml_str, "test")
+        # Should not raise; the except branch swallows TypeError/ValueError
+        assert isinstance(result.issues, list)

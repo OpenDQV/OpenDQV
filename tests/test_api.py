@@ -397,3 +397,30 @@ class TestDeleteQualityStatsByContext:
                            headers=admin_headers)
         assert r2.status_code == 200
         assert r2.json()["deleted"] == 0
+
+
+class TestTokensExtended:
+    """Cover missed lines in api/routes_tokens.py."""
+
+    def test_revoke_by_username_endpoint(self, client, admin_headers):
+        """POST /tokens/revoke/{username} → revoke_by_username() (line 94)."""
+        # Create a token for a test user, then revoke all for that user
+        r = client.post("/api/v1/tokens/generate",
+                        params={"username": "bulk_revoke_test_user"},
+                        headers=admin_headers)
+        assert r.status_code == 200
+        r2 = client.post("/api/v1/tokens/revoke/bulk_revoke_test_user",
+                         headers=admin_headers)
+        assert r2.status_code == 200
+
+    def test_generate_token_in_open_mode_downgrades_privileged_role(self, client, admin_headers):
+        """IS_OPEN_MODE=True: admin/approver/editor → downgraded to validator (line 43)."""
+        from unittest.mock import patch
+        import config
+        with patch.object(config, 'IS_OPEN_MODE', True):
+            r = client.post("/api/v1/tokens/generate",
+                            params={"username": "open_mode_downgrade", "role": "admin"},
+                            headers=admin_headers)
+        assert r.status_code == 200
+        # In open mode, admin role is downgraded to validator
+        assert r.json()["role"] == "validator"
