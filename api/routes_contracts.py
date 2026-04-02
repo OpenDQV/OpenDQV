@@ -833,12 +833,8 @@ async def generate_code_endpoint(
 ):
     """Generate validation code for a target platform from a contract's rules."""
     from core.code_generator import generate_code
-    from core.contracts import UnknownContextError
     contract = _d._get_contract_versioned_or_404(contract_name, version)
 
-    try:
-        rules = _d.registry.get_rules_with_context(contract, context)
-    except UnknownContextError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    rules = _d.registry.get_rules_with_context(contract, context)
     code = generate_code(rules, target, contract_name=contract.name, contract_version=contract.version)
     return {"contract": contract.name, "target": target, "context": context, "code": code}

@@ -2,6 +2,31 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.9.6] - 2026-04-02
+
+### Quality
+
+- **Coverage: 89.76% → 90.87%** — 3 CRT152 open items resolved. Threshold raised from 89% to 90% (`fail_under = 90`).
+- **3314 tests** (up from 3251 / +63 tests).
+
+#### Dead code removed
+- `api/routes_contracts.py`: removed unreachable `except UnknownContextError` block in `generate_code_endpoint`. `get_rules_with_context()` never raises this exception — it falls back to base rules for unknown contexts. This was confirmed dead code and has been deleted.
+
+#### New test file
+- `tests/test_main.py` (14 tests): lifespan startup and shutdown, heartbeat flush on shutdown, heartbeat flush exception swallowed, `_maker_checker_enforced()` in open/token mode, root endpoint auth_mode field, health endpoint detail mode (HEALTH_DETAIL=true/false).
+
+#### Extended test files
+- `tests/test_onboarding.py` (+49 tests): `_read_workbench_lock` dead-pid and exception paths, `_write_workbench_lock` / `_write_api_lock`, `_load_first_lookup_value` (file found, comments filtered, OSError, field-name fallbacks), `_build_valid_from_regex` missing branches (loose phone pattern, postcode/phone/email keyword inference), `build_sample_records` for country/colour/color/_status fields, `build_sample_records_from_rules` for max/min_length/lookup/age_match rules, `_demo_governance` (happy path, 401/403 skip, already-active skip, exception swallowed), `_reload` (success, exception swallowed), `_start_docker` (missing .env.example, FileNotFoundError on Popen), `_list_templates` edge cases (missing dir, excluded template, null YAML, bad YAML), wizard `run()` inside-Docker path, session file write exception swallowed.
+
+#### Per-file gains
+| File | Before | After |
+|------|--------|-------|
+| `core/onboarding.py` | 80.8% | **91.9%** |
+| `main.py` | 74.0% | **83.3%** |
+| `api/routes_contracts.py` | 72.7% | **83.2%** (dead code removed) |
+
+---
+
 ## [1.9.5] - 2026-04-02
 
 ### Quality

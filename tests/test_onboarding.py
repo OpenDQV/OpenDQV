@@ -17,7 +17,11 @@ from core.onboarding import (
     OnboardingWizard,
     WizardResult,
     _build_valid_from_regex,
+    _load_first_lookup_value,
     _read_api_lock,
+    _read_workbench_lock,
+    _write_api_lock,
+    _write_workbench_lock,
     build_sample_records,
     build_sample_records_from_rules,
     generate_contract_yaml,
@@ -1446,6 +1450,527 @@ class TestWizardOutputRegressions:
 
 
 # ── CLI onboard command ────────────────────────────────────────────────────────
+
+# ---------------------------------------------------------------------------
+# TestReadWorkbenchLock — lines 87–96 (parallel to TestReadApiLock)
+# ---------------------------------------------------------------------------
+
+class TestReadWorkbenchLock:
+    """_read_workbench_lock() returns (pid, port) or None."""
+
+    def test_missing_file_returns_none(self, tmp_path):
+        lock_path = tmp_path / ".opendqv_workbench.lock"
+        with patch("core.onboarding._WORKBENCH_LOCK", lock_path):
+            assert _read_workbench_lock() is None
+
+    def test_dead_pid_returns_none(self, tmp_path):
+        lock_path = tmp_path / ".opendqv_workbench.lock"
+        lock_path.write_text(json.dumps({"pid": 99999999, "port": 8501}))
+        with patch("core.onboarding._WORKBENCH_LOCK", lock_path):
+            assert _read_workbench_lock() is None  # line 93
+
+    def test_exception_returns_none(self, tmp_path):
+        lock_path = tmp_path / ".opendqv_workbench.lock"
+        lock_path.write_text("not-valid-json")
+        with patch("core.onboarding._WORKBENCH_LOCK", lock_path):
+            assert _read_workbench_lock() is None  # lines 95–96
+
+    def test_alive_pid_returns_tuple(self, tmp_path):
+        lock_path = tmp_path / ".opendqv_workbench.lock"
+        lock_path.write_text(json.dumps({"pid": os.getpid(), "port": 8501}))
+        with patch("core.onboarding._WORKBENCH_LOCK", lock_path):
+            result = _read_workbench_lock()
+            assert result == (os.getpid(), 8501)
+
+
+# ---------------------------------------------------------------------------
+# TestWriteLockFunctions — lines 101, 121
+# ---------------------------------------------------------------------------
+
+class TestWriteLockFunctions:
+    """_write_workbench_lock and _write_api_lock write JSON to their respective paths."""
+
+    def test_write_workbench_lock(self, tmp_path):
+        lock_path = tmp_path / ".opendqv_workbench.lock"
+        with patch("core.onboarding._WORKBENCH_LOCK", lock_path):
+            _write_workbench_lock(12345, 8501)  # line 101
+        data = json.loads(lock_path.read_text())
+        assert data == {"pid": 12345, "port": 8501}
+
+    def test_write_api_lock(self, tmp_path):
+        lock_path = tmp_path / ".opendqv_api.lock"
+        with patch("core.onboarding._API_LOCK", lock_path):
+            _write_api_lock(99, 9000)  # line 121
+        data = json.loads(lock_path.read_text())
+        assert data == {"pid": 99, "port": 9000}
+
+
+# ---------------------------------------------------------------------------
+# TestLoadFirstLookupValue — lines 426–445
+# ---------------------------------------------------------------------------
+
+class TestLoadFirstLookupValue:
+    """_load_first_lookup_value() returns first non-comment line or field-name fallback."""
+
+    def test_file_found_returns_first_line(self, tmp_path):
+        lookup = tmp_path / "gender.txt"
+        lookup.write_text("MALE\nFEMALE\n")
+        with patch("core.onboarding.Path") as mock_path_cls:
+            # Patch Path(".") to return tmp_path so "." / "gender.txt" resolves correctly
+            real_path = __import__("pathlib").Path
+            def _path_side(arg=""):
+                if arg == ".":
+                    return tmp_path
+                return real_path(arg)
+            mock_path_cls.side_effect = _path_side
+            result = _load_first_lookup_value("gender.txt", "gender")
+        assert result == "MALE"
+
+    def test_file_with_comments_skips_to_first_real_line(self, tmp_path):
+        lookup = tmp_path / "status.txt"
+        lookup.write_text("# comment\n\nACTIVE\nINACTIVE\n")
+        # Use contracts subdir
+        (tmp_path / "contracts").mkdir()
+        (tmp_path / "contracts" / "status.txt").write_text("# comment\n\nACTIVE\n")
+        import pathlib
+        real_path = pathlib.Path
+        with patch("core.onboarding.Path") as mock_path_cls:
+            call_count = [0]
+            def _path_side(arg=""):
+                call_count[0] += 1
+                if arg == "." and call_count[0] == 1:
+                    return tmp_path / "nonexistent_dir"  # OSError on first base
+                if arg == "contracts":
+                    return tmp_path / "contracts"
+                return real_path(arg)
+            mock_path_cls.side_effect = _path_side
+            result = _load_first_lookup_value("status.txt", "status")
+        assert result == "ACTIVE"  # line 432
+
+    def test_no_file_found_fallback_verified(self):
+        result = _load_first_lookup_value("nonexistent_file_xyz.txt", "is_verified")
+        assert result == "TRUE"  # line 438
+
+    def test_no_file_found_fallback_method(self):
+        result = _load_first_lookup_value("nonexistent_file_xyz.txt", "payment_method")
+        assert result == "DOCUMENT_CHECK"  # line 440
+
+    def test_no_file_found_fallback_status(self):
+        result = _load_first_lookup_value("nonexistent_file_xyz.txt", "kyc_status")
+        assert result == "ACTIVE"  # line 442
+
+    def test_no_file_found_fallback_currency(self):
+        result = _load_first_lookup_value("nonexistent_file_xyz.txt", "currency_code")
+        assert result == "GBP"  # line 444
+
+    def test_empty_lookup_file_uses_fallback(self):
+        result = _load_first_lookup_value("", "unknown_field")
+        assert result == "VALID"  # line 445
+
+
+# ---------------------------------------------------------------------------
+# TestBuildValidFromRegexMissingBranches — lines 409, 414, 416, 418
+# ---------------------------------------------------------------------------
+
+class TestBuildValidFromRegexMissingBranches:
+    """Cover the branches in _build_valid_from_regex not yet exercised."""
+
+    def test_loose_phone_pattern(self):
+        # Pattern with r'\+?' and r'[\d\s' → loose phone → line 409 branch
+        result = _build_valid_from_regex(r"^\+?[\d\s\-]{10,15}$", "must be a phone number")
+        assert result == "+44 7911 123456"  # line 409 branch
+
+    def test_postcode_keyword_in_error_message(self):
+        # No structural match but 'postcode' in error message → line 414
+        result = _build_valid_from_regex(r"^[A-Z0-9 ]+$", "must be a valid postcode or postal code")
+        assert result == "SW1A 1AA"
+
+    def test_postal_keyword_in_error_message(self):
+        result = _build_valid_from_regex(r"^[A-Z0-9 ]+$", "enter your postal code")
+        assert result == "SW1A 1AA"
+
+    def test_phone_keyword_in_error_message(self):
+        # 'phone' in msg_lower → line 416
+        result = _build_valid_from_regex(r"^[0-9]+$", "must be a valid phone number")
+        assert result == "+44 7911 123456"
+
+    def test_mobile_keyword_in_error_message(self):
+        result = _build_valid_from_regex(r"^[0-9]+$", "must be a valid mobile number")
+        assert result == "+44 7911 123456"
+
+    def test_msisdn_keyword_in_error_message(self):
+        result = _build_valid_from_regex(r"^[0-9]+$", "must be a valid msisdn")
+        assert result == "+44 7911 123456"
+
+    def test_email_keyword_in_error_message(self):
+        # 'email' in msg_lower → line 418
+        result = _build_valid_from_regex(r"^[^@]+$", "must be a valid email address")
+        assert result == "alice@example.com"
+
+
+# ---------------------------------------------------------------------------
+# TestBuildSampleRecordsMissingFields — lines 557, 565, 569
+# ---------------------------------------------------------------------------
+
+class TestBuildSampleRecordsMissingFields:
+    """Cover build_sample_records field branches not yet exercised."""
+
+    def test_country_field(self):
+        valid, _ = build_sample_records(["country_code"])
+        assert valid["country_code"] == "GB"  # line 557
+
+    def test_colour_field(self):
+        valid, _ = build_sample_records(["favourite_colour"])
+        assert valid["favourite_colour"] == "Blue"  # line 565
+
+    def test_color_field(self):
+        valid, _ = build_sample_records(["text_color"])
+        assert valid["text_color"] == "Blue"
+
+    def test_status_suffix(self):
+        valid, _ = build_sample_records(["order_status"])
+        assert valid["order_status"] == "ACTIVE"  # line 569
+
+
+# ---------------------------------------------------------------------------
+# TestBuildSampleRecordsFromRulesMissingTypes — lines 490, 495–496, 498–499, 515–523
+# ---------------------------------------------------------------------------
+
+class TestBuildSampleRecordsFromRulesMissingTypes:
+    """Cover rule types not yet exercised in build_sample_records_from_rules."""
+
+    def test_max_rule(self):
+        valid, invalid = build_sample_records_from_rules([
+            {"field": "quantity", "type": "max", "max": 50}
+        ])
+        assert valid["quantity"] == 50   # line 495
+        assert invalid["quantity"] == 51  # line 496
+
+    def test_min_length_rule(self):
+        valid, invalid = build_sample_records_from_rules([
+            {"field": "reference", "type": "min_length", "min_length": 5}
+        ])
+        assert valid["reference"] == "AAAAA"   # line 498
+        assert invalid["reference"] == ""       # line 499
+
+    def test_lookup_rule(self):
+        valid, invalid = build_sample_records_from_rules([
+            {"field": "kyc_status", "type": "lookup", "lookup_file": "nonexistent_xyz.txt"}
+        ])
+        assert valid["kyc_status"] == "ACTIVE"  # fallback via _load_first_lookup_value
+        assert invalid["kyc_status"] == "INVALID_VALUE"
+
+    def test_min_quantity_field(self):
+        # quantity/qty/count/volume/units path → max(10, min_val + 1) — line 490
+        valid, invalid = build_sample_records_from_rules([
+            {"field": "quantity", "type": "min", "min": 1}
+        ])
+        assert valid["quantity"] == 10   # max(10, 1+1) = 10
+
+    def test_age_match_cross_field_fix(self):
+        # age_match post-process recalculates age from dob — lines 515–521
+        rules = [
+            {"field": "dob", "type": "date_format", "format": "%Y-%m-%d"},
+            {"field": "age", "type": "range", "min": 0, "max": 120},
+            {"field": "age", "type": "age_match", "dob_field": "dob"},
+        ]
+        valid, _ = build_sample_records_from_rules(rules)
+        # dob is "1990-06-15"; age should be recalculated from dob
+        from datetime import date
+        dob = date.fromisoformat(valid["dob"])
+        expected_age = (date.today() - dob).days // 365
+        assert valid["age"] == expected_age  # line 521
+
+    def test_age_match_invalid_dob_doesnt_crash(self):
+        # ValueError/TypeError in age_match fix → lines 522–523 (pass)
+        rules = [
+            {"field": "dob", "type": "not_empty"},   # valid["dob"] = "sample_value" (non-date)
+            {"field": "age", "type": "age_match", "dob_field": "dob"},
+        ]
+        valid, _ = build_sample_records_from_rules(rules)  # must not raise
+        assert "dob" in valid
+
+    def test_non_dict_rule_skipped(self):
+        # line 457–458: non-dict entries in rules list are skipped
+        valid, _ = build_sample_records_from_rules(["not-a-dict", {"field": "name", "type": "not_empty"}])
+        assert "name" in valid
+
+    def test_rule_without_field_skipped(self):
+        # line 459–461: rules with no field key are skipped
+        valid, _ = build_sample_records_from_rules([{"type": "not_empty"}])
+        assert valid == {}
+
+
+# ---------------------------------------------------------------------------
+# TestGenerateContractYamlMinLength — line 365
+# ---------------------------------------------------------------------------
+
+class TestGenerateContractYamlMinLength:
+    """generate_contract_yaml includes min_length key for min_length rule type."""
+
+    def test_min_length_field_in_yaml(self):
+        # Trigger line 365: infer_rule("country") returns min_length type
+        yaml_str = generate_contract_yaml("test", ["country"])
+        # min_length key should appear in the output
+        assert "min_length" in yaml_str  # line 365
+
+
+# ---------------------------------------------------------------------------
+# TestListTemplatesEdgeCases — lines 1030, 1034, 1038, 1055–1056
+# ---------------------------------------------------------------------------
+
+class TestListTemplatesEdgeCases:
+    """_list_templates() edge cases when contracts dir is missing or has bad YAML."""
+
+    def test_missing_contracts_dir_returns_empty(self, tmp_path):
+        wiz = OnboardingWizard(contracts_dir=tmp_path / "nonexistent")
+        result = wiz._list_templates()
+        assert result == []  # line 1030
+
+    def test_excluded_template_is_skipped(self, tmp_path):
+        import core.onboarding as _ob
+        excluded = list(_ob._EXCLUDED_TEMPLATES)
+        if not excluded:
+            pytest.skip("No excluded templates defined")
+        (tmp_path / f"{excluded[0]}.yaml").write_text("contract:\n  name: skip_me\n  rules: []\n")
+        wiz = OnboardingWizard(contracts_dir=tmp_path)
+        result = wiz._list_templates()
+        names = [t["name"] for t in result]
+        assert excluded[0] not in names  # line 1034
+
+    def test_yaml_with_null_data_skipped(self, tmp_path):
+        (tmp_path / "empty.yaml").write_text("")  # safe_load returns None
+        wiz = OnboardingWizard(contracts_dir=tmp_path)
+        result = wiz._list_templates()
+        assert all(t["name"] != "empty" for t in result)  # line 1038
+
+    def test_bad_yaml_silently_skipped(self, tmp_path):
+        (tmp_path / "corrupt.yaml").write_text(": invalid: [unclosed")
+        wiz = OnboardingWizard(contracts_dir=tmp_path)
+        result = wiz._list_templates()  # must not raise; lines 1055–1056
+        assert all(t["name"] != "corrupt" for t in result)
+
+
+# ---------------------------------------------------------------------------
+# TestDemoGovernance — lines 858–903
+# ---------------------------------------------------------------------------
+
+class TestDemoGovernance:
+    """_demo_governance() mocked HTTP paths."""
+
+    def _make_wizard(self, tmp_path):
+        wiz = OnboardingWizard(contracts_dir=tmp_path)
+        wiz._base_url = "http://localhost:19999"
+        return wiz
+
+    def _contract_response(self, status="draft", version="1.0"):
+        body = json.dumps({"status": status, "version": version}).encode()
+        mock_resp = MagicMock()
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_resp.read.return_value = body
+        mock_resp.status = 200
+        return mock_resp
+
+    def test_happy_path_draft_to_active(self, tmp_path):
+        wiz = self._make_wizard(tmp_path)
+        call_count = [0]
+        responses = [
+            self._contract_response("draft", "1.0"),  # GET contract
+            self._contract_response("review", "1.0"),  # POST submit-review
+            self._contract_response("active", "1.0"),  # POST approve
+        ]
+        def _urlopen(req, timeout=5):
+            r = responses[call_count[0]]
+            call_count[0] += 1
+            return r
+        with patch("core.onboarding.urllib.request.urlopen", side_effect=_urlopen):
+            wiz._demo_governance("customer")  # must not raise
+
+    def test_already_active_returns_early(self, tmp_path):
+        wiz = self._make_wizard(tmp_path)
+        with patch("core.onboarding.urllib.request.urlopen",
+                   return_value=self._contract_response("active", "1.0")):
+            wiz._demo_governance("customer")  # line 855 → return early
+
+    def test_submit_401_skips_silently(self, tmp_path):
+        import urllib.error
+        wiz = self._make_wizard(tmp_path)
+        call_count = [0]
+        def _urlopen(req, timeout=5):
+            if call_count[0] == 0:
+                call_count[0] += 1
+                return self._contract_response("draft", "1.0")
+            raise urllib.error.HTTPError(None, 401, "Unauthorized", {}, None)
+        with patch("core.onboarding.urllib.request.urlopen", side_effect=_urlopen):
+            wiz._demo_governance("customer")  # lines 868–869 → return
+
+    def test_approve_403_skips_silently(self, tmp_path):
+        import urllib.error
+        wiz = self._make_wizard(tmp_path)
+        call_count = [0]
+        def _urlopen(req, timeout=5):
+            n = call_count[0]
+            call_count[0] += 1
+            if n == 0:
+                return self._contract_response("draft", "1.0")
+            if n == 1:
+                return self._contract_response("review", "1.0")
+            raise urllib.error.HTTPError(None, 403, "Forbidden", {}, None)
+        with patch("core.onboarding.urllib.request.urlopen", side_effect=_urlopen):
+            wiz._demo_governance("customer")  # lines 888–889 → return
+
+    def test_exception_is_swallowed(self, tmp_path):
+        wiz = self._make_wizard(tmp_path)
+        with patch("core.onboarding.urllib.request.urlopen", side_effect=Exception("network error")):
+            wiz._demo_governance("customer")  # line 905 → pass, no exception raised
+
+
+# ---------------------------------------------------------------------------
+# TestReload — lines 909–915
+# ---------------------------------------------------------------------------
+
+class TestReload:
+    """_reload() fires a POST and swallows all exceptions."""
+
+    def test_reload_success(self, tmp_path):
+        wiz = OnboardingWizard(contracts_dir=tmp_path)
+        wiz._base_url = "http://localhost:19999"
+        mock_resp = MagicMock()
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        with patch("core.onboarding.urllib.request.urlopen", return_value=mock_resp):
+            wiz._reload()  # lines 910–913
+
+    def test_reload_exception_swallowed(self, tmp_path):
+        wiz = OnboardingWizard(contracts_dir=tmp_path)
+        wiz._base_url = "http://localhost:19999"
+        with patch("core.onboarding.urllib.request.urlopen", side_effect=Exception("timeout")):
+            wiz._reload()  # line 914–915, must not raise
+
+
+# ---------------------------------------------------------------------------
+# TestStartDockerMissingBranches — lines 715–716, 725–726
+# ---------------------------------------------------------------------------
+
+class TestStartDockerMissingBranches:
+
+    def test_env_example_not_found_no_crash(self, tmp_path):
+        # Lines 715–716: .env doesn't exist, .env.example also doesn't exist → FileNotFoundError swallowed
+        wiz = OnboardingWizard(contracts_dir=tmp_path)
+        with (
+            patch("os.path.exists", return_value=False),
+            patch("pathlib.Path.exists", return_value=False),
+            patch("shutil.copy", side_effect=FileNotFoundError),
+            patch("subprocess.Popen") as mock_popen,
+        ):
+            mock_popen.return_value = MagicMock()
+            result = wiz._start_docker()
+        assert result is True
+
+    def test_popen_file_not_found_returns_false(self, tmp_path):
+        # Lines 725–726: docker not installed → FileNotFoundError in Popen
+        wiz = OnboardingWizard(contracts_dir=tmp_path)
+        with (
+            patch("pathlib.Path.exists", return_value=True),  # .env exists — skip copy
+            patch("subprocess.Popen", side_effect=FileNotFoundError),
+        ):
+            result = wiz._start_docker()
+        assert result is False  # line 726
+
+
+# ---------------------------------------------------------------------------
+# TestWizardRunInsideDocker — lines 1078, 1201–1203
+# ---------------------------------------------------------------------------
+
+class TestWizardRunInsideDocker:
+    """Wizard run() when _is_inside_docker() returns True."""
+
+    def test_run_inside_docker_connects_directly(self, tmp_path):
+        # Lines 1078, 1201–1203: skip docker-compose, connect to localhost:8000 directly
+        wiz = OnboardingWizard(contracts_dir=tmp_path)
+        with (
+            patch.object(OnboardingWizard, "_is_inside_docker", return_value=True),
+            patch.object(OnboardingWizard, "_has_docker", return_value=False),
+            patch.object(OnboardingWizard, "_wait_for_health", return_value=True),
+            patch.object(OnboardingWizard, "_reload"),
+            patch.object(OnboardingWizard, "_demo_governance"),
+            patch.object(OnboardingWizard, "_validate",
+                         side_effect=[
+                             {"valid": True, "errors": [], "warnings": []},
+                             {"valid": False, "errors": [{"field": "x", "message": "bad"}], "warnings": []},
+                         ]),
+            patch("core.onboarding.HAS_QUESTIONARY", False),
+            patch("builtins.input", side_effect=["customer", "email, name"]),
+        ):
+            result = wiz.run()
+        assert wiz._base_url == "http://localhost:8000"  # line 1201
+        assert result.success is True
+
+
+# ---------------------------------------------------------------------------
+# TestWizardRunSessionFileException — lines 1020–1021
+# ---------------------------------------------------------------------------
+
+class TestWizardRunSessionFileException:
+    """_show_next_steps() swallows session file write errors."""
+
+    def test_session_file_write_exception_swallowed(self, tmp_path):
+        wiz = OnboardingWizard(contracts_dir=tmp_path)
+        with (
+            patch.object(OnboardingWizard, "_is_inside_docker", return_value=False),
+            patch.object(OnboardingWizard, "_has_docker", return_value=False),
+            patch.object(OnboardingWizard, "_start_uvicorn", return_value=True),
+            patch.object(OnboardingWizard, "_wait_for_health", return_value=True),
+            patch.object(OnboardingWizard, "_reload"),
+            patch.object(OnboardingWizard, "_demo_governance"),
+            patch.object(OnboardingWizard, "_validate",
+                         side_effect=[
+                             {"valid": True, "errors": [], "warnings": []},
+                             {"valid": False, "errors": [{"field": "x", "message": "bad"}], "warnings": []},
+                         ]),
+            patch("core.onboarding.HAS_QUESTIONARY", False),
+            patch("builtins.input", side_effect=["customer", "email, name"]),
+            patch("core.onboarding._SESSION_FILE",
+                  tmp_path / "no_such_dir" / "session.json"),  # unwritable path → exception
+        ):
+            result = wiz.run()  # must not raise
+        assert result.success is True
+
+
+# ---------------------------------------------------------------------------
+# TestWizardRunEnvExists — line 1085
+# ---------------------------------------------------------------------------
+
+class TestWizardRunEnvExists:
+    """Wizard run() prints info when .env exists."""
+
+    def test_env_exists_info_printed(self, tmp_path):
+        (tmp_path / ".env").write_text("# env")
+        wiz = OnboardingWizard(contracts_dir=tmp_path)
+        with (
+            patch.object(OnboardingWizard, "_is_inside_docker", return_value=False),
+            patch.object(OnboardingWizard, "_has_docker", return_value=False),
+            patch.object(OnboardingWizard, "_start_uvicorn", return_value=True),
+            patch.object(OnboardingWizard, "_wait_for_health", return_value=True),
+            patch.object(OnboardingWizard, "_reload"),
+            patch.object(OnboardingWizard, "_demo_governance"),
+            patch.object(OnboardingWizard, "_validate",
+                         side_effect=[
+                             {"valid": True, "errors": [], "warnings": []},
+                             {"valid": False, "errors": [{"field": "x", "message": "bad"}], "warnings": []},
+                         ]),
+            patch("core.onboarding.HAS_QUESTIONARY", False),
+            patch("builtins.input", side_effect=["customer", "email, name"]),
+            patch("pathlib.Path.exists", lambda p: str(p).endswith(".env")),
+        ):
+            result = wiz.run()
+        assert result.success is True  # line 1085 path was exercised
+
+
+# ---------------------------------------------------------------------------
+# TestCliOnboard — original class kept intact below
+# ---------------------------------------------------------------------------
 
 class TestCliOnboard:
     """Smoke test: 'onboard' command is registered in cli.py."""
