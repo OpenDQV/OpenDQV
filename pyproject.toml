@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "opendqv"
-version = "1.9.2"
+version = "1.9.3"
 description = "OpenDQV Core — open-source, contract-driven data quality validation engine for data pipelines and API boundaries"
 authors = ["Sunny Sharma"]
 license = "MIT"
@@ -26,6 +26,12 @@ packages = [
     { include = "cli.py" },
     { include = "config.py" },
     { include = "main.py" },
+]
+include = [
+    "core/py.typed",
+    "api/py.typed",
+    "security/py.typed",
+    "sdk/py.typed",
 ]
 
 [tool.poetry.scripts]
@@ -75,6 +81,23 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[tool.coverage.run]
+omit = [
+    "tests/*",
+    "scripts/*",
+    "ui/*",
+    ".venv/*",
+]
+
+[tool.coverage.report]
+fail_under = 77
+precision = 1
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
 
 [tool.ruff.lint]
 per-file-ignores = { "**/__init__.py" = ["F401"] }

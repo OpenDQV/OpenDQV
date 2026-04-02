@@ -126,3 +126,60 @@ HEALTH_DETAIL = os.environ.get("OPENDQV_HEALTH_DETAIL", "false").lower() == "tru
 # Demo mode — set by docker-compose.demo.yml to show a startup banner and confirm
 # the environment is intentionally pre-seeded and running with AUTH_MODE=open.
 DEMO_MODE: bool = os.environ.get("DEMO_MODE", "false").lower() == "true"
+
+
+def validate_config() -> None:
+    """
+    Validate all configuration values at startup.
+
+    Raises ValueError with a clear message if any env var is misconfigured.
+    Call this once from the application lifespan so bad config surfaces
+    immediately rather than crashing mid-request.
+    """
+    import re
+
+    # AUTH_MODE
+    if AUTH_MODE not in {"open", "token"}:
+        raise ValueError(
+            f"AUTH_MODE='{AUTH_MODE}' is invalid. Must be 'open' or 'token'."
+        )
+
+    # DB_BACKEND
+    if DB_BACKEND not in {"sqlite", "postgres"}:
+        raise ValueError(
+            f"OPENDQV_DB_BACKEND='{DB_BACKEND}' is invalid. Must be 'sqlite' or 'postgres'."
+        )
+
+    # DB_URL required when postgres
+    if DB_BACKEND == "postgres" and not DB_URL:
+        raise ValueError(
+            "OPENDQV_DB_URL must be set when OPENDQV_DB_BACKEND=postgres."
+        )
+
+    # Integer env vars: name → (value, min_allowed)
+    _int_checks = {
+        "TOKEN_EXPIRY_DAYS": (TOKEN_EXPIRY_DAYS, 1),
+        "OPENDQV_MAX_BATCH_ROWS": (MAX_BATCH_ROWS, 1),
+        "OPENDQV_MAX_SSE_CONNECTIONS": (MAX_SSE_CONNECTIONS, 1),
+        "OPENDQV_MAX_ISOLATION_HOURS": (MAX_ISOLATION_HOURS, 1),
+    }
+    for var_name, (value, min_val) in _int_checks.items():
+        if not isinstance(value, int) or value < min_val:
+            raise ValueError(
+                f"{var_name}={value!r} is invalid. Must be an integer >= {min_val}."
+            )
+
+    # RATE_LIMIT format: "<number>/(second|minute|hour)"
+    _rate_limit_pattern = re.compile(r"^\d+/(second|minute|hour)$")
+    for var_name, value in [
+        ("RATE_LIMIT_DEFAULT", RATE_LIMIT_DEFAULT),
+        ("RATE_LIMIT_VALIDATE", RATE_LIMIT_VALIDATE),
+        ("RATE_LIMIT_TOKENS", RATE_LIMIT_TOKENS),
+    ]:
+        # "off", "0", "disabled" are valid sentinel values
+        if value not in _RATE_LIMIT_OFF_VALUES and not _rate_limit_pattern.match(value):
+            raise ValueError(
+                f"{var_name}='{value}' is invalid. "
+                f"Expected format '<number>/(second|minute|hour)' or one of: "
+                f"{sorted(_RATE_LIMIT_OFF_VALUES)}."
+            )

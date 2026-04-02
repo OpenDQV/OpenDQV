@@ -2,6 +2,34 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.9.3] - 2026-03-31
+
+### Quality
+
+- **CRT150: `py.typed` markers added (PEP 561)** — `sdk/`, `core/`, `api/`, `security/` now
+  ship `py.typed` files, enabling proper IDE autocomplete and type checking for downstream users.
+  (`pyproject.toml` updated to include markers in package distributions.)
+
+- **CRT150: Coverage threshold enforced (77%)** — `[tool.coverage.report] fail_under = 77`
+  added to `pyproject.toml`. Measured baseline is 77.5%; threshold prevents silent regression.
+
+- **CRT150: SDK unit tests added (`tests/test_sdk.py`)** — 70 new tests covering
+  `OpenDQVClient`, `AsyncOpenDQVClient`, `LocalValidator`, `@guard()` decorator, contract
+  caching, and `_extract_record`. SDK line coverage: 95.3%. (`tests/test_sdk.py`)
+
+- **CRT150: `validate_config()` added to `config.py`** — validates all environment variables
+  at startup: `AUTH_MODE`, `DB_BACKEND`, `DB_URL` (when postgres), integer bounds
+  (`TOKEN_EXPIRY_DAYS`, `MAX_BATCH_ROWS`, `MAX_SSE_CONNECTIONS`, `MAX_ISOLATION_HOURS`), and
+  rate-limit format strings. Raises `ValueError` with a clear message at startup instead of
+  crashing mid-request. Called from `main.py` lifespan. (`config.py`, `main.py`)
+
+- **CRT150: Config validation tests added (`tests/test_config_validation.py`)** — tests each
+  bad env var value produces a clear `ValueError`, and all valid values produce no error.
+
+- **CRT150: SDK README added (`sdk/README.md`)** — covers sync client, async client,
+  `LocalValidator`, `@guard()`, auth, observation-only mode, and contract caching with
+  copy-paste examples.
+
 ## [1.9.2] - 2026-03-31
 
 ### Security

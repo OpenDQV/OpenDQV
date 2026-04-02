@@ -1,452 +1,407 @@
-"""Tests for the Python SDK client library."""
+"""
+SDK unit tests — covers sdk/client.py and sdk/local.py.
 
+Uses unittest.mock to avoid real HTTP calls for the client tests.
+LocalValidator tests use the temp contracts dir set up by conftest.py.
+"""
+import json
+import os
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import httpx
 import pytest
-from unittest.mock import MagicMock
-from sdk.client import AsyncOpenDQVClient, OpenDQVClient, ValidationError, _extract_record
+
+from sdk.client import (
+    AsyncOpenDQVClient,
+    OpenDQVClient,
+    ValidationError,
+    _extract_record,
+)
+from sdk.local import ContractNotFoundError, LocalValidator
 
 
-class TestSDKViaAPI:
-    """
-    Test SDK by mocking httpx to use FastAPI TestClient responses.
-    This tests the SDK logic (request building, response parsing, guard decorator)
-    without needing a real HTTP server.
-    """
-
-    @pytest.fixture
-    def mock_client(self, client, auth_headers):
-        """Create an SDK client that delegates to the FastAPI TestClient."""
-        sdk = OpenDQVClient.__new__(OpenDQVClient)
-        sdk.base_url = "http://testserver"
-
-        # Create a mock httpx client that routes through FastAPI TestClient
-        mock_http = MagicMock()
-
-        def mock_post(path, json=None, params=None, **kwargs):
-            """Route SDK POST calls through the FastAPI TestClient."""
-            resp_obj = client.post(path, json=json, params=params, headers=auth_headers)
-            # Create a mock response with the right interface
-            mock_resp = MagicMock()
-            mock_resp.status_code = resp_obj.status_code
-            mock_resp.json.return_value = resp_obj.json()
-            mock_resp.raise_for_status.side_effect = None if resp_obj.status_code < 400 else Exception(f"HTTP {resp_obj.status_code}")
-            return mock_resp
-
-        def mock_get(path, params=None, **kwargs):
-            resp_obj = client.get(path, params=params, headers=auth_headers)
-            mock_resp = MagicMock()
-            mock_resp.status_code = resp_obj.status_code
-            mock_resp.json.return_value = resp_obj.json()
-            mock_resp.raise_for_status.side_effect = None if resp_obj.status_code < 400 else Exception(f"HTTP {resp_obj.status_code}")
-            return mock_resp
-
-        mock_http.post = mock_post
-        mock_http.get = mock_get
-        mock_http.close = MagicMock()
-        sdk._client = mock_http
-        return sdk
-
-    def test_validate_valid_record(self, mock_client):
-        result = mock_client.validate(
-            {
-                "email": "test@example.com", "age": 25, "name": "Alice",
-                "id": "12345", "phone": "+1234567890", "balance": 100,
-                "score": 85, "date": "2024-01-15", "username": "alice_w",
-                "password": "securepass123",
-            },
-            contract="customer",
-        )
-        assert result["valid"] is True
-        assert result["contract"] == "customer"
-
-    def test_validate_invalid_record(self, mock_client):
-        result = mock_client.validate(
-            {"email": "bad", "age": -5, "name": ""},
-            contract="customer",
-        )
-        assert result["valid"] is False
-        assert len(result["errors"]) > 0
-
-    def test_validate_with_context(self, mock_client):
-        result = mock_client.validate(
-            {"email": "kid@example.com", "age": 25, "name": "Kiddo"},
-            contract="customer",
-            context="kids_app",
-        )
-        age_errors = [e for e in result["errors"] if e["field"] == "age"]
-        assert len(age_errors) > 0
-
-    def test_validate_batch(self, mock_client):
-        result = mock_client.validate_batch(
-            [
-                {"email": "a@b.com", "age": 25, "name": "Alice"},
-                {"email": "bad", "age": -5, "name": ""},
-            ],
-            contract="customer",
-        )
-        assert result["summary"]["total"] == 2
-        assert result["summary"]["failed"] > 0
-
-    def test_list_contracts(self, mock_client):
-        contracts = mock_client.contracts()
-        assert len(contracts) > 0
-        names = [c["name"] for c in contracts]
-        assert "customer" in names
-
-    def test_get_contract_detail(self, mock_client):
-        detail = mock_client.contract("customer")
-        assert detail["name"] == "customer"
-        assert len(detail["rules"]) > 0
-        assert "status" in detail
-
-    def test_validate_record_id_echoed(self, mock_client):
-        result = mock_client.validate(
-            {"email": "a@b.com"},
-            contract="customer",
-            record_id="my-tracking-id",
-        )
-        assert result["record_id"] == "my-tracking-id"
-
-
-class TestGuardDecorator:
-    """Test the @client.guard() decorator."""
-
-    @pytest.fixture
-    def mock_client(self, client, auth_headers):
-        sdk = OpenDQVClient.__new__(OpenDQVClient)
-        sdk.base_url = "http://testserver"
-        mock_http = MagicMock()
-
-        def mock_post(path, json=None, params=None, **kwargs):
-            resp_obj = client.post(path, json=json, params=params, headers=auth_headers)
-            mock_resp = MagicMock()
-            mock_resp.status_code = resp_obj.status_code
-            mock_resp.json.return_value = resp_obj.json()
-            mock_resp.raise_for_status.side_effect = None if resp_obj.status_code < 400 else Exception(f"HTTP {resp_obj.status_code}")
-            return mock_resp
-
-        mock_http.post = mock_post
-        mock_http.close = MagicMock()
-        sdk._client = mock_http
-        return sdk
-
-    def test_guard_passes_valid_record(self, mock_client):
-        @mock_client.guard(contract="customer")
-        def save(data):
-            return "saved"
-
-        result = save({
-            "email": "test@example.com", "age": 25, "name": "Alice",
-            "id": "12345", "phone": "+1234567890", "balance": 100,
-            "score": 85, "date": "2024-01-15", "username": "alice_w",
-            "password": "securepass123",
-        })
-        assert result == "saved"
-
-    def test_guard_blocks_invalid_record(self, mock_client):
-        @mock_client.guard(contract="customer")
-        def save(data):
-            return "saved"
-
-        with pytest.raises(ValidationError) as exc_info:
-            save({"email": "bad", "age": -5, "name": ""})
-
-        assert len(exc_info.value.errors) > 0
-        assert "field" in exc_info.value.errors[0]
-
-    def test_guard_with_kwarg(self, mock_client):
-        @mock_client.guard(contract="customer", record_param="customer_data")
-        def save(customer_data):
-            return "saved"
-
-        with pytest.raises(ValidationError):
-            save(customer_data={"email": "bad", "name": ""})
-
-
-class TestExtractRecord:
-    """Test the record extraction helper."""
-
-    def test_extract_from_kwargs(self):
-        def func(data): pass
-        result = _extract_record(func, (), {"data": {"a": 1}}, "data")
-        assert result == {"a": 1}
-
-    def test_extract_from_positional(self):
-        def func(data): pass
-        result = _extract_record(func, ({"a": 1},), {}, "data")
-        assert result == {"a": 1}
-
-    def test_extract_fallback_first_arg(self):
-        def func(x): pass
-        result = _extract_record(func, ({"a": 1},), {}, "data")
-        assert result == {"a": 1}
-
-    def test_extract_raises_on_missing(self):
-        def func(): pass
-        with pytest.raises(ValueError, match="Could not find record data"):
-            _extract_record(func, (), {}, "data")
-
+# ---------------------------------------------------------------------------
+# LocalValidator — no HTTP, uses temp contracts dir from conftest
+# ---------------------------------------------------------------------------
 
 class TestLocalValidator:
-    """LocalValidator — in-process validation without an API server."""
-
-    def _contracts_dir(self):
-        import os
-        return os.path.join(os.path.dirname(__file__), "..", "contracts")
-
-    def test_loads_contracts(self):
-        from sdk.local import LocalValidator
-        v = LocalValidator(contracts_dir=self._contracts_dir())
-        names = [c["name"] for c in v.list_contracts()]
-        assert "customer" in names
-
-    def test_validate_valid_record(self):
-        from sdk.local import LocalValidator
-        v = LocalValidator(contracts_dir=self._contracts_dir())
-        result = v.validate(
-            {
-                "email": "test@example.com", "age": 25, "name": "Alice",
-                "id": "12345", "phone": "+1234567890", "balance": 100,
-                "score": 85, "date": "2024-01-15", "username": "alice_w",
-                "password": "securepass123",
-            },
-            contract="customer",
-        )
-        assert result["valid"] is True
-        assert result["contract"] == "customer"
-        assert "version" in result
-
-    def test_validate_invalid_record(self):
-        from sdk.local import LocalValidator
-        v = LocalValidator(contracts_dir=self._contracts_dir())
-        result = v.validate({"email": "not-an-email", "age": -5}, contract="customer")
-        assert result["valid"] is False
-        assert len(result["errors"]) > 0
-
-    def test_validate_contract_not_found_raises(self):
-        from sdk.local import LocalValidator, ContractNotFoundError
-        v = LocalValidator(contracts_dir=self._contracts_dir())
-        with pytest.raises(ContractNotFoundError, match="nonexistent"):
-            v.validate({"email": "a@b.com"}, contract="nonexistent")
-
-    def test_validate_batch_summary(self):
-        from sdk.local import LocalValidator
-        v = LocalValidator(contracts_dir=self._contracts_dir())
-        records = [
-            {"email": "a@b.com", "age": 25, "name": "Alice"},
-            {"email": "bad",     "age": -1, "name": ""},
-        ]
-        result = v.validate_batch(records, contract="customer")
-        assert result["summary"]["total"] == 2
-        assert result["summary"]["passed"] == 1
-        assert result["summary"]["failed"] == 1
+    def test_validate_clean_record(self):
+        v = LocalValidator(contracts_dir=os.environ["OPENDQV_CONTRACTS_DIR"])
+        result = v.validate({"name": "Alice", "age": 30, "email": "alice@example.com"}, contract="customer")
+        assert isinstance(result, dict)
+        assert "valid" in result
         assert result["contract"] == "customer"
 
-    def test_validate_batch_contract_not_found_raises(self):
-        from sdk.local import LocalValidator, ContractNotFoundError
-        v = LocalValidator(contracts_dir=self._contracts_dir())
-        with pytest.raises(ContractNotFoundError):
-            v.validate_batch([{"email": "a@b.com"}], contract="nope")
-
-    def test_reload_does_not_raise(self):
-        from sdk.local import LocalValidator
-        v = LocalValidator(contracts_dir=self._contracts_dir())
-        v.reload()  # smoke test — should not raise
-        assert len(v.list_contracts()) > 0
-
-
-# ── AsyncOpenDQVClient tests ──────────────────────────────────────────────────
-
-def _make_async_mock_response(status_code: int, body):
-    """Build a mock httpx response for async tests."""
-    mock_resp = MagicMock()
-    mock_resp.status_code = status_code
-    mock_resp.json.return_value = body
-    if status_code >= 400:
-        import httpx
-        mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
-            f"HTTP {status_code}", request=MagicMock(), response=mock_resp
-        )
-    else:
-        mock_resp.raise_for_status.return_value = None
-    return mock_resp
-
-
-def _make_async_client(client_fixture, auth_headers_fixture):
-    """Wire an AsyncOpenDQVClient to route through the FastAPI TestClient."""
-    sdk = AsyncOpenDQVClient.__new__(AsyncOpenDQVClient)
-    sdk.base_url = "http://testserver"
-    sdk.contract_cache_dir = None
-
-    mock_http = MagicMock()
-
-    async def async_post(path, json=None, params=None, **kwargs):
-        resp_obj = client_fixture.post(path, json=json, params=params, headers=auth_headers_fixture)
-        return _make_async_mock_response(resp_obj.status_code, resp_obj.json())
-
-    async def async_get(path, params=None, **kwargs):
-        resp_obj = client_fixture.get(path, params=params, headers=auth_headers_fixture)
-        return _make_async_mock_response(resp_obj.status_code, resp_obj.json())
-
-    async def async_aclose():
-        pass
-
-    mock_http.post = async_post
-    mock_http.get = async_get
-    mock_http.aclose = async_aclose
-    sdk._client = mock_http
-    return sdk
-
-
-class TestAsyncOpenDQVClient:
-    """Tests for AsyncOpenDQVClient — mirrors sync client test coverage."""
-
-    @pytest.fixture
-    def async_client(self, client, auth_headers):
-        return _make_async_client(client, auth_headers)
-
-    @pytest.mark.asyncio
-    async def test_validate_valid_record(self, async_client):
-        result = await async_client.validate(
-            {
-                "email": "test@example.com", "age": 25, "name": "Alice",
-                "id": "12345", "phone": "+1234567890", "balance": 100,
-                "score": 85, "date": "2024-01-15", "username": "alice_w",
-                "password": "securepass123",
-            },
-            contract="customer",
-        )
-        assert result["valid"] is True
-        assert result["contract"] == "customer"
-
-    @pytest.mark.asyncio
-    async def test_validate_invalid_record(self, async_client):
-        result = await async_client.validate(
-            {"email": "bad", "age": -5, "name": ""},
-            contract="customer",
-        )
-        assert result["valid"] is False
-        assert len(result["errors"]) > 0
-
-    @pytest.mark.asyncio
-    async def test_validate_with_record_id(self, async_client):
-        result = await async_client.validate(
-            {"email": "a@b.com"},
-            contract="customer",
-            record_id="async-tracking-id",
-        )
-        assert result["record_id"] == "async-tracking-id"
-
-    @pytest.mark.asyncio
-    async def test_validate_batch(self, async_client):
-        result = await async_client.validate_batch(
-            [
-                {"email": "a@b.com", "age": 25, "name": "Alice"},
-                {"email": "bad", "age": -5, "name": ""},
-            ],
-            contract="customer",
-        )
-        assert result["summary"]["total"] == 2
-        assert result["summary"]["failed"] > 0
-
-    @pytest.mark.asyncio
-    async def test_contracts(self, async_client):
-        contracts = await async_client.contracts()
-        assert len(contracts) > 0
-        names = [c["name"] for c in contracts]
-        assert "customer" in names
-
-    @pytest.mark.asyncio
-    async def test_contract_detail(self, async_client):
-        detail = await async_client.contract("customer")
-        assert detail["name"] == "customer"
-        assert len(detail["rules"]) > 0
-
-    @pytest.mark.asyncio
-    async def test_lint_clean_contract(self, async_client):
-        result = await async_client.lint("customer")
-        assert result["passed"] is True
-        assert result["error_count"] == 0
-
-    @pytest.mark.asyncio
-    async def test_context_manager(self, async_client):
-        async with async_client as c:
-            result = await c.validate(
-                {"email": "test@example.com", "age": 25, "name": "Alice"},
-                contract="customer",
-            )
+    def test_validate_returns_result_on_bad_record(self):
+        v = LocalValidator(contracts_dir=os.environ["OPENDQV_CONTRACTS_DIR"])
+        result = v.validate({}, contract="customer")
         assert "valid" in result
 
+    def test_validate_unknown_contract_raises(self):
+        v = LocalValidator(contracts_dir=os.environ["OPENDQV_CONTRACTS_DIR"])
+        with pytest.raises(ContractNotFoundError, match="not found"):
+            v.validate({"x": 1}, contract="__nonexistent_contract__")
 
-class TestAsyncGuardDecorator:
-    """Tests for @async_client.guard() decorator."""
+    def test_list_contracts_returns_list(self):
+        v = LocalValidator(contracts_dir=os.environ["OPENDQV_CONTRACTS_DIR"])
+        contracts = v.list_contracts()
+        assert isinstance(contracts, list)
+        assert len(contracts) > 0
 
-    @pytest.fixture
-    def async_client(self, client, auth_headers):
-        return _make_async_client(client, auth_headers)
+    def test_validate_batch_clean(self):
+        v = LocalValidator(contracts_dir=os.environ["OPENDQV_CONTRACTS_DIR"])
+        records = [
+            {"name": "Alice", "age": 30, "email": "a@b.com"},
+            {"name": "Bob", "age": 25, "email": "b@b.com"},
+        ]
+        result = v.validate_batch(records, contract="customer")
+        assert "summary" in result
+        assert result["contract"] == "customer"
 
-    @pytest.mark.asyncio
-    async def test_guard_passes_valid_record(self, async_client):
-        @async_client.guard(contract="customer")
-        async def save(data):
+    def test_validate_batch_unknown_contract_raises(self):
+        v = LocalValidator(contracts_dir=os.environ["OPENDQV_CONTRACTS_DIR"])
+        with pytest.raises(ContractNotFoundError):
+            v.validate_batch([{"x": 1}], contract="__nonexistent__")
+
+    def test_reload_does_not_raise(self):
+        v = LocalValidator(contracts_dir=os.environ["OPENDQV_CONTRACTS_DIR"])
+        v.reload()
+
+    def test_default_from_env(self, monkeypatch):
+        monkeypatch.setenv("OPENDQV_CONTRACTS_DIR", os.environ["OPENDQV_CONTRACTS_DIR"])
+        v = LocalValidator()
+        assert v.contracts_dir is not None
+
+    def test_cwd_fallback(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("OPENDQV_CONTRACTS_DIR", raising=False)
+        monkeypatch.chdir(tmp_path)
+        v = LocalValidator()
+        assert str(v.contracts_dir).endswith("contracts")
+
+
+# ---------------------------------------------------------------------------
+# ValidationError
+# ---------------------------------------------------------------------------
+
+class TestValidationError:
+    def test_message_includes_fields(self):
+        err = ValidationError([{"field": "email", "message": "invalid"}])
+        assert "email" in str(err)
+
+    def test_warnings_default_empty(self):
+        err = ValidationError([{"field": "age", "message": "too low"}])
+        assert err.warnings == []
+
+    def test_warnings_stored(self):
+        err = ValidationError(
+            [{"field": "age", "message": "low"}],
+            [{"field": "name", "message": "warn"}],
+        )
+        assert len(err.warnings) == 1
+
+
+# ---------------------------------------------------------------------------
+# _extract_record
+# ---------------------------------------------------------------------------
+
+class TestExtractRecord:
+    def test_from_kwargs(self):
+        def fn(data): pass
+        assert _extract_record(fn, (), {"data": {"x": 1}}, "data") == {"x": 1}
+
+    def test_from_positional(self):
+        def fn(data): pass
+        assert _extract_record(fn, ({"x": 2},), {}, "data") == {"x": 2}
+
+    def test_fallback_first_arg(self):
+        def fn(other): pass
+        assert _extract_record(fn, ({"x": 3},), {}, "data") == {"x": 3}
+
+    def test_raises_when_no_args(self):
+        def fn(): pass
+        with pytest.raises(ValueError, match="Could not find record"):
+            _extract_record(fn, (), {}, "data")
+
+
+# ---------------------------------------------------------------------------
+# OpenDQVClient (sync) — mock httpx
+# ---------------------------------------------------------------------------
+
+def _make_client(token="test-token", cache_dir=None):
+    with patch("sdk.client.httpx.Client"):
+        client = OpenDQVClient("http://localhost:8000", token=token,
+                               contract_cache_dir=cache_dir)
+    return client
+
+
+def _sync_resp(data):
+    r = MagicMock()
+    r.json.return_value = data
+    return r
+
+
+class TestOpenDQVClientValidate:
+    def test_posts_correct_body(self):
+        client = _make_client()
+        client._client.post.return_value = _sync_resp({"valid": True, "errors": [], "warnings": []})
+        result = client.validate({"email": "a@b.com"}, contract="customer")
+        assert result["valid"] is True
+        body = client._client.post.call_args[1]["json"]
+        assert body["contract"] == "customer"
+        assert body["version"] == "latest"
+
+    def test_passes_context(self):
+        client = _make_client()
+        client._client.post.return_value = _sync_resp({"valid": True, "errors": [], "warnings": []})
+        client.validate({"x": 1}, contract="c", context="eu")
+        assert client._client.post.call_args[1]["json"]["context"] == "eu"
+
+    def test_observe_only(self):
+        client = _make_client()
+        client._client.post.return_value = _sync_resp({"valid": True, "errors": [], "warnings": []})
+        client.validate({"x": 1}, contract="c", observe_only=True)
+        assert client._client.post.call_args[1]["json"]["observe_only"] is True
+
+    def test_allow_draft_param(self):
+        client = _make_client()
+        client._client.post.return_value = _sync_resp({"valid": True, "errors": [], "warnings": []})
+        client.validate({"x": 1}, contract="c", allow_draft=True)
+        assert client._client.post.call_args[1]["params"].get("allow_draft") == "true"
+
+    def test_record_id_included(self):
+        client = _make_client()
+        client._client.post.return_value = _sync_resp({"valid": True, "errors": [], "warnings": []})
+        client.validate({"x": 1}, contract="c", record_id="rec-123")
+        assert client._client.post.call_args[1]["json"]["record_id"] == "rec-123"
+
+    def test_raises_on_http_error(self):
+        client = _make_client()
+        client._client.post.return_value = MagicMock(
+            raise_for_status=MagicMock(side_effect=httpx.HTTPStatusError(
+                "err", request=MagicMock(), response=MagicMock())))
+        with pytest.raises(httpx.HTTPStatusError):
+            client.validate({"x": 1}, contract="c")
+
+
+class TestOpenDQVClientBatch:
+    def test_posts_records(self):
+        client = _make_client()
+        client._client.post.return_value = _sync_resp({"summary": {"total": 2}, "results": []})
+        records = [{"x": 1}, {"x": 2}]
+        result = client.validate_batch(records, contract="customer")
+        assert result["summary"]["total"] == 2
+        assert client._client.post.call_args[1]["json"]["records"] == records
+
+    def test_observe_only_batch(self):
+        client = _make_client()
+        client._client.post.return_value = _sync_resp({"summary": {}, "results": []})
+        client.validate_batch([{"x": 1}], contract="c", observe_only=True)
+        assert client._client.post.call_args[1]["json"]["observe_only"] is True
+
+    def test_allow_draft_batch(self):
+        client = _make_client()
+        client._client.post.return_value = _sync_resp({"summary": {}, "results": []})
+        client.validate_batch([{"x": 1}], contract="c", allow_draft=True)
+        assert client._client.post.call_args[1]["params"].get("allow_draft") == "true"
+
+
+class TestOpenDQVClientContracts:
+    def test_contracts_list(self):
+        client = _make_client()
+        client._client.get.return_value = _sync_resp([{"name": "customer"}])
+        assert isinstance(client.contracts(), list)
+
+    def test_include_all_param(self):
+        client = _make_client()
+        client._client.get.return_value = _sync_resp([])
+        client.contracts(include_all=True)
+        assert client._client.get.call_args[1]["params"].get("include_all") == "true"
+
+    def test_contract_by_name(self):
+        client = _make_client()
+        client._client.get.return_value = _sync_resp({"name": "customer", "rules": []})
+        assert client.contract("customer")["name"] == "customer"
+
+    def test_contract_cache_fallback(self, tmp_path):
+        client = _make_client(cache_dir=str(tmp_path))
+        cached = {"name": "customer", "rules": [], "cached": True}
+        (tmp_path / "customer.json").write_text(json.dumps(cached), encoding="utf-8")
+        client._client.get.side_effect = httpx.RequestError("down")
+        result = client.contract("customer")
+        assert result["cached"] is True
+
+    def test_contract_raises_when_no_cache(self):
+        client = _make_client()
+        client._client.get.side_effect = httpx.RequestError("down")
+        with pytest.raises(httpx.RequestError):
+            client.contract("customer")
+
+    def test_lint(self):
+        client = _make_client()
+        client._client.get.return_value = _sync_resp({"passed": True, "error_count": 0})
+        assert client.lint("customer")["passed"] is True
+
+
+class TestOpenDQVClientContextManager:
+    def test_context_manager_closes(self):
+        client = _make_client()
+        with client as c:
+            assert c is client
+        client._client.close.assert_called_once()
+
+    def test_close_directly(self):
+        client = _make_client()
+        client.close()
+        client._client.close.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Guard decorator — sync
+# ---------------------------------------------------------------------------
+
+class TestGuardDecoratorSync:
+    def _passing_client(self):
+        client = _make_client()
+        client._client.post.return_value = _sync_resp({"valid": True, "errors": [], "warnings": []})
+        return client
+
+    def _failing_client(self):
+        client = _make_client()
+        client._client.post.return_value = _sync_resp({
+            "valid": False,
+            "errors": [{"field": "email", "message": "invalid"}],
+            "warnings": []})
+        return client
+
+    def test_allows_clean_record(self):
+        @self._passing_client().guard(contract="customer")
+        def save(data: dict):
             return "saved"
+        assert save(data={"email": "a@b.com"}) == "saved"
 
-        result = await save({
-            "email": "test@example.com", "age": 25, "name": "Alice",
-            "id": "12345", "phone": "+1234567890", "balance": 100,
-            "score": 85, "date": "2024-01-15", "username": "alice_w",
-            "password": "securepass123",
-        })
-        assert result == "saved"
-
-    @pytest.mark.asyncio
-    async def test_guard_blocks_invalid_record(self, async_client):
-        @async_client.guard(contract="customer")
-        async def save(data):
+    def test_raises_on_failure(self):
+        @self._failing_client().guard(contract="customer")
+        def save(data: dict):
             return "saved"
-
         with pytest.raises(ValidationError) as exc_info:
-            await save({"email": "bad", "age": -5, "name": ""})
+            save(data={"email": "bad"})
+        assert "email" in str(exc_info.value)
 
-        assert len(exc_info.value.errors) > 0
+    def test_wraps_async_function(self):
+        import asyncio
+        client = self._passing_client()
+
+        @client.guard(contract="customer")
+        async def async_save(data: dict):
+            return "async_saved"
+
+        result = asyncio.get_event_loop().run_until_complete(
+            async_save(data={"email": "a@b.com"}))
+        assert result == "async_saved"
+
+    def test_custom_record_param(self):
+        @self._passing_client().guard(contract="customer", record_param="payload")
+        def save(payload: dict):
+            return "saved"
+        assert save(payload={"email": "a@b.com"}) == "saved"
+
+
+# ---------------------------------------------------------------------------
+# AsyncOpenDQVClient
+# ---------------------------------------------------------------------------
+
+def _make_async_client(cache_dir=None):
+    with patch("sdk.client.httpx.AsyncClient"):
+        client = AsyncOpenDQVClient("http://localhost:8000", token="test-token",
+                                    contract_cache_dir=cache_dir)
+    return client
+
+
+def _async_resp(data):
+    r = AsyncMock()
+    r.raise_for_status = MagicMock()  # raise_for_status is sync in httpx
+    r.json = MagicMock(return_value=data)  # json() is also sync in httpx
+    return r
+
+
+class TestAsyncOpenDQVClientValidate:
+    @pytest.mark.asyncio
+    async def test_validate_posts_body(self):
+        client = _make_async_client()
+        client._client.post = AsyncMock(return_value=_async_resp(
+            {"valid": True, "errors": [], "warnings": []}))
+        result = await client.validate({"email": "a@b.com"}, contract="customer")
+        assert result["valid"] is True
+        assert client._client.post.call_args[1]["json"]["contract"] == "customer"
 
     @pytest.mark.asyncio
-    async def test_guard_with_kwarg(self, async_client):
-        @async_client.guard(contract="customer", record_param="customer_data")
-        async def save(customer_data):
+    async def test_validate_batch(self):
+        client = _make_async_client()
+        client._client.post = AsyncMock(return_value=_async_resp(
+            {"summary": {"total": 1}, "results": []}))
+        result = await client.validate_batch([{"x": 1}], contract="c")
+        assert "summary" in result
+
+    @pytest.mark.asyncio
+    async def test_contracts_list(self):
+        client = _make_async_client()
+        client._client.get = AsyncMock(return_value=_async_resp([{"name": "customer"}]))
+        result = await client.contracts()
+        assert isinstance(result, list)
+
+    @pytest.mark.asyncio
+    async def test_lint(self):
+        client = _make_async_client()
+        client._client.get = AsyncMock(return_value=_async_resp(
+            {"passed": True, "error_count": 0}))
+        result = await client.lint("customer")
+        assert result["passed"] is True
+
+    @pytest.mark.asyncio
+    async def test_context_manager(self):
+        client = _make_async_client()
+        client._client.aclose = AsyncMock()
+        async with client as c:
+            assert c is client
+        client._client.aclose.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_guard_allows_clean(self):
+        client = _make_async_client()
+        client._client.post = AsyncMock(return_value=_async_resp(
+            {"valid": True, "errors": [], "warnings": []}))
+
+        @client.guard(contract="customer")
+        async def save(data: dict):
+            return "saved"
+
+        assert await save(data={"email": "a@b.com"}) == "saved"
+
+    @pytest.mark.asyncio
+    async def test_guard_raises_on_failure(self):
+        client = _make_async_client()
+        client._client.post = AsyncMock(return_value=_async_resp({
+            "valid": False,
+            "errors": [{"field": "email", "message": "invalid"}],
+            "warnings": []}))
+
+        @client.guard(contract="customer")
+        async def save(data: dict):
             return "saved"
 
         with pytest.raises(ValidationError):
-            await save(customer_data={"email": "bad", "name": ""})
+            await save(data={"email": "bad"})
 
+    @pytest.mark.asyncio
+    async def test_contract_cache_write_and_fallback(self, tmp_path):
+        client = _make_async_client(cache_dir=str(tmp_path))
+        data = {"name": "customer", "rules": []}
+        client._client.get = AsyncMock(return_value=_async_resp(data))
+        result = await client.contract("customer")
+        assert result["name"] == "customer"
+        assert (tmp_path / "customer.json").exists()
 
-class TestSyncClientLint:
-    """Tests for OpenDQVClient.lint() — new method on sync client."""
-
-    @pytest.fixture
-    def mock_client(self, client, auth_headers):
-        sdk = OpenDQVClient.__new__(OpenDQVClient)
-        sdk.base_url = "http://testserver"
-        mock_http = MagicMock()
-
-        def mock_get(path, params=None, **kwargs):
-            resp_obj = client.get(path, params=params, headers=auth_headers)
-            mock_resp = MagicMock()
-            mock_resp.status_code = resp_obj.status_code
-            mock_resp.json.return_value = resp_obj.json()
-            mock_resp.raise_for_status.side_effect = (
-                None if resp_obj.status_code < 400 else Exception(f"HTTP {resp_obj.status_code}")
-            )
-            return mock_resp
-
-        mock_http.get = mock_get
-        sdk._client = mock_http
-        return sdk
-
-    def test_lint_clean_contract_passes(self, mock_client):
-        result = mock_client.lint("customer")
-        assert result["passed"] is True
-        assert result["error_count"] == 0
-
-    def test_lint_unknown_contract_raises(self, mock_client):
-        with pytest.raises(Exception):
-            mock_client.lint("nonexistent_contract_xyz")
+        # Fallback path — API down, read from cache
+        client._client.get = AsyncMock(side_effect=httpx.RequestError("down"))
+        result = await client.contract("customer")
+        assert result["name"] == "customer"

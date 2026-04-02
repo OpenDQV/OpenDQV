@@ -47,6 +47,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan: startup and graceful shutdown."""
     # ── Startup ───────────────────────────────────────────────────────
     logger.info("OpenDQV worker starting (pid=%d)", __import__("os").getpid())
+    config.validate_config()
     _init_auth_db()
     yield
     # ── Shutdown — flush any pending in-memory heartbeat counts ───────
