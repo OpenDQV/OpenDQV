@@ -10,7 +10,7 @@ repository = "https://github.com/OpenDQV/OpenDQV"
 documentation = "https://github.com/OpenDQV/OpenDQV/tree/main/docs"
 keywords = ["data-quality", "validation", "duckdb", "api", "data-contracts"]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 3 - Alpha",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
