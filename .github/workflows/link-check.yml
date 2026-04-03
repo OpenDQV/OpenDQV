@@ -1,16 +1,10 @@
 name: Link Check
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "**.md"
-  pull_request:
-    paths:
-      - "**.md"
   schedule:
     # Weekly on Monday at 08:00 UTC — catches external URLs that go dead
     # after docs are written (e.g. government guidance pages being renamed)
+    # Push/PR link checks are handled by the link-check job in ci.yml
     - cron: "0 8 * * 1"
   workflow_dispatch:
 

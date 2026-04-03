@@ -233,3 +233,42 @@ jobs:
 
       - run: pip install ruff
       - run: ruff check . --select E,W,F --ignore E501,E402,E701
+
+  link-check:
+    name: Link check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Check links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >
+            --verbose
+            --no-progress
+            --timeout 30
+            --retry-wait-time 5
+            --max-retries 3
+            --exclude "localhost"
+            --exclude "127\.0\.0\.1"
+            --exclude "0\.0\.0\.0"
+            --exclude "opendqv:8000"
+            --exclude "api\.yourcompany\.com"
+            --exclude "grafana\.internal"
+            --exclude "^https://github\.com/OpenDQV/OpenDQV/actions"
+            --exclude "^https://codecov\.io"
+            --exclude "file://"
+            --exclude "fda\.gov"
+            --exclude "sia\.homeoffice\.gov\.uk"
+            --exclude "securityscorecards\.dev/#/"
+            --exclude "claude\.ai"
+            --exclude "ico\.org\.uk"
+            --exclude "github\.com/user-attachments"
+            --exclude "allereasy\.co\.uk"
+            --exclude "linkedin\.com"
+            '**/*.md'
+          fail: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
