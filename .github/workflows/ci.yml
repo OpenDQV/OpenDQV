@@ -71,6 +71,14 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install poetry + export plugin
+        run: pip install poetry poetry-plugin-export
+
+      - name: Verify requirements.txt is up-to-date with poetry lockfile
+        run: |
+          poetry export -f requirements.txt --without-hashes --without dev -o requirements_ci.txt
+          diff requirements.txt requirements_ci.txt || (echo "requirements.txt is out of sync with poetry.lock — run: poetry export -f requirements.txt --without-hashes --without dev -o requirements.txt" && exit 1)
+
       - name: Install from requirements.txt
         run: pip install -r requirements.txt
 
