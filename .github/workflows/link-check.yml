@@ -45,6 +45,7 @@ jobs:
             --exclude "ico\.org\.uk"
             --exclude "github\.com/user-attachments"
             --exclude "allereasy\.co\.uk"
+            --exclude "linkedin\.com"
             '**/*.md'
           fail: true
         env:
