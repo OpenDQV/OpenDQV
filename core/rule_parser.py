@@ -63,6 +63,12 @@ Supported rule types:
 
 import logging
 import re
+try:
+    import regex as _regex_lib
+    _HAS_REGEX_LIB = True
+except ImportError:  # pragma: no cover
+    _regex_lib = None
+    _HAS_REGEX_LIB = False
 import yaml
 from pydantic import BaseModel, Field, model_validator
 from typing import Any, List, Optional
@@ -245,7 +251,9 @@ class Rule(BaseModel):
                 )
             else:
                 expanded = _BUILTIN_PATTERNS.get(self.pattern, self.pattern)
-                self.compiled_pattern = re.compile(expanded)
+                self.compiled_pattern = (
+                    _regex_lib.compile(expanded) if _HAS_REGEX_LIB else re.compile(expanded)
+                )
         if self.type == "allowed_values" and not self.allowed_values:
             logger.warning(
                 "Rule '%s' (type=allowed_values) has no allowed_values list — it will skip validation. "

@@ -47,8 +47,11 @@ def _safe_match(compiled_pattern, str_val: str) -> bool:
     """
     if _HAS_REGEX_LIB:
         try:
+            if isinstance(compiled_pattern, _regex_lib.Pattern):
+                return bool(compiled_pattern.match(str_val, timeout=_REGEX_TIMEOUT))
+            # Fallback: re.Pattern passed in (e.g. from validator.py line 354) — match via regex lib
             return bool(_regex_lib.match(compiled_pattern.pattern, str_val, timeout=_REGEX_TIMEOUT))
-        except _regex_lib.TimeoutError:
+        except TimeoutError:
             logger.warning(
                 "regex_timeout pattern=%r input_length=%d — treating as no-match",
                 compiled_pattern.pattern, len(str_val),

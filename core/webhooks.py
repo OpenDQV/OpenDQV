@@ -177,6 +177,7 @@ class WebhookManager:
             db_path = config.DB_PATH
         self.db_path = db_path
         self._mem_conn = sqlite3.connect(":memory:") if db_path == ":memory:" else None
+        self._hooks_cache: list[dict] | None = None
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
@@ -235,6 +236,7 @@ class WebhookManager:
                 conn.close()
 
         hook = {"url": url, "events": events, "contracts": contracts}
+        self._hooks_cache = None
         logger.info("webhook registered: url=%s events=%s contracts=%s", url, events, contracts)
         return hook
 
@@ -250,11 +252,14 @@ class WebhookManager:
             if not is_shared:
                 conn.close()
         if removed:
+            self._hooks_cache = None
             logger.info("webhook unregistered: url=%s", url)
         return removed
 
     def list_hooks(self) -> list[dict]:
-        """List all registered webhooks."""
+        """List all registered webhooks. Results are cached; cache is invalidated on register/unregister."""
+        if self._hooks_cache is not None:
+            return self._hooks_cache
         conn = self._connect()
         is_shared = self._mem_conn is not None
         try:
@@ -269,6 +274,7 @@ class WebhookManager:
                 "events": json.loads(events_json),
                 "contracts": json.loads(contracts_json) if contracts_json is not None else None,
             })
+        self._hooks_cache = hooks
         return hooks
 
     async def notify(self, event: str, payload: dict):

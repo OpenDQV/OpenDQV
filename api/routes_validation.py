@@ -149,7 +149,7 @@ async def validate_single(
         )
 
     if not result["valid"] and not body.dry_run:
-        await _d.webhook_manager.notify("opendqv.validation.failed", {
+        background_tasks.add_task(_d.webhook_manager.notify, "opendqv.validation.failed", {
             "contract": contract.name,
             "contract_version": contract.version,
             "opendqv_node_id": config.OPENDQV_NODE_ID,
@@ -161,7 +161,7 @@ async def validate_single(
             "violations": result["errors"],
         })
     elif result["warnings"]:
-        await _d.webhook_manager.notify("opendqv.validation.warning", {
+        background_tasks.add_task(_d.webhook_manager.notify, "opendqv.validation.warning", {
             "contract": contract.name,
             "contract_version": contract.version,
             "opendqv_node_id": config.OPENDQV_NODE_ID,
@@ -287,7 +287,7 @@ async def validate_batch_endpoint(
             for r in result["results"]:
                 if not r["valid"]:
                     failed_errors.extend(r["errors"])
-            await _d.webhook_manager.notify("opendqv.batch.failed", {
+            background_tasks.add_task(_d.webhook_manager.notify, "opendqv.batch.failed", {
                 "contract": contract.name,
                 "contract_version": contract.version,
                 "opendqv_node_id": config.OPENDQV_NODE_ID,

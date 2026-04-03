@@ -1249,23 +1249,22 @@ OpenDQV supports multi-node federation — contracts published to a parent node 
 
 ## Performance
 
-Benchmarked on a Dell XPS 13 (single Docker container, 4 Gunicorn workers, `WEB_CONCURRENCY=4`), all security features active (ReDoS protection on, rate limiting disabled at app layer as recommended for reverse-proxy deployments):
+Benchmarked on EC2 c5.large (2 vCPU, 4 GB, non-burstable), Docker, 2 Gunicorn workers, `AUTH_MODE=token` (JWT required on every request), rate limiting disabled, `customer` contract (14 rules). Mixed workload = 50% valid records, 50% invalid records — the realistic production figure.
 
-| Run | Throughput | p50 | p99 | Total requests | Errors |
-|-----|-----------|-----|-----|----------------|--------|
-| 1 min | **193.0 req/s** | 24.4 ms | 207.6 ms | 11,595 | 0 |
-| 5 min | **208.5 req/s** | 19.1 ms | 205.1 ms | 62,575 | 0 |
-| 10 min | **240.8 req/s** | 13.7 ms | 202.9 ms | 144,510 | 0 |
+| Platform | Workers | Workload | req/s | p99 |
+|----------|---------|----------|-------|-----|
+| EC2 c5.large | 2 | Mixed 50/50 | **~341** | ~140 ms |
+| EC2 c5.large | 2 | Valid-only | 376 | 172 ms |
+| Linux (Dell XPS 13, native Docker) | 4 | Mixed | ~229–237 | 163 ms |
+| macOS (Docker Desktop) | 4 | Mixed | ~224 | 174 ms |
+| Windows 10 (Docker Desktop) | 4 | Mixed | ~185 | 288 ms |
+| Raspberry Pi 400 (ARM64) | 4 | Mixed | 79.1 | 523 ms |
 
-Sustained throughput ~208 req/s (5-minute stabilised figure). Zero errors across all runs. Throughput ramps as the CPU reaches boost state — the 5-minute figure is the most representative for capacity planning.
+Use the **EC2 mixed-workload figure (~341 req/s, c5.large, 2 workers)** for production capacity planning. Invalid records are ~18% slower than valid records at the HTTP level — size against the mixed figure, not the valid-only peak. Sizing rule of thumb: `WEB_CONCURRENCY = number of vCPUs`. ARM64 is validated with zero errors; AWS Graviton will significantly exceed the Pi 400 figure.
 
-**ARM64 validated:** Raspberry Pi 400 (Cortex-A72 @ 1.8GHz) sustains **79.1 req/s** over 10 minutes with zero errors across 47,454 requests in the 10-minute run (72,443 combined across all three runs). OpenDQV runs correctly on ARM64 — AWS Graviton deployments will significantly exceed the Pi figure.
+See [docs/benchmark_throughput.md](docs/benchmark_throughput.md) for full methodology, per-platform raw data, and extrapolation to monthly volumes.
 
-**Windows 10 validated:** Dell XPS 13 (i7, Docker Desktop) sustains **185.1 req/s** with zero errors across 11,108 requests. Enterprise developers on Windows — common in banking, insurance, and large corporates — can run OpenDQV without a Linux server.
-
-See [docs/benchmark_throughput.md](docs/benchmark_throughput.md) for a full 4-platform comparison (Linux, Windows, ARM64, and cloud).
-
-**Scaling up:** For higher throughput, increase Uvicorn workers (`--workers 4`), run multiple containers behind a load balancer, or split single-record and batch workloads.
+**Scaling up:** For higher throughput, increase `WEB_CONCURRENCY` first (one worker per vCPU), then add instances behind a load balancer. No coordination between instances is required — each is stateless.
 
 ---
 
@@ -1607,7 +1606,7 @@ Only a subset of docs appear in the sections above. Full index:
 - [docs/security/vulnerability_response_playbook.md](docs/security/vulnerability_response_playbook.md) — Incident response
 
 **Performance & Architecture**
-- [docs/benchmark_throughput.md](docs/benchmark_throughput.md) — ~199 req/s (x86) / 79 req/s (ARM64) benchmark results across 4 platforms
+- [docs/benchmark_throughput.md](docs/benchmark_throughput.md) — ~341 req/s mixed (EC2 c5.large) / ~229–237 req/s (Linux x86) / 79 req/s (ARM64) benchmark results across platforms
 - [docs/patterns/multi_parent_federation.md](docs/patterns/multi_parent_federation.md) — Multi-node federation architecture
 - [docs/patterns/distribution_check.md](docs/patterns/distribution_check.md) — Distribution validation patterns
 - [docs/patterns/federation_deprecation.md](docs/patterns/federation_deprecation.md) — Deprecation workflow for federated contracts

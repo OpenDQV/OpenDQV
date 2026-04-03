@@ -2,6 +2,51 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [1.9.8] - 2026-04-03
+
+### Performance
+
+- **4× regex throughput improvement** — `_safe_match()` in `core/validator.py` now calls
+  `compiled_pattern.match(str_val, timeout=...)` directly on the pre-compiled `regex.Pattern`
+  object instead of re-compiling the pattern string on every call. Eliminates redundant
+  `regex._compile()` calls on the hot path. Valid-record mean latency: 0.161 ms → 0.040 ms.
+  Invalid-record mean latency: 0.234 ms → 0.052 ms. (CRT156/A2/A5)
+
+- **Rule parser compiles with `regex` library** — `core/rule_parser.py` now uses
+  `_regex_lib.compile()` when the `regex` library is available, ensuring all
+  `Rule.compiled_pattern` fields are `regex.Pattern` objects. Prerequisite for the
+  `_safe_match` fix. (CRT156/A5)
+
+### Bug Fixes
+
+- **Latent ReDoS timeout bug** — `except _regex_lib.TimeoutError:` would raise
+  `AttributeError` if a regex timeout actually fired, masking the security control.
+  Fixed to `except TimeoutError:` (builtin — what `regex.match()` actually raises). (CRT156/A5)
+
+### Reliability
+
+- **Webhook dispatch moved to background tasks** — `api/routes_validation.py` now calls
+  `background_tasks.add_task(webhook_manager.notify, ...)` instead of awaiting
+  `webhook_manager.notify()` directly. Prevents webhook delivery (5s timeout) from
+  blocking the HTTP response on validation failures. Aligns with the documented semantics
+  of `notify()` ("Fire-and-forget — never raises"). (CRT156/A5)
+
+- **`list_hooks()` in-memory cache** — `core/webhooks.py` `WebhookManager` now caches the
+  webhook list in memory; cache is invalidated on `register()` and `unregister()`.
+  Previously every failed validation triggered a synchronous SQLite read. (CRT156/A5)
+
+### Documentation
+
+- **`docs/benchmark_throughput.md`** — expanded platform comparison table with EC2 c5.large
+  valid/invalid/mixed breakdown; sizing rule of thumb; key insight on 18% invalid-record
+  slowdown; benchmark methodology notes (date, contract, auth mode). (CRT156/A3)
+
+- **README Performance section** — replaced developer-laptop headline with EC2 mixed-workload
+  figure (~341 req/s, c5.large, 2 workers) as the production capacity planning baseline.
+  Six-platform table. Sizing rule. (CRT156/A4)
+
+---
+
 ## [1.9.7] - 2026-04-02
 
 ### Quality
