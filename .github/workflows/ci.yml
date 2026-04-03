@@ -76,8 +76,8 @@ jobs:
 
       - name: Verify requirements.txt is up-to-date with poetry lockfile
         run: |
-          poetry export -f requirements.txt --without-hashes --without dev -o requirements_ci.txt
-          diff requirements.txt requirements_ci.txt || (echo "requirements.txt is out of sync with poetry.lock — run: poetry export -f requirements.txt --without-hashes --without dev -o requirements.txt" && exit 1)
+          poetry export -f requirements.txt --without-hashes --without dev --extras server -o requirements_ci.txt
+          diff requirements.txt requirements_ci.txt || (echo "requirements.txt is out of sync with poetry.lock — run: poetry export -f requirements.txt --without-hashes --without dev --extras server -o requirements.txt" && exit 1)
 
       - name: Install from requirements.txt
         run: pip install -r requirements.txt
@@ -132,12 +132,11 @@ jobs:
         # B608: SQL injection — DuckDB batch queries; field names/values sourced from validated YAML contracts, never user input
         run: bandit -r core/ api/ -ll -x tests/ --skip B310,B108,B608
       - name: Run pip-audit (dependency CVE check)
-        # CVE-2024-23342: timing attack in the `ecdsa` package (transitive dep of python-jose).
-        # No upstream fix exists. At runtime python-jose[cryptography] routes all ECDSA ops
-        # through the `cryptography` package, so ecdsa is installed but never called.
         # CVE-2026-4539: pygments 2.19.2 (transitive dep of streamlit/rich).
         # 2.19.2 is the latest release; no upstream fix available yet.
-        run: pip install -r requirements.txt && pip-audit --requirement requirements.txt --ignore-vuln CVE-2024-23342 --ignore-vuln CVE-2026-4539
+        # NOTE: CVE-2024-23342 (ecdsa timing attack) ignore was removed 2026-04-03 —
+        # python-jose and ecdsa are no longer in the dependency tree.
+        run: pip install -r requirements.txt && pip-audit --requirement requirements.txt --ignore-vuln CVE-2026-4539
 
   container-scan:
     name: Container image scan (Grype + Trivy)

@@ -788,6 +788,31 @@ docs = ["Sphinx", "furo"]
 test = ["objgraph", "psutil", "setuptools"]
 
 [[package]]
+name = "gunicorn"
+version = "25.3.0"
+description = "WSGI HTTP Server for UNIX"
+optional = true
+python-versions = ">=3.10"
+groups = ["main"]
+markers = "extra == \"server\""
+files = [
+    {file = "gunicorn-25.3.0-py3-none-any.whl", hash = "sha256:cacea387dab08cd6776501621c295a904fe8e3b7aae9a1a3cbb26f4e7ed54660"},
+    {file = "gunicorn-25.3.0.tar.gz", hash = "sha256:f74e1b2f9f76f6cd1ca01198968bd2dd65830edc24b6e8e4d78de8320e2fe889"},
+]
+
+[package.dependencies]
+packaging = "*"
+
+[package.extras]
+eventlet = ["eventlet (>=0.40.3)"]
+fast = ["gunicorn_h1c (>=0.6.3)"]
+gevent = ["gevent (>=24.10.1)"]
+http2 = ["h2 (>=4.1.0)"]
+setproctitle = ["setproctitle"]
+testing = ["coverage", "eventlet (>=0.40.3)", "gevent (>=24.10.1)", "h2 (>=4.1.0)", "httpx[http2]", "pytest", "pytest-asyncio", "pytest-cov", "uvloop (>=0.19.0)"]
+tornado = ["tornado (>=6.5.0)"]
+
+[[package]]
 name = "h11"
 version = "0.16.0"
 description = "A pure-Python, bring-your-own-I/O implementation of HTTP/1.1"
@@ -2693,10 +2718,10 @@ dev = ["pytest", "setuptools"]
 [extras]
 mcp = ["mcp"]
 postgres = ["psycopg2-binary"]
-server = []
+server = ["gunicorn"]
 ui = []
 
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "8e763f704cd5ddf8b024ed616385900209f904eb75048f840f423faf40e53476"
+content-hash = "ae3efd5114b11b9167f7ad8f8e4846c2c1ddb8cb2cd3fc65fcce6631ad95fe91"
