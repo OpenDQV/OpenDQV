@@ -203,7 +203,8 @@ jobs:
         run: cp .env.example .env
 
       - name: Start stack
-        run: docker compose up -d --wait
+        # Start api only — ui requires streamlit which is not in the API Docker image
+        run: docker compose up api -d --wait
         timeout-minutes: 3
 
       - name: Install dev dependencies
