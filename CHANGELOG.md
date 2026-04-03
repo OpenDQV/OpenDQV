@@ -1251,4 +1251,3 @@ Initial public release.
 - macOS (i7-1068NG7, Docker Desktop): 257.3 req/s sustained over 10 minutes, zero errors across 233K requests
 - ARM64 (Raspberry Pi 400): 79.1 req/s sustained over 10 minutes, zero errors across 72K requests
 - Windows 10 (i7, Docker Desktop): 185.1 req/s, zero errors
-
