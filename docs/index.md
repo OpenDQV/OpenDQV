@@ -164,30 +164,23 @@ GET /api/v1/contracts/{name}/history
   }, ...]
 ```
 
-## API
+## API and SDK
 
-- REST: `/api/v1/validate` (single) and `/api/v1/validate/batch`
-- GraphQL: `/graphql`
-- `GET /api/v1/contracts/{name}/quality-trend?days=7` — daily pass rate trend (populated by batch validation history)
-- `GET /api/v1/contracts/{name}/history` — append-only, hash-chained audit log
-
-## SDK
-
-```python
-# Synchronous
-from sdk import OpenDQVClient
-client = OpenDQVClient("http://localhost:8000", token="...")
-result = client.validate(record, contract="customer")
-
-# Async (FastAPI, Kafka consumers — does not block the event loop)
-from sdk import AsyncOpenDQVClient
-async with AsyncOpenDQVClient("http://localhost:8000", token="...") as client:
-    result = await client.validate(record, contract="proof_of_play")
-```
+| Document | Purpose |
+|----------|---------|
+| [API Reference](api_reference.md) | All 50 REST endpoints, batch validation, importers |
+| [Python SDK](sdk.md) | Sync/async clients, LocalValidator, guard decorator |
+| [CLI Reference](cli.md) | All 18 CLI commands — validate, import, export, lifecycle, code generation |
+| [MCP Server](mcp.md) | Claude Desktop and Cursor integration; contract discovery; write guardrails |
 
 ## Getting Started
 
-See [README](../README.md) for quick start and API reference.
+| Document | Purpose |
+|----------|---------|
+| [README](../README.md) | Quick start — first validation in 5 minutes |
+| [Quickstart](quickstart.md) | Build your first contract in 15 minutes |
+| [Beginner Setup](beginner-quickstart.md) | No prior GitHub or Python experience needed |
+| [Architecture](architecture.md) | Project structure, data flow, security controls |
 
 ## Contract Authoring
 
@@ -196,12 +189,14 @@ rules, lookup rules, and the `allowed_values` pattern.
 
 ## Operations
 
-See [runbook](runbook.md) for deployment, day-2 operations, and incident response.
-
 | Document | Purpose |
 |----------|---------|
-| [CLI Reference](cli.md) | All 18 CLI commands — validate, import, export, lifecycle, code generation |
+| [Administration](administration.md) | Auth modes, RBAC roles, token management, maker-checker workflow |
+| [Production Deployment](production_deployment.md) | Token auth, TLS, Docker Compose, hardening |
+| [Streamlit Workbench](ui.md) | Governance UI — 12 sections, monitoring, code export, import |
+| [Code Generation](code_generation.md) | Push-down validation for Salesforce, JS, Snowflake, Spark SQL, BigQuery |
 | [Observability](observability.md) | Prometheus metrics, alert rules, trace log, Grafana starter panels |
+| [Runbook](runbook.md) | Deployment, day-2 operations, incident response |
 
 ## dbt Integration
 
