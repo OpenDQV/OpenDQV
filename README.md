@@ -20,8 +20,7 @@
 
 **OpenDQV is a write-time data validation service.** Source systems call it before writing data. Bad records return a `422` with per-field errors. Good records pass through. No payload is stored.
 
-<!-- TODO: replace with new recording: write YAML → reload → bad record → 422 → fix → 200 -->
-![OpenDQV demo — invalid record rejected, valid record accepted, 422 returned with per-field errors](docs/demo.gif)
+![OpenDQV demo — define a contract, send a bad record (422), fix it (200)](docs/demo.gif)
 
 ```
   Callers                     OpenDQV                      Results
