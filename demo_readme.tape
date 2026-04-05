@@ -1,4 +1,4 @@
-Output docs/demo_readme.gif
+Output docs/demo.gif
 
 Set Shell "bash"
 Set FontSize 15
@@ -8,10 +8,10 @@ Set Theme "Dracula"
 Set FontFamily "JetBrains Mono"
 Set Padding 20
 Set Framerate 24
-Set PlaybackSpeed 0.6
+Set PlaybackSpeed 0.85
 
+Sleep 600ms
+Type "python3 scripts/demo_readme.py"
 Sleep 500ms
-Type "cd /home/sunny-sharma/OpenDQV && python3 scripts/demo_readme.py"
-Sleep 300ms
 Enter
-Sleep 8s
+Sleep 10s
