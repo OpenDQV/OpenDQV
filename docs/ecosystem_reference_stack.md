@@ -243,4 +243,4 @@ OpenDQV's built-in `profile_records()` function generates *suggested* validation
 - [LLM / AI Agent Integration](llm_integration.md)
 - [Roadmap](roadmap.md)
 - [Security Hardening](security/hardening.md)
-- [API Reference](../README.md#api-reference)
+- [API Reference](api_reference.md)

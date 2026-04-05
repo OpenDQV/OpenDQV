@@ -432,7 +432,7 @@ def validated_write(record):
 
 - **Simple failure counter** — track consecutive failures and skip OpenDQV once a threshold is reached, resetting after a cool-down period (e.g., 30 seconds). This avoids adding a library dependency for simpler pipelines.
 
-For production Kafka pipelines, the `aiokafka` example in [README.md](../README.md#kafka-consumer-integration) shows the fail-open pattern with immediate commit on OpenDQV failure.
+For production Kafka pipelines, the `aiokafka` example in [kafka_integration.md](kafka_integration.md) shows the fail-open pattern with immediate commit on OpenDQV failure.
 
 ---
 
