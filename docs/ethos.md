@@ -1,6 +1,6 @@
 # OpenDQV Ethos
 
-> **"Trust is cheaper to build than to repair."**
+> **"Trust is easier to build than to repair."**
 
 ## Origin
 

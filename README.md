@@ -16,7 +16,10 @@
 | [Quickstart](docs/quickstart.md) | [Rules](docs/rules/) | [Contracts](docs/compliance-contracts.md) | [API](docs/index.md) | [Security](SECURITY.md) | [FAQ](docs/faq.md) |
 |---|---|---|---|---|---|
 
-> **Alpha software.** OpenDQV Core is in Alpha (v1.x). Under active development. Not recommended for production or regulated environments without thorough testing and your own validation. The v1.x series may include breaking changes between minor versions; pin to a specific version for any non-development use.
+> **"Trust is easier to build than to repair."**
+> That is why OpenDQV exists. A `422` at the point of write is cheaper than a data incident three weeks later.
+
+> **Alpha (v1.x).** Under active development. Pin to a specific version — the v1.x API may have breaking changes between minor versions. See [API Stability](#api-stability) for commitments.
 
 **OpenDQV is a write-time data validation service.** Source systems call it before writing data. Bad records return a `422` with per-field errors. Good records pass through. No payload is stored.
 
@@ -252,4 +255,10 @@ MIT — see [LICENSE](LICENSE).
 
 ## Acknowledgements
 
-Built with ❤️ by [Sunny Sharma](https://uk.linkedin.com/in/sunny-sharma-3927632), [BGMS Consultants Ltd](https://www.bgmsconsultants.com), with the help of an AI team led by [Claude Code](https://claude.ai/code) by [Anthropic](https://anthropic.com).
+**Led by [Sunny Sharma](https://uk.linkedin.com/in/sunny-sharma-3927632), [BGMS Consultants Ltd](https://www.bgmsconsultants.com).** The vision, the architecture, every contract, and every design decision in this repository are directed by a human who believes data quality is a write-time responsibility.
+
+OpenDQV is built with a hybrid team. Sunny leads — carbon and silicon. Three AI collaborators execute: Claude Sonnet 4.6 (primary developer), Claude Opus 4.6 (strategic auditor), and Grok (market intelligence). All answer to the same ethos: *trust is easier to build than to repair.*
+
+---
+
+*OpenDQV Cloud is coming — managed validation with compliance dashboards, SSO, and rejection analytics for CDOs and CIOs. [Watch this space.](https://github.com/OpenDQV/OpenDQV)*
