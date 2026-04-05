@@ -32,7 +32,7 @@ These are excellent tools — and they solve a different problem.
 | **Compute cost** | Full or sampled table scans inside the warehouse | Sub-second API call or UDF — no warehouse needed |
 | **Governance** | Test results | Versioned contracts with maker-checker approval and hash-chained audit trail |
 
-OpenDQV Core is Layer 1. GE/Soda/dbt are Layer 3. They are designed to work together. See the [three-layer model](../README.md#who-is-this-for) in the README.
+OpenDQV Core is Layer 1. GE/Soda/dbt are Layer 3. They are designed to work together. See the [three-layer model](../README.md#how-it-compares) in the README.
 
 ---
 

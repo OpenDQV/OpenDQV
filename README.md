@@ -183,6 +183,16 @@ Full reference: [docs/rules/](docs/rules/)
 
 ## How it compares
 
+A mature data governance programme operates across three layers, each with a distinct job:
+
+| Layer | Purpose | Tools |
+|---|---|---|
+| **1. Write-time enforcement** | Prevent bad data from entering any system | **OpenDQV** |
+| **2. Catalog / governance / stewardship** | Ownership, glossary, lineage, policy, stewardship workflows | Alation, Atlan, Collibra, Purview, DataHub, Marmot |
+| **3. Pipeline testing / observability** | Detect drift, freshness issues, residual quality after ingestion | Great Expectations, Soda Core, dbt tests, Monte Carlo |
+
+OpenDQV Core owns layer one. Your catalog handles layer two, your pipeline tools handle layer three.
+
 | | Great Expectations / Soda / dbt | OpenDQV |
 |---|---|---|
 | **When** | After data lands (in warehouse/lake) | Before data is written (at the door) |
