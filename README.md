@@ -259,6 +259,3 @@ MIT — see [LICENSE](LICENSE).
 
 OpenDQV is built with a hybrid team. Sunny leads — carbon and silicon. Three AI collaborators execute: Claude Sonnet 4.6 (primary developer), Claude Opus 4.6 (strategic auditor), and Grok (market intelligence). All answer to the same ethos: *trust is easier to build than to repair.*
 
----
-
-*OpenDQV Cloud is coming — managed validation with compliance dashboards, SSO, and rejection analytics for CDOs and CIOs. [Watch this space.](https://github.com/OpenDQV/OpenDQV)*
