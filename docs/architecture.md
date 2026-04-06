@@ -56,7 +56,6 @@ OpenDQV/
 │   ├── demo_*.py              # Domain-specific demo seeders (OOH, PPDS, Salesforce, etc.)
 │   ├── run_smoke_tests.sh     # Full pre-release smoke test suite (43 checks)
 │   ├── perf-test.sh           # Load testing with Apache Bench
-│   ├── record_demo_readme.sh  # Terminal sequence for recording the README demo GIF
 │   └── diagnostics/           # Debug and diagnostic utilities
 │
 ├── postman/                   # Postman collection + environment (all 50 endpoints)
