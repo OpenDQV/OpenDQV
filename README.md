@@ -13,8 +13,8 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12229/badge)](https://www.bestpractices.dev/projects/12229)
 
-| [Quickstart](docs/quickstart.md) | [Rules](docs/rules/) | [Contracts](docs/compliance-contracts.md) | [API](docs/index.md) | [Security](SECURITY.md) | [FAQ](docs/faq.md) |
-|---|---|---|---|---|---|
+| [Quickstart](docs/quickstart.md) | [Rules](docs/rules/) | [Contracts](docs/compliance-contracts.md) | [MCP](docs/mcp.md) | [API](docs/index.md) | [Security](SECURITY.md) | [FAQ](docs/faq.md) |
+|---|---|---|---|---|---|---|
 
 > **"Trust is easier to build than to repair."**
 > That is why OpenDQV exists. A `422` at the point of write is cheaper than a data incident three weeks later.
@@ -88,6 +88,18 @@ flowchart LR
 A `422` at the point of write closes the feedback loop — producers see failures immediately and fix them at source. Rejection rates drop over time because the tool changes the incentive, not just the outcome.
 
 For post-landing monitoring use [Great Expectations](https://greatexpectations.io), [Soda](https://www.soda.io), or [dbt tests](https://docs.getdbt.com/docs/build/tests) — they're complementary, not competing. OpenDQV owns layer one (write-time enforcement); those tools own layer three (post-ingestion observability).
+
+---
+
+## AI Agents — first-class via MCP
+
+OpenDQV ships a built-in [Model Context Protocol](https://modelcontextprotocol.io) server, so [Claude Desktop](https://claude.ai/download), [Cursor](https://www.cursor.com), and any other MCP-compatible agent can discover contracts, validate records, and explain failures through tool calls the agent **explicitly declares** — no hallucinated compliance, no invented rules.
+
+[![Claude Desktop validates a menu item against ppds_menu_item (Natasha's Law) using the OpenDQV MCP server alongside the Marmot catalog MCP server — click to play the 4-minute demo](docs/demo_mcp_poster.png)](docs/demo_mcp.mp4)
+
+*▶ Click the image above to play the 4-minute demo (4.5MB MP4). Claude Desktop uses two MCP servers — OpenDQV for validation, Marmot for catalog lineage — to check a menu item against `ppds_menu_item` for Natasha's Law allergen compliance, stating which tool calls it makes and why.*
+
+For tool reference, write guardrails, remote/enterprise mode, and the Marmot composition pattern, see **[docs/mcp.md](docs/mcp.md)**.
 
 ---
 
