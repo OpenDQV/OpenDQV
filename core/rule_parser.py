@@ -232,6 +232,14 @@ class Rule(BaseModel):
     # Eliminates per-call re.compile() overhead and makes cache hits explicit.
     compiled_pattern: Optional[Any] = Field(default=None, exclude=True, repr=False)
 
+    # ── Hot-path caches (populated in _post_parse, excluded from serialisation) ──
+    # These avoid repeated Pydantic attribute access / Enum .value calls on every
+    # validate_record() invocation. Zero behaviour change — pure speed.
+    cached_has_condition: bool = Field(default=False, exclude=True, repr=False)
+    cached_severity_value: str = Field(default="error", exclude=True, repr=False)
+    cached_error_code: str = Field(default="", exclude=True, repr=False)
+    cached_has_age_constraint: bool = Field(default=False, exclude=True, repr=False)
+
     model_config = {"populate_by_name": True, "arbitrary_types_allowed": True}
 
     _COMPARE_OP_ALIASES: dict = {
@@ -292,6 +300,11 @@ class Rule(BaseModel):
                 f"not permitted in a SQL identifier (double-quote, backslash, "
                 f"semicolon, or control characters)."
             )
+        # Hot-path caches — avoid repeated Pydantic/Enum access per validation call
+        self.cached_has_condition = bool(self.condition)
+        self.cached_severity_value = self.severity.value
+        self.cached_error_code = f"OPENDQV_{self.type.upper()}_001"
+        self.cached_has_age_constraint = self.min_age is not None or self.max_age is not None
         return self
 
 

@@ -123,7 +123,7 @@ def validate_record(
     for rule in rules:
         value = record.get(rule.field)
         failure = _check_rule(value, rule, record)
-        if not failure:
+        if not failure and rule.cached_has_age_constraint:
             failure = _check_age(value, rule)
 
         if failure:
@@ -131,8 +131,8 @@ def validate_record(
                 field=rule.field,
                 rule=rule.name,
                 message=failure,
-                severity=rule.severity.value,
-                error_code=f"OPENDQV_{rule.type.upper()}_001",
+                severity=rule.cached_severity_value,
+                error_code=rule.cached_error_code,
             ).to_dict()
 
             if rule.severity == Severity.ERROR:
@@ -340,7 +340,7 @@ def _check_rule(value, rule: Rule, record: Optional[dict] = None) -> Optional[st
     Returns the error message string if failed, None if passed.
     record is required for cross-field rule types (compare, required_if, condition).
     """
-    if not _check_condition(rule, record):
+    if rule.cached_has_condition and not _check_condition(rule, record):
         return None  # condition not met — rule is inapplicable for this record
 
     if rule.type == "not_empty":
