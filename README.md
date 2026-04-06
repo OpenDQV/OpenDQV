@@ -72,6 +72,17 @@ flowchart LR
         IMP[dbt schema · GX suites\nSoda checks · ODCS · CSV]
     end
     IMP --> CON
+
+    style API fill:#0a4d6e,stroke:#083d57,color:#fff
+    style SDK fill:#0a4d6e,stroke:#083d57,color:#fff
+    style MCP fill:#0a4d6e,stroke:#083d57,color:#fff
+    style CON fill:#0891b2,stroke:#067a96,color:#fff
+    style GEN fill:#0891b2,stroke:#067a96,color:#fff
+    style R1 fill:#22d3ee,stroke:#0891b2,color:#0a4d6e
+    style R2 fill:#22d3ee,stroke:#0891b2,color:#0a4d6e
+    style R3 fill:#22d3ee,stroke:#0891b2,color:#0a4d6e
+    style R4 fill:#22d3ee,stroke:#0891b2,color:#0a4d6e
+    style IMP fill:#0891b2,stroke:#067a96,color:#fff
 ```
 
 A `422` at the point of write closes the feedback loop — producers see failures immediately and fix them at source. Rejection rates drop over time because the tool changes the incentive, not just the outcome.
