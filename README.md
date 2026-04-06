@@ -219,8 +219,8 @@ regulatory context, or browse [contracts/](contracts/) directly.
 
 ## Performance
 
-EC2 c5.large, 2 workers, `AUTH_MODE=token`, 14-rule contract, mixed 50/50 workload:
-**~341 req/s, p99 ~140 ms.** Sizing rule: `WEB_CONCURRENCY = number of vCPUs`.
+EC2 c6i.large, 2 workers, 12-rule contract, mixed 50/50 workload:
+**~482 req/s, p99 ~182 ms.** Sizing rule: `WEB_CONCURRENCY = number of vCPUs`.
 
 See [docs/benchmark_throughput.md](docs/benchmark_throughput.md) for full platform comparison,
 methodology, and monthly volume extrapolation.
