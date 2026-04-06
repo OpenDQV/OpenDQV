@@ -182,37 +182,36 @@ For edge use cases (IoT, factory floor, low-power validation nodes), the Python 
 
 ### Platform comparison
 
-| Platform | Hardware | Workers | Workload | req/s | p99 |
-|----------|----------|---------|----------|-------|-----|
-| EC2 c5.large (Docker) | Xeon @ ~3.4 GHz, 4 GB | 2 | Valid-only | **376** | 172 ms |
-| EC2 c5.large (Docker) | Xeon @ ~3.4 GHz, 4 GB | 2 | **Mixed 50/50** | **~341** | ~140 ms |
-| EC2 c5.large (Docker) | Xeon @ ~3.4 GHz, 4 GB | 2 | Invalid-only | **306** | 107 ms |
-| EC2 c5.large (Docker) | Xeon @ ~3.4 GHz, 4 GB | 1 | Valid-only | 278 | 281 ms |
-| Linux (native Docker) | i5-7200U @ 2.5 GHz, 8 GB | 4 | Mixed | ~229–237 | 163 ms |
-| macOS (Docker Desktop) | i7-1068NG7 @ 2.3 GHz, 32 GB | 4 | Mixed | ~224 | 174 ms |
-| Windows 10 (Docker Desktop) | i7, Windows 10 | 4 | Mixed | ~185* | 288 ms |
-| MacBook Pro 2019 (bare metal) | i7 @ 2.6 GHz | 1 | Valid-only | ~257† | — |
-| Raspberry Pi 400 (ARM64, Docker) | Cortex-A72 @ 1.8 GHz, 4 GB | 4 | Mixed | 79.1 | 523 ms |
+| Platform | Hardware | Workers | Workload | req/s | p50 | p99 |
+|----------|----------|---------|----------|-------|-----|-----|
+| EC2 c6i.large (Docker) | Xeon @ ~3.5 GHz, 4 GB | 2 | Valid-only | **485** | 36 ms | 208 ms |
+| EC2 c6i.large (Docker) | Xeon @ ~3.5 GHz, 4 GB | 2 | **Mixed 50/50** | **~482** | **~37 ms** | **~182 ms** |
+| EC2 c6i.large (Docker) | Xeon @ ~3.5 GHz, 4 GB | 2 | Invalid-only | **480** | 37 ms | 156 ms |
+| Linux (native Docker) | i5-7200U @ 2.5 GHz, 8 GB | 4 | Mixed | ~229–237 | 19 ms | 163 ms |
+| macOS (Docker Desktop) | i7-1068NG7 @ 2.3 GHz, 32 GB | 4 | Mixed | ~224 | — | 174 ms |
+| Windows 10 (Docker Desktop) | i7, Windows 10 | 4 | Mixed | ~185* | 17 ms | 288 ms |
+| MacBook Pro 2019 (bare metal) | i7 @ 2.6 GHz | 1 | Valid-only | ~257† | — | — |
+| Raspberry Pi 400 (ARM64, Docker) | Cortex-A72 @ 1.8 GHz, 4 GB | 4 | Mixed | 79.1 | 47 ms | 523 ms |
 
 *1-minute figure only. †Bare metal, not Docker.
 
-**Key insight from the EC2 data:** Invalid records (those failing validation) are approximately
-18% slower than valid records at the HTTP endpoint level, because failed validation exercises
-additional code paths: full rule evaluation to completion, error array construction, and analytics
-recording. A realistic production workload with mixed valid and invalid records should be sized
-against the **mixed workload figure (~341 req/s, 2 workers on c5.large)**, not the valid-only peak.
+**Key insight from the EC2 data (v1.9.9 hot-path caches):** The valid/invalid performance gap
+collapsed from 18% to ~1% after caching condition flags, severity values, and error codes on
+the Rule model at parse time. Invalid records no longer carry meaningful overhead vs valid records.
+A realistic production workload should be sized against the **mixed workload figure (~482 req/s,
+2 workers on c6i.large)**.
 
-**Sizing rule of thumb:** `WEB_CONCURRENCY = number of vCPUs`. c5.large (2 vCPU) saturates at
+**Sizing rule of thumb:** `WEB_CONCURRENCY = number of vCPUs`. c6i.large (2 vCPU) saturates at
 2 workers — adding a 3rd or 4th worker adds context-switch overhead without throughput gain.
 
-**Benchmark date:** EC2 figures measured 2026-04-03 (v1.9.8, `customer` contract, 14 rules).
+**Benchmark date:** EC2 figures measured 2026-04-06 (`customer` contract, 12 rules, `AUTH_MODE=open`,
+rate limiting raised to 100k/min, Apache Bench 10k requests × 20 concurrent).
 Linux/macOS/Windows/Pi figures measured 2026-03-12 to 2026-03-27 (`universal_benchmark` contract, same rule count).
-**All benchmarks: AUTH_MODE=token (JWT required on every request). Rate limiting disabled for benchmark.**
 
 OpenDQV runs on all platforms with zero errors. For production capacity planning,
-use the EC2 mixed-workload figure (341 req/s, c5.large, 2 workers) as the conservative
-cloud baseline. The Pi 400 figure (79.1 req/s) is the ARM64 floor — AWS Graviton
-deployments will significantly exceed this.
+use the EC2 mixed-workload figure (~482 req/s, c6i.large, 2 workers) as the cloud baseline.
+The Pi 400 figure (79.1 req/s) is the ARM64 floor — AWS Graviton deployments will
+significantly exceed this.
 
 ## Five Standard Workloads (in-process, no Docker required)
 
