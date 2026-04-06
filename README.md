@@ -25,37 +25,53 @@
 
 ![OpenDQV demo — define a contract, send a bad record (get a 422), fix it (get a 200)](docs/demo_wizard.gif)
 
-```
-  Callers                     OpenDQV                      Results
-  ================      ======================      ====================
+```mermaid
+flowchart LR
+    subgraph Callers
+        direction TB
+        SF[Salesforce]
+        SAP[SAP]
+        DYN[Dynamics]
+        ORA[Oracle]
+        WEB[Web forms]
+        ETL1[ETL pipelines]
 
-  Salesforce ----+
-  SAP -----------+      +------------------+
-  Dynamics ------+----->|  Validation API  |----> valid: true/false
-  Oracle --------+      |  (REST / batch)  |      per-field errors
-  Web forms -----+      +--------+---------+      severity levels
-  ETL pipelines -+               |                webhooks on events
+        DJ[Django clean]
+        PY[Python scripts]
+        PD[Pandas / ETL]
 
-  Django clean()-+      +--------+---------+
-  Python scripts +----->|  LocalValidator  |
-  Pandas / ETL --+      |  (in-process SDK)|
-                        +--------+---------+
-                                 |
-  Claude Desktop +      +--------+---------+
-  Cursor --------+----->|   MCP Server     |
-  LLM agents ----+      |  (AI-native)     |
-                        +--------+---------+
-                                 |
-               +-----------------+-----------------+
-               |                                   |
-  Importers -> +-------------+         +-----------+-------+
-  dbt schema   |  Contracts  |         | Code Generator    |
-  GX suites    |   (YAML)    |         | Salesforce Apex   |
-  Soda checks  | Governance: |         | JavaScript / SQL  |
-  ODCS / CSV   | lifecycle   |         +-------------------+
-               | RBAC        |
-               | audit trail |
-               +-------------+
+        CD[Claude Desktop]
+        CUR[Cursor]
+        LLM[LLM agents]
+    end
+
+    subgraph OpenDQV
+        direction TB
+        API[Validation API\nREST / batch]
+        SDK[LocalValidator\nin-process SDK]
+        MCP[MCP Server\nAI-native]
+        API & SDK & MCP --> CON[Contracts · YAML\nGovernance · RBAC\nAudit trail]
+        API & SDK & MCP --> GEN[Code Generator\nApex · JS · SQL]
+    end
+
+    subgraph Results
+        direction TB
+        R1[valid: true / false]
+        R2[per-field errors]
+        R3[severity levels]
+        R4[webhooks on events]
+    end
+
+    SF & SAP & DYN & ORA & WEB & ETL1 --> API
+    DJ & PY & PD --> SDK
+    CD & CUR & LLM --> MCP
+
+    API & SDK & MCP --> R1
+
+    subgraph Importers
+        IMP[dbt schema · GX suites\nSoda checks · ODCS · CSV]
+    end
+    IMP --> CON
 ```
 
 A `422` at the point of write closes the feedback loop — producers see failures immediately and fix them at source. Rejection rates drop over time because the tool changes the incentive, not just the outcome.
