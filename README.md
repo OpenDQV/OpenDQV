@@ -19,7 +19,7 @@
 > **"Trust is easier to build than to repair."**
 > That is why OpenDQV exists. A `422` at the point of write is cheaper than a data incident three weeks later.
 
-> **Alpha (v1.x).** Under active development. Pin to a specific version — the v1.x API may have breaking changes between minor versions. See [API Stability](#api-stability) for commitments.
+> **Beta (v2.x).** Public API surface (REST, contract YAML, MCP tools, Python SDK) is stable. Breaking changes follow a one-release deprecation cycle. Security fixes backported to the latest 2.x line. See [API Stability](#api-stability) for commitments.
 
 **OpenDQV is a write-time data validation service.** Source systems call it before writing data. Bad records return a `422` with per-field errors. Good records pass through. No payload is stored.
 
@@ -283,14 +283,13 @@ methodology, and monthly volume extrapolation.
 
 ## API Stability
 
-OpenDQV is in Alpha. The following stability commitments apply to the v1.x series:
+OpenDQV is in Beta as of 2.0.0. The following stability commitments apply to the v2.x series:
 
-- **REST API endpoints** — paths, request bodies, and response shapes may change between minor versions (`1.x`). Patch versions (`1.x.y`) will not change existing endpoint behaviour.
-- **YAML contract format** — the contract schema (rules, fields, types) is stable within a minor version. New rule types may be added without notice; existing rules will not change semantics within a minor version.
-- **Python SDK** — `OpenDQVClient`, `AsyncOpenDQVClient`, and `LocalValidator` public method signatures are stable within a minor version. Internal helpers (prefixed `_`) are not covered.
-- **MCP tools** — tool names and parameters are stable within a minor version.
-
-When OpenDQV moves to Beta, the REST API will be considered stable within major versions (`v2.x`) and backwards-incompatible changes will require a major version bump.
+- **REST API endpoints** — paths, request bodies, and response shapes are stable within `v2.x`. Backwards-incompatible changes require a major version bump and follow a deprecation cycle (one minor release of warnings before removal).
+- **YAML contract format** — the contract schema (rules, fields, types) is stable within `v2.x`. New rule types may be added; existing rules will not change semantics without a deprecation cycle.
+- **Python SDK** — `OpenDQVClient`, `AsyncOpenDQVClient`, and `LocalValidator` public method signatures are stable within `v2.x`. Internal helpers (prefixed `_`) are not covered.
+- **MCP tools** — tool names and parameters are stable within `v2.x`.
+- **Security fixes** — backported to the latest 2.x line on a best-effort basis.
 
 ---
 

@@ -4,7 +4,7 @@
 
 If you are evaluating OpenDQV as a pilot or design partner, this section covers the questions your security team will ask.
 
-**Alpha software — explicit disclosure.** OpenDQV Core is Alpha. This means: no production SLA, APIs may change between releases, and the engine has not been through a formal third-party penetration test. Do not deploy in a regulated production environment without your own security assessment. See [Known Limitations and Mitigations](#known-limitations-and-mitigations) for full disclosure of current known issues.
+**Beta software — explicit disclosure.** OpenDQV Core is Beta as of 2.0.0. This means: the public API surface (REST, contract YAML schema, MCP tools, Python SDK) is stable and changes follow a one-release deprecation cycle; security fixes are backported to the latest 2.x line. It does **not** mean a production SLA, and the engine has not been through a formal third-party penetration test. Do not deploy in a regulated production environment without your own security assessment. See [Known Limitations and Mitigations](#known-limitations-and-mitigations) for full disclosure of current known issues.
 
 **No external network calls during validation.** OpenDQV Core is fully self-contained. It makes no external network calls during validation. Your data does not leave your environment. The only outbound network activity is optional: webhook notifications to URLs you configure, and Prometheus metrics scraping if you enable it.
 
@@ -20,8 +20,9 @@ If you are evaluating OpenDQV as a pilot or design partner, this section covers 
 
 | Version | Supported |
 |---------|-----------|
-| latest (main branch) | ✅ |
-| older tagged releases | ⚠️ Best-effort |
+| 2.x (latest) | ✅ Security fixes backported |
+| 1.9.x | ⚠️ Best-effort, no backports |
+| < 1.9 | ❌ Unsupported |
 
 ## Reporting a Vulnerability
 

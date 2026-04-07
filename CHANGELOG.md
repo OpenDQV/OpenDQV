@@ -2,6 +2,38 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.0.0] - 2026-04-07 — First Beta Release
+
+OpenDQV Core graduates from Alpha to **Beta**. No breaking changes from 1.9.8 —
+this release is a status milestone, not an API break. Existing 1.9.x deployments
+upgrade in place.
+
+### What Beta means
+
+- **Public API surface is stable.** REST endpoints, contract YAML schema, MCP
+  tool names, and Python SDK signatures will not change without a deprecation
+  cycle (one minor release of warnings before removal).
+- **Security fixes are backported** to the latest 2.x line.
+- **Coverage 93%, 3,398 tests** across the engine, importers, SDK, and routes.
+- **Hot-path performance verified** on EC2 c6i.large at 482 req/s sustained
+  (CRT161 benchmark, hot-path caches landed in 1.9.8).
+- **All RT148 critical and high findings closed** (token priv-esc, contract
+  state machine, routes.py split, SSRF DNS rebinding, require_role dead code).
+
+### What Beta does NOT mean
+
+- No production SLA. This is still a community OSS project with one maintainer.
+- No formal third-party penetration test (disclosed in SECURITY.md).
+- The hot-path is the bouncer; surrounding tooling (MCP, federation, importers,
+  GraphQL, DuckDB analytics) is supported but earns its stability claims one
+  release at a time.
+
+### Changed
+
+- Trove classifier: `Development Status :: 3 - Alpha` → `4 - Beta`
+- README badge and positioning copy updated to reflect Beta status
+- SECURITY.md and SUPPORT.md updated with Beta support commitments
+
 ## [1.9.8] - 2026-04-03
 
 ### Performance

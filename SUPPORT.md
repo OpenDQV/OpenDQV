@@ -10,6 +10,16 @@ OpenDQV Core is a community-supported open-source project. The primary support c
 
 We aim to respond to issues within a few days, but response times depend on maintainer availability — this is an honest, no-SLA community project.
 
+### Beta support commitment (2.0.0+)
+
+As of 2.0.0, OpenDQV Core is Beta. The public API surface (REST endpoints,
+contract YAML schema, MCP tool names, Python SDK signatures) is stable.
+Breaking changes follow a deprecation cycle: one minor release with deprecation
+warnings before removal in the next minor. Security fixes are backported to
+the latest 2.x line on a best-effort basis.
+
+This is still a community OSS project with no paid SLA — see the section below.
+
 ## What to Include in a Bug Report
 
 A good bug report helps us help you faster:
