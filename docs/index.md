@@ -13,7 +13,7 @@ Short visual walkthroughs of OpenDQV in action across the integrations it suppor
 
 | Demo | What it shows |
 |---|---|
-| [![MCP demo](demo_mcp_poster.png)](https://github.com/OpenDQV/OpenDQV/raw/main/docs/demo_mcp.mp4)<br>**[Claude Desktop + OpenDQV MCP + Marmot](mcp.md)** | Claude Desktop calls the OpenDQV MCP server to validate a menu item against `ppds_menu_item` (Natasha's Law allergen compliance), then composes with the Marmot catalog MCP server to surface ownership and lineage. **[▶ Play the 4-minute demo](https://github.com/OpenDQV/OpenDQV/raw/main/docs/demo_mcp.mp4)** |
+| <video src="https://github.com/user-attachments/assets/4d414ff1-b08c-4ff1-91e4-e421f0d5391d" poster="demo_mcp_poster.png" controls width="320"></video><br>**[Claude Desktop + OpenDQV MCP + Marmot](mcp.md)** | Claude Desktop calls the OpenDQV MCP server to validate a menu item against `ppds_menu_item` (Natasha's Law allergen compliance), then composes with the Marmot catalog MCP server to surface ownership and lineage. ([Backup MP4](https://github.com/OpenDQV/OpenDQV/raw/main/docs/demo_mcp.mp4)) |
 | ![Marmot lineage](marmot_lineage.png)<br>**[Marmot lineage push](marmot_integration.md)** | OpenDQV pushes per-contract quality metrics into Marmot via OpenLineage facets — pass rate and failing rules show up directly on the catalog asset. |
 | ![Ofcom demo](demo_ofcom.gif)<br>**[Ofcom Online Safety Act](compliance-contracts.md)** | Validating a moderation event against the Ofcom Online Safety Act contract — illegal-content category, reporter identity, takedown SLA. |
 | ![Postgres demo](demo_postgres.gif)<br>**[Postgres integration](postgres_integration.md)** | Validate before `INSERT` — quarantine table pattern with `psycopg2`. |
