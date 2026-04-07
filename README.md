@@ -95,7 +95,7 @@ For post-landing monitoring use [Great Expectations](https://greatexpectations.i
 
 OpenDQV ships a built-in [Model Context Protocol](https://modelcontextprotocol.io) server, so [Claude Desktop](https://claude.ai/download), [Cursor](https://www.cursor.com), and any other MCP-compatible agent can discover contracts, validate records, and explain failures through tool calls the agent **explicitly declares** — no hallucinated compliance, no invented rules.
 
-[![Claude Desktop validates a menu item against ppds_menu_item (Natasha's Law) using the OpenDQV MCP server alongside the Marmot catalog MCP server — click to play the 4-minute demo](docs/demo_mcp_poster.png)](docs/demo_mcp.mp4)
+[![Claude Desktop validates a menu item against ppds_menu_item (Natasha's Law) using the OpenDQV MCP server alongside the Marmot catalog MCP server — click to play the 4-minute demo](docs/demo_mcp_poster.png)](https://github.com/OpenDQV/OpenDQV/raw/main/docs/demo_mcp.mp4)
 
 *▶ Click the image above to play the 4-minute demo (4.5MB MP4). Claude Desktop uses two MCP servers — OpenDQV for validation, Marmot for catalog lineage — to check a menu item against `ppds_menu_item` for Natasha's Law allergen compliance, stating which tool calls it makes and why.*
 
