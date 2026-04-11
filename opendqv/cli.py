@@ -6,6 +6,7 @@ Usage:
     python -m opendqv.cli <command> [options]
 
 Commands:
+    init                           Initialise a contracts directory with a starter contract
     list                           List all contracts
     show <contract>                Show contract details
     validate <contract> <json>     Validate a JSON record against a contract
@@ -29,7 +30,6 @@ Commands:
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -48,7 +48,8 @@ from opendqv.core.importers.csv_rules import import_csv_rules, csv_rules_to_yaml
 from opendqv.core.importers.odcs import import_odcs, odcs_to_yaml, contract_to_odcs_yaml
 from opendqv.core.importers.dbt import contract_to_dbt_yaml
 
-CONTRACTS_DIR = Path(os.environ.get("OPENDQV_CONTRACTS_DIR", str(PROJECT_ROOT / "contracts")))
+import opendqv.config as _cfg
+CONTRACTS_DIR = _cfg.CONTRACTS_DIR
 
 import re as _re
 _CONTRACT_NAME_RE = _re.compile(r'^[A-Za-z0-9_-]{1,100}$')
@@ -67,6 +68,63 @@ def _validate_contract_name(name: str) -> None:
 def get_registry() -> ContractRegistry:
     """Load the contract registry from the contracts/ directory."""
     return ContractRegistry(CONTRACTS_DIR)
+
+
+# ── Starter contract template (embedded so pip installs work without repo) ──
+_STARTER_CONTRACT_YAML = """\
+# OpenDQV starter contract — validates basic customer records.
+# Customise the rules below, then validate:
+#   opendqv validate customer '{"name": "Alice", "email": "alice@example.com", "age": 30}'
+
+name: customer
+version: "1.0"
+description: "Starter customer contract — edit rules to match your schema"
+owner: "Data Team"
+status: active
+
+rules:
+  - name: name_required
+    field: name
+    type: not_empty
+    severity: error
+    error_message: "Customer name is required"
+
+  - name: email_format
+    field: email
+    type: regex
+    pattern: "^[^@]+@[^@]+\\\\.[^@]+$"
+    severity: error
+    error_message: "Must be a valid email address"
+
+  - name: age_positive
+    field: age
+    type: min
+    min: 0
+    severity: error
+    error_message: "Age must be >= 0"
+"""
+
+
+def cmd_init(args):
+    """Initialise a contracts directory with a starter contract."""
+    target = Path(args.dir)
+    target.mkdir(parents=True, exist_ok=True)
+
+    starter_path = target / "customer.yaml"
+    if starter_path.exists() and not args.force:
+        print(f"  {starter_path} already exists (use --force to overwrite)")
+    else:
+        starter_path.write_text(_STARTER_CONTRACT_YAML, encoding="utf-8")
+        print(f"  Created {starter_path}")
+
+    print()
+    print("Next steps:")
+    print(f"  export OPENDQV_CONTRACTS_DIR={target.resolve()}")
+    print("  opendqv list")
+    print("  opendqv validate customer '{\"name\": \"Alice\", \"email\": \"alice@example.com\", \"age\": 30}'")
+    print()
+    print("Add more contracts by creating .yaml files in the contracts directory.")
+    print("See https://github.com/OpenDQV/OpenDQV/tree/main/examples for industry templates.")
 
 
 def cmd_list(args):
@@ -832,6 +890,11 @@ def main():
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
+    # init
+    p_init = subparsers.add_parser("init", help="Initialise a contracts directory with a starter contract")
+    p_init.add_argument("--dir", default="contracts", help="Target directory (default: ./contracts)")
+    p_init.add_argument("--force", action="store_true", help="Overwrite existing starter contract")
+
     # list
     subparsers.add_parser("list", help="List all contracts")
 
@@ -989,6 +1052,7 @@ def main():
         sys.exit(1)
 
     commands = {
+        "init": cmd_init,
         "list": cmd_list,
         "show": cmd_show,
         "validate": cmd_validate,
