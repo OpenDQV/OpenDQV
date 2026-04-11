@@ -521,6 +521,6 @@ class TestCLIContractNameValidation:
 
     def test_valid_name_passes_validation(self, tmp_path):
         """A valid contract name does not cause sys.exit in the validator."""
-        from cli import _validate_contract_name
+        from opendqv.cli import _validate_contract_name
         # Should not raise SystemExit
         _validate_contract_name("valid-contract-name_123")

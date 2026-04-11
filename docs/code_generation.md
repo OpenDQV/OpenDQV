@@ -58,12 +58,12 @@ curl -s -X POST "http://localhost:8000/api/v1/generate" \
 ## CLI
 
 ```bash
-python -m cli generate <contract> <target> [--context <context>]
+python -m opendqv.cli generate <contract> <target> [--context <context>]
 
 # Examples
-python -m cli generate sf_contact salesforce --context salesforce_prod
-python -m cli generate customer js
-python -m cli generate customer snowflake
+python -m opendqv.cli generate sf_contact salesforce --context salesforce_prod
+python -m opendqv.cli generate customer js
+python -m opendqv.cli generate customer snowflake
 ```
 
 ---

@@ -15,7 +15,7 @@ OpenDQV's `LocalValidator.validate_batch()` takes a list of dicts, which is exac
 ## Core Pattern
 
 ```python
-from sdk.local import LocalValidator
+from opendqv.sdk.local import LocalValidator
 
 validator = LocalValidator()  # loads contracts from OPENDQV_CONTRACTS_DIR
 
@@ -34,7 +34,7 @@ The standard pattern for downstream filtering: annotate the DataFrame with a `_o
 
 ```python
 import pandas as pd
-from sdk.local import LocalValidator
+from opendqv.sdk.local import LocalValidator
 
 validator = LocalValidator()
 
@@ -111,7 +111,7 @@ if not result["valid"]:
 Swap `LocalValidator` for `OpenDQVClient` — the pattern is identical:
 
 ```python
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 client = OpenDQVClient(
     "http://opendqv:8000",

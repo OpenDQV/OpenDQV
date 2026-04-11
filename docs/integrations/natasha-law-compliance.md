@@ -214,7 +214,7 @@ validate_menu_item(new_item)  # raises on failure, returns result on success
 ### SDK example
 
 ```python
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 client = OpenDQVClient(OPENDQV_URL, token=OPENDQV_TOKEN)
 result = client.validate("ppds_menu_item", new_item)

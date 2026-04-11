@@ -109,7 +109,7 @@ For tool reference, write guardrails, remote/enterprise mode, and the Marmot com
 |-----------|---------|
 | Python 3.11+ | `git clone https://github.com/OpenDQV/OpenDQV.git && cd OpenDQV && bash install.sh` |
 | Docker | `git clone https://github.com/OpenDQV/OpenDQV.git && cd OpenDQV && cp .env.example .env && docker compose up -d` |
-| Just the SDK/CLI | `pip install opendqv` |
+| Just the SDK/CLI | `pip install opendqv` then `opendqv init` to bootstrap contracts |
 | None of the above | [Beginner setup guide →](docs/beginner-quickstart.md) |
 
 `install.sh` creates a virtual environment, installs dependencies, and launches the onboarding wizard. Docker pulls `ghcr.io/opendqv/opendqv:latest` — no build step required.

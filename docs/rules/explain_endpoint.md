@@ -115,7 +115,7 @@ The `/explain` output is surfaced in the Streamlit Workbench on the Contracts ta
 ## Querying programmatically
 
 ```python
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 client = OpenDQVClient("http://opendqv.internal:8000", token="...")
 explanation = client.explain("hr_employee_records", version="latest")

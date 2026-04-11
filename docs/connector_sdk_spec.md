@@ -169,7 +169,7 @@ When the OpenDQV API is unreachable:
 ### Python (using the OpenDQV SDK)
 
 ```python
-from sdk.client import OpenDQVClient
+from opendqv.sdk.client import OpenDQVClient
 
 client = OpenDQVClient(
     "https://opendqv.internal:8000",
@@ -197,7 +197,7 @@ async with AsyncOpenDQVClient(base_url, token=token, contract_cache_dir=cache_di
 ### Airflow operator
 
 ```python
-from sdk.client import OpenDQVClient
+from opendqv.sdk.client import OpenDQVClient
 
 def validate_task(records: list[dict], contract: str) -> dict:
     client = OpenDQVClient(Variable.get("OPENDQV_URL"), token=Variable.get("OPENDQV_TOKEN"))

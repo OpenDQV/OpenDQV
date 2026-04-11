@@ -69,7 +69,7 @@ import json
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from sdk.local import LocalValidator
+from opendqv.sdk.local import LocalValidator
 
 DB_URL = os.getenv("OPENDQV_DB_URL", "postgresql://user:pass@localhost:5432/analytics")
 
@@ -122,7 +122,7 @@ def load_records(records: list[dict], contract: str, table: str):
 When you have an OpenDQV API server running, use `OpenDQVClient` instead of `LocalValidator`. The pattern is identical — swap the client.
 
 ```python
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 client = OpenDQVClient(
     os.getenv("OPENDQV_URL", "http://opendqv:8000"),
@@ -141,7 +141,7 @@ Use the `guard` decorator to pre-validate on your API boundary.
 ```python
 import os
 from fastapi import FastAPI
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 app = FastAPI()
 client = OpenDQVClient(os.getenv("OPENDQV_URL"), token=os.getenv("OPENDQV_TOKEN"))

@@ -13,7 +13,7 @@ Two client classes — synchronous for standard use, async for event-driven pipe
 ## Synchronous client
 
 ```python
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 client = OpenDQVClient("http://opendqv.internal:8000", token="<YOUR_TOKEN>")
 
@@ -46,7 +46,7 @@ for c in client.contracts():
 Safe for use inside async Kafka consumers, FastAPI route handlers, and asyncio pipelines.
 
 ```python
-from sdk import AsyncOpenDQVClient
+from opendqv.sdk import AsyncOpenDQVClient
 
 # Kafka consumer (aiokafka)
 async def consume_impressions():
@@ -77,7 +77,7 @@ async def ingest_impression(data: dict):
 Automatically validate incoming data before your endpoint runs:
 
 ```python
-from sdk import OpenDQVClient, ValidationError
+from opendqv.sdk import OpenDQVClient, ValidationError
 
 client = OpenDQVClient("http://opendqv.internal:8000", token="<TOKEN>")
 
@@ -100,7 +100,7 @@ the full validation engine in-process against a local directory of YAML contract
 No Docker, no network, no token.
 
 ```python
-from sdk.local import LocalValidator
+from opendqv.sdk.local import LocalValidator
 
 validator = LocalValidator()  # reads from OPENDQV_CONTRACTS_DIR (or ./contracts/)
 
@@ -143,7 +143,7 @@ result = validator.lint("customer")
 # Returns: {"valid": bool, "errors": [...], "warnings": [...]}
 ```
 
-CLI equivalent: `python -m cli lint customer`
+CLI equivalent: `opendqv lint customer`
 
 ---
 

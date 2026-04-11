@@ -42,16 +42,16 @@ be the approver who promotes it to ACTIVE. Use separate tokens with separate rol
 
 ```bash
 # Admin token for the operator — create this first
-python -m cli token-generate ops-admin --role admin
+python -m opendqv.cli token-generate ops-admin --role admin
 
 # Validator token for a source system
-python -m cli token-generate salesforce-prod --role validator
+python -m opendqv.cli token-generate salesforce-prod --role validator
 
 # Editor token for a data engineer
-python -m cli token-generate alice-data-eng --role editor
+python -m opendqv.cli token-generate alice-data-eng --role editor
 
 # Approver token for a governance lead
-python -m cli token-generate bob-governance --role approver
+python -m opendqv.cli token-generate bob-governance --role approver
 ```
 
 **Via API (requires an existing admin token):**

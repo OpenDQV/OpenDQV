@@ -48,7 +48,7 @@ Auto Loader (`cloudFiles`) incrementally ingests files from cloud storage. Use `
 ```python
 import os
 from pyspark.sql import SparkSession
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 OPENDQV_URL = os.getenv("OPENDQV_URL", "http://opendqv:8000")
 OPENDQV_TOKEN = os.getenv("OPENDQV_TOKEN")
@@ -109,7 +109,7 @@ In a Databricks Workflow (Jobs UI or Asset Bundle), add an OpenDQV validation ta
 ```python
 # Task: validate_orders (runs before write_to_delta)
 import os
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 from pyspark.sql import SparkSession
 
 spark = SparkSession.builder.getOrCreate()
@@ -284,7 +284,7 @@ The demo covers two patterns:
 
 ```python
 from pyspark.sql import SparkSession
-from sdk.local import LocalValidator
+from opendqv.sdk.local import LocalValidator
 
 spark = SparkSession.builder.master("local[*]").appName("opendqv").getOrCreate()
 validator = LocalValidator()
@@ -313,7 +313,7 @@ from pyspark.sql.types import BooleanType
 @udf(returnType=BooleanType())
 def validate_record_udf(record_json: str) -> bool:
     import json
-    from sdk.local import LocalValidator
+    from opendqv.sdk.local import LocalValidator
     v = LocalValidator()
     result = v.validate(json.loads(record_json), contract="customer")
     return result["valid"]

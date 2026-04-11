@@ -115,7 +115,7 @@ curl -s -X POST http://localhost:8000/api/v1/validate \
 ### Sync SDK
 
 ```python
-from sdk.client import OpenDQVClient
+from opendqv.sdk.client import OpenDQVClient
 
 client = OpenDQVClient(base_url="http://localhost:8000", token="...")
 result = client.validate(record, contract="customer", context="kids_app")
@@ -124,7 +124,7 @@ result = client.validate(record, contract="customer", context="kids_app")
 ### Async SDK
 
 ```python
-from sdk.async_client import AsyncOpenDQVClient
+from opendqv.sdk.async_client import AsyncOpenDQVClient
 
 async with AsyncOpenDQVClient(base_url="http://localhost:8000", token="...") as client:
     result = await client.validate(record, contract="customer", context="kids_app")
@@ -133,7 +133,7 @@ async with AsyncOpenDQVClient(base_url="http://localhost:8000", token="...") as 
 ### CLI
 
 ```bash
-python -m cli validate customer '{"age": 10}' --context kids_app
+python -m opendqv.cli validate customer '{"age": 10}' --context kids_app
 ```
 
 ### Code generation
@@ -141,7 +141,7 @@ python -m cli validate customer '{"age": 10}' --context kids_app
 Pass `--context` to scope the generated code to context-specific field rules:
 
 ```bash
-python -m cli generate customer salesforce --context financial
+python -m opendqv.cli generate customer salesforce --context financial
 ```
 
 ---
@@ -193,7 +193,7 @@ contract:
 
 ```python
 from fastapi import FastAPI
-from sdk.async_client import AsyncOpenDQVClient
+from opendqv.sdk.async_client import AsyncOpenDQVClient
 
 app = FastAPI()
 client = AsyncOpenDQVClient(base_url="http://localhost:8000", token="...")
@@ -277,10 +277,10 @@ or `"staging"` so they can be queried or cleaned up by context later.
 
 ```bash
 # This runs the "financial" context rules
-python -m cli validate customer '{"age": 25}' --context financial
+python -m opendqv.cli validate customer '{"age": 25}' --context financial
 
 # "Financial" is not defined — base rules apply, no error
-python -m cli validate customer '{"age": 25}' --context Financial
+python -m opendqv.cli validate customer '{"age": 25}' --context Financial
 ```
 
 ```bash

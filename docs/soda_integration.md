@@ -83,7 +83,7 @@ contracts/orders.yaml
 ### Source-side enforcement
 
 ```python
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 import os
 
 client = OpenDQVClient("http://opendqv:8000", token=os.getenv("OPENDQV_TOKEN"))
@@ -126,7 +126,7 @@ Use OpenDQV as a gate before data lands in the warehouse table Soda scans. Bad r
 
 ```python
 import os
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 client = OpenDQVClient("http://opendqv:8000", token=os.getenv("OPENDQV_TOKEN"))
 

@@ -39,7 +39,7 @@ from airflow.decorators import dag, task
 from airflow.exceptions import AirflowException
 from datetime import datetime
 import os
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 OPENDQV_URL = os.getenv("OPENDQV_URL", "http://opendqv:8000")
 OPENDQV_TOKEN = os.getenv("OPENDQV_TOKEN")
@@ -96,7 +96,7 @@ Use a Prefect `@task` with OpenDQV pre-check. Raise `prefect.exceptions.FailedRu
 from prefect import flow, task, get_run_logger
 from prefect.context import get_run_context
 import os
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 OPENDQV_URL = os.getenv("OPENDQV_URL", "http://opendqv:8000")
 OPENDQV_TOKEN = os.getenv("OPENDQV_TOKEN")
@@ -163,7 +163,7 @@ from dagster import (
     define_asset_job,
 )
 import os
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 OPENDQV_URL = os.getenv("OPENDQV_URL", "http://opendqv:8000")
 OPENDQV_TOKEN = os.getenv("OPENDQV_TOKEN")

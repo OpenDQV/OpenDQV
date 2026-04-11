@@ -169,7 +169,7 @@ contract:
 **Step 2:** Enforce at write time via OpenDQV:
 
 ```python
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 client = OpenDQVClient("http://opendqv:8000", token=os.getenv("OPENDQV_TOKEN"))
 result = client.validate(record, contract="customer")

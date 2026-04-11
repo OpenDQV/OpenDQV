@@ -44,7 +44,7 @@ Collect a Spark DataFrame partition, validate via `validate_batch`, write only c
 import os
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import lit, to_json, struct
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 OPENDQV_URL = os.getenv("OPENDQV_URL", "http://opendqv:8000")
 OPENDQV_TOKEN = os.getenv("OPENDQV_TOKEN")
@@ -99,7 +99,7 @@ def validate_and_write(
 ```python
 def validate_partition(rows, contract: str, target_table: str):
     """Runs on each executor — instantiate the client per partition."""
-    from sdk import OpenDQVClient
+    from opendqv.sdk import OpenDQVClient
     import os
 
     client = OpenDQVClient(
@@ -128,7 +128,7 @@ For streaming pipelines reading from Kafka, Kinesis, or any streaming source, us
 ```python
 import os
 from pyspark.sql import SparkSession
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 OPENDQV_URL = os.getenv("OPENDQV_URL", "http://opendqv:8000")
 OPENDQV_TOKEN = os.getenv("OPENDQV_TOKEN")

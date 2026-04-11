@@ -106,7 +106,7 @@ curl -X POST http://localhost:8000/api/v1/validate \
 ## الخطوة 4: استخدام SDK بايثون
 
 ```python
-from sdk.client import OpenDQVClient
+from opendqv.sdk.client import OpenDQVClient
 
 # إنشاء العميل
 client = OpenDQVClient("http://localhost:8000", token="pat_...")

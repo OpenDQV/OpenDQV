@@ -96,7 +96,7 @@ quarantine_df["_errors"] = [
 For single-machine batch jobs where running the Docker stack is overhead, use the SDK local validator:
 
 ```python
-from sdk.local import LocalValidator
+from opendqv.sdk.local import LocalValidator
 
 validator = LocalValidator(contracts_dir="contracts/")
 

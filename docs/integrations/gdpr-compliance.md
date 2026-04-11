@@ -172,7 +172,7 @@ refusal_reason:  # Article 12(5) permits refusal for manifestly unfounded/excess
 ## Example: validating a ROPA entry
 
 ```bash
-python -m cli validate gdpr_processing_record '{
+python -m opendqv.cli validate gdpr_processing_record '{
   "record_id": "ROPA-2026-001",
   "controller_name": "Acme Ltd",
   "processing_purpose": "Customer order fulfilment",
@@ -190,7 +190,7 @@ python -m cli validate gdpr_processing_record '{
 
 ```bash
 # A record missing lawful_basis is rejected before it enters the ROPA register:
-python -m cli validate gdpr_processing_record '{
+python -m opendqv.cli validate gdpr_processing_record '{
   "record_id": "ROPA-2026-002",
   "controller_name": "Acme Ltd",
   "processing_purpose": "Marketing emails"
@@ -203,7 +203,7 @@ python -m cli validate gdpr_processing_record '{
 ## Example: logging a DSAR
 
 ```bash
-python -m cli validate gdpr_dsar_request '{
+python -m opendqv.cli validate gdpr_dsar_request '{
   "request_id": "DSAR-2026-001",
   "requester_name": "John Doe",
   "requester_email": "john.doe@example.com",

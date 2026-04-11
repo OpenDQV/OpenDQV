@@ -45,7 +45,7 @@ Call `validate_batch` on the outgoing records before executing the Snowflake `IN
 import json
 import snowflake.connector
 import os
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 OPENDQV_URL = os.getenv("OPENDQV_URL", "http://opendqv:8000")
 OPENDQV_TOKEN = os.getenv("OPENDQV_TOKEN")
@@ -106,7 +106,7 @@ Snowpipe ingests data from S3/GCS/Azure Blob via a REST API call. Validate the r
 
 ```python
 import json, os, boto3
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 from snowflake.snowpipe.core import SimpleIngestManager, StagedFile
 
 OPENDQV_URL = os.getenv("OPENDQV_URL", "http://opendqv:8000")
@@ -297,7 +297,7 @@ DuckDB is already a core OpenDQV dependency. Use it to develop and test the Snow
 
 ```python
 import duckdb
-from sdk.local import LocalValidator
+from opendqv.sdk.local import LocalValidator
 
 validator = LocalValidator()
 

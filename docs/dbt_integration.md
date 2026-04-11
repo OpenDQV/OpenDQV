@@ -160,7 +160,7 @@ than inside the warehouse.
 ```python
 # In your ingestion script, before writing to the staging table:
 import os
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 # Pass the dbt job run ID as trace_id for end-to-end observability
 dbt_run_id = os.getenv("DBT_JOB_RUN_ID", "local")

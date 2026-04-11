@@ -48,7 +48,7 @@ Exit code is always 0 in observation mode. Violations are printed to stdout.
 ### SDK: `observe_only=True` kwarg
 
 ```python
-from opendqv import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 client = OpenDQVClient(base_url="http://localhost:8000")
 

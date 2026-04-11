@@ -370,7 +370,7 @@ When OpenDQV is unreachable (network partition, pod restart, container OOM), you
 
 ```python
 import httpx
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 client = OpenDQVClient("http://opendqv.internal:8000", token=TOKEN, timeout=0.5)
 
@@ -397,7 +397,7 @@ except (httpx.TimeoutException, httpx.ConnectError) as exc:
 ```python
 import logging
 import httpx
-from sdk import AsyncOpenDQVClient
+from opendqv.sdk import AsyncOpenDQVClient
 
 logger = logging.getLogger(__name__)
 

@@ -1,7 +1,7 @@
 # CLI Reference
 
-> **Last reviewed:** 2026-03-17.
-> Covers all 19 commands available in `cli.py`. Run `opendqv --help` or `python -m cli --help` for the same information inline.
+> **Last reviewed:** 2026-04-11.
+> Covers all 20 commands available in `cli.py`. Run `opendqv --help` or `python -m opendqv.cli --help` for the same information inline.
 
 OpenDQV ships a standalone CLI for contract management, validation, imports, exports, lifecycle governance, and code generation. All commands operate on the local filesystem and SQLite database — no running API server is required.
 
@@ -18,14 +18,14 @@ opendqv <command> [options]
 **Running from source (project root):**
 
 ```bash
-python -m cli <command> [options]
+python -m opendqv.cli <command> [options]
 ```
 
 **Print version:**
 
 ```bash
 opendqv --version
-# opendqv 1.0.0
+# opendqv 2.1.0
 # Trust is cheaper to build than to repair.
 ```
 
@@ -45,6 +45,7 @@ opendqv --version
 
 | Command | Arguments | Flags | Description |
 |---|---|---|---|
+| `init` | — | `--dir`, `--force` | Bootstrap a `contracts/` directory with a starter contract |
 | `list` | — | — | List all contracts with name, version, status, and rule count |
 | `show` | `<contract>` | — | Show contract metadata and a table of all rules with type, field, and severity |
 | `validate` | `<contract> <json>` | `--context` | Validate a JSON record string against a contract; exits 0 on PASS, 1 on FAIL |
@@ -68,6 +69,26 @@ opendqv --version
 ---
 
 ## Detailed Command Reference
+
+### `init`
+
+Bootstraps a `contracts/` directory with a starter contract. Designed for pip users who install OpenDQV without cloning the repo.
+
+```bash
+opendqv init
+# Created contracts/customer.yaml — edit it or add more contracts.
+# Validate: opendqv validate customer '{"name":"Alice","email":"alice@example.com","age":30}'
+```
+
+Override the target directory:
+
+```bash
+opendqv init --dir /path/to/my/contracts
+```
+
+Use `--force` to overwrite an existing `customer.yaml`.
+
+---
 
 ### `list`
 

@@ -229,7 +229,7 @@ validate_venue_compliance(arena_record)  # raises on failure, returns result on 
 ### SDK example
 
 ```python
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 client = OpenDQVClient(OPENDQV_URL, token=OPENDQV_TOKEN)
 result = client.validate("martyns_law_venue", arena_record)

@@ -48,7 +48,7 @@ from confluent_kafka import Consumer, Producer, KafkaException
 OPENDQV_URL = os.getenv("OPENDQV_URL", "http://opendqv:8000")
 OPENDQV_TOKEN = os.getenv("OPENDQV_TOKEN")
 
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 client = OpenDQVClient(OPENDQV_URL, token=OPENDQV_TOKEN)
 
@@ -129,7 +129,7 @@ import json
 import os
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 
-from sdk import AsyncOpenDQVClient
+from opendqv.sdk import AsyncOpenDQVClient
 
 OPENDQV_URL = os.getenv("OPENDQV_URL", "http://opendqv:8000")
 OPENDQV_TOKEN = os.getenv("OPENDQV_TOKEN")
@@ -200,7 +200,7 @@ For latency-tolerant pipelines, accumulate a poll batch and call `POST /api/v1/v
 import json
 import os
 from confluent_kafka import Consumer, Producer, KafkaException
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 
 client = OpenDQVClient(
     os.getenv("OPENDQV_URL", "http://opendqv:8000"),
@@ -388,7 +388,7 @@ current_hash = get_contract_hash("orders")
 In a federated deployment, select the OpenDQV instance based on the Kafka topic prefix (which typically encodes the domain or region).
 
 ```python
-from sdk import OpenDQVClient
+from opendqv.sdk import OpenDQVClient
 import os
 
 INSTANCES = {
