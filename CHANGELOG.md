@@ -2,7 +2,7 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [2.2.0] - 2026-04-12 — PICK Sprint: Engine Quality
+## [2.2.1] - 2026-04-12 — PICK Sprint: Engine Quality
 
 Systematic code quality sprint using PICK methodology (ease × benefit quadrants).
 32 findings audited, 15 shipped (12 Implement + 3 Challenge), zero regressions.
