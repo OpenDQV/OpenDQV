@@ -47,7 +47,7 @@ jobs:
           "
 
       - name: Run tests
-        run: poetry run python -m pytest tests/ --ignore=tests/test_e2e.py -p no:playwright --tb=short --timeout=60 -q --cov=core --cov=api --cov=security --cov=sdk --cov-branch --cov-report=xml
+        run: poetry run python -m pytest tests/ --ignore=tests/test_e2e.py -p no:playwright --tb=short --timeout=60 -q --cov=opendqv/core --cov=opendqv/api --cov=opendqv/security --cov=opendqv/sdk --cov-branch --cov-report=xml
         env:
           OPENDQV_NODE_ID: 'ci-test-node'
 
@@ -203,8 +203,8 @@ jobs:
         run: cp .env.example .env
 
       - name: Start stack
-        # Start api only — ui requires streamlit which is not in the API Docker image
-        run: docker compose up api -d --wait
+        # Build from branch code (not the published image) so CI tests the PR's changes.
+        run: docker compose up api -d --build --wait
         timeout-minutes: 3
 
       - name: Install dev dependencies
