@@ -12,7 +12,8 @@ from pathlib import Path
 # tomllib is stdlib from Python 3.11, so no extra dependency.
 try:
     import tomllib as _tomllib
-    _pyproject = Path(__file__).resolve().parent / "pyproject.toml"
+    # pyproject.toml is one level above the opendqv/ package directory
+    _pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
     if _pyproject.exists():
         ENGINE_VERSION = _tomllib.loads(_pyproject.read_text(encoding="utf-8"))["tool"]["poetry"]["version"]
     else:
@@ -24,7 +25,12 @@ except Exception:
         ENGINE_VERSION = "unknown"
 
 # Paths
-BASE_DIR = Path(__file__).resolve().parent
+# _PACKAGE_DIR is where the opendqv/ package lives (used for py.typed etc.)
+# BASE_DIR is the project root (one level up) — where contracts/, docs/ etc. live.
+# For pip installs, BASE_DIR points to site-packages parent which won't have
+# contracts/ — users must set OPENDQV_CONTRACTS_DIR or use `opendqv init`.
+_PACKAGE_DIR = Path(__file__).resolve().parent
+BASE_DIR = _PACKAGE_DIR.parent
 CONTRACTS_DIR = Path(os.environ.get("OPENDQV_CONTRACTS_DIR", str(BASE_DIR / "contracts")))
 
 # Security
