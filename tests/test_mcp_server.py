@@ -16,7 +16,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from mcp import types
-from mcp_server import (
+from opendqv.mcp_server import (
     _tool_create_contract_draft,
     _tool_explain_error,
     _tool_get_contract,
@@ -289,7 +289,7 @@ class TestMCPCallToolDispatch:
 
 # ── TestMCPCreateContractDraft ────────────────────────────────────────────────
 
-import mcp_server as _mcp_server_module  # noqa: E402
+import opendqv.mcp_server as _mcp_server_module  # noqa: E402
 
 _DRAFT_CONTRACT_NAME = "MCP_test_telemetry_pytest"
 _DRAFT_RULES = [
@@ -787,8 +787,8 @@ class TestPickGovernanceTipDefault:
 
     async def test_default_tip_when_no_rule_type_in_tips(self):
         """Line 161: fallback to 'default' tip when rule type not in _GOVERNANCE_TIPS dict."""
-        from mcp_server import _pick_governance_tip
-        from core.rule_parser import Rule
+        from opendqv.mcp_server import _pick_governance_tip
+        from opendqv.core.rule_parser import Rule
 
         # Use a rule type that is NOT in _GOVERNANCE_TIPS (checksum has no tip entry)
         rule = Rule(name="iban_check", field="iban", type="checksum",
@@ -823,9 +823,9 @@ class TestValidateBatchDraftNotice:
     async def test_batch_draft_contract_includes_draft_notice(self):
         """Batch validate with DRAFT contract → draft_notice in result (line 598)."""
         import yaml
-        from core.rule_parser import Rule, ContractStatus
-        from core.contracts import DataContract
-        import mcp_server as ms
+        from opendqv.core.rule_parser import Rule, ContractStatus
+        from opendqv.core.contracts import DataContract
+        import opendqv.mcp_server as ms
 
         name = "mcp_draft_batch_test_xyz"
         rule = Rule(name="r", field="x", type="not_empty", error_message="req")
@@ -862,7 +862,7 @@ class TestRuleVelocityException:
     async def test_exception_in_rule_failure_velocity_returns_error(self):
         """rule_failure_velocity raising an exception → error dict (lines 1044-1045)."""
         from unittest.mock import patch
-        import mcp_server as ms
+        import opendqv.mcp_server as ms
 
         with patch.object(ms._quality_analytics, "rule_failure_velocity",
                           side_effect=RuntimeError("DB failure")):

@@ -17,9 +17,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import config
-from core.rule_parser import Rule
-from core.webhooks import WebhookManager, _validate_webhook_url
+import opendqv.config as config
+from opendqv.core.rule_parser import Rule
+from opendqv.core.webhooks import WebhookManager, _validate_webhook_url
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +186,7 @@ class TestCompiledRegexCaching:
         assert rule.compiled_pattern.match("alice") is None
 
     def test_compiled_pattern_used_in_single_record_validation(self):
-        from core.validator import validate_record
+        from opendqv.core.validator import validate_record
         rule = Rule(
             name="email",
             type="regex",
@@ -208,7 +208,7 @@ class TestCompiledRegexCaching:
 class TestRegexFallbackLogging:
     def test_regex_fallback_logs_debug(self, caplog):
         import logging
-        from core.validator import validate_batch
+        from opendqv.core.validator import validate_batch
 
         rule = Rule(
             name="email",
@@ -218,14 +218,14 @@ class TestRegexFallbackLogging:
         )
         records = [{"email": "alice@example.com"}, {"email": "bad"}]
 
-        with caplog.at_level(logging.DEBUG, logger="core.validator"):
+        with caplog.at_level(logging.DEBUG, logger="opendqv.core.validator"):
             validate_batch(records, [rule])
 
         assert any("regex_python_fallback" in msg for msg in caplog.messages)
 
     def test_regex_fallback_log_includes_field_name(self, caplog):
         import logging
-        from core.validator import validate_batch
+        from opendqv.core.validator import validate_batch
 
         rule = Rule(
             name="phone_check",
@@ -235,7 +235,7 @@ class TestRegexFallbackLogging:
         )
         records = [{"phone": "+12345678901"}]
 
-        with caplog.at_level(logging.DEBUG, logger="core.validator"):
+        with caplog.at_level(logging.DEBUG, logger="opendqv.core.validator"):
             validate_batch(records, [rule])
 
         # The regex path always logs at DEBUG regardless of \w etc.
@@ -258,7 +258,7 @@ class TestSSEConnectionCap:
         assert r.status_code == 429
 
     def test_sse_under_cap_connects(self, client, auth_headers, monkeypatch):
-        import api.deps as routes_module
+        import opendqv.api.deps as routes_module
         monkeypatch.setattr(config, "MAX_SSE_CONNECTIONS", 100)
         # Reset counter
         with routes_module._sse_lock:

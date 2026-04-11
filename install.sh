@@ -28,4 +28,4 @@ echo "Installing dependencies..."
 pip install -r requirements.txt
 
 echo "Starting onboarding wizard..."
-python -m cli onboard
+python -m opendqv.cli onboard

@@ -2,7 +2,7 @@
 
 import os
 
-from core.worker_heartbeat import WorkerHeartbeat, _pid_exists
+from opendqv.core.worker_heartbeat import WorkerHeartbeat, _pid_exists
 
 
 class TestWorkerHeartbeatSchema:
@@ -13,7 +13,7 @@ class TestWorkerHeartbeatSchema:
         assert h.get_heartbeats() == []
 
     def test_module_singleton_exists(self):
-        from core.worker_heartbeat import heartbeat
+        from opendqv.core.worker_heartbeat import heartbeat
         assert heartbeat is not None
         assert isinstance(heartbeat, WorkerHeartbeat)
 
@@ -64,7 +64,7 @@ class TestRecordValidation:
         assert rows[0]["worker_pid"] == os.getpid()
 
     def test_node_id_set(self):
-        import config
+        import opendqv.config as config
         h = WorkerHeartbeat(db_path=":memory:")
         h.record_validation("customer", "1.0")
         rows = h.get_heartbeats()
@@ -189,7 +189,7 @@ class TestHealthEndpointIntegration:
     """Health endpoint exposes worker_count and stale_worker_count."""
 
     def test_health_has_worker_fields(self, client):
-        import config
+        import opendqv.config as config
         from unittest.mock import patch
         with patch.object(config, "HEALTH_DETAIL", True):
             r = client.get("/health")
@@ -201,7 +201,7 @@ class TestHealthEndpointIntegration:
             assert isinstance(data["stale_worker_count"], int)
 
     def test_worker_count_increases_after_validation(self, client, auth_headers):
-        import config
+        import opendqv.config as config
         from unittest.mock import patch
         # Trigger a validation to record a heartbeat
         client.post(
@@ -274,7 +274,7 @@ class TestWorkerHeartbeatFileDB:
 
     def test_record_validation_with_file_db(self, tmp_path):
         """Covers the non-shared conn.close() path in record_validation (line 134)."""
-        from core.worker_heartbeat import WorkerHeartbeat
+        from opendqv.core.worker_heartbeat import WorkerHeartbeat
         db_path = tmp_path / "heartbeat.db"
         h = WorkerHeartbeat(db_path=str(db_path))
         # Force immediate write by setting _WRITE_INTERVAL to 0
@@ -288,7 +288,7 @@ class TestWorkerHeartbeatFileDB:
     def test_flush_with_file_db_covers_close(self, tmp_path):
         """Covers the non-shared conn.close() path in flush() (line 168)."""
         import os
-        from core.worker_heartbeat import WorkerHeartbeat
+        from opendqv.core.worker_heartbeat import WorkerHeartbeat
         db_path = tmp_path / "heartbeat_flush.db"
         h = WorkerHeartbeat(db_path=str(db_path))
         h.record_validation("orders", "1.0")
@@ -302,7 +302,7 @@ class TestWorkerHeartbeatFileDB:
     def test_flush_skips_zero_pending(self, tmp_path):
         """Line 150: flush() skips entries with pending == 0."""
         import os
-        from core.worker_heartbeat import WorkerHeartbeat
+        from opendqv.core.worker_heartbeat import WorkerHeartbeat
         db_path = tmp_path / "heartbeat_zero.db"
         h = WorkerHeartbeat(db_path=str(db_path))
         pid = os.getpid()
@@ -314,7 +314,7 @@ class TestWorkerHeartbeatFileDB:
 
     def test_get_active_worker_pids_with_file_db(self, tmp_path):
         """Covers non-shared conn.close() in get_active_worker_pids() (line 210)."""
-        from core.worker_heartbeat import WorkerHeartbeat
+        from opendqv.core.worker_heartbeat import WorkerHeartbeat
         db_path = tmp_path / "heartbeat_pids.db"
         h = WorkerHeartbeat(db_path=str(db_path))
         h.record_validation("customer", "1.0")
@@ -324,7 +324,7 @@ class TestWorkerHeartbeatFileDB:
 
     def test_purge_dead_workers_with_file_db(self, tmp_path):
         """Covers non-shared conn.close() in purge_dead_workers() (line 280)."""
-        from core.worker_heartbeat import WorkerHeartbeat
+        from opendqv.core.worker_heartbeat import WorkerHeartbeat
         db_path = tmp_path / "heartbeat_purge.db"
         h = WorkerHeartbeat(db_path=str(db_path))
         result = h.purge_dead_workers()
@@ -333,7 +333,7 @@ class TestWorkerHeartbeatFileDB:
     def test_record_validation_exception_logged(self):
         """Lines 137-139: exception in record_validation is caught and logged."""
         from unittest.mock import patch
-        from core.worker_heartbeat import WorkerHeartbeat
+        from opendqv.core.worker_heartbeat import WorkerHeartbeat
         h = WorkerHeartbeat(db_path=":memory:")
         h._WRITE_INTERVAL = 0
         h._last_write.clear()
@@ -346,7 +346,7 @@ class TestWorkerHeartbeatFileDB:
         """Lines 171-172: exception in flush() is caught and logged."""
         import os
         from unittest.mock import patch
-        from core.worker_heartbeat import WorkerHeartbeat
+        from opendqv.core.worker_heartbeat import WorkerHeartbeat
         h = WorkerHeartbeat(db_path=":memory:")
         pid = os.getpid()
         h.record_validation("customer", "1.0")

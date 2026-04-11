@@ -1373,7 +1373,7 @@ if section == "Integration Guide":
         # ── Python SDK ──
         with st.expander("Python SDK", expanded=True):
             st.markdown("Install: `pip install httpx` (the SDK uses httpx under the hood)")
-            python_snippet = f'''from sdk import OpenDQVClient
+            python_snippet = f'''from opendqv.sdk import OpenDQVClient
 
 client = OpenDQVClient("{api_base}", token="{snippet_token}")
 
@@ -1393,7 +1393,7 @@ else:
             st.code(python_snippet, language="python")
 
             st.markdown("**FastAPI decorator pattern:**")
-            decorator_snippet = f'''from sdk import OpenDQVClient, ValidationError
+            decorator_snippet = f'''from opendqv.sdk import OpenDQVClient, ValidationError
 
 client = OpenDQVClient("{api_base}", token="{snippet_token}")
 

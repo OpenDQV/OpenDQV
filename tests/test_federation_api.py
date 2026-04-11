@@ -231,9 +231,9 @@ class TestFederationSSEStream:
 
     def test_sse_returns_429_when_limit_exceeded(self, client, auth_headers, monkeypatch):
         """SSE returns 429 when connection limit is hit (lines 243-250)."""
-        import api.deps as _d
+        import opendqv.api.deps as _d
         original = _d._sse_active
-        monkeypatch.setattr("config.MAX_SSE_CONNECTIONS", 0)
+        monkeypatch.setattr("opendqv.config.MAX_SSE_CONNECTIONS", 0)
         try:
             r = client.get(
                 "/api/v1/federation/events?limit=1",

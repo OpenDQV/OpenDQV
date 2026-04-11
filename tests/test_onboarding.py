@@ -13,7 +13,7 @@ import yaml
 
 import os
 
-from core.onboarding import (
+from opendqv.core.onboarding import (
     OnboardingWizard,
     WizardResult,
     _build_valid_from_regex,
@@ -580,8 +580,8 @@ class TestOnboardingWizardUnit:
         mock_proc = MagicMock()
         mock_proc.pid = 12345
         with (
-            patch("core.onboarding._read_api_lock", return_value=None),
-            patch("core.onboarding._write_api_lock") as mock_write,
+            patch("opendqv.core.onboarding._read_api_lock", return_value=None),
+            patch("opendqv.core.onboarding._write_api_lock") as mock_write,
             patch("urllib.request.urlopen", side_effect=OSError),
             patch.object(wiz, "_find_free_port", return_value=8000),
             patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
@@ -597,7 +597,7 @@ class TestOnboardingWizardUnit:
     def test_start_uvicorn_returns_false_on_error(self, tmp_path):
         wiz = self._make_wizard(tmp_path)
         with (
-            patch("core.onboarding._read_api_lock", return_value=None),
+            patch("opendqv.core.onboarding._read_api_lock", return_value=None),
             patch("urllib.request.urlopen", side_effect=OSError),
             patch.object(wiz, "_find_free_port", return_value=8000),
             patch("subprocess.Popen", side_effect=FileNotFoundError),
@@ -607,7 +607,7 @@ class TestOnboardingWizardUnit:
     def test_start_uvicorn_reuses_existing_api(self, tmp_path):
         wiz = self._make_wizard(tmp_path)
         with (
-            patch("core.onboarding._read_api_lock", return_value=(99999, 8000)),
+            patch("opendqv.core.onboarding._read_api_lock", return_value=(99999, 8000)),
             patch("subprocess.Popen") as mock_popen,
         ):
             result = wiz._start_uvicorn()
@@ -625,8 +625,8 @@ class TestOnboardingWizardUnit:
         mock_proc = MagicMock()
         mock_proc.pid = 55555
         with (
-            patch("core.onboarding._read_api_lock", return_value=None),
-            patch("core.onboarding._write_api_lock") as mock_write,
+            patch("opendqv.core.onboarding._read_api_lock", return_value=None),
+            patch("opendqv.core.onboarding._write_api_lock") as mock_write,
             patch("urllib.request.urlopen", return_value=mock_resp),
             patch.object(wiz, "_find_free_port", return_value=8001),
             patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
@@ -643,8 +643,8 @@ class TestOnboardingWizardUnit:
         mock_proc = MagicMock()
         mock_proc.pid = 44444
         with (
-            patch("core.onboarding._read_api_lock", return_value=None),
-            patch("core.onboarding._write_api_lock") as mock_write,
+            patch("opendqv.core.onboarding._read_api_lock", return_value=None),
+            patch("opendqv.core.onboarding._write_api_lock") as mock_write,
             patch("urllib.request.urlopen", side_effect=OSError),
             patch.object(wiz, "_find_free_port", return_value=8000),
             patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
@@ -681,8 +681,8 @@ class TestOnboardingWizardUnit:
         mock_proc = MagicMock()
         mock_proc.pid = 12345
         with (
-            patch("core.onboarding._read_workbench_lock", return_value=None),
-            patch("core.onboarding._write_workbench_lock") as mock_write,
+            patch("opendqv.core.onboarding._read_workbench_lock", return_value=None),
+            patch("opendqv.core.onboarding._write_workbench_lock") as mock_write,
             patch.object(wiz, "_find_free_port", return_value=8501),
             patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
         ):
@@ -699,8 +699,8 @@ class TestOnboardingWizardUnit:
         """No lock file, port 8501 is free, but Popen fails — return None."""
         wiz = self._make_wizard(tmp_path)
         with (
-            patch("core.onboarding._read_workbench_lock", return_value=None),
-            patch("core.onboarding._write_workbench_lock"),
+            patch("opendqv.core.onboarding._read_workbench_lock", return_value=None),
+            patch("opendqv.core.onboarding._write_workbench_lock"),
             patch.object(wiz, "_find_free_port", return_value=8501),
             patch("subprocess.Popen", side_effect=FileNotFoundError),
         ):
@@ -710,7 +710,7 @@ class TestOnboardingWizardUnit:
         """Lock file records a live PID — return stored port, don't spawn."""
         wiz = self._make_wizard(tmp_path)
         with (
-            patch("core.onboarding._read_workbench_lock", return_value=(99999, 8501)),
+            patch("opendqv.core.onboarding._read_workbench_lock", return_value=(99999, 8501)),
             patch("subprocess.Popen") as mock_popen,
         ):
             result = wiz._start_streamlit()
@@ -723,8 +723,8 @@ class TestOnboardingWizardUnit:
         mock_proc = MagicMock()
         mock_proc.pid = 22222
         with (
-            patch("core.onboarding._read_workbench_lock", return_value=None),
-            patch("core.onboarding._write_workbench_lock") as mock_write,
+            patch("opendqv.core.onboarding._read_workbench_lock", return_value=None),
+            patch("opendqv.core.onboarding._write_workbench_lock") as mock_write,
             patch.object(wiz, "_find_free_port", return_value=8502),
             patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
         ):
@@ -739,8 +739,8 @@ class TestOnboardingWizardUnit:
         mock_proc = MagicMock()
         mock_proc.pid = 33333
         with (
-            patch("core.onboarding._read_workbench_lock", return_value=None),
-            patch("core.onboarding._write_workbench_lock") as mock_write,
+            patch("opendqv.core.onboarding._read_workbench_lock", return_value=None),
+            patch("opendqv.core.onboarding._write_workbench_lock") as mock_write,
             patch.object(wiz, "_find_free_port", return_value=8501),
             patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
         ):
@@ -759,7 +759,7 @@ class TestOnboardingWizardUnit:
             patch.object(OnboardingWizard, "_wait_for_health", return_value=True),
             patch.object(OnboardingWizard, "_reload"),
             patch.object(OnboardingWizard, "_validate", return_value={"valid": True, "errors": [], "warnings": []}),
-            patch("core.onboarding.HAS_QUESTIONARY", False),
+            patch("opendqv.core.onboarding.HAS_QUESTIONARY", False),
             patch("builtins.input", side_effect=["customer", "email"]),
         ):
             wiz.run()
@@ -776,8 +776,8 @@ class TestOnboardingWizardUnit:
             patch.object(OnboardingWizard, "_wait_for_health", return_value=True),
             patch.object(OnboardingWizard, "_reload"),
             patch.object(OnboardingWizard, "_validate", return_value={"valid": True, "errors": [], "warnings": []}),
-            patch("core.onboarding.HAS_QUESTIONARY", False),
-            patch("core.onboarding.HAS_RICH", False),
+            patch("opendqv.core.onboarding.HAS_QUESTIONARY", False),
+            patch("opendqv.core.onboarding.HAS_RICH", False),
             patch("builtins.input", side_effect=["customer", "email"]),
         ):
             import io
@@ -834,7 +834,7 @@ class TestOnboardingWizardUnit:
             patch.object(OnboardingWizard, "_wait_for_health", return_value=True),
             patch.object(OnboardingWizard, "_reload"),
             patch.object(OnboardingWizard, "_validate", return_value={"valid": True, "errors": [], "warnings": []}),
-            patch("core.onboarding.HAS_QUESTIONARY", False),
+            patch("opendqv.core.onboarding.HAS_QUESTIONARY", False),
             patch("builtins.input", side_effect=["customer", "email"]),
         ):
             wiz.run()
@@ -848,8 +848,8 @@ class TestOnboardingWizardUnit:
             patch.object(OnboardingWizard, "_wait_for_health", return_value=True),
             patch.object(OnboardingWizard, "_reload"),
             patch.object(OnboardingWizard, "_validate", return_value={"valid": True, "errors": [], "warnings": []}),
-            patch("core.onboarding.HAS_QUESTIONARY", False),
-            patch("core.onboarding.HAS_RICH", False),
+            patch("opendqv.core.onboarding.HAS_QUESTIONARY", False),
+            patch("opendqv.core.onboarding.HAS_RICH", False),
             patch("builtins.input", side_effect=["customer", "email"]),
         ):
             import io
@@ -867,19 +867,19 @@ class TestReadApiLock:
 
     def test_missing_file_returns_none(self, tmp_path):
         lock_path = tmp_path / ".opendqv_api.lock"
-        with patch("core.onboarding._API_LOCK", lock_path):
+        with patch("opendqv.core.onboarding._API_LOCK", lock_path):
             assert _read_api_lock() is None
 
     def test_dead_pid_returns_none(self, tmp_path):
         lock_path = tmp_path / ".opendqv_api.lock"
         lock_path.write_text(json.dumps({"pid": 99999999, "port": 8000}))
-        with patch("core.onboarding._API_LOCK", lock_path):
+        with patch("opendqv.core.onboarding._API_LOCK", lock_path):
             assert _read_api_lock() is None
 
     def test_alive_pid_returns_tuple(self, tmp_path):
         lock_path = tmp_path / ".opendqv_api.lock"
         lock_path.write_text(json.dumps({"pid": os.getpid(), "port": 8000}))
-        with patch("core.onboarding._API_LOCK", lock_path):
+        with patch("opendqv.core.onboarding._API_LOCK", lock_path):
             result = _read_api_lock()
             assert result == (os.getpid(), 8000)
 
@@ -915,7 +915,7 @@ class TestOnboardingWizardRun:
             self._mock_health_always_ok(),
             self._mock_reload(),
             self._mock_validate(),
-            patch("core.onboarding.HAS_QUESTIONARY", False),
+            patch("opendqv.core.onboarding.HAS_QUESTIONARY", False),
             patch("builtins.input", side_effect=inputs),
         ):
             return wiz.run()
@@ -1001,7 +1001,7 @@ class TestOnboardingWizardRun:
         with (
             self._mock_docker_unavailable(),
             patch.object(OnboardingWizard, "_start_uvicorn", return_value=False),
-            patch("core.onboarding.HAS_QUESTIONARY", False),
+            patch("opendqv.core.onboarding.HAS_QUESTIONARY", False),
             patch("builtins.input", side_effect=["customer", "email"]),
         ):
             result = wiz.run()
@@ -1013,7 +1013,7 @@ class TestOnboardingWizardRun:
             self._mock_docker_unavailable(),
             self._mock_start(),
             patch.object(OnboardingWizard, "_wait_for_health", return_value=False),
-            patch("core.onboarding.HAS_QUESTIONARY", False),
+            patch("opendqv.core.onboarding.HAS_QUESTIONARY", False),
             patch("builtins.input", side_effect=["customer", "email"]),
         ):
             result = wiz.run()
@@ -1053,7 +1053,7 @@ class TestOnboardingWizardRun:
             self._mock_health_always_ok(),
             self._mock_reload(),
             patch.object(OnboardingWizard, "_validate", side_effect=Exception("timeout")),
-            patch("core.onboarding.HAS_QUESTIONARY", False),
+            patch("opendqv.core.onboarding.HAS_QUESTIONARY", False),
             patch("builtins.input", side_effect=["customer", "email"]),
         ):
             result = wiz.run()
@@ -1084,8 +1084,8 @@ class TestWizardUXRegressions:
                 {"valid": True, "errors": [], "warnings": []},
                 {"valid": False, "errors": [{"field": "email", "message": "bad"}], "warnings": []},
             ]),
-            patch("core.onboarding.HAS_RICH", False),
-            patch("core.onboarding.HAS_QUESTIONARY", False),
+            patch("opendqv.core.onboarding.HAS_RICH", False),
+            patch("opendqv.core.onboarding.HAS_QUESTIONARY", False),
             patch("builtins.input", side_effect=["student", "email, name"]),
             patch("builtins.print", side_effect=capturing_print),
         ):
@@ -1115,8 +1115,8 @@ class TestWizardUXRegressions:
                 {"valid": True, "errors": [], "warnings": []},
                 {"valid": False, "errors": [], "warnings": []},
             ]),
-            patch("core.onboarding.HAS_RICH", False),
-            patch("core.onboarding.HAS_QUESTIONARY", False),
+            patch("opendqv.core.onboarding.HAS_RICH", False),
+            patch("opendqv.core.onboarding.HAS_QUESTIONARY", False),
             patch("builtins.input", side_effect=["customer", "email"]),
             patch("builtins.print", side_effect=capturing_print),
         ):
@@ -1146,8 +1146,8 @@ class TestWizardUXRegressions:
                 {"valid": True, "errors": [], "warnings": []},
                 {"valid": False, "errors": [], "warnings": []},
             ]),
-            patch("core.onboarding.HAS_RICH", False),
-            patch("core.onboarding.HAS_QUESTIONARY", False),
+            patch("opendqv.core.onboarding.HAS_RICH", False),
+            patch("opendqv.core.onboarding.HAS_QUESTIONARY", False),
             patch("builtins.input", side_effect=["customer", "email"]),
             patch("builtins.print", side_effect=capturing_print),
         ):
@@ -1179,8 +1179,8 @@ class TestWizardUXRegressions:
                 {"valid": True, "errors": [], "warnings": []},
                 {"valid": False, "errors": [], "warnings": []},
             ]),
-            patch("core.onboarding.HAS_RICH", False),
-            patch("core.onboarding.HAS_QUESTIONARY", False),
+            patch("opendqv.core.onboarding.HAS_RICH", False),
+            patch("opendqv.core.onboarding.HAS_QUESTIONARY", False),
             patch("builtins.input", side_effect=["customer", "email"]),
             patch("builtins.print", side_effect=capturing_print),
         ):
@@ -1210,8 +1210,8 @@ class TestWizardUXRegressions:
                 {"valid": True, "errors": [], "warnings": []},
                 {"valid": False, "errors": [], "warnings": []},
             ]),
-            patch("core.onboarding.HAS_RICH", False),
-            patch("core.onboarding.HAS_QUESTIONARY", False),
+            patch("opendqv.core.onboarding.HAS_RICH", False),
+            patch("opendqv.core.onboarding.HAS_QUESTIONARY", False),
             patch("builtins.input", side_effect=["customer", "email"]),
         ):
             wiz.run()
@@ -1281,7 +1281,7 @@ class TestWizardOutputRegressions:
                 {"valid": True, "errors": [], "warnings": []},
                 {"valid": False, "errors": [{"field": "e", "message": "bad"}], "warnings": []},
             ]),
-            patch("core.onboarding.HAS_QUESTIONARY", True),
+            patch("opendqv.core.onboarding.HAS_QUESTIONARY", True),
         ]
         if extra_patches:
             base.extend(extra_patches)
@@ -1289,7 +1289,7 @@ class TestWizardOutputRegressions:
         with contextlib.ExitStack() as stack:
             for ctx in base:
                 stack.enter_context(ctx)
-            mock_q = stack.enter_context(patch("core.onboarding.questionary"))
+            mock_q = stack.enter_context(patch("opendqv.core.onboarding.questionary"))
             setup_mock_q(mock_q)
             result = wiz.run()
         return result, mock_q
@@ -1314,7 +1314,7 @@ class TestWizardOutputRegressions:
 
     def test_questionary_select_build_own_sentinel(self, tmp_path):
         """ACT-016: choosing _BUILD_OWN sentinel falls through to custom field entry."""
-        import core.onboarding as mod
+        import opendqv.core.onboarding as mod
         tmpl = tmp_path / "customer.yaml"
         tmpl.write_text("contract:\n  name: customer\n  rules:\n    - name: r\n      field: email\n      type: not_empty\n      severity: error\n      error_message: 'req'\n")
 
@@ -1406,8 +1406,8 @@ class TestWizardOutputRegressions:
                 {"valid": True, "errors": [], "warnings": []},
                 {"valid": False, "errors": [], "warnings": []},
             ]),
-            patch("core.onboarding.HAS_RICH", False),
-            patch("core.onboarding.HAS_QUESTIONARY", False),
+            patch("opendqv.core.onboarding.HAS_RICH", False),
+            patch("opendqv.core.onboarding.HAS_QUESTIONARY", False),
             patch("builtins.input", side_effect=["2", "order", "email, name"]),
             patch("builtins.print", side_effect=cap),
         ]
@@ -1421,13 +1421,13 @@ class TestWizardOutputRegressions:
         assert result.success is True
 
     def test_has_questionary_flag_importable(self):
-        """ACT-014: HAS_QUESTIONARY flag is importable from core.onboarding."""
-        from core.onboarding import HAS_QUESTIONARY
+        """ACT-014: HAS_QUESTIONARY flag is importable from opendqv.core.onboarding."""
+        from opendqv.core.onboarding import HAS_QUESTIONARY
         assert isinstance(HAS_QUESTIONARY, bool)
 
     def test_wizard_style_defined_when_questionary_available(self):
         """ACT-015: WIZARD_STYLE is not None when questionary is importable."""
-        import core.onboarding as mod
+        import opendqv.core.onboarding as mod
         if mod.HAS_QUESTIONARY:
             assert mod.WIZARD_STYLE is not None
 
@@ -1460,25 +1460,25 @@ class TestReadWorkbenchLock:
 
     def test_missing_file_returns_none(self, tmp_path):
         lock_path = tmp_path / ".opendqv_workbench.lock"
-        with patch("core.onboarding._WORKBENCH_LOCK", lock_path):
+        with patch("opendqv.core.onboarding._WORKBENCH_LOCK", lock_path):
             assert _read_workbench_lock() is None
 
     def test_dead_pid_returns_none(self, tmp_path):
         lock_path = tmp_path / ".opendqv_workbench.lock"
         lock_path.write_text(json.dumps({"pid": 99999999, "port": 8501}))
-        with patch("core.onboarding._WORKBENCH_LOCK", lock_path):
+        with patch("opendqv.core.onboarding._WORKBENCH_LOCK", lock_path):
             assert _read_workbench_lock() is None  # line 93
 
     def test_exception_returns_none(self, tmp_path):
         lock_path = tmp_path / ".opendqv_workbench.lock"
         lock_path.write_text("not-valid-json")
-        with patch("core.onboarding._WORKBENCH_LOCK", lock_path):
+        with patch("opendqv.core.onboarding._WORKBENCH_LOCK", lock_path):
             assert _read_workbench_lock() is None  # lines 95–96
 
     def test_alive_pid_returns_tuple(self, tmp_path):
         lock_path = tmp_path / ".opendqv_workbench.lock"
         lock_path.write_text(json.dumps({"pid": os.getpid(), "port": 8501}))
-        with patch("core.onboarding._WORKBENCH_LOCK", lock_path):
+        with patch("opendqv.core.onboarding._WORKBENCH_LOCK", lock_path):
             result = _read_workbench_lock()
             assert result == (os.getpid(), 8501)
 
@@ -1492,14 +1492,14 @@ class TestWriteLockFunctions:
 
     def test_write_workbench_lock(self, tmp_path):
         lock_path = tmp_path / ".opendqv_workbench.lock"
-        with patch("core.onboarding._WORKBENCH_LOCK", lock_path):
+        with patch("opendqv.core.onboarding._WORKBENCH_LOCK", lock_path):
             _write_workbench_lock(12345, 8501)  # line 101
         data = json.loads(lock_path.read_text())
         assert data == {"pid": 12345, "port": 8501}
 
     def test_write_api_lock(self, tmp_path):
         lock_path = tmp_path / ".opendqv_api.lock"
-        with patch("core.onboarding._API_LOCK", lock_path):
+        with patch("opendqv.core.onboarding._API_LOCK", lock_path):
             _write_api_lock(99, 9000)  # line 121
         data = json.loads(lock_path.read_text())
         assert data == {"pid": 99, "port": 9000}
@@ -1515,7 +1515,7 @@ class TestLoadFirstLookupValue:
     def test_file_found_returns_first_line(self, tmp_path):
         lookup = tmp_path / "gender.txt"
         lookup.write_text("MALE\nFEMALE\n")
-        with patch("core.onboarding.Path") as mock_path_cls:
+        with patch("opendqv.core.onboarding.Path") as mock_path_cls:
             # Patch Path(".") to return tmp_path so "." / "gender.txt" resolves correctly
             real_path = __import__("pathlib").Path
             def _path_side(arg=""):
@@ -1534,7 +1534,7 @@ class TestLoadFirstLookupValue:
         (tmp_path / "contracts" / "status.txt").write_text("# comment\n\nACTIVE\n")
         import pathlib
         real_path = pathlib.Path
-        with patch("core.onboarding.Path") as mock_path_cls:
+        with patch("opendqv.core.onboarding.Path") as mock_path_cls:
             call_count = [0]
             def _path_side(arg=""):
                 call_count[0] += 1
@@ -1729,7 +1729,7 @@ class TestListTemplatesEdgeCases:
         assert result == []  # line 1030
 
     def test_excluded_template_is_skipped(self, tmp_path):
-        import core.onboarding as _ob
+        import opendqv.core.onboarding as _ob
         excluded = list(_ob._EXCLUDED_TEMPLATES)
         if not excluded:
             pytest.skip("No excluded templates defined")
@@ -1785,12 +1785,12 @@ class TestDemoGovernance:
             r = responses[call_count[0]]
             call_count[0] += 1
             return r
-        with patch("core.onboarding.urllib.request.urlopen", side_effect=_urlopen):
+        with patch("opendqv.core.onboarding.urllib.request.urlopen", side_effect=_urlopen):
             wiz._demo_governance("customer")  # must not raise
 
     def test_already_active_returns_early(self, tmp_path):
         wiz = self._make_wizard(tmp_path)
-        with patch("core.onboarding.urllib.request.urlopen",
+        with patch("opendqv.core.onboarding.urllib.request.urlopen",
                    return_value=self._contract_response("active", "1.0")):
             wiz._demo_governance("customer")  # line 855 → return early
 
@@ -1803,7 +1803,7 @@ class TestDemoGovernance:
                 call_count[0] += 1
                 return self._contract_response("draft", "1.0")
             raise urllib.error.HTTPError(None, 401, "Unauthorized", {}, None)
-        with patch("core.onboarding.urllib.request.urlopen", side_effect=_urlopen):
+        with patch("opendqv.core.onboarding.urllib.request.urlopen", side_effect=_urlopen):
             wiz._demo_governance("customer")  # lines 868–869 → return
 
     def test_approve_403_skips_silently(self, tmp_path):
@@ -1818,12 +1818,12 @@ class TestDemoGovernance:
             if n == 1:
                 return self._contract_response("review", "1.0")
             raise urllib.error.HTTPError(None, 403, "Forbidden", {}, None)
-        with patch("core.onboarding.urllib.request.urlopen", side_effect=_urlopen):
+        with patch("opendqv.core.onboarding.urllib.request.urlopen", side_effect=_urlopen):
             wiz._demo_governance("customer")  # lines 888–889 → return
 
     def test_exception_is_swallowed(self, tmp_path):
         wiz = self._make_wizard(tmp_path)
-        with patch("core.onboarding.urllib.request.urlopen", side_effect=Exception("network error")):
+        with patch("opendqv.core.onboarding.urllib.request.urlopen", side_effect=Exception("network error")):
             wiz._demo_governance("customer")  # line 905 → pass, no exception raised
 
 
@@ -1840,13 +1840,13 @@ class TestReload:
         mock_resp = MagicMock()
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
         mock_resp.__exit__ = MagicMock(return_value=False)
-        with patch("core.onboarding.urllib.request.urlopen", return_value=mock_resp):
+        with patch("opendqv.core.onboarding.urllib.request.urlopen", return_value=mock_resp):
             wiz._reload()  # lines 910–913
 
     def test_reload_exception_swallowed(self, tmp_path):
         wiz = OnboardingWizard(contracts_dir=tmp_path)
         wiz._base_url = "http://localhost:19999"
-        with patch("core.onboarding.urllib.request.urlopen", side_effect=Exception("timeout")):
+        with patch("opendqv.core.onboarding.urllib.request.urlopen", side_effect=Exception("timeout")):
             wiz._reload()  # line 914–915, must not raise
 
 
@@ -1901,7 +1901,7 @@ class TestWizardRunInsideDocker:
                              {"valid": True, "errors": [], "warnings": []},
                              {"valid": False, "errors": [{"field": "x", "message": "bad"}], "warnings": []},
                          ]),
-            patch("core.onboarding.HAS_QUESTIONARY", False),
+            patch("opendqv.core.onboarding.HAS_QUESTIONARY", False),
             patch("builtins.input", side_effect=["customer", "email, name"]),
         ):
             result = wiz.run()
@@ -1930,9 +1930,9 @@ class TestWizardRunSessionFileException:
                              {"valid": True, "errors": [], "warnings": []},
                              {"valid": False, "errors": [{"field": "x", "message": "bad"}], "warnings": []},
                          ]),
-            patch("core.onboarding.HAS_QUESTIONARY", False),
+            patch("opendqv.core.onboarding.HAS_QUESTIONARY", False),
             patch("builtins.input", side_effect=["customer", "email, name"]),
-            patch("core.onboarding._SESSION_FILE",
+            patch("opendqv.core.onboarding._SESSION_FILE",
                   tmp_path / "no_such_dir" / "session.json"),  # unwritable path → exception
         ):
             result = wiz.run()  # must not raise
@@ -1961,7 +1961,7 @@ class TestWizardRunEnvExists:
                              {"valid": True, "errors": [], "warnings": []},
                              {"valid": False, "errors": [{"field": "x", "message": "bad"}], "warnings": []},
                          ]),
-            patch("core.onboarding.HAS_QUESTIONARY", False),
+            patch("opendqv.core.onboarding.HAS_QUESTIONARY", False),
             patch("builtins.input", side_effect=["customer", "email, name"]),
             patch("pathlib.Path.exists", lambda p: str(p).endswith(".env")),
         ):
@@ -1980,8 +1980,8 @@ class TestCliOnboard:
 
         # Import cli module and check that 'onboard' is a known subcommand
         # We patch OnboardingWizard.run to avoid side effects
-        with patch("core.onboarding.OnboardingWizard.run", return_value=WizardResult(success=True)):
-            import cli as cli_module
+        with patch("opendqv.core.onboarding.OnboardingWizard.run", return_value=WizardResult(success=True)):
+            import opendqv.cli as cli_module
             # Re-reading the source is enough; just ensure the subcommand exists in the
             # commands dict by importing and calling main with onboard arg
             with patch.object(cli_module, "cmd_onboard") as mock_cmd:

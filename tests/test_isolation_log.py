@@ -2,8 +2,8 @@
 
 import time
 
-from core.isolation_log import IsolationLog
-from core.node_health import NodeHealthStateMachine, NodeState
+from opendqv.core.isolation_log import IsolationLog
+from opendqv.core.node_health import NodeHealthStateMachine, NodeState
 
 
 class TestIsolationLogSchema:
@@ -14,7 +14,7 @@ class TestIsolationLogSchema:
         assert log.get_events() == []
 
     def test_module_singleton_exists(self):
-        from core.isolation_log import isolation_log
+        from opendqv.core.isolation_log import isolation_log
         assert isolation_log is not None
         assert isinstance(isolation_log, IsolationLog)
 
@@ -39,14 +39,14 @@ class TestOpenEvent:
         assert events[0]["exceeded_threshold"] is False
 
     def test_open_records_max_allowed(self):
-        import config
+        import opendqv.config as config
         log = IsolationLog(db_path=":memory:")
         log.open_event("test")
         events = log.get_events()
         assert events[0]["max_allowed_seconds"] == config.MAX_ISOLATION_HOURS * 3600
 
     def test_open_records_node_id(self):
-        import config
+        import opendqv.config as config
         log = IsolationLog(db_path=":memory:")
         log.open_event("test")
         events = log.get_events()

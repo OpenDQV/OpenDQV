@@ -70,7 +70,7 @@ class TestSSEConnectedEvent:
         assert events[0]["event"] == "connected"
 
     def test_connected_has_node_id(self, client, auth_headers):
-        import config
+        import opendqv.config as config
         events = self._events(client, auth_headers)
         assert events[0]["data"]["opendqv_node_id"] == config.OPENDQV_NODE_ID
 

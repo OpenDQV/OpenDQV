@@ -9,7 +9,7 @@ import textwrap
 
 import pytest
 from fastapi.testclient import TestClient
-from main import app
+from opendqv.main import app
 
 
 # ---------------------------------------------------------------------------
@@ -403,9 +403,9 @@ class TestGenerateCodeErrors:
 def _insert_draft(name: str, rules=None):
     """Insert a synthetic DRAFT contract into the registry with a YAML file."""
     import yaml
-    from api.routes import registry
-    from core.contracts import DataContract
-    from core.rule_parser import ContractStatus, Rule
+    from opendqv.api.routes import registry
+    from opendqv.core.contracts import DataContract
+    from opendqv.core.rule_parser import ContractStatus, Rule
 
     if rules is None:
         rules = [
@@ -450,7 +450,7 @@ def _insert_draft(name: str, rules=None):
 
 def _remove_contract(name: str):
     """Remove a contract from the registry (in-memory only, no YAML written)."""
-    from api.routes import registry
+    from opendqv.api.routes import registry
     registry._contracts.pop(name, None)
     path = registry.contracts_dir / f"{name}.yaml"
     if path.exists():
@@ -633,7 +633,7 @@ class TestUpdateRuleBreakingChange:
     _NAME = "rule_breaking_change_xyz"
 
     def setup_method(self):
-        from core.rule_parser import Rule
+        from opendqv.core.rule_parser import Rule
         rules = [
             Rule(
                 name="check_name",
@@ -728,7 +728,7 @@ class TestContractOnboardingFormat:
     """ContractRegistry._parse_onboarding_format — field-keyed YAML parsing."""
 
     def _make_registry(self, tmp_path, yaml_content: str, filename: str = "ob_test.yaml"):
-        from core.contracts import ContractRegistry
+        from opendqv.core.contracts import ContractRegistry
         (tmp_path / filename).write_text(yaml_content, encoding="utf-8")
         return ContractRegistry(tmp_path)
 

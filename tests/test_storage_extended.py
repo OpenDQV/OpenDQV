@@ -34,7 +34,7 @@ def _make_pg_backend():
     mock_cursor.fetchall.return_value = []
 
     with patch.dict("sys.modules", {"psycopg2": mock_psycopg2}):
-        from core.storage import PostgresContractHistoryBackend
+        from opendqv.core.storage import PostgresContractHistoryBackend
         backend = PostgresContractHistoryBackend("postgresql://fake/db")
 
     return backend, mock_psycopg2, mock_conn, mock_cursor
@@ -69,7 +69,7 @@ class TestPostgresBackendInit:
     def test_requires_db_url(self):
         mock_psycopg2 = MagicMock()
         with patch.dict("sys.modules", {"psycopg2": mock_psycopg2}):
-            from core.storage import PostgresContractHistoryBackend
+            from opendqv.core.storage import PostgresContractHistoryBackend
             with pytest.raises(ValueError, match="OPENDQV_DB_URL"):
                 PostgresContractHistoryBackend("")
 
@@ -77,9 +77,9 @@ class TestPostgresBackendInit:
         with patch.dict("sys.modules", {"psycopg2": None}):
             # Force reimport
             import importlib
-            import core.storage
-            importlib.reload(core.storage)
-            from core.storage import PostgresContractHistoryBackend
+            import opendqv.core.storage
+            importlib.reload(opendqv.core.storage)
+            from opendqv.core.storage import PostgresContractHistoryBackend
             with pytest.raises(ImportError, match="psycopg2"):
                 PostgresContractHistoryBackend("postgresql://fake/db")
 

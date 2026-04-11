@@ -36,23 +36,23 @@ def import_push_lineage():
 
 class TestDataContractNewFields:
     def test_downstream_consumers_defaults_empty(self):
-        from core.contracts import DataContract
+        from opendqv.core.contracts import DataContract
         c = DataContract(name="x", rules=[])
         assert c.downstream_consumers == []
 
     def test_downstream_consumers_set(self):
-        from core.contracts import DataContract
+        from opendqv.core.contracts import DataContract
         mrns = ["mrn://dataset/tableau/sales", "mrn://dataset/dbt/mart"]
         c = DataContract(name="x", rules=[], downstream_consumers=mrns)
         assert c.downstream_consumers == mrns
 
     def test_catalog_visible_defaults_true(self):
-        from core.contracts import DataContract
+        from opendqv.core.contracts import DataContract
         c = DataContract(name="x", rules=[])
         assert c.catalog_visible is True
 
     def test_catalog_visible_false(self):
-        from core.contracts import DataContract
+        from opendqv.core.contracts import DataContract
         c = DataContract(name="x", rules=[], catalog_visible=False)
         assert c.catalog_visible is False
 
@@ -61,7 +61,7 @@ class TestContractParsing:
     """Ensure new fields survive YAML → DataContract round-trip."""
 
     def test_downstream_consumers_parsed(self, tmp_path):
-        from core.contracts import ContractRegistry
+        from opendqv.core.contracts import ContractRegistry
         yaml_content = """
 contract:
   name: test_dc
@@ -83,7 +83,7 @@ contract:
         ]
 
     def test_catalog_visible_false_parsed(self, tmp_path):
-        from core.contracts import ContractRegistry
+        from opendqv.core.contracts import ContractRegistry
         yaml_content = """
 contract:
   name: test_hidden
@@ -100,7 +100,7 @@ contract:
         assert contract.catalog_visible is False
 
     def test_catalog_visible_defaults_true_when_absent(self, tmp_path):
-        from core.contracts import ContractRegistry
+        from opendqv.core.contracts import ContractRegistry
         yaml_content = """
 contract:
   name: test_visible
@@ -117,7 +117,7 @@ contract:
 
     def test_old_contract_without_new_fields_loads(self, tmp_path):
         """Backward compatibility — existing contracts without new fields load cleanly."""
-        from core.contracts import ContractRegistry
+        from opendqv.core.contracts import ContractRegistry
         yaml_content = """
 contract:
   name: legacy

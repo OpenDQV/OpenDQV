@@ -5,8 +5,8 @@ import textwrap
 
 import yaml
 
-from core.importers.soda import import_soda_checks, soda_checks_to_yaml
-from core.importers.csv_rules import import_csv_rules, csv_rules_to_yaml
+from opendqv.core.importers.soda import import_soda_checks, soda_checks_to_yaml
+from opendqv.core.importers.csv_rules import import_csv_rules, csv_rules_to_yaml
 
 SAMPLE_DIR = os.path.join(os.path.dirname(__file__), "sample_data")
 

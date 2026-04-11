@@ -42,7 +42,7 @@ pytestmark = pytest.mark.skipif(
 @pytest.fixture
 def pg_backend():
     """Fresh PostgresContractHistoryBackend with a clean table for each test."""
-    from core.storage import PostgresContractHistoryBackend
+    from opendqv.core.storage import PostgresContractHistoryBackend
     backend = PostgresContractHistoryBackend(POSTGRES_URL)
 
     # Clean the table before each test
@@ -60,15 +60,15 @@ def pg_backend():
 
 @pytest.fixture
 def sample_contract():
-    from core.contracts import DataContract
+    from opendqv.core.contracts import DataContract
     return DataContract(name="test_customer", version="1.0", description="Test contract",
                         owner="Test Team")
 
 
 @pytest.fixture
 def sample_contract_v2():
-    from core.contracts import DataContract, ContractStatus
-    from core.rule_parser import Rule
+    from opendqv.core.contracts import DataContract, ContractStatus
+    from opendqv.core.rule_parser import Rule
     c = DataContract(name="test_customer", version="2.0", description="Updated",
                      owner="Test Team", status=ContractStatus.ACTIVE)
     c.rules = [Rule(name="email_valid", field="email", type="regex",
@@ -127,7 +127,7 @@ class TestPostgresContractHistory:
         assert history == []
 
     def test_multiple_contracts_isolated(self, pg_backend):
-        from core.contracts import DataContract
+        from opendqv.core.contracts import DataContract
         c1 = DataContract(name="contract_a", version="1.0")
         c2 = DataContract(name="contract_b", version="1.0")
         pg_backend.record_version(c1)
@@ -205,7 +205,7 @@ class TestPostgresIsBackend:
     """PostgresContractHistoryBackend satisfies the ContractHistoryBackend ABC."""
 
     def test_isinstance_check(self, pg_backend):
-        from core.storage import ContractHistoryBackend
+        from opendqv.core.storage import ContractHistoryBackend
         assert isinstance(pg_backend, ContractHistoryBackend)
 
     def test_has_all_abstract_methods(self, pg_backend):

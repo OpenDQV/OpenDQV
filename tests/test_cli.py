@@ -15,11 +15,11 @@ from unittest.mock import patch
 import yaml
 
 # Path to the cli module
-CLI = [sys.executable, str(Path(__file__).resolve().parent.parent / "cli.py")]
+CLI = [sys.executable, str(Path(__file__).resolve().parent.parent / "opendqv" / "cli.py")]
 
 # Import the module for direct function-call tests
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import cli as cli_module
+import opendqv.cli as cli_module
 
 
 def run(*args, input_text=None, expect_rc=None):
@@ -475,7 +475,7 @@ class TestCLIDryRunDoesNotWrite:
 # ---------------------------------------------------------------------------
 
 import pytest  # noqa: E402
-import cli as cli_module  # noqa: E402,F811
+import opendqv.cli as cli_module  # noqa: E402,F811
 
 
 class TestCLIContractNameValidation:

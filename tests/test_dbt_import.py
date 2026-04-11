@@ -4,7 +4,7 @@ import os
 
 import yaml
 
-from core.importers.dbt import import_dbt_schema, dbt_schema_to_yaml, export_dbt_schema, contract_to_dbt_yaml
+from opendqv.core.importers.dbt import import_dbt_schema, dbt_schema_to_yaml, export_dbt_schema, contract_to_dbt_yaml
 
 SAMPLE_DIR = os.path.join(os.path.dirname(__file__), "sample_data")
 

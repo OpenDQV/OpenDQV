@@ -410,7 +410,7 @@ class TestValidateFileCLISmoke:
         path = self._write_csv([_VALID_CUSTOMER])
         try:
             result = subprocess.run(
-                [sys.executable, "-m", "cli", "validate-file", "customer", path],
+                [sys.executable, "-m", "opendqv.cli", "validate-file", "customer", path],
                 cwd=os.path.dirname(os.path.dirname(__file__)),
                 capture_output=True, text=True,
             )
@@ -425,7 +425,7 @@ class TestValidateFileCLISmoke:
         path = self._write_csv([_INVALID_CUSTOMER])
         try:
             result = subprocess.run(
-                [sys.executable, "-m", "cli", "validate-file", "customer", path],
+                [sys.executable, "-m", "opendqv.cli", "validate-file", "customer", path],
                 cwd=os.path.dirname(os.path.dirname(__file__)),
                 capture_output=True, text=True,
             )
@@ -438,7 +438,7 @@ class TestValidateFileCLISmoke:
         import subprocess
         import sys
         result = subprocess.run(
-            [sys.executable, "-m", "cli", "lint", "customer"],
+            [sys.executable, "-m", "opendqv.cli", "lint", "customer"],
             cwd=os.path.dirname(os.path.dirname(__file__)),
             capture_output=True, text=True,
         )
@@ -455,20 +455,20 @@ class TestLocalValidatorSmoke:
         return os.path.join(os.path.dirname(__file__), "..", "contracts")
 
     def test_valid_record_passes(self):
-        from sdk.local import LocalValidator
+        from opendqv.sdk.local import LocalValidator
         v = LocalValidator(contracts_dir=self._contracts_dir())
         result = v.validate(_VALID_CUSTOMER, contract="customer")
         assert result["valid"] is True
 
     def test_invalid_record_fails_with_errors(self):
-        from sdk.local import LocalValidator
+        from opendqv.sdk.local import LocalValidator
         v = LocalValidator(contracts_dir=self._contracts_dir())
         result = v.validate(_INVALID_CUSTOMER, contract="customer")
         assert result["valid"] is False
         assert len(result["errors"]) > 0
 
     def test_batch_returns_summary(self):
-        from sdk.local import LocalValidator
+        from opendqv.sdk.local import LocalValidator
         v = LocalValidator(contracts_dir=self._contracts_dir())
         result = v.validate_batch(
             [_VALID_CUSTOMER, _INVALID_CUSTOMER], contract="customer"

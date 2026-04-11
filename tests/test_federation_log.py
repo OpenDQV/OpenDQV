@@ -1,7 +1,7 @@
 """Tests for FederationLog — the OSS foundation of the federation sync machinery."""
 
 import pytest
-from core.federation import FederationLog, FEDERATION_EVENT_TYPES, FEDERATION_STATUSES
+from opendqv.core.federation import FederationLog, FEDERATION_EVENT_TYPES, FEDERATION_STATUSES
 
 
 class TestFederationLogSchema:

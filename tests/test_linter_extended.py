@@ -6,7 +6,7 @@ geospatial_bounds, ratio_check, forbidden_if, conditional_value missing fields,
 file read error, and warn() branches.
 """
 
-from core.linter import LintIssue, LintResult, lint_contract_yaml, lint_contract_file
+from opendqv.core.linter import LintIssue, LintResult, lint_contract_yaml, lint_contract_file
 
 
 # ---------------------------------------------------------------------------

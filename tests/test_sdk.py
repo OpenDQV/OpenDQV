@@ -11,13 +11,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from sdk.client import (
+from opendqv.sdk.client import (
     AsyncOpenDQVClient,
     OpenDQVClient,
     ValidationError,
     _extract_record,
 )
-from sdk.local import ContractNotFoundError, LocalValidator
+from opendqv.sdk.local import ContractNotFoundError, LocalValidator
 
 
 # ---------------------------------------------------------------------------

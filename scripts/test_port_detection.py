@@ -11,7 +11,7 @@ import sys
 from unittest.mock import patch
 
 sys.path.insert(0, ".")
-from core.onboarding import OnboardingWizard
+from opendqv.core.onboarding import OnboardingWizard
 
 PASS = "\033[32mPASS\033[0m"
 FAIL = "\033[31mFAIL\033[0m"

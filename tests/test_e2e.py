@@ -405,7 +405,7 @@ class TestContractAuditLifecycle:
         username = f"e2e-{role}"
         result = subprocess.run(
             ["docker", "compose", "exec", "api", "python", "-c",
-             f"from security.auth import create_pat; import json; "
+             f"from opendqv.security.auth import create_pat; import json; "
              f"print(json.dumps(create_pat('{username}', role='{role}')))"],
             cwd=project_root,
             capture_output=True,
@@ -442,7 +442,7 @@ class TestContractAuditLifecycle:
         def _container_token(role):
             r = subprocess.run(
                 ["docker", "compose", "exec", "api", "python", "-c",
-                 f"from security.auth import create_pat; import json; "
+                 f"from opendqv.security.auth import create_pat; import json; "
                  f"print(json.dumps(create_pat('e2e-{role}2', role='{role}')))"],
                 cwd=project_root, capture_output=True, text=True, check=True,
             )

@@ -83,7 +83,7 @@ print_flush(hr())
 time.sleep(0.3)
 
 sdk_lines = [
-    "  from sdk.local import LocalValidator",
+    "  from opendqv.sdk.local import LocalValidator",
     "  validator = LocalValidator()",
     "  records  = df.to_dict('records')",
     "  result   = validator.validate_batch(records, contract='orders')",

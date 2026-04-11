@@ -27,6 +27,7 @@ import os
 import sys
 
 import requests
+import opendqv.mcp_server as mcp_server
 
 MARMOT_URL = os.environ.get("MARMOT_URL", "http://localhost:8080")
 OPENDQV_URL = os.environ.get("OPENDQV_URL", "http://localhost:8000")
@@ -144,7 +145,6 @@ def test_d_mcp_remote():
     if repo_root not in sys.path:
         sys.path.insert(0, repo_root)
 
-    import mcp_server
     importlib.reload(mcp_server)
 
     # D1: list_contracts
@@ -227,7 +227,6 @@ def test_e_mcp_draft():
 
     os.environ["OPENDQV_AGENT_IDENTITY"] = "test@opendqv.local"
 
-    import mcp_server
     importlib.reload(mcp_server)
 
     import time as _time

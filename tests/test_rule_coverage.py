@@ -6,8 +6,8 @@ Covers: field_sum, forbidden_if, conditional_value, date_diff,
         profiler file-upload endpoint (save=True).
 """
 import io
-from core.rule_parser import Rule
-from core.validator import validate_record
+from opendqv.core.rule_parser import Rule
+from opendqv.core.validator import validate_record
 
 
 # ---------------------------------------------------------------------------
@@ -439,7 +439,7 @@ class TestCompareRuleEdgeCases:
 # DuckDB batch validation — exercises _batch_check_rule() paths (lines 1059-1395)
 # ---------------------------------------------------------------------------
 
-from core.validator import validate_batch  # noqa: E402
+from opendqv.core.validator import validate_batch  # noqa: E402
 
 
 def _batch(records, **rule_kwargs):
@@ -1176,7 +1176,7 @@ class TestBatchValidationEdgeCases:
 
     def test_compare_now_sentinel(self):
         """compare with compare_to='now' uses isoformat timestamp (line 1153)."""
-        from core.validator import validate_batch
+        from opendqv.core.validator import validate_batch
         rule = _rule(
             type="compare",
             compare_to="now",
@@ -1188,7 +1188,7 @@ class TestBatchValidationEdgeCases:
 
     def test_compare_batch_date_parse_falls_back_to_string(self):
         """compare where float and date parse both fail → string comparison (lines 1173-1174)."""
-        from core.validator import validate_batch
+        from opendqv.core.validator import validate_batch
         rule = _rule(
             type="compare",
             compare_to="other_val",
@@ -1201,7 +1201,7 @@ class TestBatchValidationEdgeCases:
 
     def test_batch_lookup_null_value_fails(self):
         """batch lookup with null value → failing (line 1211)."""
-        from core.validator import validate_batch
+        from opendqv.core.validator import validate_batch
         import tempfile
         import os
         # Write a real lookup file
@@ -1218,7 +1218,7 @@ class TestBatchValidationEdgeCases:
 
     def test_batch_lookup_missing_file_skipped(self):
         """batch lookup with missing file → exception caught, batch not failed (lines 1217-1218)."""
-        from core.validator import validate_batch, _load_lookup_set
+        from opendqv.core.validator import validate_batch, _load_lookup_set
         # Use a relative path so it passes path-traversal check but doesn't exist on disk
         rule = _rule(type="lookup", lookup_file="ref/nonexistent_xyz_9999.csv")
         _load_lookup_set.cache_clear()
@@ -1229,7 +1229,7 @@ class TestBatchValidationEdgeCases:
 
     def test_batch_cross_field_range_non_numeric(self):
         """batch cross_field_range with non-numeric value → except branch (lines 1246-1247)."""
-        from core.validator import validate_batch
+        from opendqv.core.validator import validate_batch
         rule = _rule(type="cross_field_range", cross_min_field="low", cross_max_field="high")
         records = [{"value": "not-a-number", "low": 0, "high": 100}]
         result = validate_batch(records, [rule], contract_name="test")

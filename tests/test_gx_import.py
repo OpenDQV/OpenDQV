@@ -5,7 +5,7 @@ import os
 
 import yaml
 
-from core.importers.great_expectations import import_gx_suite, gx_suite_to_yaml
+from opendqv.core.importers.great_expectations import import_gx_suite, gx_suite_to_yaml
 
 SAMPLE_DIR = os.path.join(os.path.dirname(__file__), "sample_data")
 

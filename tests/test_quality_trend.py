@@ -19,8 +19,8 @@ def reset_quality_stats(monkeypatch):
     guaranteed-empty in-memory store, and the app routes read/write through that
     same object, so there is no cross-connection visibility gap.
     """
-    from core.quality_stats import QualityStats
-    import api.deps as routes_module
+    from opendqv.core.quality_stats import QualityStats
+    import opendqv.api.deps as routes_module
 
     fresh_qs = QualityStats(":memory:")
     monkeypatch.setattr(routes_module, "_quality_stats", fresh_qs)
@@ -31,7 +31,7 @@ class TestQualityStats:
     """Unit tests for the QualityStats store."""
 
     def test_record_and_retrieve(self):
-        from core.quality_stats import QualityStats
+        from opendqv.core.quality_stats import QualityStats
         qs = QualityStats(":memory:")
         qs.record_batch("customer", "1.0", None, total=100, passed=90, failed=10,
                         rule_failure_counts={"valid_email": 7, "name_required": 3})
@@ -44,13 +44,13 @@ class TestQualityStats:
         assert trend[0]["top_failing_rules"]["valid_email"] == 7
 
     def test_empty_trend(self):
-        from core.quality_stats import QualityStats
+        from opendqv.core.quality_stats import QualityStats
         qs = QualityStats(":memory:")
         trend = qs.get_trend("nonexistent", days=7)
         assert trend == []
 
     def test_multiple_batches_same_day_aggregated(self):
-        from core.quality_stats import QualityStats
+        from opendqv.core.quality_stats import QualityStats
         qs = QualityStats(":memory:")
         qs.record_batch("customer", "1.0", None, 50, 45, 5, {"valid_email": 5})
         qs.record_batch("customer", "1.0", None, 50, 40, 10, {"valid_email": 8, "name_required": 2})
@@ -62,7 +62,7 @@ class TestQualityStats:
         assert trend[0]["top_failing_rules"]["name_required"] == 2
 
     def test_context_filter(self):
-        from core.quality_stats import QualityStats
+        from opendqv.core.quality_stats import QualityStats
         qs = QualityStats(":memory:")
         qs.record_batch("customer", "1.0", "billing", 100, 80, 20, {})
         qs.record_batch("customer", "1.0", "operations", 100, 95, 5, {})
@@ -73,14 +73,14 @@ class TestQualityStats:
         assert ops[0]["failed"] == 5
 
     def test_zero_total_records_pass_rate(self):
-        from core.quality_stats import QualityStats
+        from opendqv.core.quality_stats import QualityStats
         qs = QualityStats(":memory:")
         qs.record_batch("customer", "1.0", None, 0, 0, 0, {})
         trend = qs.get_trend("customer", days=1)
         assert trend[0]["pass_rate"] == 1.0
 
     def test_top_failing_rules_sorted(self):
-        from core.quality_stats import QualityStats
+        from opendqv.core.quality_stats import QualityStats
         qs = QualityStats(":memory:")
         qs.record_batch("customer", "1.0", None, 100, 70, 30,
                         {"rule_a": 5, "rule_b": 20, "rule_c": 5})

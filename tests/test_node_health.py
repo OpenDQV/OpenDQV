@@ -1,7 +1,7 @@
 """Tests for the node health state machine."""
 
 import pytest
-from core.node_health import NodeHealthStateMachine, NodeState
+from opendqv.core.node_health import NodeHealthStateMachine, NodeState
 
 
 class TestNodeHealthSchema:
@@ -30,7 +30,7 @@ class TestNodeHealthSchema:
         assert len(sm2.get_log()) == 1  # each :memory: DB is independent
 
     def test_module_singleton_exists(self):
-        from core.node_health import node_health
+        from opendqv.core.node_health import node_health
         assert node_health is not None
         assert isinstance(node_health, NodeHealthStateMachine)
 
@@ -121,7 +121,7 @@ class TestGetLog:
         assert len(log) == 2
 
     def test_log_contains_node_id(self):
-        import config
+        import opendqv.config as config
         sm = NodeHealthStateMachine(db_path=":memory:")
         log = sm.get_log()
         assert log[0]["opendqv_node_id"] == config.OPENDQV_NODE_ID
@@ -186,7 +186,7 @@ class TestHealthEndpointIntegration:
         assert data["opendqv_node_state"] in ("online", "degraded", "isolated")
 
     def test_health_has_isolated_since(self, client):
-        import config
+        import opendqv.config as config
         from unittest.mock import patch
         with patch.object(config, "HEALTH_DETAIL", True):
             r = client.get("/health")

@@ -6,7 +6,7 @@ has already been imported and the int conversions done; we patch the
 computed values, not the env vars, to avoid re-import side effects).
 """
 import pytest
-import config as _config
+import opendqv.config as _config
 
 
 def _run(**overrides):

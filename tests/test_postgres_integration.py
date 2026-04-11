@@ -18,7 +18,7 @@ See docs/postgres_integration.md for the full integration guide.
 import os
 import pytest
 
-from sdk.local import LocalValidator
+from opendqv.sdk.local import LocalValidator
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 

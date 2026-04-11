@@ -1,8 +1,8 @@
 """Tests for contract versioning and history features."""
 
 
-from core.contracts import ContractHistory, DataContract, _GENESIS_HASH, _compute_entry_hash
-from core.rule_parser import Rule, ContractStatus
+from opendqv.core.contracts import ContractHistory, DataContract, _GENESIS_HASH, _compute_entry_hash
+from opendqv.core.rule_parser import Rule, ContractStatus
 
 
 # ---------------------------------------------------------------------------

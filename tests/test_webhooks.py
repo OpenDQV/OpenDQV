@@ -4,7 +4,7 @@ import os
 import tempfile
 import pytest
 
-from core.webhooks import WebhookManager
+from opendqv.core.webhooks import WebhookManager
 
 
 # ---------------------------------------------------------------------------
@@ -156,25 +156,25 @@ class TestWebhookSchemas:
     """Schema constants are present and structurally sound."""
 
     def test_validation_schema_has_required_fields(self):
-        from core.webhooks import VALIDATION_EVENT_SCHEMA
+        from opendqv.core.webhooks import VALIDATION_EVENT_SCHEMA
         required_fields = {"event", "timestamp", "contract", "contract_version",
                            "opendqv_node_id", "valid", "error_count", "warning_count", "violations"}
         assert required_fields.issubset(VALIDATION_EVENT_SCHEMA.keys())
 
     def test_batch_schema_has_required_fields(self):
-        from core.webhooks import BATCH_EVENT_SCHEMA
+        from opendqv.core.webhooks import BATCH_EVENT_SCHEMA
         required_fields = {"event", "timestamp", "contract", "contract_version",
                            "opendqv_node_id", "total", "passed", "failed"}
         assert required_fields.issubset(BATCH_EVENT_SCHEMA.keys())
 
     def test_validation_schema_violations_is_list(self):
-        from core.webhooks import VALIDATION_EVENT_SCHEMA
+        from opendqv.core.webhooks import VALIDATION_EVENT_SCHEMA
         assert VALIDATION_EVENT_SCHEMA["violations"]["type"] == "list"
         assert "field" in VALIDATION_EVENT_SCHEMA["violations"]["items"]
 
     def test_valid_events_set(self):
         """VALID_EVENTS contains all expected event types including lifecycle events."""
-        from core.webhooks import VALID_EVENTS
+        from opendqv.core.webhooks import VALID_EVENTS
         assert VALID_EVENTS == {
             "opendqv.validation.failed",
             "opendqv.validation.warning",

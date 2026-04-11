@@ -43,4 +43,4 @@ EXPOSE 8000
 # throughput stops improving or p99 latency rises.
 ENV WEB_CONCURRENCY=1
 
-CMD ["sh", "-c", "gunicorn main:app -w ${WEB_CONCURRENCY} -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --timeout 120 --access-logfile -"]
+CMD ["sh", "-c", "gunicorn opendqv.main:app -w ${WEB_CONCURRENCY} -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --timeout 120 --access-logfile -"]
