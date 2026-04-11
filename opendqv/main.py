@@ -16,8 +16,11 @@ try:
 except PackageNotFoundError:
     # Package not installed (dev environment) — read directly from pyproject.toml
     # so this never drifts from the single version source of truth.
-    _pyproject = Path(__file__).parent / "pyproject.toml"
-    APP_VERSION = tomllib.loads(_pyproject.read_text(encoding="utf-8"))["tool"]["poetry"]["version"]
+    _pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    if _pyproject.exists():
+        APP_VERSION = tomllib.loads(_pyproject.read_text(encoding="utf-8"))["tool"]["poetry"]["version"]
+    else:
+        APP_VERSION = "unknown"
 
 from fastapi import FastAPI
 from slowapi import _rate_limit_exceeded_handler
