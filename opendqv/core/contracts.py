@@ -979,14 +979,17 @@ class ContractRegistry:
         path = self._contract_paths.get(name)
         if not path or not path.exists():
             raise RuntimeError(f"No YAML path found for contract '{name}'")
-        # Read existing YAML to preserve non-rules structure.
-        # Use yaml.safe_load — if the YAML has Python-specific tags from an old
-        # yaml.dump call, it will fail. Fall back to full_load in that case so
-        # existing contracts can be migrated to safe format on next write.
+        # Read existing YAML — safe_load only, no fallback to full_load.
+        # full_load can deserialize arbitrary Python objects (security risk).
+        # All contracts use plain YAML; Python-specific tags are not supported.
         try:
             raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        except yaml.constructor.ConstructorError:
-            raw = yaml.full_load(path.read_text(encoding="utf-8")) or {}
+        except yaml.constructor.ConstructorError as exc:
+            raise RuntimeError(
+                f"Contract '{path}' contains unsupported YAML tags "
+                f"(e.g. !!python/object). Remove them manually and re-save. "
+                f"Detail: {exc}"
+            ) from exc
         if "contract" in raw:
             # Use mode='json' to ensure enum values are serialised as plain strings,
             # not as Python-specific YAML tags (e.g. Severity.ERROR → 'error').

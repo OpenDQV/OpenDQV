@@ -17,9 +17,10 @@ import time
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
+from collections import defaultdict
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 # SEC-001: ReDoS protection — use `regex` library (drop-in re replacement)
 # which supports a `timeout` parameter. Falls back to `re` if not installed.
@@ -356,6 +357,419 @@ def _validate_checksum(value: str, algorithm: str) -> bool:
         return True  # unknown algorithm — pass through
 
 
+def _semver_tuple(v):
+    """Parse a semantic version string into a comparable tuple."""
+    parts = str(v).lstrip('v').split('.')
+    return tuple(int(x) for x in parts[:3])
+
+
+# ── Single-record rule handlers ─────────────────────────────────────────
+# Each handler: (value, rule, record) -> Optional[str]
+# Returns error message on failure, None on pass.
+
+def _check_not_empty(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if value is None or (isinstance(value, str) and value.strip() == ""):
+        return rule.error_message
+    return None
+
+
+def _check_regex(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if not rule.pattern:
+        return rule.error_message  # misconfigured — fail visible rather than silently pass
+    str_val = str(value) if value is not None else ""
+    pattern = _BUILTIN_PATTERNS.get(rule.pattern, rule.pattern)
+    compiled = rule.compiled_pattern or re.compile(pattern)
+    matched = _safe_match(compiled, str_val)
+    if rule.negate:
+        if matched:
+            return rule.error_message
+    else:
+        if not matched:
+            return rule.error_message
+    return None
+
+
+def _check_min(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if value is None:
+        return rule.error_message
+    try:
+        if float(value) < rule.min_value:
+            return rule.error_message
+    except (TypeError, ValueError):
+        return rule.error_message
+    return None
+
+
+def _check_max(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if value is None:
+        return rule.error_message
+    try:
+        if float(value) > rule.max_value:
+            return rule.error_message
+    except (TypeError, ValueError):
+        return rule.error_message
+    return None
+
+
+def _check_range(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if value is None:
+        return rule.error_message
+    try:
+        v = float(value)
+        if rule.min_value is not None and v < rule.min_value:
+            return rule.error_message
+        if rule.max_value is not None and v > rule.max_value:
+            return rule.error_message
+    except (TypeError, ValueError):
+        return rule.error_message
+    return None
+
+
+def _check_min_length(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    str_val = str(value) if value is not None else ""
+    if len(str_val) < (rule.min_length or 0):
+        return rule.error_message
+    return None
+
+
+def _check_max_length(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    str_val = str(value) if value is not None else ""
+    if len(str_val) > (rule.max_length or 99999):
+        return rule.error_message
+    return None
+
+
+def _check_date_format(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if value is None:
+        return rule.error_message
+    str_val = str(value)
+    formats_to_try = []
+    if rule.format:
+        formats_to_try.append(rule.format)
+    formats_to_try += ["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%d/%m/%Y", "%m/%d/%Y"]
+    for fmt in formats_to_try:
+        try:
+            datetime.strptime(str_val, fmt)
+            return None
+        except ValueError:
+            continue
+    return rule.error_message
+
+
+def _check_unique(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    # Single-record mode cannot check uniqueness — skip silently
+    return None
+
+
+def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if not rule.compare_to or not rule.compare_op:
+        logger.warning("compare rule '%s' missing compare_to or compare_op", rule.name)
+        return None
+    if value is None:
+        return rule.error_message
+    if rule.compare_to in ("today", "now"):
+        if rule.compare_to == "today":
+            other = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        else:
+            other = datetime.now(timezone.utc).isoformat()
+    else:
+        other = (record or {}).get(rule.compare_to)
+        if other is None:
+            return rule.error_message
+    try:
+        a, b = float(value), float(other)
+    except (TypeError, ValueError):
+        try:
+            a = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            b = datetime.fromisoformat(str(other).replace("Z", "+00:00"))
+            if isinstance(a, datetime) and a.tzinfo is None:
+                a = a.replace(tzinfo=timezone.utc)
+            if isinstance(b, datetime) and b.tzinfo is None:
+                b = b.replace(tzinfo=timezone.utc)
+        except (ValueError, AttributeError):
+            if getattr(rule, 'algorithm', None) == 'semver':
+                try:
+                    a = _semver_tuple(value)
+                    b = _semver_tuple(other)
+                except (ValueError, TypeError):
+                    a, b = str(value), str(other)
+            else:
+                a, b = str(value), str(other)
+    op_fn = _COMPARE_OPS.get(rule.compare_op)
+    if op_fn is None:
+        logger.warning("compare rule '%s' has unknown compare_op '%s'", rule.name, rule.compare_op)
+        return None
+    if not op_fn(a, b):
+        return rule.error_message
+    return None
+
+
+def _check_required_if(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if not rule.required_if:
+        return None
+    trigger_field = rule.required_if.get("field")
+    trigger_value = str(rule.required_if.get("value", ""))
+    actual = str((record or {}).get(trigger_field, ""))
+    if actual == trigger_value:
+        if value is None or (isinstance(value, str) and value.strip() == ""):
+            return rule.error_message
+    return None
+
+
+def _check_allowed_values(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if not rule.allowed_values:
+        return None
+    if value is None:
+        return None
+    allowed = [str(v) for v in rule.allowed_values]
+    if str(value) not in allowed:
+        return rule.error_message
+    return None
+
+
+def _check_lookup(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if not rule.lookup_file:
+        logger.warning("lookup rule '%s' missing lookup_file", rule.name)
+        return None
+    if value is None:
+        return None
+    try:
+        if rule.lookup_file.startswith("http://") or rule.lookup_file.startswith("https://"):
+            ttl = rule.cache_ttl if rule.cache_ttl is not None else _HTTP_LOOKUP_DEFAULT_TTL
+            valid_values = _load_http_lookup_set(rule.lookup_file, rule.lookup_field or "", ttl, auth_header=rule.lookup_auth_header)
+        else:
+            valid_values = _load_lookup_set(rule.lookup_file, rule.lookup_field or "")
+    except (FileNotFoundError, KeyError, OSError, RuntimeError, ValueError) as exc:
+        logger.error("lookup rule '%s' could not load '%s': %s", rule.name, rule.lookup_file, exc)
+        return rule.error_message
+    if rule.all_of and isinstance(value, list):
+        for item in value:
+            if str(item) not in valid_values:
+                return rule.error_message
+    elif str(value) not in valid_values:
+        return rule.error_message
+    return None
+
+
+def _check_checksum(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if not rule.checksum_algorithm:
+        logger.warning("checksum rule '%s' missing checksum_algorithm", rule.name)
+        return None
+    if value is None:
+        return rule.error_message
+    if not _validate_checksum(str(value), rule.checksum_algorithm):
+        return rule.error_message
+    return None
+
+
+def _check_cross_field_range(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if value is None:
+        return rule.error_message
+    rec = record or {}
+    try:
+        v = float(value)
+        if rule.cross_min_field:
+            low = rec.get(rule.cross_min_field)
+            if low is None or v < float(low):
+                return rule.error_message
+        if rule.cross_max_field:
+            high = rec.get(rule.cross_max_field)
+            if high is None or v > float(high):
+                return rule.error_message
+    except (TypeError, ValueError):
+        return rule.error_message
+    return None
+
+
+def _check_field_sum(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if not rule.sum_fields or rule.sum_equals is None:
+        logger.warning("field_sum rule '%s' missing sum_fields or sum_equals", rule.name)
+        return None
+    rec = record or {}
+    try:
+        total = sum(float(rec.get(f, 0) or 0) for f in rule.sum_fields)
+        tolerance = rule.sum_tolerance if rule.sum_tolerance is not None else 0.0
+        if abs(total - rule.sum_equals) > tolerance:
+            return rule.error_message
+    except (TypeError, ValueError):
+        return rule.error_message
+    return None
+
+
+def _check_forbidden_if(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if not rule.forbidden_if:
+        return None
+    trigger_field = rule.forbidden_if.get("field")
+    trigger_value = str(rule.forbidden_if.get("value", ""))
+    actual = str((record or {}).get(trigger_field, ""))
+    if actual == trigger_value:
+        if value is not None and not (isinstance(value, str) and value.strip() == ""):
+            return rule.error_message
+    return None
+
+
+def _check_conditional_value(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if rule.must_equal is None:
+        return None
+    if value is None or str(value) != str(rule.must_equal):
+        return rule.error_message
+    return None
+
+
+def _check_date_diff(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if not rule.date_diff_field:
+        logger.warning("date_diff rule '%s' missing date_diff_field", rule.name)
+        return None
+    if value is None:
+        return None  # field absent — skip date_diff; required check is a separate rule
+    other_val = (record or {}).get(rule.date_diff_field)
+    if other_val is None:
+        return rule.error_message
+    try:
+        d1 = _parse_date(value)
+        d2 = _parse_date(other_val)
+        delta = (d1 - d2).days  # signed: positive if d1 is later
+
+        unit = rule.date_diff_unit or "days"
+        if unit == "years":
+            diff = abs(delta) / 365.25
+        else:
+            diff = float(delta)
+
+        if rule.min_value is not None and diff < rule.min_value:
+            return rule.error_message
+        if rule.max_value is not None and diff > rule.max_value:
+            return rule.error_message
+    except (TypeError, ValueError):
+        return rule.error_message
+    return None
+
+
+def _check_ratio_check(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if not rule.ratio_numerator or not rule.ratio_denominator:
+        logger.warning("ratio_check rule '%s' missing ratio_numerator or ratio_denominator", rule.name)
+        return None
+    rec = record or {}
+    try:
+        num = float(rec.get(rule.ratio_numerator, 0) or 0)
+        den = float(rec.get(rule.ratio_denominator, 0) or 0)
+        if den == 0:
+            return rule.error_message
+        ratio = num / den
+        if rule.min_value is not None and ratio < rule.min_value:
+            return rule.error_message
+        if rule.max_value is not None and ratio > rule.max_value:
+            return rule.error_message
+    except (TypeError, ValueError, ZeroDivisionError):
+        return rule.error_message
+    return None
+
+
+def _check_conditional_lookup(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if not rule.lookup_file:
+        logger.warning("conditional_lookup rule '%s' missing lookup_file", rule.name)
+        return None
+    if value is None:
+        return rule.error_message
+    try:
+        if rule.lookup_file.startswith("http://") or rule.lookup_file.startswith("https://"):
+            ttl = rule.cache_ttl if rule.cache_ttl is not None else _HTTP_LOOKUP_DEFAULT_TTL
+            valid_values = _load_http_lookup_set(rule.lookup_file, rule.lookup_field or "", ttl, auth_header=rule.lookup_auth_header)
+        else:
+            valid_values = _load_lookup_set(rule.lookup_file, rule.lookup_field or "")
+    except (FileNotFoundError, KeyError, OSError, RuntimeError) as exc:
+        logger.error("conditional_lookup rule '%s' could not load '%s': %s", rule.name, rule.lookup_file, exc)
+        return rule.error_message
+    if str(value) not in valid_values:
+        return rule.error_message
+    return None
+
+
+def _check_geospatial_bounds(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if value is None:
+        return rule.error_message
+    rec = record or {}
+    try:
+        lat = float(value)
+
+        if rule.geo_min_lat is not None and lat < rule.geo_min_lat:
+            return rule.error_message
+        if rule.geo_max_lat is not None and lat > rule.geo_max_lat:
+            return rule.error_message
+
+        if rule.geo_lon_field:
+            lon_val = rec.get(rule.geo_lon_field)
+            if lon_val is None:
+                return rule.error_message
+            lon = float(lon_val)
+            if rule.geo_min_lon is not None and lon < rule.geo_min_lon:
+                return rule.error_message
+            if rule.geo_max_lon is not None and lon > rule.geo_max_lon:
+                return rule.error_message
+
+        if not (-90 <= lat <= 90):
+            return rule.error_message
+        if rule.geo_lon_field:
+            lon_val = rec.get(rule.geo_lon_field)
+            if lon_val is not None:
+                lon = float(lon_val)
+                if not (-180 <= lon <= 180):
+                    return rule.error_message
+    except (TypeError, ValueError):
+        return rule.error_message
+    return None
+
+
+def _check_age_match(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    if not rule.dob_field:
+        logger.warning("age_match rule '%s' missing dob_field", rule.name)
+        return None
+    if value is None:
+        return rule.error_message
+    dob_val = (record or {}).get(rule.dob_field)
+    if dob_val is None:
+        return None  # dob_required covers absence
+    try:
+        declared = int(float(value))
+        dob = datetime.strptime(str(dob_val), "%Y-%m-%d")
+        today = datetime.now(timezone.utc)
+        computed = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+        tol = rule.age_tolerance if rule.age_tolerance is not None else 0
+        if not (computed - tol <= declared <= computed):
+            return rule.error_message
+    except (TypeError, ValueError):
+        return rule.error_message
+    return None
+
+
+# ── Dispatch table — single source of truth for known rule types ────────
+_RULE_HANDLERS: dict[str, Callable] = {
+    "not_empty": _check_not_empty,
+    "regex": _check_regex,
+    "min": _check_min,
+    "max": _check_max,
+    "range": _check_range,
+    "min_length": _check_min_length,
+    "max_length": _check_max_length,
+    "date_format": _check_date_format,
+    "unique": _check_unique,
+    "compare": _check_compare,
+    "required_if": _check_required_if,
+    "allowed_values": _check_allowed_values,
+    "lookup": _check_lookup,
+    "checksum": _check_checksum,
+    "cross_field_range": _check_cross_field_range,
+    "field_sum": _check_field_sum,
+    "forbidden_if": _check_forbidden_if,
+    "conditional_value": _check_conditional_value,
+    "date_diff": _check_date_diff,
+    "ratio_check": _check_ratio_check,
+    "conditional_lookup": _check_conditional_lookup,
+    "geospatial_bounds": _check_geospatial_bounds,
+    "age_match": _check_age_match,
+}
+
+
 def _check_rule(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     """
     Check a single value against a single rule.
@@ -365,398 +779,11 @@ def _check_rule(value, rule: Rule, record: Optional[dict] = None) -> Optional[st
     if rule.cached_has_condition and not _check_condition(rule, record):
         return None  # condition not met — rule is inapplicable for this record
 
-    if rule.type == "not_empty":
-        if value is None or (isinstance(value, str) and value.strip() == ""):
-            return rule.error_message
-        return None
-
-    if rule.type == "regex":
-        if not rule.pattern:
-            return rule.error_message  # misconfigured — fail visible rather than silently pass
-        str_val = str(value) if value is not None else ""
-        # Expand built-in pattern shorthands
-        pattern = _BUILTIN_PATTERNS.get(rule.pattern, rule.pattern)
-        compiled = rule.compiled_pattern or re.compile(pattern)
-        matched = _safe_match(compiled, str_val)
-        if rule.negate:
-            if matched:    # negate=True means field must NOT match
-                return rule.error_message
-        else:
-            if not matched:
-                return rule.error_message
-        return None
-
-    if rule.type == "min":
-        if value is None:
-            return rule.error_message
-        try:
-            if float(value) < rule.min_value:
-                return rule.error_message
-        except (TypeError, ValueError):
-            return rule.error_message
-        return None
-
-    if rule.type == "max":
-        if value is None:
-            return rule.error_message
-        try:
-            if float(value) > rule.max_value:
-                return rule.error_message
-        except (TypeError, ValueError):
-            return rule.error_message
-        return None
-
-    if rule.type == "range":
-        if value is None:
-            return rule.error_message
-        try:
-            v = float(value)
-            if rule.min_value is not None and v < rule.min_value:
-                return rule.error_message
-            if rule.max_value is not None and v > rule.max_value:
-                return rule.error_message
-        except (TypeError, ValueError):
-            return rule.error_message
-        return None
-
-    if rule.type == "min_length":
-        str_val = str(value) if value is not None else ""
-        if len(str_val) < (rule.min_length or 0):
-            return rule.error_message
-        return None
-
-    if rule.type == "max_length":
-        str_val = str(value) if value is not None else ""
-        if len(str_val) > (rule.max_length or 99999):
-            return rule.error_message
-        return None
-
-    if rule.type == "date_format":
-        if value is None:
-            return rule.error_message
-        str_val = str(value)
-        # Try rule.format first, then common fallbacks
-        formats_to_try = []
-        if rule.format:
-            formats_to_try.append(rule.format)
-        formats_to_try += ["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%d/%m/%Y", "%m/%d/%Y"]
-        for fmt in formats_to_try:
-            try:
-                datetime.strptime(str_val, fmt)
-                return None
-            except ValueError:
-                continue
-        return rule.error_message
-
-    if rule.type == "unique":
-        # Single-record mode cannot check uniqueness — skip silently
-        return None
-
-    if rule.type == "compare":
-        # Cross-field comparison: field <op> compare_to
-        # Works with numbers, ISO date strings, and plain strings.
-        if not rule.compare_to or not rule.compare_op:
-            logger.warning("compare rule '%s' missing compare_to or compare_op", rule.name)
-            return None
-        if value is None:
-            return rule.error_message
-        if rule.compare_to in ("today", "now"):
-            if rule.compare_to == "today":
-                other = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            else:
-                other = datetime.now(timezone.utc).isoformat()
-        else:
-            other = (record or {}).get(rule.compare_to)
-            if other is None:
-                return rule.error_message
-        try:
-            a, b = float(value), float(other)
-        except (TypeError, ValueError):
-            try:
-                a = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-                b = datetime.fromisoformat(str(other).replace("Z", "+00:00"))
-                # Normalise: treat naive datetimes as UTC before comparison
-                if isinstance(a, datetime) and a.tzinfo is None:
-                    a = a.replace(tzinfo=timezone.utc)
-                if isinstance(b, datetime) and b.tzinfo is None:
-                    b = b.replace(tzinfo=timezone.utc)
-            except (ValueError, AttributeError):
-                if getattr(rule, 'algorithm', None) == 'semver':
-                    try:
-                        def _semver_tuple(v):
-                            parts = str(v).lstrip('v').split('.')
-                            return tuple(int(x) for x in parts[:3])
-                        a = _semver_tuple(value)
-                        b = _semver_tuple(other)
-                    except (ValueError, TypeError):
-                        a, b = str(value), str(other)
-                else:
-                    a, b = str(value), str(other)
-        op_fn = _COMPARE_OPS.get(rule.compare_op)
-        if op_fn is None:
-            logger.warning("compare rule '%s' has unknown compare_op '%s'", rule.name, rule.compare_op)
-            return None
-        if not op_fn(a, b):
-            return rule.error_message
-        return None
-
-    if rule.type == "required_if":
-        # Field is required when another field equals a specific value.
-        if not rule.required_if:
-            return None
-        trigger_field = rule.required_if.get("field")
-        trigger_value = str(rule.required_if.get("value", ""))
-        actual = str((record or {}).get(trigger_field, ""))
-        if actual == trigger_value:
-            if value is None or (isinstance(value, str) and value.strip() == ""):
-                return rule.error_message
-        return None
-
-    if rule.type == "allowed_values":
-        # Value must be one of an inline list — no external file needed.
-        # A missing / null field silently passes — use not_empty to enforce presence.
-        if not rule.allowed_values:
-            return None
-        if value is None:
-            return None
-        allowed = [str(v) for v in rule.allowed_values]
-        if str(value) not in allowed:
-            return rule.error_message
-        return None
-
-    if rule.type == "lookup":
-        # Value must appear in a reference list — local file or HTTP endpoint.
-        # A missing / null field silently passes — use not_empty to enforce presence.
-        if not rule.lookup_file:
-            logger.warning("lookup rule '%s' missing lookup_file", rule.name)
-            return None
-        if value is None:
-            return None
-        try:
-            if rule.lookup_file.startswith("http://") or rule.lookup_file.startswith("https://"):
-                ttl = rule.cache_ttl if rule.cache_ttl is not None else _HTTP_LOOKUP_DEFAULT_TTL
-                valid_values = _load_http_lookup_set(rule.lookup_file, rule.lookup_field or "", ttl, auth_header=rule.lookup_auth_header)
-            else:
-                valid_values = _load_lookup_set(rule.lookup_file, rule.lookup_field or "")
-        except (FileNotFoundError, KeyError, OSError, RuntimeError, ValueError) as exc:
-            logger.error("lookup rule '%s' could not load '%s': %s", rule.name, rule.lookup_file, exc)
-            return rule.error_message
-        if rule.all_of and isinstance(value, list):
-            # Validate each element in the list
-            for item in value:
-                if str(item) not in valid_values:
-                    return rule.error_message
-        elif str(value) not in valid_values:
-            return rule.error_message
-        return None
-
-    if rule.type == "checksum":
-        if not rule.checksum_algorithm:
-            logger.warning("checksum rule '%s' missing checksum_algorithm", rule.name)
-            return None
-        if value is None:
-            return rule.error_message
-        if not _validate_checksum(str(value), rule.checksum_algorithm):
-            return rule.error_message
-        return None
-
-    if rule.type == "cross_field_range":
-        if value is None:
-            return rule.error_message
-        rec = record or {}
-        try:
-            v = float(value)
-            if rule.cross_min_field:
-                low = rec.get(rule.cross_min_field)
-                if low is None or v < float(low):
-                    return rule.error_message
-            if rule.cross_max_field:
-                high = rec.get(rule.cross_max_field)
-                if high is None or v > float(high):
-                    return rule.error_message
-        except (TypeError, ValueError):
-            return rule.error_message
-        return None
-
-    if rule.type == "field_sum":
-        if not rule.sum_fields or rule.sum_equals is None:
-            logger.warning("field_sum rule '%s' missing sum_fields or sum_equals", rule.name)
-            return None
-        rec = record or {}
-        try:
-            total = sum(float(rec.get(f, 0) or 0) for f in rule.sum_fields)
-            tolerance = rule.sum_tolerance if rule.sum_tolerance is not None else 0.0
-            if abs(total - rule.sum_equals) > tolerance:
-                return rule.error_message
-        except (TypeError, ValueError):
-            return rule.error_message
-        return None
-
-    if rule.type == "forbidden_if":
-        if not rule.forbidden_if:
-            return None
-        trigger_field = rule.forbidden_if.get("field")
-        trigger_value = str(rule.forbidden_if.get("value", ""))
-        actual = str((record or {}).get(trigger_field, ""))
-        if actual == trigger_value:
-            # Field must be absent/empty when condition is met
-            if value is not None and not (isinstance(value, str) and value.strip() == ""):
-                return rule.error_message
-        return None
-
-    if rule.type == "conditional_value":
-        # Field must equal rule.must_equal when the condition block is met.
-        # condition is already checked at the top of _check_rule, so if we get here the condition passed.
-        if rule.must_equal is None:
-            return None
-        if value is None or str(value) != str(rule.must_equal):
-            return rule.error_message
-        return None
-
-    if rule.type == "date_diff":
-        # Difference between this field and date_diff_field, in days or years.
-        if not rule.date_diff_field:
-            logger.warning("date_diff rule '%s' missing date_diff_field", rule.name)
-            return None
-        if value is None:
-            return None  # field absent — skip date_diff; required check is a separate rule
-        other_val = (record or {}).get(rule.date_diff_field)
-        if other_val is None:
-            return rule.error_message
-        try:
-            d1 = _parse_date(value)
-            d2 = _parse_date(other_val)
-            delta = (d1 - d2).days  # signed: positive if d1 is later
-
-            unit = rule.date_diff_unit or "days"
-            if unit == "years":
-                diff = abs(delta) / 365.25
-            else:
-                diff = float(delta)
-
-            if rule.min_value is not None and diff < rule.min_value:
-                return rule.error_message
-            if rule.max_value is not None and diff > rule.max_value:
-                return rule.error_message
-        except (TypeError, ValueError):
-            return rule.error_message
-        return None
-
-    if rule.type == "ratio_check":
-        # field_a / field_b within range — LTV, occupancy rate, NRW%
-        if not rule.ratio_numerator or not rule.ratio_denominator:
-            logger.warning("ratio_check rule '%s' missing ratio_numerator or ratio_denominator", rule.name)
-            return None
-        rec = record or {}
-        try:
-            num = float(rec.get(rule.ratio_numerator, 0) or 0)
-            den = float(rec.get(rule.ratio_denominator, 0) or 0)
-            if den == 0:
-                return rule.error_message
-            ratio = num / den
-            if rule.min_value is not None and ratio < rule.min_value:
-                return rule.error_message
-            if rule.max_value is not None and ratio > rule.max_value:
-                return rule.error_message
-        except (TypeError, ValueError, ZeroDivisionError):
-            return rule.error_message
-        return None
-
-    if rule.type == "conditional_lookup":
-        # Lookup list depends on the value of another field.
-        # Uses: condition_field, lookup_map (in rule.lookup_file as JSON path or inline)
-        # For now: route to lookup with the condition already handled by _check_condition.
-        # The YAML pattern uses multiple rules with condition blocks.
-        # This type is an alias that documents intent.
-        # Fall through to lookup logic:
-        if not rule.lookup_file:
-            logger.warning("conditional_lookup rule '%s' missing lookup_file", rule.name)
-            return None
-        if value is None:
-            return rule.error_message
-        try:
-            if rule.lookup_file.startswith("http://") or rule.lookup_file.startswith("https://"):
-                ttl = rule.cache_ttl if rule.cache_ttl is not None else _HTTP_LOOKUP_DEFAULT_TTL
-                valid_values = _load_http_lookup_set(rule.lookup_file, rule.lookup_field or "", ttl, auth_header=rule.lookup_auth_header)
-            else:
-                valid_values = _load_lookup_set(rule.lookup_file, rule.lookup_field or "")
-        except (FileNotFoundError, KeyError, OSError, RuntimeError) as exc:
-            logger.error("conditional_lookup rule '%s' could not load '%s': %s", rule.name, rule.lookup_file, exc)
-            return rule.error_message
-        if str(value) not in valid_values:
-            return rule.error_message
-        return None
-
-    if rule.type == "geospatial_bounds":
-        # Validates that a lat/lon pair falls within a bounding box.
-        # The field being checked is treated as latitude.
-        # rule.geo_lon_field contains the longitude field name.
-        if value is None:
-            return rule.error_message
-        rec = record or {}
-        try:
-            lat = float(value)
-
-            # Check latitude bounds
-            if rule.geo_min_lat is not None and lat < rule.geo_min_lat:
-                return rule.error_message
-            if rule.geo_max_lat is not None and lat > rule.geo_max_lat:
-                return rule.error_message
-
-            # Check longitude bounds if lon_field specified
-            if rule.geo_lon_field:
-                lon_val = rec.get(rule.geo_lon_field)
-                if lon_val is None:
-                    return rule.error_message
-                lon = float(lon_val)
-                if rule.geo_min_lon is not None and lon < rule.geo_min_lon:
-                    return rule.error_message
-                if rule.geo_max_lon is not None and lon > rule.geo_max_lon:
-                    return rule.error_message
-
-            # Basic validity: lat in [-90, 90], lon in [-180, 180]
-            if not (-90 <= lat <= 90):
-                return rule.error_message
-            if rule.geo_lon_field:
-                lon_val = rec.get(rule.geo_lon_field)
-                if lon_val is not None:
-                    lon = float(lon_val)
-                    if not (-180 <= lon <= 180):
-                        return rule.error_message
-        except (TypeError, ValueError):
-            return rule.error_message
-        return None
-
-    if rule.type == "age_match":
-        if not rule.dob_field:
-            logger.warning("age_match rule '%s' missing dob_field", rule.name)
-            return None
-        if value is None:
-            return rule.error_message
-        dob_val = (record or {}).get(rule.dob_field)
-        if dob_val is None:
-            return None  # dob_required covers absence
-        try:
-            declared = int(float(value))
-            dob = datetime.strptime(str(dob_val), "%Y-%m-%d")
-            today = datetime.now(timezone.utc)
-            computed = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-            tol = rule.age_tolerance if rule.age_tolerance is not None else 0
-            if not (computed - tol <= declared <= computed):
-                return rule.error_message
-        except (TypeError, ValueError):
-            return rule.error_message
-        return None
-
-    if rule.type not in ("not_empty", "regex", "min", "max", "range", "min_length",
-                          "max_length", "date_format", "unique", "compare",
-                          "required_if", "lookup", "allowed_values", "checksum", "cross_field_range",
-                          "field_sum", "forbidden_if", "conditional_value",
-                          "date_diff", "ratio_check", "conditional_lookup",
-                          "geospatial_bounds", "age_match"):
+    handler = _RULE_HANDLERS.get(rule.type)
+    if handler is None:
         logger.warning("Unknown rule type '%s' for rule '%s'", rule.type, rule.name)
-
-    return None
+        return None
+    return handler(value, rule, record)
 
 
 def _check_lookup_path_safe(file_path: str) -> Path:
@@ -1104,18 +1131,15 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
             # Unique within groups — duplicates within same group_by values
             valid_cols = [g for g in rule.group_by if g in df.columns]
             if valid_cols:
-                # Fall back to Python for grouped unique (DuckDB group_by with dynamic cols)
+                # Single-pass grouping — O(n) instead of O(n²)
+                groups: dict[tuple, list[int]] = defaultdict(list)
                 for idx in range(len(df)):
-                    val = df[field].iloc[idx]
+                    field_val = str(df[field].iloc[idx])
                     group_key = tuple(str(df[g].iloc[idx]) if g in df.columns else "" for g in rule.group_by)
-                    # Count how many records have same field value within same group
-                    count = sum(
-                        1 for j in range(len(df))
-                        if str(df[field].iloc[j]) == str(val) and
-                           tuple(str(df[g].iloc[j]) if g in df.columns else "" for g in rule.group_by) == group_key
-                    )
-                    if count > 1:
-                        failing.add(idx)
+                    groups[(group_key, field_val)].append(idx)
+                for indices in groups.values():
+                    if len(indices) > 1:
+                        failing.update(indices)
             else:
                 # Fall back to global unique if no valid group_by cols
                 dup_query = f"""
