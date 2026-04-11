@@ -25,7 +25,7 @@ from unittest.mock import MagicMock, patch
 # ── make project root importable ──────────────────────────────────────────────
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.onboarding import (
+from opendqv.core.onboarding import (
     OnboardingWizard,
     _API_LOCK,
 )
@@ -55,7 +55,7 @@ def _make_wizard(tmp_path: Path) -> OnboardingWizard:
 def _cleanup(foreign_proc=None) -> None:
     """Kill any spawned uvicorn procs, remove lock file."""
     try:
-        subprocess.run(["pkill", "-f", "uvicorn main:app"],
+        subprocess.run(["pkill", "-f", "uvicorn opendqv.main:app"],
                        capture_output=True)
     except FileNotFoundError:
         pass

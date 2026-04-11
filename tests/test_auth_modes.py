@@ -13,7 +13,7 @@ config.AUTH_MODE on each request, not at import time).
 """
 import pytest
 from unittest.mock import patch
-import config
+import opendqv.config as config
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -50,7 +50,7 @@ class TestExplainAuthMode:
         """/explain must be accessible without a token when EXPLAIN_PUBLIC=true,
         regardless of AUTH_MODE."""
         with patch.object(config, 'AUTH_MODE', 'token'):
-            with patch("api.deps.EXPLAIN_PUBLIC", True):
+            with patch("opendqv.api.deps.EXPLAIN_PUBLIC", True):
                 resp = _no_auth(client, "GET", "/api/v1/contracts/customer/explain")
         assert resp.status_code == 200, (
             f"EXPLAIN_PUBLIC=true should allow unauthenticated access but got {resp.status_code}"
@@ -177,7 +177,7 @@ class TestAuthDirectFunctions:
 
     async def test_open_mode_invalid_bearer_token_falls_back_to_anonymous(self):
         """Open mode: invalid Bearer → InvalidTokenError caught, returns anonymous (lines 170-171)."""
-        from security.auth import get_current_user
+        from opendqv.security.auth import get_current_user
         with patch.object(config, 'AUTH_MODE', 'open'):
             result = await get_current_user("Bearer THIS_IS_NOT_A_VALID_JWT")
         assert result == "anonymous"
@@ -185,7 +185,7 @@ class TestAuthDirectFunctions:
     async def test_token_mode_non_bearer_header_raises_401(self):
         """Token mode: auth header not starting with 'Bearer ' → 401 (line 178)."""
         from fastapi import HTTPException
-        from security.auth import get_current_user
+        from opendqv.security.auth import get_current_user
         with patch.object(config, 'AUTH_MODE', 'token'):
             with pytest.raises(HTTPException) as exc_info:
                 await get_current_user("Basic dXNlcjpwYXNz")
@@ -193,21 +193,21 @@ class TestAuthDirectFunctions:
 
     async def test_get_current_role_no_auth_returns_validator(self):
         """Token mode: no auth header → least-privileged 'validator' role (line 215)."""
-        from security.auth import get_current_role
+        from opendqv.security.auth import get_current_role
         with patch.object(config, 'AUTH_MODE', 'token'):
             result = await get_current_role(None)
         assert result == "validator"
 
     async def test_get_current_role_non_bearer_returns_validator(self):
         """Token mode: non-Bearer header → 'validator' role (line 215)."""
-        from security.auth import get_current_role
+        from opendqv.security.auth import get_current_role
         with patch.object(config, 'AUTH_MODE', 'token'):
             result = await get_current_role("Basic dXNlcjpwYXNz")
         assert result == "validator"
 
     async def test_get_current_role_invalid_jwt_returns_validator(self):
         """Token mode: invalid JWT → InvalidTokenError caught, returns 'validator' (lines 221-222)."""
-        from security.auth import get_current_role
+        from opendqv.security.auth import get_current_role
         with patch.object(config, 'AUTH_MODE', 'token'):
             result = await get_current_role("Bearer NOT_A_VALID_JWT")
         assert result == "validator"

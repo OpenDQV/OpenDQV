@@ -1,7 +1,7 @@
 """Tests for CSVW, OTel, and NDC importers."""
-from core.importers.csvw import import_csvw, csvw_to_yaml
-from core.importers.otel import import_otel, otel_to_yaml
-from core.importers.ndc import import_ndc, generate_ndc_rules
+from opendqv.core.importers.csvw import import_csvw, csvw_to_yaml
+from opendqv.core.importers.otel import import_otel, otel_to_yaml
+from opendqv.core.importers.ndc import import_ndc, generate_ndc_rules
 
 
 class TestCSVWImporter:
@@ -238,7 +238,7 @@ class TestNDCImporter:
 
     def test_yaml_output(self):
         import yaml
-        from core.importers.ndc import ndc_to_yaml
+        from opendqv.core.importers.ndc import ndc_to_yaml
         result = ndc_to_yaml({"fields": ["ndc_code"]}, "pharma_test")
         parsed = yaml.safe_load(result)
         assert parsed["contract"]["name"] == "pharma_test"

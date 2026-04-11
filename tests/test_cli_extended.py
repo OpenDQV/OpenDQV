@@ -23,7 +23,7 @@ import yaml
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-import cli as cli_module  # noqa: E402
+import opendqv.cli as cli_module  # noqa: E402
 
 CONTRACTS_SRC = PROJECT_ROOT / "contracts"
 SAMPLE_DIR = PROJECT_ROOT / "tests" / "sample_data"
@@ -555,7 +555,7 @@ class TestCmdAuditVerifyDirect:
 
     def test_audit_verify_with_valid_history(self, tmp_path):
         """Audit-verify with actual history entries — covers lines 689-741."""
-        from core.contracts import _compute_entry_hash
+        from opendqv.core.contracts import _compute_entry_hash
         db_path, conn = self._make_db(tmp_path)
 
         genesis = "0" * 64

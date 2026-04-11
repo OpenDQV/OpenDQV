@@ -2,9 +2,9 @@
 
 import json
 import os
-from core.rule_parser import Rule
-from core.validator import validate_record, validate_batch
-from core.trace_log import verify_trace_log
+from opendqv.core.rule_parser import Rule
+from opendqv.core.validator import validate_record, validate_batch
+from opendqv.core.trace_log import verify_trace_log
 
 
 class TestTraceLogDisabled:
@@ -27,7 +27,7 @@ class TestTraceLogEnabled:
         monkeypatch.setenv("OPENDQV_TRACE_LOG", "true")
         monkeypatch.setenv("OPENDQV_TRACE_LOG_PATH", str(log_file))
         # Reset the hash state for this path
-        from core import trace_log
+        from opendqv.core import trace_log
         trace_log._trace_last_hash.clear()
 
         rule = Rule(name="r", type="not_empty", field="name", error_message="Required")
@@ -46,7 +46,7 @@ class TestTraceLogEnabled:
         log_file = tmp_path / "trace.jsonl"
         monkeypatch.setenv("OPENDQV_TRACE_LOG", "true")
         monkeypatch.setenv("OPENDQV_TRACE_LOG_PATH", str(log_file))
-        from core import trace_log
+        from opendqv.core import trace_log
         trace_log._trace_last_hash.clear()
 
         rules = [
@@ -68,7 +68,7 @@ class TestTraceLogEnabled:
         log_file = tmp_path / "trace.jsonl"
         monkeypatch.setenv("OPENDQV_TRACE_LOG", "true")
         monkeypatch.setenv("OPENDQV_TRACE_LOG_PATH", str(log_file))
-        from core import trace_log
+        from opendqv.core import trace_log
         trace_log._trace_last_hash.clear()
 
         rule = Rule(name="r", type="not_empty", field="id", error_message="Required")
@@ -83,7 +83,7 @@ class TestTraceLogEnabled:
         log_file = tmp_path / "trace.jsonl"
         monkeypatch.setenv("OPENDQV_TRACE_LOG", "true")
         monkeypatch.setenv("OPENDQV_TRACE_LOG_PATH", str(log_file))
-        from core import trace_log
+        from opendqv.core import trace_log
         trace_log._trace_last_hash.clear()
 
         rule = Rule(name="r", type="not_empty", field="id", error_message="Required")
@@ -105,7 +105,7 @@ class TestTraceLogEnabled:
         log_file = tmp_path / "trace.jsonl"
         monkeypatch.setenv("OPENDQV_TRACE_LOG", "true")
         monkeypatch.setenv("OPENDQV_TRACE_LOG_PATH", str(log_file))
-        from core import trace_log
+        from opendqv.core import trace_log
         trace_log._trace_last_hash.clear()
 
         rule = Rule(name="r", type="not_empty", field="id", error_message="Required")
@@ -125,7 +125,7 @@ class TestTraceLogHMAC:
 
     def _write_entries(self, log_file, monkeypatch, hmac_key=None, count=3):
         """Helper: write N trace entries with optional HMAC key."""
-        from core import trace_log
+        from opendqv.core import trace_log
         trace_log._trace_last_hash.clear()
         monkeypatch.setenv("OPENDQV_TRACE_LOG", "true")
         monkeypatch.setenv("OPENDQV_TRACE_LOG_PATH", str(log_file))
@@ -134,8 +134,8 @@ class TestTraceLogHMAC:
         else:
             monkeypatch.delenv("OPENDQV_TRACE_HMAC_KEY", raising=False)
 
-        from core.rule_parser import Rule
-        from core.validator import validate_record
+        from opendqv.core.rule_parser import Rule
+        from opendqv.core.validator import validate_record
         rule = Rule(name="r", type="not_empty", field="id", error_message="Required")
         for i in range(count):
             validate_record({"id": str(i)}, [rule], contract_name="test", record_index=i)
@@ -202,11 +202,11 @@ class TestTraceLogHMAC:
         monkeypatch.delenv("OPENDQV_TRACE_HMAC_KEY", raising=False)
 
         # Re-import trace_log module to trigger the module-level warning check
-        import core.trace_log as tl_mod
-        with caplog.at_level(logging.WARNING, logger="core.trace_log"):
+        import opendqv.core.trace_log as tl_mod
+        with caplog.at_level(logging.WARNING, logger="opendqv.core.trace_log"):
             # Call the check function manually since module was already loaded
             import logging as _logging
-            _logger = _logging.getLogger("core.trace_log")
+            _logger = _logging.getLogger("opendqv.core.trace_log")
             if tl_mod._is_enabled() and not (os.environ.get("OPENDQV_TRACE_HMAC_KEY") or tl_mod._TRACE_HMAC_KEY):
                 _logger.warning(
                     "TRACE_LOG is enabled but OPENDQV_TRACE_HMAC_KEY is not set. "
@@ -245,12 +245,12 @@ class TestTraceLogRotation:
         # Set a very small max size so rotation triggers immediately
         monkeypatch.setenv("OPENDQV_TRACE_LOG_MAX_SIZE_MB", "0")
 
-        from core import trace_log as tl
+        from opendqv.core import trace_log as tl
         tl._trace_last_hash.clear()
 
         # Write enough entries that _rotate_if_needed fires
-        from core.rule_parser import Rule
-        from core.validator import validate_record
+        from opendqv.core.rule_parser import Rule
+        from opendqv.core.validator import validate_record
         rule = Rule(name="r", type="not_empty", field="id", error_message="Required")
 
         # Write entries; each triggers rotation attempt since max_size=0*1MB=0 bytes
@@ -268,11 +268,11 @@ class TestTraceLogRotation:
         monkeypatch.setenv("OPENDQV_TRACE_LOG_PATH", str(log_file))
         monkeypatch.setenv("OPENDQV_TRACE_LOG_MAX_SIZE_MB", "0")
 
-        from core import trace_log as tl
+        from opendqv.core import trace_log as tl
         tl._trace_last_hash.clear()
 
-        from core.rule_parser import Rule
-        from core.validator import validate_record
+        from opendqv.core.rule_parser import Rule
+        from opendqv.core.validator import validate_record
         rule = Rule(name="r", type="not_empty", field="id", error_message="Required")
         for i in range(3):
             validate_record({"id": str(i)}, [rule], contract_name="test", record_index=i)
@@ -307,7 +307,7 @@ class TestTraceLogMissedLines:
     def test_prev_hash_mismatch_in_verify(self, tmp_path, monkeypatch):
         """verify_trace_log returns valid=False when prev_hash doesn't chain (line 239)."""
         import hashlib
-        from core.trace_log import _GENESIS_HASH
+        from opendqv.core.trace_log import _GENESIS_HASH
 
         log_file = tmp_path / "broken_chain.jsonl"
         monkeypatch.delenv("OPENDQV_TRACE_HMAC_KEY", raising=False)
@@ -328,7 +328,7 @@ class TestTraceLogMissedLines:
     def test_hmac_mismatch_in_verify(self, tmp_path, monkeypatch):
         """verify_trace_log returns valid=False when HMAC doesn't match (line 267)."""
         import hashlib
-        from core.trace_log import _GENESIS_HASH
+        from opendqv.core.trace_log import _GENESIS_HASH
 
         log_file = tmp_path / "bad_hmac.jsonl"
         hmac_key = "test-secret"
@@ -351,7 +351,7 @@ class TestTraceLogMissedLines:
     def test_no_key_but_hmac_present_in_log(self, tmp_path, monkeypatch):
         """hmac_all_verified=False when log has hmac field but no key configured (line 280)."""
         import hashlib
-        from core.trace_log import _GENESIS_HASH
+        from opendqv.core.trace_log import _GENESIS_HASH
 
         log_file = tmp_path / "hmac_no_key.jsonl"
         monkeypatch.delenv("OPENDQV_TRACE_HMAC_KEY", raising=False)
@@ -368,7 +368,7 @@ class TestTraceLogMissedLines:
         self._write_raw_entries(log_file, [entry])
 
         # Patch the module-level key too so it's really absent
-        from core import trace_log as tl
+        from opendqv.core import trace_log as tl
         original_key = tl._TRACE_HMAC_KEY
         tl._TRACE_HMAC_KEY = None
         try:
@@ -382,7 +382,7 @@ class TestTraceLogMissedLines:
     def test_pre_hmac_entries_skipped_when_key_set(self, tmp_path, monkeypatch):
         """Key present but no stored hmac → hmac_all_verified=False (line 229)."""
         import hashlib
-        from core.trace_log import _GENESIS_HASH
+        from opendqv.core.trace_log import _GENESIS_HASH
 
         log_file = tmp_path / "pre_hmac.jsonl"
         hmac_key = "some-key"
@@ -399,7 +399,7 @@ class TestTraceLogMissedLines:
         }
         self._write_raw_entries(log_file, [entry])
 
-        from core import trace_log as tl
+        from opendqv.core import trace_log as tl
         original_key = tl._TRACE_HMAC_KEY
         tl._TRACE_HMAC_KEY = hmac_key
         try:
@@ -412,8 +412,8 @@ class TestTraceLogMissedLines:
 
     def test_rotation_with_existing_dot1(self, tmp_path, monkeypatch):
         """Rotation deletes existing .1 before renaming current to .1 (lines 115-118)."""
-        from core import trace_log as tl
-        from core.trace_log import _rotate_if_needed
+        from opendqv.core import trace_log as tl
+        from opendqv.core.trace_log import _rotate_if_needed
 
         log_file = tmp_path / "trace.jsonl"
         # Create log file with some content (> 1 byte)
@@ -436,8 +436,8 @@ class TestTraceLogMissedLines:
 
     def test_rotation_with_multiple_existing_segments(self, tmp_path, monkeypatch):
         """Rotation shifts segment chain .2 → .3, .1 → .2, current → .1 (lines 102-110)."""
-        from core import trace_log as tl
-        from core.trace_log import _rotate_if_needed
+        from opendqv.core import trace_log as tl
+        from opendqv.core.trace_log import _rotate_if_needed
 
         log_file = tmp_path / "trace.jsonl"
         log_file.write_text("current\n" * 10, encoding="utf-8")
@@ -461,15 +461,15 @@ class TestTraceLogMissedLines:
     def test_write_failure_logged(self, tmp_path, monkeypatch):
         """write_trace_entry logs an error when the file write fails (lines 198-199)."""
         from unittest.mock import patch
-        from core.trace_log import write_trace_entry
-        from core import trace_log as tl
+        from opendqv.core.trace_log import write_trace_entry
+        from opendqv.core import trace_log as tl
 
         log_file = tmp_path / "trace_fail.jsonl"
         monkeypatch.setenv("OPENDQV_TRACE_LOG", "true")
         monkeypatch.setenv("OPENDQV_TRACE_LOG_PATH", str(log_file))
         tl._trace_last_hash.clear()
 
-        with patch("core.trace_log.open", side_effect=OSError("disk full")):
+        with patch("opendqv.core.trace_log.open", side_effect=OSError("disk full")):
             # Should not raise — error is caught and logged
             write_trace_entry(
                 contract_name="test",
@@ -486,7 +486,7 @@ class TestTraceLogMissedLines:
     def test_blank_line_in_verify_is_skipped(self, tmp_path, monkeypatch):
         """verify_trace_log skips blank lines without error (line 229 continue)."""
         import hashlib
-        from core.trace_log import _GENESIS_HASH
+        from opendqv.core.trace_log import _GENESIS_HASH
 
         log_file = tmp_path / "blank_line.jsonl"
         monkeypatch.delenv("OPENDQV_TRACE_HMAC_KEY", raising=False)
@@ -511,8 +511,8 @@ class TestTraceLogMissedLines:
 
     def test_rotation_unlinks_existing_dst_before_rename(self, tmp_path):
         """When dst segment exists, it is unlinked before src is renamed (lines 103-106)."""
-        from core import trace_log as tl
-        from core.trace_log import _rotate_if_needed
+        from opendqv.core import trace_log as tl
+        from opendqv.core.trace_log import _rotate_if_needed
 
         log_file = tmp_path / "trace.jsonl"
         log_file.write_text("x" * 100, encoding="utf-8")
@@ -539,8 +539,8 @@ class TestTraceLogMissedLines:
         """OSError from stat() in _rotate_if_needed is swallowed (lines 94-95)."""
         from unittest.mock import patch
         from pathlib import Path
-        from core import trace_log as tl
-        from core.trace_log import _rotate_if_needed
+        from opendqv.core import trace_log as tl
+        from opendqv.core.trace_log import _rotate_if_needed
 
         log_file = tmp_path / "trace.jsonl"
         log_file.write_text("x" * 100, encoding="utf-8")
@@ -563,8 +563,8 @@ class TestTraceLogMissedLines:
     def test_rotation_rename_oserror_logged(self, tmp_path):
         """OSError from rename() during shift loop is logged (lines 109-110)."""
         from unittest.mock import patch
-        from core import trace_log as tl
-        from core.trace_log import _rotate_if_needed
+        from opendqv.core import trace_log as tl
+        from opendqv.core.trace_log import _rotate_if_needed
         from pathlib import Path
 
         log_file = tmp_path / "trace.jsonl"
@@ -593,8 +593,8 @@ class TestTraceLogMissedLines:
         """OSError from dst.unlink() in shift loop is swallowed (lines 105-106)."""
         from unittest.mock import patch
         from pathlib import Path
-        from core import trace_log as tl
-        from core.trace_log import _rotate_if_needed
+        from opendqv.core import trace_log as tl
+        from opendqv.core.trace_log import _rotate_if_needed
 
         log_file = tmp_path / "trace.jsonl"
         log_file.write_text("x" * 100, encoding="utf-8")
@@ -628,8 +628,8 @@ class TestTraceLogMissedLines:
         """
         from unittest.mock import patch
         from pathlib import Path
-        from core import trace_log as tl
-        from core.trace_log import _rotate_if_needed
+        from opendqv.core import trace_log as tl
+        from opendqv.core.trace_log import _rotate_if_needed
 
         log_file = tmp_path / "trace.jsonl"
         log_file.write_text("x" * 100, encoding="utf-8")
@@ -665,8 +665,8 @@ class TestTraceLogMissedLines:
     def test_final_rotation_rename_oserror(self, tmp_path):
         """OSError on the final log_path.rename returns early (lines 121-123)."""
         from unittest.mock import patch
-        from core import trace_log as tl
-        from core.trace_log import _rotate_if_needed
+        from opendqv.core import trace_log as tl
+        from opendqv.core.trace_log import _rotate_if_needed
         from pathlib import Path
 
         log_file = tmp_path / "trace.jsonl"

@@ -1,6 +1,6 @@
 """Tests for geospatial_bounds rule."""
-from core.rule_parser import Rule
-from core.validator import validate_record, validate_batch
+from opendqv.core.rule_parser import Rule
+from opendqv.core.validator import validate_record, validate_batch
 
 
 class TestGeospatialBounds:

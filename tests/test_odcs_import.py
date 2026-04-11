@@ -11,7 +11,7 @@ Covers:
 
 import yaml
 
-from core.importers.odcs import (
+from opendqv.core.importers.odcs import (
     import_odcs,
     odcs_to_yaml,
     export_odcs,

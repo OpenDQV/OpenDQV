@@ -1,9 +1,9 @@
 """Tests for contract lifecycle (DRAFT -> ACTIVE -> ARCHIVED)."""
 
 import pytest
-from api.routes import registry
-from core.rule_parser import ContractStatus
-from core.contracts import DataContract
+from opendqv.api.routes import registry
+from opendqv.core.rule_parser import ContractStatus
+from opendqv.core.contracts import DataContract
 
 
 class TestContractStatus:
@@ -106,7 +106,7 @@ class TestArchivedFilter:
 
     def test_archived_hidden_in_list(self):
         """Test via registry directly to avoid rate limit issues."""
-        from api.routes import registry
+        from opendqv.api.routes import registry
 
         # Save original, set to archived
         contract = registry.get("customer")
@@ -310,9 +310,9 @@ class TestDraftFallback:
         Uses registry directly for status changes to avoid the 10/minute rate-limit on
         the status HTTP endpoint (which can be exhausted by prior lifecycle tests).
         """
-        import config
-        from api.routes import registry
-        from core.rule_parser import ContractStatus
+        import opendqv.config as config
+        from opendqv.api.routes import registry
+        from opendqv.core.rule_parser import ContractStatus
 
         monkeypatch.setattr(config, "STRICT_DRAFT_VALIDATION", True)
 
@@ -353,9 +353,9 @@ class TestDraftFallback:
 
         Uses registry directly for status changes to avoid the 10/minute rate-limit.
         """
-        import config
-        from api.routes import registry
-        from core.rule_parser import ContractStatus
+        import opendqv.config as config
+        from opendqv.api.routes import registry
+        from opendqv.core.rule_parser import ContractStatus
 
         monkeypatch.setattr(config, "STRICT_DRAFT_VALIDATION", False)
 
@@ -445,7 +445,7 @@ _MCP_TEST_RULE = {
 
 def _insert_mcp_draft(name: str, proposed_at=None, description="Test contract", owner="pytest"):
     """Insert a synthetic MCP-sourced draft contract directly into the registry."""
-    from core.contracts import Rule
+    from opendqv.core.contracts import Rule
     contract = DataContract(
         name=name,
         version="1.0",
@@ -527,7 +527,7 @@ class TestPromotionReadiness:
 
     def _insert_draft(self, description="Test", owner="pytest", rules=True):
         from datetime import datetime, timezone
-        from core.contracts import Rule
+        from opendqv.core.contracts import Rule
         contract = DataContract(
             name=self._NAME,
             version="1.0",
@@ -619,7 +619,7 @@ class TestXAuthModeHeader:
 
     def test_add_rule_has_x_auth_mode_header(self, client, editor_headers, approver_headers):
         """POST /contracts/{name}/rules returns X-Auth-Mode header."""
-        from core.contracts import Rule
+        from opendqv.core.contracts import Rule
         contract = DataContract(
             name=self._NAME,
             version="1.0",

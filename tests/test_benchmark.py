@@ -19,9 +19,9 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
-from core.contracts import ContractRegistry
-from core.rule_parser import Rule
-from core.validator import validate_batch, validate_record, _load_lookup_set
+from opendqv.core.contracts import ContractRegistry
+from opendqv.core.rule_parser import Rule
+from opendqv.core.validator import validate_batch, validate_record, _load_lookup_set
 
 
 CONTRACTS_DIR = Path(__file__).parent.parent / "contracts"
@@ -60,7 +60,7 @@ class TestThroughputBaseline:
         """
         _load_lookup_set.cache_clear()
 
-        with patch("config.CONTRACTS_DIR", CONTRACTS_DIR):
+        with patch("opendqv.config.CONTRACTS_DIR", CONTRACTS_DIR):
             registry = ContractRegistry(CONTRACTS_DIR)
             contract = registry.get("universal_benchmark")
             assert contract is not None, "universal_benchmark contract not found"

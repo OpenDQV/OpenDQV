@@ -23,7 +23,7 @@ from unittest.mock import patch
 import pytest
 
 # Path to the cli module
-CLI = [sys.executable, str(Path(__file__).resolve().parent.parent / "cli.py")]
+CLI = [sys.executable, str(Path(__file__).resolve().parent.parent / "opendqv" / "cli.py")]
 
 # Ensure project root is on sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -207,7 +207,7 @@ class TestTraceLogMode:
 
     def test_trace_entry_default_mode(self):
         """write_trace_entry without mode kwarg defaults to enforcement."""
-        from core.trace_log import write_trace_entry
+        from opendqv.core.trace_log import write_trace_entry
         import tempfile
 
         with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False) as f:
@@ -238,7 +238,7 @@ class TestTraceLogMode:
 
     def test_trace_entry_observation_mode(self):
         """write_trace_entry with mode='observation_only' records that mode."""
-        from core.trace_log import write_trace_entry
+        from opendqv.core.trace_log import write_trace_entry
 
         with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False) as f:
             log_path = f.name
@@ -269,7 +269,7 @@ class TestTraceLogMode:
 
     def test_trace_hash_chain_valid_with_mode(self):
         """Hash chain should remain valid when mode field is included."""
-        from core.trace_log import write_trace_entry, verify_trace_log
+        from opendqv.core.trace_log import write_trace_entry, verify_trace_log
 
         with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False) as f:
             log_path = f.name
@@ -320,7 +320,7 @@ class TestObserveOnlyPersistence:
 
     def _latest_mode(self):
         """Query the most recent quality_stats row and return its mode value."""
-        import config
+        import opendqv.config as config
         # Give the async fire-and-forget task time to flush to SQLite
         time.sleep(0.3)
         conn = sqlite3.connect(config.DB_PATH)

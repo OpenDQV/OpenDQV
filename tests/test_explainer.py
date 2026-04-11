@@ -6,8 +6,8 @@ every branch. All functions are pure (no HTTP, no DB, no fixtures).
 """
 import pytest
 
-from core.rule_parser import Rule
-from core.explainer import explain_rule, quick_fix
+from opendqv.core.rule_parser import Rule
+from opendqv.core.explainer import explain_rule, quick_fix
 
 
 def _rule(**kwargs) -> Rule:

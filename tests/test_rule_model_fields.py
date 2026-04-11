@@ -11,8 +11,8 @@ Gaps covered here:
 - lookup_auth_header (HTTP lookup) — passed to HTTP call but header presence untested
 """
 from unittest.mock import patch
-from core.rule_parser import Rule
-from core.validator import validate_record
+from opendqv.core.rule_parser import Rule
+from opendqv.core.validator import validate_record
 
 
 # ── ACT-RMF-001: date_format — rule.format is used first ──────────────────────
@@ -96,7 +96,7 @@ class TestCacheTtlField:
             cache_ttl=300,
             severity="error", error_message="invalid panel",
         )
-        with patch("core.validator._load_http_lookup_set") as mock_load:
+        with patch("opendqv.core.validator._load_http_lookup_set") as mock_load:
             mock_load.return_value = frozenset(["DIGITAL", "STATIC"])
             result = validate_record({"panel_type": "DIGITAL"}, [rule])
 
@@ -111,13 +111,13 @@ class TestCacheTtlField:
 
     def test_default_ttl_used_when_cache_ttl_not_set(self):
         """When cache_ttl is not set, the default TTL constant is used."""
-        from core.validator import _HTTP_LOOKUP_DEFAULT_TTL
+        from opendqv.core.validator import _HTTP_LOOKUP_DEFAULT_TTL
         rule = Rule(
             name="r", type="lookup", field="code",
             lookup_file="https://example.com/codes",
             severity="error", error_message="invalid",
         )
-        with patch("core.validator._load_http_lookup_set") as mock_load:
+        with patch("opendqv.core.validator._load_http_lookup_set") as mock_load:
             mock_load.return_value = frozenset(["A"])
             validate_record({"code": "A"}, [rule])
 
@@ -147,7 +147,7 @@ class TestLookupAuthHeaderField:
             cache_ttl=60,
             severity="error", error_message="not in approved list",
         )
-        with patch("core.validator._load_http_lookup_set") as mock_load:
+        with patch("opendqv.core.validator._load_http_lookup_set") as mock_load:
             mock_load.return_value = frozenset(["ENT-001", "ENT-002"])
             result = validate_record({"entity_id": "ENT-001"}, [rule])
 
@@ -166,7 +166,7 @@ class TestLookupAuthHeaderField:
             cache_ttl=60,
             severity="error", error_message="invalid",
         )
-        with patch("core.validator._load_http_lookup_set") as mock_load:
+        with patch("opendqv.core.validator._load_http_lookup_set") as mock_load:
             mock_load.return_value = frozenset(["X"])
             validate_record({"code": "X"}, [rule])
 

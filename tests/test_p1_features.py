@@ -21,8 +21,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core.rule_parser import Rule
-from core.validator import validate_record, validate_batch
+from opendqv.core.rule_parser import Rule
+from opendqv.core.validator import validate_record, validate_batch
 
 
 # ── P0: compare_to: today / now ──────────────────────────────────────────────
@@ -448,12 +448,12 @@ class TestSensitiveFields:
     """P1 — sensitive_fields on DataContract."""
 
     def test_data_contract_sensitive_fields_default_empty(self):
-        from core.contracts import DataContract
+        from opendqv.core.contracts import DataContract
         dc = DataContract(name="test", rules=[])
         assert dc.sensitive_fields == []
 
     def test_data_contract_sensitive_fields_set(self):
-        from core.contracts import DataContract
+        from opendqv.core.contracts import DataContract
         dc = DataContract(name="test", rules=[], sensitive_fields=["salary", "national_id"])
         assert "salary" in dc.sensitive_fields
         assert "national_id" in dc.sensitive_fields
@@ -466,7 +466,7 @@ class TestREVIEWLifecycle:
 
     def _make_registry(self, tmp_path):
         import yaml
-        from core.contracts import ContractRegistry
+        from opendqv.core.contracts import ContractRegistry
 
         contracts_dir = tmp_path / "contracts"
         contracts_dir.mkdir()
@@ -493,13 +493,13 @@ class TestREVIEWLifecycle:
         # Point the DB at an in-memory store for this test
         os.environ["OPENDQV_DB_PATH"] = ":memory:"
         import importlib
-        import config as _config
+        import opendqv.config as _config
         importlib.reload(_config)
 
         return ContractRegistry(contracts_dir)
 
     def test_submit_for_review(self, tmp_path):
-        from core.rule_parser import ContractStatus
+        from opendqv.core.rule_parser import ContractStatus
         registry = self._make_registry(tmp_path)
         contract = registry.submit_for_review("test_lifecycle", "1.0", "alice@example.com")
         assert contract is not None
@@ -507,7 +507,7 @@ class TestREVIEWLifecycle:
         assert contract.proposed_by == "alice@example.com"
 
     def test_approve_contract(self, tmp_path):
-        from core.rule_parser import ContractStatus
+        from opendqv.core.rule_parser import ContractStatus
         registry = self._make_registry(tmp_path)
         registry.submit_for_review("test_lifecycle", "1.0", "alice@example.com")
         contract = registry.approve_contract("test_lifecycle", "1.0", "bob@example.com")
@@ -516,7 +516,7 @@ class TestREVIEWLifecycle:
         assert contract.approved_by == "bob@example.com"
 
     def test_reject_contract(self, tmp_path):
-        from core.rule_parser import ContractStatus
+        from opendqv.core.rule_parser import ContractStatus
         registry = self._make_registry(tmp_path)
         registry.submit_for_review("test_lifecycle", "1.0", "alice@example.com")
         contract = registry.reject_contract("test_lifecycle", "1.0", "bob@example.com", "Needs revision")
@@ -545,7 +545,7 @@ class TestEngineVersionInResponse:
     """Conference F25 — engine_version present in both single and batch validate responses."""
 
     def test_single_validate_has_engine_version(self, client, auth_headers):
-        import config
+        import opendqv.config as config
         body = {"record": {"email": "a@example.com", "age": 25, "name": "Alice"}, "contract": "customer"}
         r = client.post("/api/v1/validate", json=body, headers=auth_headers)
         assert r.status_code == 200
@@ -554,7 +554,7 @@ class TestEngineVersionInResponse:
         assert data["engine_version"] == config.ENGINE_VERSION
 
     def test_batch_validate_has_engine_version(self, client, auth_headers):
-        import config
+        import opendqv.config as config
         body = {
             "records": [{"email": "a@example.com", "age": 25, "name": "Alice"}],
             "contract": "customer",
@@ -574,7 +574,7 @@ class TestEngineVersionInResponse:
 
     def test_engine_version_constant_matches_pyproject(self):
         import tomllib
-        import config
+        import opendqv.config as config
         pyproject = tomllib.loads(
             (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text()
         )
@@ -638,7 +638,7 @@ class TestAsOf:
 
     def test_as_of_get_as_of_returns_none_for_no_history(self):
         """ContractHistory.get_as_of returns None when no snapshot exists."""
-        from core.contracts import ContractHistory
+        from opendqv.core.contracts import ContractHistory
         import tempfile
         import os
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -695,7 +695,7 @@ class TestFederationSyncStatus:
         assert data["peer_error"] is not None
 
     def test_node_id_matches_config(self, client, auth_headers):
-        import config
+        import opendqv.config as config
         r = client.get("/api/v1/federation/sync-status", headers=auth_headers)
         assert r.json()["opendqv_node_id"] == config.OPENDQV_NODE_ID
 
@@ -711,7 +711,7 @@ class TestSDKContractCache:
         """Successful contract() call writes a JSON file to cache dir."""
         import tempfile
         import json as _json
-        from sdk.client import OpenDQVClient
+        from opendqv.sdk.client import OpenDQVClient
         from unittest.mock import MagicMock
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -745,7 +745,7 @@ class TestSDKContractCache:
         import httpx as _httpx
         import tempfile
         import json as _json
-        from sdk.client import OpenDQVClient
+        from opendqv.sdk.client import OpenDQVClient
         from unittest.mock import MagicMock
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -773,7 +773,7 @@ class TestSDKContractCache:
         """No cache + no API = raises RequestError."""
         import httpx as _httpx
         import tempfile
-        from sdk.client import OpenDQVClient
+        from opendqv.sdk.client import OpenDQVClient
         from unittest.mock import MagicMock
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -791,7 +791,7 @@ class TestSDKContractCache:
     def test_no_cache_dir_does_not_write_files(self, client, auth_headers):
         """Without contract_cache_dir, no files are written anywhere."""
         import tempfile
-        from sdk.client import OpenDQVClient
+        from opendqv.sdk.client import OpenDQVClient
         from unittest.mock import MagicMock
 
         with tempfile.TemporaryDirectory() as tmpdir:

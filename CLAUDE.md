@@ -63,9 +63,9 @@ docker compose -f docker-compose.yml build ui && docker compose up -d --no-deps 
 bash scripts/run_smoke_tests.sh
 
 # CLI
-python -m cli list
-python -m cli show customer
-python -m cli validate customer '{"name":"Alice","age":30}'
+python -m opendqv.cli list
+python -m opendqv.cli show customer
+python -m opendqv.cli validate customer '{"name":"Alice","age":30}'
 ```
 
 ---

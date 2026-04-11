@@ -1,7 +1,7 @@
 """Tests for core/code_generator.py — push-down validation code generation."""
 
 import pytest
-from core.code_generator import generate_code
+from opendqv.core.code_generator import generate_code
 
 
 # ---------------------------------------------------------------------------
@@ -372,7 +372,7 @@ class TestCodeGeneratorEdgeCases:
 
     def test_js_rule_check_default_age_checked(self):
         """Calling _js_rule_check without age_checked initialises it to set() (line 212)."""
-        from core.code_generator import _js_rule_check
+        from opendqv.core.code_generator import _js_rule_check
         result = _js_rule_check({"type": "not_empty", "field": "email", "name": "r"})
         assert isinstance(result, str)
 

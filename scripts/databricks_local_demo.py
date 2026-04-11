@@ -32,7 +32,7 @@ from pathlib import Path
 
 # Ensure project root is on sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from sdk.local import LocalValidator
+from opendqv.sdk.local import LocalValidator
 
 
 # ── Spark session (local mode) ────────────────────────────────────────────────
@@ -144,7 +144,7 @@ def validate_record_udf(record_json: str) -> bool:
     from pathlib import Path
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from sdk.local import LocalValidator
+    from opendqv.sdk.local import LocalValidator
     v = LocalValidator()
     record = json.loads(record_json)
     # Convert numeric string fields back to numbers for validation

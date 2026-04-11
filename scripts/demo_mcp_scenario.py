@@ -21,10 +21,10 @@ from pathlib import Path
 # Project root → importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import config
-from core.contracts import ContractRegistry
-from core.validator import validate_record
-from core.explainer import explain_rule
+from opendqv.core.contracts import ContractRegistry
+from opendqv.core.validator import validate_record
+from opendqv.core.explainer import explain_rule
+from opendqv import config
 
 # ── Colour palette ────────────────────────────────────────────────────
 GREEN  = "\033[32m"

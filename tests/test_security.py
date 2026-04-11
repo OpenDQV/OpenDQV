@@ -24,7 +24,7 @@ from unittest.mock import patch
 
 def _make_rule(**kwargs):
     """Build a minimal Rule-like namespace for tests."""
-    from core.rule_parser import Rule
+    from opendqv.core.rule_parser import Rule
     defaults = dict(
         name="test", type="regex", field="f", pattern=None,
         severity="error", error_message="fail",
@@ -43,14 +43,14 @@ class TestReDosProtection:
 
     def test_normal_pattern_matches(self):
         """Non-pathological patterns still match correctly."""
-        from core.validator import _safe_match
+        from opendqv.core.validator import _safe_match
         compiled = re.compile(r"^\d{4}-\d{2}-\d{2}$")
         assert _safe_match(compiled, "2026-01-15") is True
         assert _safe_match(compiled, "not-a-date") is False
 
     def test_regex_lib_available(self):
         """The `regex` library must be installed for full ReDoS protection."""
-        from core.validator import _HAS_REGEX_LIB
+        from opendqv.core.validator import _HAS_REGEX_LIB
         assert _HAS_REGEX_LIB, (
             "regex library is not installed — ReDoS protection is inactive. "
             "Run: pip install regex>=2024.0.0"
@@ -62,7 +62,7 @@ class TestReDosProtection:
         or (b) not be allowed to run indefinitely. With the regex library and
         a 0.5s timeout this should complete near-instantly (timeout triggers).
         """
-        from core.validator import _safe_match, _HAS_REGEX_LIB
+        from opendqv.core.validator import _safe_match, _HAS_REGEX_LIB
         if not _HAS_REGEX_LIB:
             pytest.skip("regex library not installed")
 
@@ -84,8 +84,8 @@ class TestReDosProtection:
 
     def test_regex_rule_in_validate_record(self, tmp_path):
         """End-to-end: a ReDoS-risky regex in a contract rule does not hang."""
-        from core.validator import validate_record
-        from core.rule_parser import Rule
+        from opendqv.core.validator import validate_record
+        from opendqv.core.rule_parser import Rule
 
         rule = Rule(
             name="redos_test",
@@ -108,13 +108,13 @@ class TestReDosProtection:
 
     def test_safe_match_empty_string(self):
         """Empty strings are handled safely."""
-        from core.validator import _safe_match
+        from opendqv.core.validator import _safe_match
         compiled = re.compile(r"^\w+$")
         assert _safe_match(compiled, "") is False
 
     def test_safe_match_very_long_input(self):
         """Very long but valid input is still matched correctly."""
-        from core.validator import _safe_match
+        from opendqv.core.validator import _safe_match
         compiled = re.compile(r"^[a-z]+$")
         assert _safe_match(compiled, "a" * 1000) is True
 
@@ -127,7 +127,7 @@ class TestPathTraversalProtection:
     """Verify _check_lookup_path_safe() rejects traversal attempts."""
 
     def _safe_checker(self):
-        from core.validator import _check_lookup_path_safe
+        from opendqv.core.validator import _check_lookup_path_safe
         return _check_lookup_path_safe
 
     def test_valid_relative_path(self, tmp_path):
@@ -141,7 +141,7 @@ class TestPathTraversalProtection:
         valid_file = ref_dir / "codes.txt"
         valid_file.write_text("VALUE1\n")
 
-        with patch("config.CONTRACTS_DIR", contracts_dir):
+        with patch("opendqv.config.CONTRACTS_DIR", contracts_dir):
             result = checker("ref/codes.txt")
         assert result == valid_file.resolve()
 
@@ -151,7 +151,7 @@ class TestPathTraversalProtection:
         contracts_dir = tmp_path / "contracts"
         contracts_dir.mkdir()
 
-        with patch("config.CONTRACTS_DIR", contracts_dir):
+        with patch("opendqv.config.CONTRACTS_DIR", contracts_dir):
             with pytest.raises(ValueError, match="path traversal rejected"):
                 checker("../../etc/passwd")
 
@@ -161,7 +161,7 @@ class TestPathTraversalProtection:
         contracts_dir = tmp_path / "contracts"
         contracts_dir.mkdir()
 
-        with patch("config.CONTRACTS_DIR", contracts_dir):
+        with patch("opendqv.config.CONTRACTS_DIR", contracts_dir):
             with pytest.raises(ValueError, match="path traversal rejected"):
                 checker("/etc/shadow")
 
@@ -171,7 +171,7 @@ class TestPathTraversalProtection:
         contracts_dir = tmp_path / "contracts"
         contracts_dir.mkdir()
 
-        with patch("config.CONTRACTS_DIR", contracts_dir):
+        with patch("opendqv.config.CONTRACTS_DIR", contracts_dir):
             with pytest.raises(ValueError, match="path traversal rejected"):
                 checker("ref/../../../etc/passwd")
 
@@ -183,7 +183,7 @@ class TestPathTraversalProtection:
         valid_file = contracts_dir / "codes.txt"
         valid_file.write_text("VALUE1\n")
 
-        with patch("config.CONTRACTS_DIR", contracts_dir):
+        with patch("opendqv.config.CONTRACTS_DIR", contracts_dir):
             result = checker(str(valid_file))
         assert result == valid_file.resolve()
 
@@ -193,25 +193,25 @@ class TestPathTraversalProtection:
         contracts_dir = tmp_path / "contracts"
         contracts_dir.mkdir()
 
-        with patch("config.CONTRACTS_DIR", contracts_dir):
+        with patch("opendqv.config.CONTRACTS_DIR", contracts_dir):
             with pytest.raises((ValueError, TypeError)):
                 checker("ref/codes.txt\x00evil")
 
     def test_load_lookup_set_traversal_rejected(self, tmp_path):
         """_load_lookup_set() rejects path traversal at the entry point."""
-        from core.validator import _load_lookup_set
+        from opendqv.core.validator import _load_lookup_set
         _load_lookup_set.cache_clear()
 
         contracts_dir = tmp_path / "contracts"
         contracts_dir.mkdir()
 
-        with patch("config.CONTRACTS_DIR", contracts_dir):
+        with patch("opendqv.config.CONTRACTS_DIR", contracts_dir):
             with pytest.raises(ValueError, match="path traversal rejected"):
                 _load_lookup_set("../../etc/passwd", "")
 
     def test_load_lookup_set_valid_path(self, tmp_path):
         """_load_lookup_set() reads valid files within CONTRACTS_DIR."""
-        from core.validator import _load_lookup_set
+        from opendqv.core.validator import _load_lookup_set
         _load_lookup_set.cache_clear()
 
         contracts_dir = tmp_path / "contracts"
@@ -221,7 +221,7 @@ class TestPathTraversalProtection:
         codes_file = ref_dir / "status.txt"
         codes_file.write_text("ACTIVE\nINACTIVE\n")
 
-        with patch("config.CONTRACTS_DIR", contracts_dir):
+        with patch("opendqv.config.CONTRACTS_DIR", contracts_dir):
             values = _load_lookup_set("ref/status.txt", "")
 
         assert values == frozenset({"ACTIVE", "INACTIVE"})
@@ -265,10 +265,10 @@ class TestImporterSecurity:
 
         # CSVW doesn't generate lookup_file natively — we test the scan logic
         # by injecting a rule with a traversal lookup_file via direct call
-        from core.importers.csvw import import_csvw
+        from opendqv.core.importers.csvw import import_csvw
         contracts_dir = tmp_path / "contracts"
         contracts_dir.mkdir()
-        with patch("config.CONTRACTS_DIR", contracts_dir):
+        with patch("opendqv.config.CONTRACTS_DIR", contracts_dir):
             # Normal CSVW import should succeed
             csvw_doc = {
                 "url": "data.csv",
@@ -283,40 +283,40 @@ class TestImporterSecurity:
 
     def test_csvw_with_injected_lookup_file_rejected(self, tmp_path, monkeypatch):
         """csvw_to_yaml: if a rule contains a traversal lookup_file, ValueError is raised."""
-        from core.importers.csvw import _scan_rules_for_lookup_file
+        from opendqv.core.importers.csvw import _scan_rules_for_lookup_file
         contracts_dir = tmp_path / "contracts"
         contracts_dir.mkdir()
 
         malicious_rules = [{"lookup_file": "../../etc/passwd", "name": "test", "type": "lookup", "field": "x"}]
-        with patch("config.CONTRACTS_DIR", contracts_dir):
+        with patch("opendqv.config.CONTRACTS_DIR", contracts_dir):
             with pytest.raises(ValueError, match="path traversal"):
                 _scan_rules_for_lookup_file(malicious_rules)
 
     def test_otel_with_injected_lookup_file_rejected(self, tmp_path, monkeypatch):
         """otel_to_yaml: if a rule contains a traversal lookup_file, ValueError is raised."""
-        from core.importers.otel import _scan_rules_for_lookup_file
+        from opendqv.core.importers.otel import _scan_rules_for_lookup_file
         contracts_dir = tmp_path / "contracts"
         contracts_dir.mkdir()
 
         malicious_rules = [{"lookup_file": "../../etc/passwd", "name": "test", "type": "lookup", "field": "x"}]
-        with patch("config.CONTRACTS_DIR", contracts_dir):
+        with patch("opendqv.config.CONTRACTS_DIR", contracts_dir):
             with pytest.raises(ValueError, match="path traversal"):
                 _scan_rules_for_lookup_file(malicious_rules)
 
     def test_ndc_with_injected_lookup_file_rejected(self, tmp_path, monkeypatch):
         """ndc_to_yaml: if a rule contains a traversal lookup_file, ValueError is raised."""
-        from core.importers.ndc import _scan_rules_for_lookup_file
+        from opendqv.core.importers.ndc import _scan_rules_for_lookup_file
         contracts_dir = tmp_path / "contracts"
         contracts_dir.mkdir()
 
         malicious_rules = [{"lookup_file": "../../etc/passwd", "name": "test", "type": "lookup", "field": "x"}]
-        with patch("config.CONTRACTS_DIR", contracts_dir):
+        with patch("opendqv.config.CONTRACTS_DIR", contracts_dir):
             with pytest.raises(ValueError, match="path traversal"):
                 _scan_rules_for_lookup_file(malicious_rules)
 
     def test_safe_lookup_file_accepted(self, tmp_path, monkeypatch):
         """A safe lookup_file within contracts dir is accepted."""
-        from core.importers.csvw import _scan_rules_for_lookup_file
+        from opendqv.core.importers.csvw import _scan_rules_for_lookup_file
         contracts_dir = tmp_path / "contracts"
         contracts_dir.mkdir()
         ref_dir = contracts_dir / "ref"
@@ -325,7 +325,7 @@ class TestImporterSecurity:
         safe_file.write_text("A\nB\n")
 
         safe_rules = [{"lookup_file": "ref/codes.txt", "name": "test", "type": "lookup", "field": "x"}]
-        with patch("config.CONTRACTS_DIR", contracts_dir):
+        with patch("opendqv.config.CONTRACTS_DIR", contracts_dir):
             # Should not raise
             _scan_rules_for_lookup_file(safe_rules)
 
@@ -340,7 +340,7 @@ class TestWebhookSSRFDNSRebinding:
     def test_hostname_resolving_to_private_ip_rejected(self):
         """Hostname that resolves to a private IP is rejected."""
         import socket
-        from core.webhooks import _validate_webhook_url
+        from opendqv.core.webhooks import _validate_webhook_url
 
         # Mock getaddrinfo to return a private IP for the hostname
         private_ip = "192.168.1.100"
@@ -353,7 +353,7 @@ class TestWebhookSSRFDNSRebinding:
     def test_hostname_resolving_to_loopback_rejected(self):
         """Hostname that resolves to loopback (127.x) is rejected."""
         import socket
-        from core.webhooks import _validate_webhook_url
+        from opendqv.core.webhooks import _validate_webhook_url
 
         with patch("socket.getaddrinfo", return_value=[
             (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("127.0.0.1", 0))
@@ -364,7 +364,7 @@ class TestWebhookSSRFDNSRebinding:
     def test_hostname_resolving_to_link_local_rejected(self):
         """Hostname that resolves to link-local (169.254.x) is rejected."""
         import socket
-        from core.webhooks import _validate_webhook_url
+        from opendqv.core.webhooks import _validate_webhook_url
 
         with patch("socket.getaddrinfo", return_value=[
             (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("169.254.169.254", 0))
@@ -375,7 +375,7 @@ class TestWebhookSSRFDNSRebinding:
     def test_dns_resolution_failure_rejects(self):
         """DNS resolution failure (NXDOMAIN etc.) causes URL to be rejected (fail closed)."""
         import socket
-        from core.webhooks import _validate_webhook_url
+        from opendqv.core.webhooks import _validate_webhook_url
 
         with patch("socket.getaddrinfo", side_effect=socket.gaierror("Name or service not known")):
             with pytest.raises(ValueError, match="resolve|DNS|hostname"):
@@ -384,7 +384,7 @@ class TestWebhookSSRFDNSRebinding:
     def test_public_hostname_still_accepted(self):
         """A hostname resolving to a public IP is still accepted."""
         import socket
-        from core.webhooks import _validate_webhook_url
+        from opendqv.core.webhooks import _validate_webhook_url
 
         with patch("socket.getaddrinfo", return_value=[
             (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", 0))  # example.com
@@ -402,7 +402,7 @@ class TestMaskRecordValues:
 
     def test_values_masked_true_mode(self):
         """mask_mode='true' replaces values with [REDACTED]."""
-        from api.routes import _mask_errors
+        from opendqv.api.routes import _mask_errors
         errors = [
             {"field": "nhs_number", "rule": "format", "message": "Invalid", "value": "12345"},
             {"field": "name", "rule": "not_empty", "message": "Required", "value": ""},
@@ -413,7 +413,7 @@ class TestMaskRecordValues:
 
     def test_values_not_masked_false_mode(self):
         """mask_mode='false' passes values through unchanged."""
-        from api.routes import _mask_errors
+        from opendqv.api.routes import _mask_errors
         errors = [{"field": "nhs_number", "rule": "format", "message": "Invalid", "value": "12345"}]
         masked = _mask_errors(errors, mask_mode="false")
         assert masked[0]["value"] == "12345"
@@ -421,7 +421,7 @@ class TestMaskRecordValues:
     def test_values_hashed_hash_mode(self):
         """ACT-005: mask_mode='hash' replaces values with sha256[:12] hex string."""
         import hashlib
-        from api.routes import _mask_errors
+        from opendqv.api.routes import _mask_errors
         errors = [{"field": "email", "rule": "format", "message": "Invalid", "value": "test@example.com"}]
         masked = _mask_errors(errors, mask_mode="hash")
         expected = hashlib.sha256("test@example.com".encode()).hexdigest()[:12]
@@ -430,7 +430,7 @@ class TestMaskRecordValues:
 
     def test_hash_mode_is_deterministic(self):
         """Same value always produces the same hash (deterministic pseudonymisation)."""
-        from api.routes import _mask_errors
+        from opendqv.api.routes import _mask_errors
         errors = [{"field": "f", "rule": "r", "message": "m", "value": "sensitive-data"}]
         result1 = _mask_errors(errors, mask_mode="hash")
         result2 = _mask_errors(errors, mask_mode="hash")
@@ -438,7 +438,7 @@ class TestMaskRecordValues:
 
     def test_hash_mode_different_values_produce_different_hashes(self):
         """Different input values produce different hashes."""
-        from api.routes import _mask_errors
+        from opendqv.api.routes import _mask_errors
         e1 = [{"field": "f", "rule": "r", "message": "m", "value": "value-A"}]
         e2 = [{"field": "f", "rule": "r", "message": "m", "value": "value-B"}]
         h1 = _mask_errors(e1, mask_mode="hash")[0]["value"]
@@ -447,7 +447,7 @@ class TestMaskRecordValues:
 
     def test_validate_endpoint_masks_values(self, client, auth_headers, monkeypatch):
         """POST /validate error response has values masked when MASK_RECORD_VALUES='true'."""
-        import api.deps as routes_module
+        import opendqv.api.deps as routes_module
         monkeypatch.setattr(routes_module, "MASK_RECORD_VALUES", "true")
 
         response = client.post(
@@ -466,7 +466,7 @@ class TestMaskRecordValues:
 
     def test_mask_errors_no_value_key(self):
         """_mask_errors handles dicts without a 'value' key gracefully."""
-        from api.routes import _mask_errors
+        from opendqv.api.routes import _mask_errors
         errors = [{"field": "x", "rule": "r", "message": "m"}]
         masked = _mask_errors(errors, mask_mode="true")
         assert "value" not in masked[0]
@@ -481,7 +481,7 @@ class TestExplainAuth:
 
     def test_explain_requires_auth_by_default(self, client):
         """GET /contracts/{name}/explain returns 401/403 without auth when EXPLAIN_PUBLIC=false."""
-        import api.deps as routes_module
+        import opendqv.api.deps as routes_module
         # Save and restore
         original = getattr(routes_module, "EXPLAIN_PUBLIC", False)
         try:
@@ -505,7 +505,7 @@ class TestExplainAuth:
 
     def test_explain_public_flag_allows_unauthenticated(self, client, monkeypatch):
         """When EXPLAIN_PUBLIC=true, unauthenticated access is allowed."""
-        import api.deps as routes_module
+        import opendqv.api.deps as routes_module
         original = getattr(routes_module, "EXPLAIN_PUBLIC", False)
         try:
             routes_module.EXPLAIN_PUBLIC = True
@@ -540,7 +540,7 @@ class TestFileUploadSizeLimit:
     def test_file_exceeding_limit_returns_413(self, client, auth_headers, monkeypatch):
         """A file exceeding MAX_UPLOAD_MB is rejected with HTTP 413."""
         import io
-        import api.deps as routes_module
+        import opendqv.api.deps as routes_module
 
         # Set a tiny limit (1 byte) to trigger the check
         monkeypatch.setattr(routes_module, "MAX_UPLOAD_MB", 0)  # 0 MB limit means any file fails
@@ -559,7 +559,7 @@ class TestFileUploadSizeLimit:
 
     def test_default_limit_is_10mb(self):
         """Default MAX_UPLOAD_MB is 10."""
-        import api.deps as routes_module
+        import opendqv.api.deps as routes_module
         # The default from os.environ should be 10 if OPENDQV_MAX_UPLOAD_MB is not set
         # We just check the attribute exists and is positive
         assert hasattr(routes_module, "MAX_UPLOAD_MB")
@@ -575,7 +575,7 @@ class TestHealthDetailFlag:
         ACT-046-02 adds auth_mode + secret_key_insecure to the always-returned dict for
         the workbench banner. Extended detail fields (maker_checker_enforced, worker_count)
         remain gated."""
-        import config
+        import opendqv.config as config
         with patch.object(config, "HEALTH_DETAIL", False):
             from fastapi.testclient import TestClient
             from main import app
@@ -596,7 +596,7 @@ class TestHealthDetailFlag:
 
     def test_health_detail_when_flag_true(self):
         """HEALTH_DETAIL=true → /health returns full config details."""
-        import config
+        import opendqv.config as config
         with patch.object(config, "HEALTH_DETAIL", True):
             from fastapi.testclient import TestClient
             from main import app
@@ -618,7 +618,7 @@ class TestTraceLogRotation:
 
     def _write_entry(self, log_path, contract="test", record_index=0):
         """Helper: write one trace entry to log_path."""
-        import core.trace_log as tl
+        import opendqv.core.trace_log as tl
         with patch.dict(os.environ, {
             "OPENDQV_TRACE_LOG": "true",
             "OPENDQV_TRACE_LOG_PATH": str(log_path),
@@ -637,7 +637,7 @@ class TestTraceLogRotation:
 
     def test_no_rotation_below_threshold(self, tmp_path):
         """File below size limit is not rotated."""
-        import core.trace_log as tl
+        import opendqv.core.trace_log as tl
         log_path = tmp_path / "trace.jsonl"
         with patch.object(tl, "_TRACE_MAX_SIZE_BYTES", 10 * 1024 * 1024):
             self._write_entry(log_path)
@@ -647,7 +647,7 @@ class TestTraceLogRotation:
 
     def test_rotation_occurs_when_limit_exceeded(self, tmp_path):
         """File above size limit is rotated to .1 on next write."""
-        import core.trace_log as tl
+        import opendqv.core.trace_log as tl
         log_path = tmp_path / "trace.jsonl"
         # Write a small entry first so the file exists
         self._write_entry(log_path)
@@ -666,7 +666,7 @@ class TestTraceLogRotation:
     def test_rotation_resets_hash_chain(self, tmp_path):
         """New segment after rotation starts from genesis hash (prev_hash all zeros)."""
         import json
-        import core.trace_log as tl
+        import opendqv.core.trace_log as tl
         log_path = tmp_path / "trace.jsonl"
         self._write_entry(log_path)
 
@@ -681,7 +681,7 @@ class TestTraceLogRotation:
 
     def test_old_rotated_segments_verified_independently(self, tmp_path):
         """Rotated .1 segment passes verify_trace_log independently."""
-        import core.trace_log as tl
+        import opendqv.core.trace_log as tl
         log_path = tmp_path / "trace.jsonl"
         self._write_entry(log_path)
 
@@ -696,7 +696,7 @@ class TestTraceLogRotation:
 
     def test_zero_max_size_disables_rotation(self, tmp_path):
         """OPENDQV_TRACE_LOG_MAX_SIZE_MB=0 disables rotation entirely."""
-        import core.trace_log as tl
+        import opendqv.core.trace_log as tl
         log_path = tmp_path / "trace.jsonl"
         self._write_entry(log_path)
         original_size = log_path.stat().st_size
@@ -718,37 +718,37 @@ class TestFieldNameSQLInjection:
 
     def test_safe_field_name_accepted(self):
         """Normal field names are accepted."""
-        from core.rule_parser import Rule
+        from opendqv.core.rule_parser import Rule
         r = Rule(name="r", type="not_empty", field="email", error_message="fail")
         assert r.field == "email"
 
     def test_field_with_double_quote_rejected(self):
         """A field name containing a double-quote is rejected — would break SQL identifier quoting."""
-        from core.rule_parser import Rule
+        from opendqv.core.rule_parser import Rule
         with pytest.raises((ValueError, Exception)):
             Rule(name="r", type="not_empty", field='email"--', error_message="fail")
 
     def test_field_with_backslash_rejected(self):
         """A field name containing a backslash is rejected."""
-        from core.rule_parser import Rule
+        from opendqv.core.rule_parser import Rule
         with pytest.raises((ValueError, Exception)):
             Rule(name="r", type="not_empty", field="email\\x00", error_message="fail")
 
     def test_field_with_semicolon_rejected(self):
         """A field name containing a semicolon is rejected — SQL statement terminator."""
-        from core.rule_parser import Rule
+        from opendqv.core.rule_parser import Rule
         with pytest.raises((ValueError, Exception)):
             Rule(name="r", type="not_empty", field="field;DROP TABLE data--", error_message="fail")
 
     def test_field_with_null_byte_rejected(self):
         """A field name containing a null byte is rejected."""
-        from core.rule_parser import Rule
+        from opendqv.core.rule_parser import Rule
         with pytest.raises((ValueError, Exception)):
             Rule(name="r", type="not_empty", field="field\x00", error_message="fail")
 
     def test_field_with_spaces_and_dots_accepted(self):
         """Field names with spaces and dots are allowed (valid column names)."""
-        from core.rule_parser import Rule
+        from opendqv.core.rule_parser import Rule
         r = Rule(name="r", type="not_empty", field="first name", error_message="fail")
         assert r.field == "first name"
         r2 = Rule(name="r2", type="not_empty", field="address.line1", error_message="fail")
@@ -756,7 +756,7 @@ class TestFieldNameSQLInjection:
 
     def test_field_with_hyphen_accepted(self):
         """Field names with hyphens are allowed."""
-        from core.rule_parser import Rule
+        from opendqv.core.rule_parser import Rule
         r = Rule(name="r", type="not_empty", field="date-of-birth", error_message="fail")
         assert r.field == "date-of-birth"
 
@@ -770,12 +770,12 @@ class TestDefaultSecretKeyWarning:
 
     def test_warning_emitted_with_default_key(self):
         """When SECRET_KEY == default, a WARNING is logged at startup."""
-        import config
+        import opendqv.config as config
         from unittest.mock import patch
 
         default = "change-me-to-a-random-secret-key"
         with patch.object(config, "SECRET_KEY", default):
-            with patch("main.logger") as mock_logger:
+            with patch("opendqv.main.logger") as mock_logger:
                 # Re-run the startup warning check as it would appear in main.py
                 _DEFAULT_SECRET = "change-me-to-a-random-secret-key"
                 if config.SECRET_KEY == _DEFAULT_SECRET:
@@ -790,7 +790,7 @@ class TestDefaultSecretKeyWarning:
 
     def test_no_warning_with_custom_key(self):
         """When SECRET_KEY is custom, no warning for default key is emitted."""
-        import config
+        import opendqv.config as config
         from unittest.mock import patch
 
         custom_key = "a" * 64  # 64-char random key
@@ -878,7 +878,7 @@ class TestContractNameValidation:
     def test_validation_helper_blocks_traversal(self):
         """_validate_contract_name() raises HTTPException for path traversal strings."""
         from fastapi import HTTPException
-        from api.routes import _validate_contract_name
+        from opendqv.api.routes import _validate_contract_name
         with pytest.raises(HTTPException) as exc_info:
             _validate_contract_name("../../etc/passwd")
         assert exc_info.value.status_code == 422
@@ -886,7 +886,7 @@ class TestContractNameValidation:
     @pytest.mark.parametrize("good_name", ["my_contract", "customer-v2", "ACME123", "a" * 100])
     def test_valid_name_not_rejected(self, good_name):
         """Valid contract names must not raise."""
-        from api.routes import _validate_contract_name
+        from opendqv.api.routes import _validate_contract_name
         _validate_contract_name(good_name)  # should not raise
 
 
@@ -899,7 +899,7 @@ class TestAuthEdgeCases:
 
     def test_revoke_by_username(self):
         """revoke_by_username() revokes all tokens for a user."""
-        from security.auth import create_pat, revoke_by_username, _ensure_db
+        from opendqv.security.auth import create_pat, revoke_by_username, _ensure_db
         _ensure_db()
         create_pat("test_user_revoke", role="validator")
         result = revoke_by_username("test_user_revoke")
@@ -908,16 +908,16 @@ class TestAuthEdgeCases:
 
     def test_revoke_by_username_nonexistent_user(self):
         """revoke_by_username() for unknown user returns 0 revoked."""
-        from security.auth import revoke_by_username
+        from opendqv.security.auth import revoke_by_username
         result = revoke_by_username("__no_such_user__")
         assert result["status"] == "revoked"
         assert result["tokens_revoked"] == 0
 
     def test_open_mode_with_valid_token_returns_username(self, client):
         """In open mode, a valid Bearer token extracts the username instead of 'anonymous'."""
-        import config
+        import opendqv.config as config
         from unittest.mock import patch
-        from security.auth import create_pat, _ensure_db
+        from opendqv.security.auth import create_pat, _ensure_db
         _ensure_db()
         tok = create_pat("open_mode_user", role="admin")["token"]
 
@@ -931,7 +931,7 @@ class TestAuthEdgeCases:
 
     def test_get_current_role_no_auth_returns_validator_role(self, client):
         """Unauthenticated request in token mode returns least-privileged role."""
-        import config
+        import opendqv.config as config
         from unittest.mock import patch
         # In token mode, no Authorization header → get_current_role returns "validator"
         # We test this indirectly via an endpoint that checks role
@@ -943,7 +943,7 @@ class TestAuthEdgeCases:
 
     def test_get_current_role_invalid_token_returns_validator(self, client):
         """Invalid Bearer token in token mode → get_current_role returns 'validator'."""
-        import config
+        import opendqv.config as config
         from unittest.mock import patch
         with patch.object(config, "AUTH_MODE", "token"), \
              patch.object(config, "IS_OPEN_MODE", False):

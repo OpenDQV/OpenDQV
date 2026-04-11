@@ -19,23 +19,17 @@ classifiers = [
     "Topic :: Software Development :: Quality Assurance",
 ]
 packages = [
-    { include = "core" },
-    { include = "api" },
-    { include = "security" },
-    { include = "sdk" },
-    { include = "cli.py" },
-    { include = "config.py" },
-    { include = "main.py" },
+    { include = "opendqv" },
 ]
 include = [
-    "core/py.typed",
-    "api/py.typed",
-    "security/py.typed",
-    "sdk/py.typed",
+    "opendqv/core/py.typed",
+    "opendqv/api/py.typed",
+    "opendqv/security/py.typed",
+    "opendqv/sdk/py.typed",
 ]
 
 [tool.poetry.scripts]
-opendqv = "cli:main"
+opendqv = "opendqv.cli:main"
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -90,7 +84,7 @@ omit = [
     "scripts/*",
     "ui/*",
     ".venv/*",
-    "marmot_proxy.py",
+    "opendqv/marmot_proxy.py",
 ]
 
 [tool.coverage.report]

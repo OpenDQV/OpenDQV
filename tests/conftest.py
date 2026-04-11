@@ -36,8 +36,8 @@ os.environ["OPENDQV_CONTRACTS_DIR"] = os.path.join(_tmp_contracts_root, "contrac
 atexit.register(shutil.rmtree, _tmp_contracts_root, ignore_errors=True)
 
 from fastapi.testclient import TestClient
-from main import app
-from security.auth import create_pat
+from opendqv.main import app
+from opendqv.security.auth import create_pat
 
 
 @pytest.fixture(scope="session")

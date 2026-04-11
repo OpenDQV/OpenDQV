@@ -27,8 +27,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.quality_stats import QualityStats
-from core.quality_analytics import QualityAnalytics
+from opendqv.core.quality_stats import QualityStats
+from opendqv.core.quality_analytics import QualityAnalytics
 
 
 # ── Shared fixture: temp SQLite with seeded data ───────────────────────────────

@@ -1,7 +1,7 @@
 """Tests for P3 features: built-in patterns, CLI import-dir."""
 
-from core.rule_parser import Rule
-from core.validator import validate_record
+from opendqv.core.rule_parser import Rule
+from opendqv.core.validator import validate_record
 
 
 class TestBuiltinPatterns:

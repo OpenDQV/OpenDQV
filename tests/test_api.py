@@ -328,7 +328,7 @@ class TestProfileFile:
 
     def test_profile_file_too_large(self, client, auth_headers, monkeypatch):
         import io
-        import api.deps as routes_module
+        import opendqv.api.deps as routes_module
         monkeypatch.setattr(routes_module, "MAX_UPLOAD_MB", 0)
         csv_content = b"a,b\n1,2\n"
         r = client.post(
@@ -416,7 +416,7 @@ class TestTokensExtended:
     def test_generate_token_in_open_mode_downgrades_privileged_role(self, client, admin_headers):
         """IS_OPEN_MODE=True: admin/approver/editor → downgraded to validator (line 43)."""
         from unittest.mock import patch
-        import config
+        import opendqv.config as config
         with patch.object(config, 'IS_OPEN_MODE', True):
             r = client.post("/api/v1/tokens/generate",
                             params={"username": "open_mode_downgrade", "role": "admin"},

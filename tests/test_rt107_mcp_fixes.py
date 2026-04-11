@@ -16,8 +16,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from mcp_server import _tool_get_contract, _tool_get_quality_metrics
-from monitoring import ValidationStats
+from opendqv.mcp_server import _tool_get_contract, _tool_get_quality_metrics
+from opendqv.monitoring import ValidationStats
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

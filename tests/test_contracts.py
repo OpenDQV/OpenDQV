@@ -4,8 +4,8 @@ import pytest
 import yaml
 from pathlib import Path
 from unittest.mock import patch
-from core.contracts import ContractRegistry, DataContract, ContractHistory
-from core.rule_parser import Rule, ContractStatus
+from opendqv.core.contracts import ContractRegistry, DataContract, ContractHistory
+from opendqv.core.rule_parser import Rule, ContractStatus
 
 
 @pytest.fixture
@@ -281,20 +281,20 @@ class TestLoyaltyTierLookup:
 
     def test_loyalty_tier_valid(self, registry):
         """Record with loyalty_tier='gold' passes the lookup rule."""
-        from core.validator import validate_record, _load_lookup_set
+        from opendqv.core.validator import validate_record, _load_lookup_set
         _load_lookup_set.cache_clear()
         rule = self._get_loyalty_rule(registry)
-        with patch("config.CONTRACTS_DIR", self.CONTRACTS_DIR):
+        with patch("opendqv.config.CONTRACTS_DIR", self.CONTRACTS_DIR):
             result = validate_record({"loyalty_tier": "gold"}, [rule], "customer")
         _load_lookup_set.cache_clear()
         assert result["valid"] is True
 
     def test_loyalty_tier_invalid(self, registry):
         """Record with loyalty_tier='platinum' fails — not in allowed list."""
-        from core.validator import validate_record, _load_lookup_set
+        from opendqv.core.validator import validate_record, _load_lookup_set
         _load_lookup_set.cache_clear()
         rule = self._get_loyalty_rule(registry)
-        with patch("config.CONTRACTS_DIR", self.CONTRACTS_DIR):
+        with patch("opendqv.config.CONTRACTS_DIR", self.CONTRACTS_DIR):
             result = validate_record({"loyalty_tier": "platinum"}, [rule], "customer")
         _load_lookup_set.cache_clear()
         assert result["valid"] is False
@@ -302,10 +302,10 @@ class TestLoyaltyTierLookup:
 
     def test_loyalty_tier_absent(self, registry):
         """Record without loyalty_tier passes — the field is optional."""
-        from core.validator import validate_record, _load_lookup_set
+        from opendqv.core.validator import validate_record, _load_lookup_set
         _load_lookup_set.cache_clear()
         rule = self._get_loyalty_rule(registry)
-        with patch("config.CONTRACTS_DIR", self.CONTRACTS_DIR):
+        with patch("opendqv.config.CONTRACTS_DIR", self.CONTRACTS_DIR):
             result = validate_record({}, [rule], "customer")
         _load_lookup_set.cache_clear()
         assert result["valid"] is True
@@ -323,7 +323,7 @@ class TestExplainRule:
         return Rule(**defaults)
 
     def test_min_rule_banking_amount(self):
-        from core.explainer import explain_rule
+        from opendqv.core.explainer import explain_rule
         rule = self._make_rule(name="amount_min", type="min", field="amount", min=0.01)
         result = explain_rule(rule)
         assert result["rule_type"] == "min"
@@ -333,7 +333,7 @@ class TestExplainRule:
         assert any(x is None or (isinstance(x, (int, float)) and x < 0.01) for x in result["invalid_examples"])
 
     def test_not_empty_rule(self):
-        from core.explainer import explain_rule
+        from opendqv.core.explainer import explain_rule
         rule = self._make_rule(type="not_empty", field="email")
         result = explain_rule(rule)
         assert result["rule_type"] == "not_empty"
@@ -342,7 +342,7 @@ class TestExplainRule:
         assert "" in result["invalid_examples"]
 
     def test_max_rule(self):
-        from core.explainer import explain_rule
+        from opendqv.core.explainer import explain_rule
         rule = self._make_rule(type="max", field="age", max=120)
         result = explain_rule(rule)
         assert result["rule_type"] == "max"
@@ -350,7 +350,7 @@ class TestExplainRule:
         assert result["constraint"] == {"max": 120}
 
     def test_range_rule(self):
-        from core.explainer import explain_rule
+        from opendqv.core.explainer import explain_rule
         rule = self._make_rule(type="range", field="score", min=0, max=100)
         result = explain_rule(rule)
         assert result["rule_type"] == "range"
@@ -359,7 +359,7 @@ class TestExplainRule:
         assert result["constraint"]["max"] == 100
 
     def test_email_rule(self):
-        from core.explainer import explain_rule
+        from opendqv.core.explainer import explain_rule
         rule = self._make_rule(type="email", field="email_address")
         result = explain_rule(rule)
         assert result["rule_type"] == "email"
@@ -367,14 +367,14 @@ class TestExplainRule:
         assert None in result["invalid_examples"]
 
     def test_date_format_rule(self):
-        from core.explainer import explain_rule
+        from opendqv.core.explainer import explain_rule
         rule = self._make_rule(type="date_format", field="dob", format="%Y-%m-%d")
         result = explain_rule(rule)
         assert result["rule_type"] == "date_format"
         assert "dob" in result["explanation"]
 
     def test_min_length_rule(self):
-        from core.explainer import explain_rule
+        from opendqv.core.explainer import explain_rule
         rule = self._make_rule(type="min_length", field="name", min_length=2)
         result = explain_rule(rule)
         assert result["rule_type"] == "min_length"
@@ -382,7 +382,7 @@ class TestExplainRule:
         assert result["constraint"] == {"min_length": 2}
 
     def test_lookup_rule(self):
-        from core.explainer import explain_rule
+        from opendqv.core.explainer import explain_rule
         rule = self._make_rule(type="lookup", field="loyalty_tier",
                                lookup_file="contracts/ref/loyalty_tiers.txt")
         result = explain_rule(rule)
@@ -390,7 +390,7 @@ class TestExplainRule:
         assert "loyalty_tiers.txt" in result["explanation"]
 
     def test_unknown_rule_type_falls_back_to_generic(self):
-        from core.explainer import explain_rule
+        from opendqv.core.explainer import explain_rule
         rule = self._make_rule(type="future_rule_type", field="x",
                                error_message="custom message")
         result = explain_rule(rule)

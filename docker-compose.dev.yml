@@ -43,19 +43,12 @@ services:
       - sh
       - -c
       - >-
-        gunicorn main:app -w ${WEB_CONCURRENCY:-1}
+        gunicorn opendqv.main:app -w ${WEB_CONCURRENCY:-1}
         -k uvicorn.workers.UvicornWorker
         --bind 0.0.0.0:8000 --timeout 120 --access-logfile -
     volumes:
-      - ./api:/app/api
-      - ./core:/app/core
-      - ./security:/app/security
+      - ./opendqv:/app/opendqv
       - ./tests:/app/tests
-      - ./sdk:/app/sdk
-      - ./config.py:/app/config.py
-      - ./monitoring.py:/app/monitoring.py
-      - ./main.py:/app/main.py
-      - ./cli.py:/app/cli.py
 
   postgres:
     image: postgres:16-alpine

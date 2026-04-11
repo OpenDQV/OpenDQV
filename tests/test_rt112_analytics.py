@@ -17,9 +17,9 @@ from datetime import datetime, timezone, timedelta
 
 import pytest
 
-from core.quality_stats import QualityStats
-from core.quality_analytics import QualityAnalytics
-from monitoring import ValidationStats
+from opendqv.core.quality_stats import QualityStats
+from opendqv.core.quality_analytics import QualityAnalytics
+from opendqv.monitoring import ValidationStats
 
 
 # ── QualityStats: agent_id persistence ────────────────────────────────

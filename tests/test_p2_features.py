@@ -1,8 +1,8 @@
 """Tests for P2 features: date_diff, ratio_check, conditional_lookup, all_of lookup, semver compare, validate_in_states."""
 
 from unittest.mock import patch
-from core.rule_parser import Rule
-from core.validator import validate_record, validate_batch
+from opendqv.core.rule_parser import Rule
+from opendqv.core.validator import validate_record, validate_batch
 
 
 class TestDateDiff:
@@ -111,11 +111,11 @@ class TestAllOfLookup:
     """P2 — all_of for list-type lookup."""
 
     def test_all_elements_valid_passes(self, tmp_path):
-        from core.validator import _load_lookup_set
+        from opendqv.core.validator import _load_lookup_set
         _load_lookup_set.cache_clear()
         lookup_file = tmp_path / "codes.txt"
         lookup_file.write_text("A\nB\nC\n")
-        with patch("config.CONTRACTS_DIR", tmp_path):
+        with patch("opendqv.config.CONTRACTS_DIR", tmp_path):
             rule = Rule(name="r", type="lookup", field="tags",
                         lookup_file=str(lookup_file),
                         all_of=True,
@@ -125,11 +125,11 @@ class TestAllOfLookup:
         _load_lookup_set.cache_clear()
 
     def test_one_invalid_element_fails(self, tmp_path):
-        from core.validator import _load_lookup_set
+        from opendqv.core.validator import _load_lookup_set
         _load_lookup_set.cache_clear()
         lookup_file = tmp_path / "codes.txt"
         lookup_file.write_text("A\nB\nC\n")
-        with patch("config.CONTRACTS_DIR", tmp_path):
+        with patch("opendqv.config.CONTRACTS_DIR", tmp_path):
             rule = Rule(name="r", type="lookup", field="tags",
                         lookup_file=str(lookup_file),
                         all_of=True,
@@ -165,12 +165,12 @@ class TestValidateInStates:
     """P2 — validate_in_states enforcement."""
 
     def test_data_contract_validate_in_states_default(self):
-        from core.contracts import DataContract
+        from opendqv.core.contracts import DataContract
         dc = DataContract(name="test", rules=[])
         assert "active" in dc.validate_in_states
 
     def test_data_contract_validate_in_states_custom(self):
-        from core.contracts import DataContract
+        from opendqv.core.contracts import DataContract
         dc = DataContract(name="test", rules=[], validate_in_states=["draft", "active"])
         assert "draft" in dc.validate_in_states
         assert "active" in dc.validate_in_states

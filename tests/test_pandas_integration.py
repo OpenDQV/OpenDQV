@@ -11,7 +11,7 @@ See docs/pandas_integration.md for the documented pattern.
 import pandas as pd
 import pytest
 
-from sdk.local import LocalValidator
+from opendqv.sdk.local import LocalValidator
 
 
 @pytest.fixture

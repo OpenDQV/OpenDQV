@@ -2,7 +2,7 @@
 
 import pytest
 
-from core.storage import (
+from opendqv.core.storage import (
     ContractHistoryBackend,
     FederationLogBackend,
     PostgresContractHistoryBackend,
@@ -10,8 +10,8 @@ from core.storage import (
     get_contract_history_backend,
     get_federation_log_backend,
 )
-from core.contracts import ContractHistory, DataContract
-from core.federation import FederationLog
+from opendqv.core.contracts import ContractHistory, DataContract
+from opendqv.core.federation import FederationLog
 
 
 class TestABCConformance:
@@ -111,7 +111,7 @@ class TestFactoryFunctions:
         assert len(events) == 1
 
     def test_postgres_factory_raises_value_error_without_url(self, monkeypatch):
-        import config
+        import opendqv.config as config
         monkeypatch.setattr(config, "DB_BACKEND", "postgres", raising=False)
         monkeypatch.setattr(config, "DB_URL", "", raising=False)
 
@@ -119,7 +119,7 @@ class TestFactoryFunctions:
             get_contract_history_backend()
 
     def test_postgres_federation_factory_raises_without_url(self, monkeypatch):
-        import config
+        import opendqv.config as config
         monkeypatch.setattr(config, "DB_BACKEND", "postgres", raising=False)
         monkeypatch.setattr(config, "DB_URL", "", raising=False)
 

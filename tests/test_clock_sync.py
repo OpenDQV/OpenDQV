@@ -5,7 +5,7 @@ import socket
 from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
 
-from core.clock_sync import check_ntp_skew, _NTP_EPOCH_OFFSET
+from opendqv.core.clock_sync import check_ntp_skew, _NTP_EPOCH_OFFSET
 
 
 def _make_ntp_response(unix_timestamp: float) -> bytes:
@@ -25,7 +25,7 @@ class TestClockSyncResultStructure:
         mock_sock = MagicMock()
         mock_sock.recvfrom.return_value = (_make_ntp_response(now_unix), ("1.2.3.4", 123))
 
-        with patch("core.clock_sync.socket.socket", return_value=mock_sock):
+        with patch("opendqv.core.clock_sync.socket.socket", return_value=mock_sock):
             result = check_ntp_skew()
 
         assert set(result.keys()) == {
@@ -34,7 +34,7 @@ class TestClockSyncResultStructure:
 
     def test_unavailable_result_has_all_keys(self):
         """A network failure also returns all expected keys."""
-        with patch("core.clock_sync.socket.socket", side_effect=socket.timeout):
+        with patch("opendqv.core.clock_sync.socket.socket", side_effect=socket.timeout):
             result = check_ntp_skew()
 
         assert set(result.keys()) == {
@@ -48,7 +48,7 @@ class TestSkewThresholds:
         ntp_unix = now_unix - skew_seconds   # positive skew_seconds → system ahead
         mock_sock = MagicMock()
         mock_sock.recvfrom.return_value = (_make_ntp_response(ntp_unix), ("1.2.3.4", 123))
-        with patch("core.clock_sync.socket.socket", return_value=mock_sock):
+        with patch("opendqv.core.clock_sync.socket.socket", return_value=mock_sock):
             return check_ntp_skew()
 
     def test_small_skew_is_synced(self):
@@ -72,14 +72,14 @@ class TestSkewThresholds:
 class TestNetworkFailure:
     def test_timeout_returns_unavailable(self):
         """socket.timeout → status unavailable, no exception raised."""
-        with patch("core.clock_sync.socket.socket", side_effect=socket.timeout):
+        with patch("opendqv.core.clock_sync.socket.socket", side_effect=socket.timeout):
             result = check_ntp_skew()
         assert result["status"] == "unavailable"
         assert result["ntp_time"] is None
 
     def test_os_error_returns_unavailable(self):
         """OSError (e.g. no route to host) → status unavailable, no exception raised."""
-        with patch("core.clock_sync.socket.socket", side_effect=OSError("no route")):
+        with patch("opendqv.core.clock_sync.socket.socket", side_effect=OSError("no route")):
             result = check_ntp_skew()
         assert result["status"] == "unavailable"
 
@@ -87,7 +87,7 @@ class TestNetworkFailure:
         """Response shorter than 48 bytes → status unavailable."""
         mock_sock = MagicMock()
         mock_sock.recvfrom.return_value = (b"\x00" * 10, ("1.2.3.4", 123))
-        with patch("core.clock_sync.socket.socket", return_value=mock_sock):
+        with patch("opendqv.core.clock_sync.socket.socket", return_value=mock_sock):
             result = check_ntp_skew()
         assert result["status"] == "unavailable"
 
@@ -99,7 +99,7 @@ class TestTimestampFormat:
         mock_sock = MagicMock()
         mock_sock.recvfrom.return_value = (_make_ntp_response(now_unix), ("1.2.3.4", 123))
 
-        with patch("core.clock_sync.socket.socket", return_value=mock_sock):
+        with patch("opendqv.core.clock_sync.socket.socket", return_value=mock_sock):
             result = check_ntp_skew()
 
         dt = datetime.fromisoformat(result["ntp_time"].replace("Z", "+00:00"))
@@ -111,7 +111,7 @@ class TestTimestampFormat:
         mock_sock = MagicMock()
         mock_sock.recvfrom.return_value = (_make_ntp_response(now_unix), ("1.2.3.4", 123))
 
-        with patch("core.clock_sync.socket.socket", return_value=mock_sock):
+        with patch("opendqv.core.clock_sync.socket.socket", return_value=mock_sock):
             result = check_ntp_skew()
 
         dt = datetime.fromisoformat(result["system_time"].replace("Z", "+00:00"))

@@ -4,7 +4,7 @@ import json
 import os
 import pytest
 
-from core.profiler import profile_records
+from opendqv.core.profiler import profile_records
 
 SAMPLE_PATH = os.path.join(os.path.dirname(__file__), "sample_data", "profile_sample.json")
 

@@ -2,8 +2,8 @@
 
 import pytest
 from unittest.mock import patch
-from core.rule_parser import Rule, Severity, parse_rules
-from core.validator import validate_record, validate_batch
+from opendqv.core.rule_parser import Rule, Severity, parse_rules
+from opendqv.core.validator import validate_record, validate_batch
 
 
 class TestRuleParser:
@@ -486,9 +486,9 @@ class TestLookupRules:
     def test_lookup_pass(self, tmp_path):
         f = tmp_path / "ids.txt"
         f.write_text("LGM-UK-00001\nLGM-UK-00002\nLGM-UK-00003\n")
-        from core.validator import _load_lookup_set
+        from opendqv.core.validator import _load_lookup_set
         _load_lookup_set.cache_clear()
-        with patch("config.CONTRACTS_DIR", tmp_path):
+        with patch("opendqv.config.CONTRACTS_DIR", tmp_path):
             rules = [Rule(name="panel_check", type="lookup", field="panel_id",
                           lookup_file=str(f))]
             assert validate_record({"panel_id": "LGM-UK-00001"}, rules)["valid"] is True
@@ -497,9 +497,9 @@ class TestLookupRules:
     def test_lookup_fail(self, tmp_path):
         f = tmp_path / "ids.txt"
         f.write_text("LGM-UK-00001\nLGM-UK-00002\n")
-        from core.validator import _load_lookup_set
+        from opendqv.core.validator import _load_lookup_set
         _load_lookup_set.cache_clear()
-        with patch("config.CONTRACTS_DIR", tmp_path):
+        with patch("opendqv.config.CONTRACTS_DIR", tmp_path):
             rules = [Rule(name="panel_check", type="lookup", field="panel_id",
                           lookup_file=str(f))]
             result = validate_record({"panel_id": "LGM-UK-99999"}, rules)
@@ -510,9 +510,9 @@ class TestLookupRules:
     def test_lookup_csv_pass(self, tmp_path):
         f = tmp_path / "panels.csv"
         f.write_text("panel_id,status\nLGM-UK-00001,active\nLGM-UK-00002,active\n")
-        from core.validator import _load_lookup_set
+        from opendqv.core.validator import _load_lookup_set
         _load_lookup_set.cache_clear()
-        with patch("config.CONTRACTS_DIR", tmp_path):
+        with patch("opendqv.config.CONTRACTS_DIR", tmp_path):
             rules = [Rule(name="panel_check", type="lookup", field="panel_id",
                           lookup_file=str(f), lookup_field="panel_id")]
             assert validate_record({"panel_id": "LGM-UK-00001"}, rules)["valid"] is True
@@ -521,9 +521,9 @@ class TestLookupRules:
     def test_lookup_csv_fail(self, tmp_path):
         f = tmp_path / "panels.csv"
         f.write_text("panel_id,status\nLGM-UK-00001,active\n")
-        from core.validator import _load_lookup_set
+        from opendqv.core.validator import _load_lookup_set
         _load_lookup_set.cache_clear()
-        with patch("config.CONTRACTS_DIR", tmp_path):
+        with patch("opendqv.config.CONTRACTS_DIR", tmp_path):
             rules = [Rule(name="panel_check", type="lookup", field="panel_id",
                           lookup_file=str(f), lookup_field="panel_id")]
             assert validate_record({"panel_id": "LGM-UK-99999"}, rules)["valid"] is False
@@ -532,9 +532,9 @@ class TestLookupRules:
     def test_lookup_missing_file_fails(self, tmp_path):
         # A path outside the contracts directory is rejected as a path traversal attempt,
         # which also results in valid=False (rule fails closed).
-        from core.validator import _load_lookup_set
+        from opendqv.core.validator import _load_lookup_set
         _load_lookup_set.cache_clear()
-        with patch("config.CONTRACTS_DIR", tmp_path):
+        with patch("opendqv.config.CONTRACTS_DIR", tmp_path):
             rules = [Rule(name="panel_check", type="lookup", field="panel_id",
                           lookup_file="/nonexistent/file.txt")]
             result = validate_record({"panel_id": "anything"}, rules)
@@ -546,9 +546,9 @@ class TestLookupRules:
         # Use a not_empty rule alongside lookup to require the field to be present.
         f = tmp_path / "ids.txt"
         f.write_text("LGM-UK-00001\n")
-        from core.validator import _load_lookup_set
+        from opendqv.core.validator import _load_lookup_set
         _load_lookup_set.cache_clear()
-        with patch("config.CONTRACTS_DIR", tmp_path):
+        with patch("opendqv.config.CONTRACTS_DIR", tmp_path):
             rules = [Rule(name="panel_check", type="lookup", field="panel_id",
                           lookup_file=str(f))]
             assert validate_record({"panel_id": None}, rules)["valid"] is True
@@ -557,9 +557,9 @@ class TestLookupRules:
     def test_lookup_batch(self, tmp_path):
         f = tmp_path / "ids.txt"
         f.write_text("AAA\nBBB\nCCC\n")
-        from core.validator import _load_lookup_set
+        from opendqv.core.validator import _load_lookup_set
         _load_lookup_set.cache_clear()
-        with patch("config.CONTRACTS_DIR", tmp_path):
+        with patch("opendqv.config.CONTRACTS_DIR", tmp_path):
             records = [{"code": "AAA"}, {"code": "BBB"}, {"code": "ZZZ"}]
             rules = [Rule(name="r", type="lookup", field="code", lookup_file=str(f))]
             result = validate_batch(records, rules)
@@ -583,12 +583,12 @@ class TestHttpLookupRules:
         return patch("urllib.request.urlopen", return_value=mock_resp)
 
     def setup_method(self):
-        from core.validator import _http_lookup_cache
+        from opendqv.core.validator import _http_lookup_cache
         _http_lookup_cache.clear()
 
     def test_http_lookup_json_array_pass(self):
         import json
-        from core.validator import validate_record
+        from opendqv.core.validator import validate_record
         body = json.dumps(["PANEL_001", "PANEL_002", "PANEL_003"])
         with self._make_mock_urlopen(body):
             rules = [Rule(name="r", type="lookup", field="panel_id",
@@ -598,7 +598,7 @@ class TestHttpLookupRules:
 
     def test_http_lookup_json_array_fail(self):
         import json
-        from core.validator import validate_record
+        from opendqv.core.validator import validate_record
         body = json.dumps(["PANEL_001", "PANEL_002"])
         with self._make_mock_urlopen(body):
             rules = [Rule(name="r", type="lookup", field="panel_id",
@@ -607,7 +607,7 @@ class TestHttpLookupRules:
         assert result["valid"] is False
 
     def test_http_lookup_plain_text_pass(self):
-        from core.validator import validate_record
+        from opendqv.core.validator import validate_record
         body = "PANEL_001\nPANEL_002\nPANEL_003\n"
         with self._make_mock_urlopen(body, content_type="text/plain"):
             rules = [Rule(name="r", type="lookup", field="panel_id",
@@ -618,7 +618,7 @@ class TestHttpLookupRules:
     def test_http_lookup_is_cached(self):
         import json
         from unittest.mock import patch, MagicMock
-        from core.validator import _load_http_lookup_set, _http_lookup_cache
+        from opendqv.core.validator import _load_http_lookup_set, _http_lookup_cache
         _http_lookup_cache.clear()
 
         body = json.dumps(["A", "B"])
@@ -644,7 +644,7 @@ class TestHttpLookupRules:
     def test_http_lookup_network_error_fails_record(self):
         import urllib.error
         from unittest.mock import patch
-        from core.validator import validate_record
+        from opendqv.core.validator import validate_record
         with patch("urllib.request.urlopen",
                    side_effect=urllib.error.URLError("connection refused")):
             rules = [Rule(name="r", type="lookup", field="panel_id",
@@ -656,7 +656,7 @@ class TestHttpLookupRules:
         import json
         import time
         from unittest.mock import patch, MagicMock
-        from core.validator import _load_http_lookup_set, _http_lookup_cache, _HTTP_LOOKUP_DEFAULT_TTL
+        from opendqv.core.validator import _load_http_lookup_set, _http_lookup_cache, _HTTP_LOOKUP_DEFAULT_TTL
         _http_lookup_cache.clear()
 
         body = json.dumps(["X"])
@@ -679,7 +679,7 @@ class TestInheritanceInvariant:
     """Tests for check_inheritance_invariant — the OSS foundation of the federation contract enforcement."""
 
     def _make_inherited_rule(self, **overrides):
-        from core.rule_parser import Rule, Severity
+        from opendqv.core.rule_parser import Rule, Severity
         defaults = dict(
             name="min_age_check",
             field="age",
@@ -695,8 +695,8 @@ class TestInheritanceInvariant:
         return Rule(**defaults)
 
     def test_non_inherited_rule_always_passes(self):
-        from core.contracts import check_inheritance_invariant
-        from core.rule_parser import Rule, Severity
+        from opendqv.core.contracts import check_inheritance_invariant
+        from opendqv.core.rule_parser import Rule, Severity
         base = Rule(name="r", field="f", type="min", min_value=10.0,
                     severity=Severity.ERROR, inherited=False)
         proposed = Rule(name="r", field="f", type="min", min_value=5.0,
@@ -704,14 +704,14 @@ class TestInheritanceInvariant:
         assert check_inheritance_invariant(base, proposed) == []
 
     def test_tightening_is_allowed(self):
-        from core.contracts import check_inheritance_invariant
+        from opendqv.core.contracts import check_inheritance_invariant
         base = self._make_inherited_rule()
         proposed = self._make_inherited_rule(min_value=21.0, error_message="Age must be >= 21")
         assert check_inheritance_invariant(base, proposed) == []
 
     def test_severity_downgrade_rejected(self):
-        from core.contracts import check_inheritance_invariant
-        from core.rule_parser import Severity
+        from opendqv.core.contracts import check_inheritance_invariant
+        from opendqv.core.rule_parser import Severity
         base = self._make_inherited_rule()
         proposed = self._make_inherited_rule(severity=Severity.WARNING)
         violations = check_inheritance_invariant(base, proposed)
@@ -720,7 +720,7 @@ class TestInheritanceInvariant:
         assert "global" in violations[0]
 
     def test_min_lowering_rejected(self):
-        from core.contracts import check_inheritance_invariant
+        from opendqv.core.contracts import check_inheritance_invariant
         base = self._make_inherited_rule()
         proposed = self._make_inherited_rule(min_value=10.0)
         violations = check_inheritance_invariant(base, proposed)
@@ -728,8 +728,8 @@ class TestInheritanceInvariant:
         assert "min" in violations[0]
 
     def test_max_raising_rejected(self):
-        from core.contracts import check_inheritance_invariant
-        from core.rule_parser import Rule, Severity
+        from opendqv.core.contracts import check_inheritance_invariant
+        from opendqv.core.rule_parser import Rule, Severity
         base = Rule(name="r", field="score", type="max", max_value=100.0,
                     severity=Severity.ERROR, severity_floor=Severity.ERROR,
                     inherited=True, provenance={"authority_node": "global", "lsn": 1},
@@ -741,8 +741,8 @@ class TestInheritanceInvariant:
         assert "max" in violations[0]
 
     def test_pattern_alteration_rejected(self):
-        from core.contracts import check_inheritance_invariant
-        from core.rule_parser import Rule, Severity
+        from opendqv.core.contracts import check_inheritance_invariant
+        from opendqv.core.rule_parser import Rule, Severity
         base = Rule(name="r", field="email", type="regex",
                     pattern=r"^[^@]+@[^@]+\.[^@]+$",
                     severity=Severity.ERROR, severity_floor=Severity.ERROR,
@@ -756,7 +756,7 @@ class TestInheritanceInvariant:
         assert "pattern" in violations[0]
 
     def test_type_change_rejected(self):
-        from core.contracts import check_inheritance_invariant
+        from opendqv.core.contracts import check_inheritance_invariant
         base = self._make_inherited_rule(type="min")
         proposed = self._make_inherited_rule(type="range")
         violations = check_inheritance_invariant(base, proposed)
@@ -764,8 +764,8 @@ class TestInheritanceInvariant:
         assert "type" in violations[0]
 
     def test_multiple_violations_returned(self):
-        from core.contracts import check_inheritance_invariant
-        from core.rule_parser import Severity
+        from opendqv.core.contracts import check_inheritance_invariant
+        from opendqv.core.rule_parser import Severity
         base = self._make_inherited_rule(min_value=18.0)
         proposed = self._make_inherited_rule(
             min_value=10.0,
@@ -780,7 +780,7 @@ class TestInheritanceInvariant:
 # Code generator — header content tests
 # ---------------------------------------------------------------------------
 
-from core.code_generator import generate_code  # noqa: E402
+from opendqv.core.code_generator import generate_code  # noqa: E402
 
 
 class TestCodeGeneratorHeaders:

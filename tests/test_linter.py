@@ -2,7 +2,7 @@
 Tests for core/linter.py — contract static analysis.
 """
 
-from core.linter import lint_contract_yaml, LintResult
+from opendqv.core.linter import lint_contract_yaml, LintResult
 
 
 def _lint(yaml_str: str) -> LintResult:

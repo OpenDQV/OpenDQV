@@ -352,8 +352,8 @@ payload = json.dumps({
 }).encode()
 
 # Direct API call (service not running inside the run container, test SDK logic instead)
-from core.validator import validate_batch
-from core.rule_parser import Rule
+from opendqv.core.validator import validate_batch
+from opendqv.core.rule_parser import Rule
 rules = [
     Rule(name='valid_email', type='regex', field='email', pattern=r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+\$'),
     Rule(name='name_required', type='not_empty', field='name'),
@@ -384,10 +384,10 @@ step "18. audit-verify CLI"
 # =============================================================================
 AUDIT=$(docker compose run --rm api bash -c "
 python -c \"
-import config; config.DB_PATH='/tmp/clean_room_audit.db'
-from pathlib import Path; from core.contracts import ContractRegistry
+import opendqv.config as config; config.DB_PATH='/tmp/clean_room_audit.db'
+from pathlib import Path; from opendqv.core.contracts import ContractRegistry
 ContractRegistry(Path('contracts'))
-\" && python -m cli audit-verify --db /tmp/clean_room_audit.db
+\" && python -m opendqv.cli audit-verify --db /tmp/clean_room_audit.db
 " 2>&1) || true
 if echo "$AUDIT" | grep -q "Chain integrity: PASS"; then
   COUNT=$(echo "$AUDIT" | grep -oE 'All [0-9]+ entries' | grep -oE '[0-9]+' || echo "?")
@@ -491,12 +491,12 @@ step "24. Token auth — admin PAT grants access"
 # Docker Compose status lines ("Container X Starting") go to stderr — drop 2>&1
 # so only actual CLI stdout is captured, making JWT extraction reliable on all platforms.
 ADMIN_TOKEN_OUT=$(docker compose exec -T api \
-  python -m cli token-generate smoke-admin --role admin --expiry-days 1 2>/dev/null)
+  python -m opendqv.cli token-generate smoke-admin --role admin --expiry-days 1 2>/dev/null)
 ADMIN_PAT=$(echo "$ADMIN_TOKEN_OUT" | grep -oE 'eyJ[A-Za-z0-9._-]+' | head -1)
 if [ -z "$ADMIN_PAT" ]; then
   fail "Failed to generate admin PAT via exec"
   # Show stderr separately for diagnostics
-  docker compose exec -T api python -m cli token-generate smoke-admin-diag --role admin --expiry-days 1 || true
+  docker compose exec -T api python -m opendqv.cli token-generate smoke-admin-diag --role admin --expiry-days 1 || true
 else
   # Verify against an auth-protected endpoint (POST /validate requires auth in token mode)
   AUTH_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -515,7 +515,7 @@ fi
 step "25. Token auth — validator role blocked from contract activation (maker-checker)"
 # =============================================================================
 VALIDATOR_TOKEN_OUT=$(docker compose exec -T api \
-  python -m cli token-generate smoke-validator --role validator --expiry-days 1 2>/dev/null)
+  python -m opendqv.cli token-generate smoke-validator --role validator --expiry-days 1 2>/dev/null)
 VALIDATOR_PAT=$(echo "$VALIDATOR_TOKEN_OUT" | grep -oE 'eyJ[A-Za-z0-9._-]+' | head -1)
 if [ -z "$VALIDATOR_PAT" ]; then
   fail "Failed to generate validator PAT via exec"
@@ -552,7 +552,7 @@ fi
 # =============================================================================
 step "27. CLI — list contracts + show contract detail"
 # =============================================================================
-CLI_LIST=$(docker compose exec -T api python -m cli list 2>&1) || true
+CLI_LIST=$(docker compose exec -T api python -m opendqv.cli list 2>&1) || true
 if echo "$CLI_LIST" | grep -q "customer" && echo "$CLI_LIST" | grep -q "NAME"; then
   COUNT=$(echo "$CLI_LIST" | grep -c "^[a-z]" || echo "?")
   ok "opendqv list → $COUNT contracts, tabular output with NAME header"
@@ -561,7 +561,7 @@ else
   echo "    $CLI_LIST" | head -5
 fi
 
-CLI_SHOW=$(docker compose exec -T api python -m cli show customer 2>&1) || true
+CLI_SHOW=$(docker compose exec -T api python -m opendqv.cli show customer 2>&1) || true
 if echo "$CLI_SHOW" | grep -q "Contract: customer" && \
    echo "$CLI_SHOW" | grep -q "Owner:" && \
    echo "$CLI_SHOW" | grep -q "RULE"; then
@@ -575,7 +575,7 @@ fi
 # =============================================================================
 step "28. CLI — export-odcs + generate snowflake"
 # =============================================================================
-CLI_ODCS=$(docker compose exec -T api python -m cli export-odcs customer 2>&1) || true
+CLI_ODCS=$(docker compose exec -T api python -m opendqv.cli export-odcs customer 2>&1) || true
 if echo "$CLI_ODCS" | grep -qi "customer" && \
    (echo "$CLI_ODCS" | grep -q "^title\|^name\|^contract\|opendqv" || \
     echo "$CLI_ODCS" | grep -q "version\|owner"); then
@@ -585,7 +585,7 @@ else
   echo "$CLI_ODCS" | head -5
 fi
 
-CLI_GEN=$(docker compose exec -T api python -m cli generate customer snowflake 2>&1) || true
+CLI_GEN=$(docker compose exec -T api python -m opendqv.cli generate customer snowflake 2>&1) || true
 if echo "$CLI_GEN" | grep -q "CREATE OR REPLACE FUNCTION"; then
   ok "opendqv generate customer snowflake → SQL function generated"
 else

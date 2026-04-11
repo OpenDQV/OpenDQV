@@ -15,8 +15,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import mcp_server
-from mcp_server import (
+import opendqv.mcp_server as mcp_server
+from opendqv.mcp_server import (
     _tool_create_contract_draft,
     _tool_explain_error,
     _tool_get_contract,
@@ -237,7 +237,7 @@ async def test_remote_create_contract_draft_with_reload():
     assert "central API" in data["message"]
 
     # Clean up the YAML written to contracts/
-    import config as _cfg
+    import opendqv.config as _cfg
     yaml_path = _cfg.CONTRACTS_DIR / "MCP_remote_test_xyz.yaml"
     if yaml_path.exists():
         yaml_path.unlink()
@@ -264,7 +264,7 @@ async def test_remote_create_contract_draft_reload_failure_graceful():
     assert data["created"] is True
     assert "could not notify" in data["message"]
 
-    import config as _cfg
+    import opendqv.config as _cfg
     yaml_path = _cfg.CONTRACTS_DIR / "MCP_remote_reload_fail_xyz.yaml"
     if yaml_path.exists():
         yaml_path.unlink()

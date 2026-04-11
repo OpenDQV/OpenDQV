@@ -12,8 +12,8 @@ import time
 
 import pytest
 
-from monitoring import ValidationStats
-from core.quality_stats import QualityStats
+from opendqv.monitoring import ValidationStats
+from opendqv.core.quality_stats import QualityStats
 
 
 # ── Per-contract latency ───────────────────────────────────────────────

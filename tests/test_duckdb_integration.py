@@ -11,7 +11,7 @@ See docs/snowflake_integration.md — "Local simulation with DuckDB" section.
 import duckdb
 import pytest
 
-from sdk.local import LocalValidator
+from opendqv.sdk.local import LocalValidator
 
 # Complete customer record — satisfies all rules in contracts/customer.yaml
 _VALID_CUSTOMER = {
