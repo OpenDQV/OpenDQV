@@ -1,6 +1,6 @@
 contract:
   name: social_media_age_compliance
-  version: 1.0.0-draft.392
+  version: "1.0"
   description: Social media user age compliance — age gate, DOB format, and identity
     verification audit trail
   owner: Data Governance Team
