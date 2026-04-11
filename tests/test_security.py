@@ -578,7 +578,7 @@ class TestHealthDetailFlag:
         import opendqv.config as config
         with patch.object(config, "HEALTH_DETAIL", False):
             from fastapi.testclient import TestClient
-            from main import app
+            from opendqv.main import app
             client = TestClient(app)
             resp = client.get("/health")
             assert resp.status_code == 200
@@ -599,7 +599,7 @@ class TestHealthDetailFlag:
         import opendqv.config as config
         with patch.object(config, "HEALTH_DETAIL", True):
             from fastapi.testclient import TestClient
-            from main import app
+            from opendqv.main import app
             client = TestClient(app)
             resp = client.get("/health")
             assert resp.status_code == 200

@@ -403,7 +403,7 @@ class TestExplainErrorAPI:
 
     def test_explain_banking_amount_min(self):
         from fastapi.testclient import TestClient
-        from main import app
+        from opendqv.main import app
         client = TestClient(app)
         resp = client.get("/api/v1/contracts/banking_transaction/explain/amount/amount_min")
         assert resp.status_code == 200
@@ -419,14 +419,14 @@ class TestExplainErrorAPI:
 
     def test_explain_404_unknown_contract(self):
         from fastapi.testclient import TestClient
-        from main import app
+        from opendqv.main import app
         client = TestClient(app)
         resp = client.get("/api/v1/contracts/no_such_contract/explain/field/rule")
         assert resp.status_code == 404
 
     def test_explain_404_unknown_rule(self):
         from fastapi.testclient import TestClient
-        from main import app
+        from opendqv.main import app
         client = TestClient(app)
         resp = client.get("/api/v1/contracts/banking_transaction/explain/amount/no_such_rule")
         assert resp.status_code == 404
@@ -434,7 +434,7 @@ class TestExplainErrorAPI:
     def test_explain_response_shape(self):
         """All required fields present in response."""
         from fastapi.testclient import TestClient
-        from main import app
+        from opendqv.main import app
         client = TestClient(app)
         resp = client.get("/api/v1/contracts/banking_transaction/explain/amount/amount_min")
         assert resp.status_code == 200
