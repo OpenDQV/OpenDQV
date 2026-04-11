@@ -52,7 +52,7 @@ jobs:
           OPENDQV_NODE_ID: 'ci-test-node'
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@e4b2135e04ce45f1007e91e2cc1aab7e39daa219  # v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: OpenDQV/OpenDQV

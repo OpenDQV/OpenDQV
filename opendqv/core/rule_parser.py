@@ -92,6 +92,9 @@ _BUILTIN_PATTERNS = {
 }
 
 
+_UNSAFE_FIELD_CHARS = re.compile(r'["\\\x00;\x01-\x08\x0b-\x1f\x7f]')
+
+
 class Severity(str, Enum):
     ERROR = "error"      # blocks the record
     WARNING = "warning"  # allows but flags
@@ -293,7 +296,6 @@ class Rule(BaseModel):
         # a double-quote character would break the quoting and allow SQL injection.
         # Allow: letters, digits, underscore, hyphen, space, dot (all safe when double-quoted).
         # Reject: double-quote, backslash, null byte, semicolon, and other control chars.
-        _UNSAFE_FIELD_CHARS = re.compile(r'["\\\x00;\x01-\x08\x0b-\x1f\x7f]')
         if _UNSAFE_FIELD_CHARS.search(self.field):
             raise ValueError(
                 f"Rule '{self.name}': field name '{self.field}' contains characters "

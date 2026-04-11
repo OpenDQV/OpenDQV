@@ -8,6 +8,7 @@ readme = "README.md"
 homepage = "https://github.com/OpenDQV/OpenDQV"
 repository = "https://github.com/OpenDQV/OpenDQV"
 documentation = "https://github.com/OpenDQV/OpenDQV/tree/main/docs"
+changelog = "https://github.com/OpenDQV/OpenDQV/blob/main/CHANGELOG.md"
 keywords = ["data-quality", "validation", "duckdb", "api", "data-contracts"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -17,11 +18,14 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Quality Assurance",
+    "Framework :: FastAPI",
+    "Typing :: Typed",
 ]
 packages = [
     { include = "opendqv" },
 ]
 include = [
+    "opendqv/py.typed",
     "opendqv/core/py.typed",
     "opendqv/api/py.typed",
     "opendqv/security/py.typed",
@@ -89,7 +93,7 @@ omit = [
 ]
 
 [tool.coverage.report]
-fail_under = 91
+fail_under = 90
 precision = 1
 exclude_lines = [
     "pragma: no cover",

@@ -67,6 +67,28 @@ from .trace_log import write_trace_entry
 
 logger = logging.getLogger(__name__)
 
+# ── Hot-path constants (allocated once) ─────────────────────────────
+
+_COMPARE_OPS = {
+    "gt": lambda x, y: x > y,
+    "lt": lambda x, y: x < y,
+    "gte": lambda x, y: x >= y,
+    "lte": lambda x, y: x <= y,
+    "eq": lambda x, y: x == y,
+    "neq": lambda x, y: x != y,
+}
+
+
+def _parse_date(v):
+    """Parse a date string into a date object. Supports ISO-8601 variants."""
+    s = str(v).strip()
+    for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%SZ"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    raise ValueError(f"Cannot parse date: {v!r}")
+
 
 def _sanitise_record_keys(record: dict) -> dict:
     """
@@ -470,15 +492,7 @@ def _check_rule(value, rule: Rule, record: Optional[dict] = None) -> Optional[st
                         a, b = str(value), str(other)
                 else:
                     a, b = str(value), str(other)
-        _ops = {
-            "gt": lambda x, y: x > y,
-            "lt": lambda x, y: x < y,
-            "gte": lambda x, y: x >= y,
-            "lte": lambda x, y: x <= y,
-            "eq": lambda x, y: x == y,
-            "neq": lambda x, y: x != y,
-        }
-        op_fn = _ops.get(rule.compare_op)
+        op_fn = _COMPARE_OPS.get(rule.compare_op)
         if op_fn is None:
             logger.warning("compare rule '%s' has unknown compare_op '%s'", rule.name, rule.compare_op)
             return None
@@ -610,15 +624,6 @@ def _check_rule(value, rule: Rule, record: Optional[dict] = None) -> Optional[st
         if other_val is None:
             return rule.error_message
         try:
-            def _parse_date(v):
-                s = str(v).strip()
-                for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%SZ"):
-                    try:
-                        return datetime.strptime(s, fmt).date()
-                    except ValueError:
-                        continue
-                raise ValueError(f"Cannot parse date: {v!r}")
-
             d1 = _parse_date(value)
             d2 = _parse_date(other_val)
             delta = (d1 - d2).days  # signed: positive if d1 is later
@@ -991,6 +996,7 @@ def validate_batch(
     total_warnings = 0
     rule_failure_counts: dict = {}  # rule_name → count of records failing that rule
 
+    fields_validated = [rule.field for rule in rules]
     for i in range(total):
         r = row_results[i]
         valid = len(r["errors"]) == 0
@@ -1009,7 +1015,6 @@ def validate_batch(
         })
 
         # TRACE_LOG — write per-record audit entry if enabled
-        fields_validated = [rule.field for rule in rules]
         failed_rule_fields = [e["field"] for e in r["errors"] + r["warnings"]]
         write_trace_entry(
             contract_name=contract_name,
@@ -1137,15 +1142,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
         if not is_temporal_sentinel and rule.compare_to not in df.columns:
             logger.warning("compare rule '%s' references missing field '%s'", rule.name, rule.compare_to)
         else:
-            _ops = {
-                "gt": lambda a, b: a > b,
-                "lt": lambda a, b: a < b,
-                "gte": lambda a, b: a >= b,
-                "lte": lambda a, b: a <= b,
-                "eq": lambda a, b: a == b,
-                "neq": lambda a, b: a != b,
-            }
-            op_fn = _ops.get(rule.compare_op)
+            op_fn = _COMPARE_OPS.get(rule.compare_op)
             if op_fn:
                 for idx in range(len(df)):
                     a_raw = df[field].iloc[idx]
@@ -1297,14 +1294,6 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
                     failing.add(idx)
                     continue
                 try:
-                    def _parse_date(v):
-                        s = str(v).strip()
-                        for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%SZ"):
-                            try:
-                                return datetime.strptime(s, fmt).date()
-                            except ValueError:
-                                continue
-                        raise ValueError(f"Cannot parse: {v!r}")
                     d1 = _parse_date(val)
                     d2 = _parse_date(other_val)
                     delta = (d1 - d2).days

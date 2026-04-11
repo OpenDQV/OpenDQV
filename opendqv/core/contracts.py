@@ -713,7 +713,6 @@ class ContractRegistry:
             return None
         if contract.status != ContractStatus.DRAFT:
             raise ValueError(f"Only DRAFT contracts can be submitted for review (current: {contract.status.value})")
-        from datetime import datetime, timezone
         contract.status = ContractStatus.REVIEW
         contract.proposed_by = proposed_by
         contract.proposed_at = datetime.now(timezone.utc).isoformat()
@@ -727,7 +726,6 @@ class ContractRegistry:
             return None
         if contract.status != ContractStatus.REVIEW:
             raise ValueError(f"Only REVIEW contracts can be approved (current: {contract.status.value})")
-        from datetime import datetime, timezone
         contract.status = ContractStatus.ACTIVE
         contract.approved_by = approved_by
         contract.approved_at = datetime.now(timezone.utc).isoformat()
@@ -741,7 +739,6 @@ class ContractRegistry:
             return None
         if contract.status != ContractStatus.REVIEW:
             raise ValueError(f"Only REVIEW contracts can be rejected (current: {contract.status.value})")
-        from datetime import datetime, timezone
         contract.status = ContractStatus.DRAFT
         contract.rejected_by = rejected_by
         contract.rejected_at = datetime.now(timezone.utc).isoformat()

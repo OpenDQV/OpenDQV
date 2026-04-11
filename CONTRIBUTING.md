@@ -35,7 +35,7 @@ source .venv/bin/activate
 pip install -r requirements-dev.txt
 
 # Start the API
-uvicorn main:app --reload
+uvicorn opendqv.main:app --reload
 
 # Run tests
 pytest tests/ -v
@@ -52,7 +52,7 @@ docker compose exec api python -m pytest tests/ -v
 ## Running Tests
 
 ```bash
-# Full suite (1,000+ tests)
+# Full suite (3,390+ tests)
 pytest tests/ -v
 
 # Specific test file
@@ -62,7 +62,7 @@ pytest tests/test_core.py -v
 pytest tests/test_api.py::TestValidateSingle -v
 
 # With coverage (if pytest-cov installed)
-pytest tests/ --cov=core --cov=api --cov=sdk -v
+pytest tests/ --cov=opendqv/core --cov=opendqv/api --cov=opendqv/sdk --cov=opendqv/security -v
 ```
 
 ### Test Structure
@@ -81,6 +81,10 @@ pytest tests/ --cov=core --cov=api --cov=sdk -v
 
 Tests use a temporary SQLite database and run with `AUTH_MODE=token` to exercise the full auth path.
 
+### Linting
+
+Run `ruff check .` before submitting a PR. The project uses [Ruff](https://docs.astral.sh/ruff/) for linting and style enforcement. CI will reject PRs with lint errors.
+
 ## Smoke Tests
 
 Pre-release gate — runs the full three-part suite locally with one command:
@@ -89,7 +93,7 @@ Pre-release gate — runs the full three-part suite locally with one command:
 bash scripts/run_smoke_tests.sh
 ```
 
-- **Part 1:** 1,000+ unit tests in a clean Python 3.11 container (`Dockerfile.smoketest`)
+- **Part 1:** 3,390+ unit tests in a clean Python 3.11 container (`Dockerfile.smoketest`)
 - **Part 2:** 42 HTTP checks via Docker Compose — auth modes, write guardrails, CLI, batch upload, webhook SSRF, rate limiting, federation SSE, UI
 - **Part 3:** `pip install .` in a clean container, verifies the `opendqv` CLI entry point
 
@@ -239,8 +243,8 @@ enforces a fixed allowed-values list:
 
 ### Adding a New Rule Type
 
-1. Add the type check in `core/validator.py` -- both `_check_rule()` (single) and `_batch_check_rule()` (batch)
-2. Add code generation in `core/code_generator.py` -- `_generate_salesforce()`, `_js_rule_check()`, and `_generate_snowflake()`
+1. Add the type check in `opendqv/core/validator.py` -- both `_check_rule()` (single) and `_batch_check_rule()` (batch)
+2. Add code generation in `opendqv/core/code_generator.py` -- `_generate_salesforce()`, `_js_rule_check()`, and `_generate_snowflake()`
 3. Add tests in `tests/test_core.py`
 4. Update the Rule Types table in `README.md`
 
@@ -249,9 +253,9 @@ enforces a fixed allowed-values list:
 Importers translate external rule formats (dbt, Great Expectations, CSV rule sheets, etc.) into
 OpenDQV contract YAML. The pattern is consistent across all importers.
 
-Reference implementation: `core/importers/csv_rules.py`
+Reference implementation: `opendqv/core/importers/csv_rules.py`
 
-1. **Create `core/importers/your_format.py`**
+1. **Create `opendqv/core/importers/your_format.py`**
 2. **Define handler functions** — one per rule type your format supports:
    ```python
    def _handle_not_empty(field: str, value: str) -> dict:
@@ -274,7 +278,7 @@ Reference implementation: `core/importers/csv_rules.py`
            "skipped": skipped,
        }
    ```
-5. **Wire into `api/routes.py`** — add an import endpoint following the existing `POST /api/v1/import/csv` pattern
+5. **Wire into `opendqv/api/routes_imports.py`** — add an import endpoint following the existing `POST /api/v1/import/csv` pattern
 6. **Add tests** in `tests/test_importers.py` with a representative sample input
 7. **Add sample input** in `tests/sample_data/` if useful for manual testing
 
@@ -291,7 +295,7 @@ The `skipped` list is important — callers need to know which rules could not b
 
 1. **Create a feature branch** from `main`
 2. **Make your changes** with tests
-3. **Run the full test suite:** `pytest tests/ -v` -- all 1,000+ tests must pass
+3. **Run the full test suite:** `pytest tests/ -v` -- all 3,390+ tests must pass
 4. **Keep PRs focused** on a single change
 5. **Write a clear description** of what changed and why
 
@@ -317,12 +321,12 @@ When filing an issue, include:
 
 For contributors working on the core:
 
-- **`main.py`** -- FastAPI app initialization, wires together router + GraphQL + metrics
-- **`api/routes.py`** -- All REST endpoints. Uses `registry` (set at startup) for contract access.
-- **`core/validator.py`** -- Two paths: `validate_record()` (pure Python, fast) and `validate_batch()` (DuckDB, high throughput). Both return the same result structure.
-- **`core/contracts.py`** -- `ContractRegistry` loads YAML, caches in memory, handles context merging. Supports three YAML formats (contract, legacy, onboarding).
-- **`security/auth.py`** -- JWT tokens stored in SQLite. `get_current_user()` is a FastAPI dependency that checks auth mode.
-- **`monitoring.py`** -- Prometheus metrics via middleware + `ValidationStats` for the dashboard.
+- **`opendqv/main.py`** -- FastAPI app initialization, wires together router + GraphQL + metrics
+- **`opendqv/api/routes.py`** -- REST endpoint entry point. Routes are decomposed into domain-specific modules (`routes_validation.py`, `routes_contracts.py`, `routes_imports.py`, etc.) under `opendqv/api/`; `routes.py` wires them together. Uses `registry` (set at startup) for contract access.
+- **`opendqv/core/validator.py`** -- Two paths: `validate_record()` (pure Python, fast) and `validate_batch()` (DuckDB, high throughput). Both return the same result structure.
+- **`opendqv/core/contracts.py`** -- `ContractRegistry` loads YAML, caches in memory, handles context merging. Supports three YAML formats (contract, legacy, onboarding).
+- **`opendqv/security/auth.py`** -- JWT tokens stored in SQLite. `get_current_user()` is a FastAPI dependency that checks auth mode.
+- **`opendqv/monitoring.py`** -- Prometheus metrics via middleware + `ValidationStats` for the dashboard.
 
 ## Community Response
 
@@ -342,8 +346,8 @@ this" response is better than silence.
 criterion, no auth or validation-engine changes required, and a test that can be written
 in under 30 minutes. Examples: adding a new importer for a format we don't support,
 adding a sample contract for a new domain, improving an error message, adding a missing
-test case for an existing rule type. Do not label issues that touch `core/validator.py`,
-`security/auth.py`, or `api/routes.py` as good first issues.
+test case for an existing rule type. Do not label issues that touch `opendqv/core/validator.py`,
+`opendqv/security/auth.py`, or `opendqv/api/routes.py` as good first issues.
 
 ## High-Sensitivity Files
 
@@ -351,9 +355,9 @@ Changes to the following files require extra care and a higher bar for review:
 
 | File | Why |
 |------|-----|
-| `core/validator.py` | The validation engine. Any change to rule evaluation logic must include a test for the specific case being changed — both a passing and a failing case. Pay particular attention to datetime comparison, checksum algorithms, and batch vs. single-record parity. |
-| `security/auth.py` | Authentication and RBAC. Changes must not weaken token validation, role enforcement, or the revocation mechanism. |
-| `api/routes.py` | All 50 endpoints. ACTIVE contract immutability guards (HTTP 409) must not be relaxed. |
+| `opendqv/core/validator.py` | The validation engine. Any change to rule evaluation logic must include a test for the specific case being changed — both a passing and a failing case. Pay particular attention to datetime comparison, checksum algorithms, and batch vs. single-record parity. |
+| `opendqv/security/auth.py` | Authentication and RBAC. Changes must not weaken token validation, role enforcement, or the revocation mechanism. |
+| `opendqv/api/routes.py` | Route wiring and sub-routers (`routes_*.py`). ACTIVE contract immutability guards (HTTP 409) must not be relaxed. |
 
 If you are unsure whether your change affects these files, open a Discussion before submitting a PR.
 

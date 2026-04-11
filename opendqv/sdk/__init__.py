@@ -18,6 +18,6 @@ Async usage (FastAPI, Kafka consumers):
         result = await client.validate(record, contract="customer")
 """
 
-from .client import AsyncOpenDQVClient, OpenDQVClient
+from .client import AsyncOpenDQVClient, OpenDQVClient, ValidationError
 
-__all__ = ["OpenDQVClient", "AsyncOpenDQVClient"]
+__all__ = ["OpenDQVClient", "AsyncOpenDQVClient", "ValidationError"]

@@ -232,7 +232,7 @@ def cmd_export_gx(args):
     output = json.dumps(suite, indent=2)
 
     if args.output:
-        Path(args.output).write_text(output + "\n")
+        Path(args.output).write_text(output + "\n", encoding="utf-8")
         print(f"Written to {args.output}", file=sys.stderr)
     else:
         print(output)
@@ -264,7 +264,7 @@ def cmd_import_gx(args):
     # Write YAML to contracts dir
     CONTRACTS_DIR.mkdir(parents=True, exist_ok=True)
     out_path = CONTRACTS_DIR / f"{contract_name}.yaml"
-    out_path.write_text(yaml_content)
+    out_path.write_text(yaml_content, encoding="utf-8")
 
     print(f"Contract: {contract_name}")
     print(f"Saved to: {out_path}")
@@ -306,7 +306,7 @@ def cmd_import_dbt(args):
     for name, yaml_content in pairs:
         _validate_contract_name(name)
         out_path = contracts_dir / f"{name}.yaml"
-        out_path.write_text(yaml_content)
+        out_path.write_text(yaml_content, encoding="utf-8")
         print(f"Saved: {out_path}")
     for item in result["contracts"]:
         stats = item["stats"]
@@ -341,7 +341,7 @@ def cmd_import_soda(args):
     for name, yaml_content in pairs:
         _validate_contract_name(name)
         out_path = contracts_dir / f"{name}.yaml"
-        out_path.write_text(yaml_content)
+        out_path.write_text(yaml_content, encoding="utf-8")
         print(f"Saved: {out_path}")
     for item in result["contracts"]:
         stats = item["stats"]
@@ -370,7 +370,7 @@ def cmd_import_csv(args):
     # Write YAML to contracts dir
     CONTRACTS_DIR.mkdir(parents=True, exist_ok=True)
     out_path = CONTRACTS_DIR / f"{contract_name}.yaml"
-    out_path.write_text(yaml_content)
+    out_path.write_text(yaml_content, encoding="utf-8")
 
     print(f"Contract: {contract_name}")
     print(f"Saved to: {out_path}")
@@ -412,7 +412,7 @@ def cmd_import_odcs(args):
 
     CONTRACTS_DIR.mkdir(parents=True, exist_ok=True)
     out_path = CONTRACTS_DIR / f"{contract_name}.yaml"
-    out_path.write_text(yaml_content)
+    out_path.write_text(yaml_content, encoding="utf-8")
 
     print(f"Contract: {contract_name}")
     print(f"Saved to: {out_path}")
@@ -444,7 +444,7 @@ def cmd_export_odcs(args):
     )
 
     if args.output:
-        Path(args.output).write_text(yaml_str)
+        Path(args.output).write_text(yaml_str, encoding="utf-8")
         print(f"Written to {args.output}", file=sys.stderr)
     else:
         print(yaml_str, end="")
@@ -466,7 +466,7 @@ def cmd_export_dbt(args):
     )
 
     if args.output:
-        Path(args.output).write_text(yaml_str)
+        Path(args.output).write_text(yaml_str, encoding="utf-8")
         print(f"Written to {args.output}", file=sys.stderr)
     else:
         print(yaml_str, end="")
