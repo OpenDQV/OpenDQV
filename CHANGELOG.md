@@ -2,6 +2,56 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.2.0] - 2026-04-12 — PICK Sprint: Engine Quality
+
+Systematic code quality sprint using PICK methodology (ease × benefit quadrants).
+32 findings audited, 15 shipped (12 Implement + 3 Challenge), zero regressions.
+
+### Security
+
+- **Removed `yaml.full_load()` fallback** in `core/contracts.py`. The fallback could
+  deserialize arbitrary Python objects (RCE vector). Zero contracts used Python tags.
+  Now raises `RuntimeError` with a clear remediation message. `yaml.safe_load()` only.
+
+### Performance
+
+- **O(n²) → O(n) grouped uniqueness** in `validate_batch()`. Replaced nested loop
+  with single-pass `defaultdict` grouping. Benchmarks: 48× faster at 100 records,
+  954× faster at 2,000 records. 10K records: ~55 min → 0.8s.
+- **Hot-path micro-optimisations** — `_COMPARE_OPS` dict, `_UNSAFE_FIELD_CHARS` regex,
+  and `_parse_date()` hoisted to module level. `fields_validated` moved above batch loop.
+
+### Changed
+
+- **Dispatch table for `_check_rule()`** — 417-line if/elif chain (23 branches)
+  extracted into 23 handler functions + `_RULE_HANDLERS` dispatch dict. Adding a
+  new rule type now requires one function + one dict entry. Hardcoded known-types
+  tuple removed.
+- `ValidationError` exported from `opendqv.sdk` — users of `guard()` decorator can
+  now catch errors without importing from private submodules.
+- PEP 561 `py.typed` marker added at package root (was only in subpackages).
+- PyPI classifiers: `Framework :: FastAPI`, `Typing :: Typed`. Changelog URL added.
+- `codecov-action` pinned to SHA in CI.
+- 8 `write_text()` calls in `cli.py` fixed with `encoding="utf-8"` (Windows compat).
+- 3 redundant local `datetime` imports removed from `contracts.py`.
+
+### Fixed
+
+- **62 broken import paths** across 27 docs files — all `from sdk import` →
+  `from opendqv.sdk import`, all `python -m cli` → `python -m opendqv.cli`.
+  Every pip user following any code example would have hit `ModuleNotFoundError`.
+- `test_cli.py` bare import fixed (`from cli import` → `from opendqv.cli import`).
+- `docs/observation_mode.md` incorrect SDK import path.
+- `docs/quickstart.md` stale download link (v1.0.0 → v2.1.0).
+- `CONTRIBUTING.md` stale paths, test counts, missing ruff section.
+- Removed stale `e2e_audit_test.yaml` contract (zero references, test fixture).
+- Fixed `social_media_age_compliance.yaml` version (draft counter artefact → "1.0").
+
+## [2.1.0] - 2026-04-11 — Namespace Restructure
+
+All code moved under `opendqv/` namespace for proper `pip install opendqv` support.
+`opendqv init` CLI command added. `regex` library promoted to hard dependency.
+
 ## [2.0.0] - 2026-04-07 — First Beta Release
 
 OpenDQV Core graduates from Alpha to **Beta**. No breaking changes from 1.9.8 —
