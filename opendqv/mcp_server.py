@@ -205,7 +205,7 @@ if config.MCP_API_URL:
 # ── MCP server setup ──────────────────────────────────────────────────
 server = Server(
     "OpenDQV",
-    version="1.8.4",
+    version=config.ENGINE_VERSION,
     icons=[
         types.Icon(
             src="https://raw.githubusercontent.com/OpenDQV/OpenDQV/main/docs/assets/opendqv-favicon-128.png",
