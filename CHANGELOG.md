@@ -2,6 +2,12 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.2.2] - 2026-04-12
+
+### Fixed
+
+- MCP server version was hardcoded as `"1.8.4"` — now reads from `config.ENGINE_VERSION` dynamically
+
 ## [2.2.1] - 2026-04-12 — PICK Sprint: Engine Quality
 
 Systematic code quality sprint using PICK methodology (ease × benefit quadrants).
