@@ -2,12 +2,11 @@
   "mcpServers": {
     "OpenDQV": {
       "command": "python3",
-      "args": ["/path/to/OpenDQV/opendqv/mcp_server.py"],
+      "args": ["/path/to/OpenDQV/opendqv_mcp_proxy.py"],
       "env": {
-        "OPENDQV_CONTRACTS_DIR": "/path/to/OpenDQV/contracts",
-        "OPENDQV_AGENT_IDENTITY": "your.email@example.com",
-        "OPENDQV_MCP_API_URL": "http://your-opendqv-host:8000",
-        "OPENDQV_MCP_TOKEN": ""
+        "OPENDQV_API_URL": "http://your-opendqv-host:8000",
+        "OPENDQV_API_TOKEN": "",
+        "OPENDQV_AGENT_IDENTITY": "your.email@example.com"
       }
     }
   }
