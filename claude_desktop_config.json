@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "OpenDQV": {
+      "command": "python3",
+      "args": ["/Users/sunnysharma/Documents/OpenDQV/opendqv/mcp_server.py"],
+      "env": {
+        "OPENDQV_CONTRACTS_DIR": "/Users/sunnysharma/Documents/OpenDQV/contracts",
+        "OPENDQV_AGENT_IDENTITY": "sunny@bgmsconsultants.com",
+        "OPENDQV_MCP_API_URL": "http://sunny-sharma-XPS-13-9360.local:8000",
+        "OPENDQV_MCP_TOKEN": ""
+      }
+    }
+  }
+}
