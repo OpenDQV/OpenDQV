@@ -2,9 +2,9 @@
   "mcpServers": {
     "OpenDQV": {
       "command": "python3",
-      "args": ["/Users/sunnysharma/Documents/OpenDQV/opendqv/mcp_server.py"],
+      "args": ["/path/to/OpenDQV/opendqv/mcp_server.py"],
       "env": {
-        "OPENDQV_CONTRACTS_DIR": "/Users/sunnysharma/Documents/OpenDQV/contracts",
+        "OPENDQV_CONTRACTS_DIR": "/path/to/OpenDQV/contracts",
         "OPENDQV_AGENT_IDENTITY": "your.email@example.com",
         "OPENDQV_MCP_API_URL": "http://your-opendqv-host:8000",
         "OPENDQV_MCP_TOKEN": ""
