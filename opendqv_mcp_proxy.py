@@ -42,8 +42,6 @@ if not API_URL:
     )
     sys.exit(1)
 API_TOKEN = os.environ.get("OPENDQV_API_TOKEN", "")
-AGENT_IDENTITY = os.environ.get("OPENDQV_AGENT_IDENTITY", "")
-
 _client = httpx.Client(
     base_url=API_URL,
     timeout=30.0,
@@ -176,25 +174,8 @@ TOOLS = [
             "required": ["contract"],
         },
     },
-    {
-        "name": "create_contract_draft",
-        "description": (
-            "Create a DRAFT data contract. Contract name MUST start with 'MCP_'. "
-            "Created in DRAFT status — usable immediately for testing but not active "
-            "until a human approves it. The AI proposes, your team disposes."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Contract name. Must start with 'MCP_'."},
-                "description": {"type": "string", "description": "What data this contract validates."},
-                "owner": {"type": "string", "description": "Team or person responsible."},
-                "created_by": {"type": "string", "description": "Identity of the human requesting creation. Falls back to OPENDQV_AGENT_IDENTITY env var."},
-                "rules": {"type": "array", "items": {"type": "object"}, "description": "List of validation rules. Each requires: name, type, field."},
-            },
-            "required": ["name", "description", "owner", "rules"],
-        },
-    },
+    # create_contract_draft — removed from proxy (no REST endpoint yet).
+    # Good first issue for contributors: wrap _registry.create_draft() as POST /api/v1/contracts.
 ]
 
 # ── Tool dispatch ────────────────────────────────────────────────────
@@ -275,21 +256,6 @@ def _call_tool(name: str, arguments: dict) -> str:
                 f"/api/v1/contracts/{arguments['contract']}/quality-trend",
                 params=params,
             )
-            resp.raise_for_status()
-            return resp.text
-
-        elif name == "create_contract_draft":
-            created_by = arguments.get("created_by") or AGENT_IDENTITY
-            if not created_by:
-                return json.dumps({"error": "created_by is required. Set OPENDQV_AGENT_IDENTITY or pass created_by."})
-            payload = {
-                "name": arguments["name"],
-                "description": arguments["description"],
-                "owner": arguments["owner"],
-                "rules": arguments["rules"],
-                "created_by": created_by,
-            }
-            resp = _client.post("/api/v1/contracts", json=payload)
             resp.raise_for_status()
             return resp.text
 
