@@ -33,7 +33,14 @@ except ImportError:
     )
     sys.exit(1)
 
-API_URL = os.environ.get("OPENDQV_API_URL", "http://localhost:8000")
+API_URL = os.environ.get("OPENDQV_API_URL", "")
+if not API_URL:
+    print(
+        "OPENDQV_API_URL environment variable is required.\n"
+        "Set it to your OpenDQV server address (e.g. http://192.168.1.160:8000)",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 API_TOKEN = os.environ.get("OPENDQV_API_TOKEN", "")
 AGENT_IDENTITY = os.environ.get("OPENDQV_AGENT_IDENTITY", "")
 
