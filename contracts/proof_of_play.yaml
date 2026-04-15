@@ -98,7 +98,7 @@ contract:
     - name: advertiser_id_format
       type: regex
       field: advertiser_id
-      pattern: "^ADV-[0-9]{6,10}$"
+      pattern: "^ADV-[0-9]{8}$"
       error_message: "advertiser_id must match format ADV-XXXXXXXX"
 
     - name: creative_id_required
