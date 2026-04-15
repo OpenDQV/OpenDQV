@@ -84,7 +84,7 @@ contract:
     - name: reference_max_length
       field: reference
       type: max_length
-      max: 18
+      max_length: 18
       severity: error
       error_message: "reference must not exceed 18 characters — Faster Payments Service limit; longer references are silently truncated by receiving banks causing reconciliation failures"
 

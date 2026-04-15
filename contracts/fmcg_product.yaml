@@ -46,7 +46,7 @@ contract:
         systems."
       field: brand
       type: max_length
-      max: 70
+      max_length: 70
       severity: warning
       error_message: "brand exceeds 70 characters — will be truncated in GS1 EDI
         and retailer catalogue systems"

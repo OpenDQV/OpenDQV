@@ -33,7 +33,7 @@ contract:
         limit cause display errors in broadcast middleware and VOD platform ingestion."
       field: title
       type: max_length
-      max: 255
+      max_length: 255
       severity: warning
       error_message: "title exceeds 255 characters — will be truncated in EPG and
         streaming catalogue systems"

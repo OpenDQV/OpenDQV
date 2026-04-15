@@ -34,7 +34,7 @@ contract:
         customer receipts."
       field: product_name
       type: max_length
-      max: 100
+      max_length: 100
       severity: warning
       error_message: "product_name exceeds 100 characters — will be truncated in
         POS systems and retailer catalogue APIs"
