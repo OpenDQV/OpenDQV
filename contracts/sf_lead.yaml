@@ -2,7 +2,7 @@ contract:
   name: sf_lead
   version: "1.0"
   description: "Salesforce Lead — data quality validation for inbound lead records"
-  owner: "Sunny Sharma"
+  owner: "CRM Data Team"
   status: active
   asset_id: urn:opendqv:sf_lead
 
