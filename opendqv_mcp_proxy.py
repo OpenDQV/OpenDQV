@@ -299,7 +299,15 @@ def main() -> None:
                 "id": req_id,
                 "result": {
                     "protocolVersion": "2024-11-05",
-                    "serverInfo": {"name": "OpenDQV", "version": "2.2.2"},
+                    "serverInfo": {
+                        "name": "OpenDQV",
+                        "version": "2.2.2",
+                        "icons": [{
+                            "src": "https://raw.githubusercontent.com/OpenDQV/OpenDQV/main/docs/assets/opendqv-favicon-128.png",
+                            "mimeType": "image/png",
+                            "sizes": ["128x128"],
+                        }],
+                    },
                     "capabilities": {"tools": {}},
                 },
             })
