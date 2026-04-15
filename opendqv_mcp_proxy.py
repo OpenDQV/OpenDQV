@@ -67,7 +67,7 @@ TOOLS = [
                 "record": {"type": "object", "description": "The data record to validate as a JSON object."},
                 "context": {"type": "string", "description": "Optional per-system context override (e.g. 'billing', 'kids_app'). Omit for default rules."},
                 "agent_id": {"type": "string", "description": "Your agent name or service identity."},
-                "dry_run": {"type": "boolean", "description": "If true, validate without recording results in quality metrics.", "default": False},
+                "dry_run": {"type": "boolean", "description": "If true (default), validate without recording results in quality metrics. Set to false to record results.", "default": True},
             },
             "required": ["contract", "record"],
         },
@@ -85,7 +85,7 @@ TOOLS = [
                 "records": {"type": "array", "items": {"type": "object"}, "description": "List of data records. Maximum 10,000 per call."},
                 "context": {"type": "string", "description": "Optional per-system context override."},
                 "agent_id": {"type": "string", "description": "Your agent name or service identity."},
-                "dry_run": {"type": "boolean", "description": "If true, validate without recording results.", "default": False},
+                "dry_run": {"type": "boolean", "description": "If true (default), validate without recording results. Set to false to record.", "default": True},
             },
             "required": ["contract", "records"],
         },
@@ -186,18 +186,20 @@ def _call_tool(name: str, arguments: dict) -> str:
     try:
         if name == "validate_record":
             payload = {"contract": arguments["contract"], "record": arguments["record"]}
-            for key in ("context", "agent_id", "dry_run"):
+            for key in ("context", "agent_id"):
                 if arguments.get(key):
                     payload[key] = arguments[key]
+            payload["dry_run"] = arguments.get("dry_run", True)
             resp = _client.post("/api/v1/validate?allow_draft=true", json=payload)
             resp.raise_for_status()
             return resp.text
 
         elif name == "validate_batch":
             payload = {"contract": arguments["contract"], "records": arguments["records"]}
-            for key in ("context", "agent_id", "dry_run"):
+            for key in ("context", "agent_id"):
                 if arguments.get(key):
                     payload[key] = arguments[key]
+            payload["dry_run"] = arguments.get("dry_run", True)
             resp = _client.post("/api/v1/validate/batch?allow_draft=true", json=payload)
             resp.raise_for_status()
             return resp.text
