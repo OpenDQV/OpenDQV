@@ -17,7 +17,7 @@
     "review_date": "2026-02-10"
   },
   {
-    "_comment": "Record 2 — VALID. Ineffective control with control_deficiency classification — no remediation plan or target date required for a control_deficiency (only significant_deficiency and material_weakness trigger those).",
+    "_comment": "Record 2 — VALID. Ineffective control with control_deficiency classification — remediation_target_date included to satisfy the date_format rule (conditioned on test_result=ineffective).",
     "control_id": "SOX-CTRL-002",
     "control_name": "Accounts Payable Three-Way Match",
     "control_owner": "Controller",
@@ -29,6 +29,7 @@
     "test_type": "reperformance",
     "test_result": "ineffective",
     "deficiency_classification": "control_deficiency",
+    "remediation_target_date": "2026-06-30",
     "management_assertion_by": "Chief Financial Officer",
     "assertion_date": "2026-01-31",
     "reviewed_by": "Internal Audit Manager",

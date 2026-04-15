@@ -47,7 +47,7 @@
     "contains_sulphites": "true",
     "sulphites_ppm": 15,
     "contains_tree_nuts": "true",
-    "tree_nut_types": "walnuts,almonds",
+    "tree_nut_types": ["walnuts", "almonds"],
     "ppds_compliant_reviewed_by": "Bob Jones",
     "ppds_review_date": "2026-03-25"
   },

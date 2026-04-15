@@ -108,7 +108,7 @@
     "golden_thread_last_updated": "2026-03-25"
   },
   {
-    "_comment": "Record 6 — INVALID. golden_thread_last_updated is in wrong format (DD/MM/YYYY instead of YYYY-MM-DD) — date_format rule fails. bsr_registration_date is also wrongly formatted.",
+    "_comment": "Record 6 — INVALID. golden_thread_last_updated is in unparseable format — date_format rule fails. bsr_registration_date is also unparseable.",
     "building_id": "BST-0006",
     "building_name": "Northgate Care Home",
     "building_address": "5 North Street, Newcastle, NE1 6KL",
@@ -121,12 +121,12 @@
     "building_safety_manager_name": "Frank Taylor",
     "building_safety_manager_contact": "f.taylor@northgate-care.example.com",
     "bsr_registration_number": "BSR-REG-2023-015678",
-    "bsr_registration_date": "01/10/2023",
+    "bsr_registration_date": "Oct 1st 2023",
     "safety_case_documented": "true",
     "safety_case_report_date": "2024-05-01",
     "fire_and_emergency_file_maintained": "true",
     "residents_engagement_strategy_documented": "true",
     "golden_thread_maintained_by": "Frank Taylor",
-    "golden_thread_last_updated": "25/03/2026"
+    "golden_thread_last_updated": "March 25th 2026"
   }
 ]
