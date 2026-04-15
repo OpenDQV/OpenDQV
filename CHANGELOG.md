@@ -2,6 +2,22 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.2.3] - 2026-04-16
+
+### Fixed
+
+- **4 broken `max_length` rules** in banking_transaction (reference, 18 chars),
+  fmcg_product (brand, 70), retail_product (product_name, 100), and media_content
+  (title, 255). All used `max:` instead of `max_length:` in YAML — the Pydantic
+  alias mapped `max` to `max_value`, leaving `max_length=None`. Rules silently
+  never fired. Found via MCP-driven sample record audit.
+- **proof_of_play sample records** — `SGMEDIA` exceeded `{2,6}` panel_id prefix
+  limit, advertiser_id values padded to 8 digits after regex tightening (f959870).
+- **16 sample record files** aligned with v1.1 contracts. 11 full rewrites
+  (field name changes from v1.0→v1.1), 5 minor fixes (data/comment corrections).
+  142/142 sample records now validate correctly against their contracts.
+- MCP proxy version hardcoded — updated to 2.2.3.
+
 ## [2.2.2] - 2026-04-12
 
 ### Fixed
