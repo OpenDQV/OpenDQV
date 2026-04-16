@@ -58,7 +58,11 @@ TOOLS = [
             "Returns {valid: bool, errors: [...]}. "
             "Call this before writing any record to a database or external API. "
             "If valid is false, call explain_error for each error to get "
-            "plain-English remediation guidance before attempting to fix the record."
+            "plain-English remediation guidance before attempting to fix the record. "
+            "Safety: MCP validation always runs in dry-run mode — it never records "
+            "results in production quality metrics. To run real validation that feeds "
+            "monitoring dashboards, use the REST API, Python SDK, or CLI directly "
+            "from a source system."
         ),
         "inputSchema": {
             "type": "object",
@@ -67,7 +71,6 @@ TOOLS = [
                 "record": {"type": "object", "description": "The data record to validate as a JSON object."},
                 "context": {"type": "string", "description": "Optional per-system context override (e.g. 'billing', 'kids_app'). Omit for default rules."},
                 "agent_id": {"type": "string", "description": "Your agent name or service identity."},
-                "dry_run": {"type": "boolean", "description": "If true (default), validate without recording results in quality metrics. Set to false to record results.", "default": True},
             },
             "required": ["contract", "record"],
         },
@@ -76,7 +79,10 @@ TOOLS = [
         "name": "validate_batch",
         "description": (
             "Validate up to 10,000 records in a single call. "
-            "Returns per-record results and aggregate statistics."
+            "Returns per-record results and aggregate statistics. "
+            "Safety: MCP validation always runs in dry-run mode — it never records "
+            "results in production quality metrics. Use the REST API or SDK for real "
+            "validation that feeds monitoring."
         ),
         "inputSchema": {
             "type": "object",
@@ -85,7 +91,6 @@ TOOLS = [
                 "records": {"type": "array", "items": {"type": "object"}, "description": "List of data records. Maximum 10,000 per call."},
                 "context": {"type": "string", "description": "Optional per-system context override."},
                 "agent_id": {"type": "string", "description": "Your agent name or service identity."},
-                "dry_run": {"type": "boolean", "description": "If true (default), validate without recording results. Set to false to record.", "default": True},
             },
             "required": ["contract", "records"],
         },
@@ -189,7 +194,11 @@ def _call_tool(name: str, arguments: dict) -> str:
             for key in ("context", "agent_id"):
                 if arguments.get(key):
                     payload[key] = arguments[key]
-            payload["dry_run"] = arguments.get("dry_run", True)
+            # Safety: MCP validation is always dry-run. AI agents never write to
+            # production quality metrics — that's reserved for source systems using
+            # the REST API or SDK directly. This is a structural guarantee, not a
+            # parameter: removing the knob is the safest default.
+            payload["dry_run"] = True
             resp = _client.post("/api/v1/validate?allow_draft=true", json=payload)
             resp.raise_for_status()
             return resp.text
@@ -199,7 +208,8 @@ def _call_tool(name: str, arguments: dict) -> str:
             for key in ("context", "agent_id"):
                 if arguments.get(key):
                     payload[key] = arguments[key]
-            payload["dry_run"] = arguments.get("dry_run", True)
+            # Safety: always dry-run — see validate_record handler.
+            payload["dry_run"] = True
             resp = _client.post("/api/v1/validate/batch?allow_draft=true", json=payload)
             resp.raise_for_status()
             return resp.text
