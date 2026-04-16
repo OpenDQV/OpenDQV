@@ -24,6 +24,8 @@ Checks performed:
   - required_if: missing 'field' or 'value' keys in required_if dict
   - forbidden_if: missing 'field' or 'value' keys in forbidden_if dict
   - conditional_value: missing must_equal or condition
+  - max_length type with max:/max_value: instead of max_length: (alias confusion)
+  - min_length type with min:/min_value: instead of min_length: (alias confusion)
 """
 
 import re
@@ -369,6 +371,18 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
                 if "value" not in fi:
                     err("FORBIDDEN_IF_MISSING_VALUE",
                         "forbidden_if dict is missing 'value' key.")
+
+        # ── max:/min: alias confusion on length rules ─────────────────────────
+        if rule_type == "max_length":
+            if (raw.get("max") is not None or raw.get("max_value") is not None) and raw.get("max_length") is None:
+                warn("MAX_LENGTH_ALIAS_CONFUSION",
+                     f"Rule '{name}' uses `max:` but type is `max_length` — "
+                     f"use `max_length:` instead (max: sets max_value for numeric rules)")
+        if rule_type == "min_length":
+            if (raw.get("min") is not None or raw.get("min_value") is not None) and raw.get("min_length") is None:
+                warn("MIN_LENGTH_ALIAS_CONFUSION",
+                     f"Rule '{name}' uses `min:` but type is `min_length` — "
+                     f"use `min_length:` instead (min: sets min_value for numeric rules)")
 
         # ── conditional_value ─────────────────────────────────────────────────
         if rule_type == "conditional_value":

@@ -1,18 +1,21 @@
 # OpenDQV Rule Types — Documentation Index
 
 ## Core rules
-- [not_empty](../../README.md#rules) — field must be present and non-empty
-- [regex](../../README.md#rules) — field must match a pattern (supports `negate: true` and `builtin:` shorthands)
-- [range](../../README.md#rules) — numeric field within min/max bounds
-- [min / max](../../README.md#rules) — single-sided numeric bounds
-- [min_length / max_length](../../README.md#rules) — string length constraints
-- [date_format](../../README.md#rules) — field must be a parseable date
-- [unique](../../README.md#rules) — field must be unique (supports `group_by`)
-- [lookup](../../README.md#rules) — field value must appear in a reference list (supports `all_of`)
-- [allowed_values](../../README.md#rules) — field value must be one of an inline list (no external file needed)
-- [compare](../../README.md#rules) — field compared to another field or sentinel (`today`, `now`)
-- [required_if](../../README.md#rules) — field required when another field equals a value
-- [min_age / max_age](../../README.md#rules) — date field implies an age constraint
+- [not_empty](core_rules.md#1-not_empty) — field must be present and non-empty
+- [regex](core_rules.md#2-regex) — field must match a pattern (supports `negate: true` and `builtin:` shorthands)
+- [min](core_rules.md#3-min) — numeric field must be >= minimum
+- [max](core_rules.md#4-max) — numeric field must be <= maximum
+- [range](core_rules.md#5-range) — numeric field within min/max bounds
+- [min_length](core_rules.md#6-min_length) — string length minimum
+- [max_length](core_rules.md#7-max_length) — string length maximum
+- [date_format](core_rules.md#8-date_format) — field must be a parseable date
+- [allowed_values](core_rules.md#9-allowed_values) — field value must be one of an inline list
+- [lookup](core_rules.md#10-lookup) — field value must appear in a reference list (supports `all_of`)
+- [compare](core_rules.md#11-compare) — field compared to another field or sentinel (`today`, `now`)
+- [required_if](core_rules.md#12-required_if) — field required when another field equals a value
+- [unique](core_rules.md#13-unique) — field must be unique (supports `group_by`)
+- [Common Pitfalls](core_rules.md#common-pitfalls) — `min:` vs `min_length:` and other traps
+- min_age / max_age — date field implies an age constraint (see Rule model)
 
 - [age_match](age_match.md) — declared age must be consistent with date of birth
 

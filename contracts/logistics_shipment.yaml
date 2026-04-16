@@ -30,7 +30,7 @@ contract:
     - name: origin_country_min_length
       field: origin_country
       type: min_length
-      min: 2
+      min_length: 2
       severity: error
       error_message: "origin_country must be at least 2 characters"
 
@@ -50,7 +50,7 @@ contract:
     - name: destination_country_min_length
       field: destination_country
       type: min_length
-      min: 2
+      min_length: 2
       severity: error
       error_message: "destination_country must be at least 2 characters"
 

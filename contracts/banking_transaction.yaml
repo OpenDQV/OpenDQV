@@ -22,7 +22,7 @@ contract:
     - name: account_number_min_length
       field: account_number
       type: min_length
-      min: 6
+      min_length: 6
       severity: error
       error_message: "account_number must be at least 6 characters"
 

@@ -287,3 +287,75 @@ class TestYamlErrors:
         result = _lint("- just a list")
         codes = [i.code for i in result.issues]
         assert "INVALID_STRUCTURE" in codes
+
+
+# ── max:/min: alias confusion on length rules ───────────────────────────────
+
+class TestLengthAliasConfusion:
+    """Catch the silent bug where `max: 18` on a max_length rule maps to
+    max_value (numeric), leaving max_length=None so the rule never fires."""
+
+    def test_max_on_max_length_rule_warns(self):
+        result = _lint(_rule(type="max_length", field="name", max=18))
+        codes = [i.code for i in result.issues]
+        assert "MAX_LENGTH_ALIAS_CONFUSION" in codes
+        issue = [i for i in result.issues if i.code == "MAX_LENGTH_ALIAS_CONFUSION"][0]
+        assert issue.severity == "warning"
+        assert "use `max_length:` instead" in issue.message
+
+    def test_max_value_on_max_length_rule_warns(self):
+        result = _lint(_rule(type="max_length", field="name", max_value=18))
+        codes = [i.code for i in result.issues]
+        assert "MAX_LENGTH_ALIAS_CONFUSION" in codes
+
+    def test_max_length_on_max_length_rule_clean(self):
+        result = _lint(_rule(type="max_length", field="name", max_length=18))
+        codes = [i.code for i in result.issues]
+        assert "MAX_LENGTH_ALIAS_CONFUSION" not in codes
+
+    def test_max_with_max_length_present_no_warn(self):
+        """If both max: and max_length: are set, no alias confusion."""
+        result = _lint(_rule(type="max_length", field="name", max=100, max_length=18))
+        codes = [i.code for i in result.issues]
+        assert "MAX_LENGTH_ALIAS_CONFUSION" not in codes
+
+    def test_min_on_min_length_rule_warns(self):
+        result = _lint(_rule(type="min_length", field="name", min=3))
+        codes = [i.code for i in result.issues]
+        assert "MIN_LENGTH_ALIAS_CONFUSION" in codes
+        issue = [i for i in result.issues if i.code == "MIN_LENGTH_ALIAS_CONFUSION"][0]
+        assert issue.severity == "warning"
+        assert "use `min_length:` instead" in issue.message
+
+    def test_min_value_on_min_length_rule_warns(self):
+        result = _lint(_rule(type="min_length", field="name", min_value=3))
+        codes = [i.code for i in result.issues]
+        assert "MIN_LENGTH_ALIAS_CONFUSION" in codes
+
+    def test_min_length_on_min_length_rule_clean(self):
+        result = _lint(_rule(type="min_length", field="name", min_length=3))
+        codes = [i.code for i in result.issues]
+        assert "MIN_LENGTH_ALIAS_CONFUSION" not in codes
+
+    def test_min_with_min_length_present_no_warn(self):
+        """If both min: and min_length: are set, no alias confusion."""
+        result = _lint(_rule(type="min_length", field="name", min=1, min_length=3))
+        codes = [i.code for i in result.issues]
+        assert "MIN_LENGTH_ALIAS_CONFUSION" not in codes
+
+    def test_max_on_non_length_rule_no_warn(self):
+        """max: on a range rule is perfectly normal — no warning."""
+        result = _lint(_rule(type="range", field="score", min=0, max=100))
+        codes = [i.code for i in result.issues]
+        assert "MAX_LENGTH_ALIAS_CONFUSION" not in codes
+
+    def test_min_on_non_length_rule_no_warn(self):
+        """min: on a min rule is perfectly normal — no warning."""
+        result = _lint(_rule(type="min", field="score", min=0))
+        codes = [i.code for i in result.issues]
+        assert "MIN_LENGTH_ALIAS_CONFUSION" not in codes
+
+    def test_alias_confusion_still_passes_lint(self):
+        """Warnings don't block — passed should still be True."""
+        result = _lint(_rule(type="max_length", field="name", max=18))
+        assert result.passed  # warnings don't count as errors
