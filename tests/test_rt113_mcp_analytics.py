@@ -177,6 +177,85 @@ class TestGetWindowedSummaryForAgent:
         assert "top_failing_fields_by_agent" not in result
 
 
+# ── Filter scoping fidelity (CRT167) ───────────────────────────────────
+
+class TestFilterScopingFidelity:
+    """
+    Invariant-based scoping test. Catches the entire "inherit-then-override"
+    leak family that produced five separate bugs in one day without relying
+    on hardcoded expected values.
+
+    Per CRT167 (2026-04-16, chaired by BT, with Grok + Sonnet input):
+    - sum of per-agent scoped totals must equal unfiltered total (sum invariant)
+    - max(scoped_vals) > min(scoped_vals) — catches uniform-average leaks where
+      every scoped response returns the same wrong value
+    - self-consistency within each scoped response
+    - recent_history entries all belong to the filter target
+    """
+
+    def test_scoping_invariants_hold_across_multiple_agents(self):
+        vs = ValidationStats()
+        # Deliberately imbalanced per-agent volumes so max > min is meaningful.
+        # agent_alpha: 10 validations, 2 failures
+        for _ in range(8):
+            vs.record("c1", "ctx", True, 0, 0, 1.0, agent_id="agent_alpha")
+        for _ in range(2):
+            vs.record("c1", "ctx", False, 1, 0, 1.0,
+                      errors=[{"field": "a", "rule": "ra", "severity": "error"}],
+                      agent_id="agent_alpha")
+        # agent_beta: 5 validations, 1 failure
+        for _ in range(4):
+            vs.record("c2", "ctx", True, 0, 0, 2.0, agent_id="agent_beta")
+        vs.record("c2", "ctx", False, 1, 0, 2.0,
+                  errors=[{"field": "b", "rule": "rb", "severity": "error"}],
+                  agent_id="agent_beta")
+        # agent_gamma: 2 validations, 0 failures
+        for _ in range(2):
+            vs.record("c3", "ctx", True, 0, 0, 3.0, agent_id="agent_gamma")
+
+        agents = ["agent_alpha", "agent_beta", "agent_gamma"]
+
+        unfiltered = vs.get_windowed_summary(window_hours=1)
+
+        scoped_totals = []
+        scoped_pass = []
+        scoped_fail = []
+        for aid in agents:
+            scoped = vs.get_windowed_summary_for_agent(window_hours=1, agent_id=aid)
+
+            # Self-consistency: pass + fail == total for THIS agent
+            assert scoped["total_pass"] + scoped["total_fail"] == scoped["total_validations"], \
+                f"{aid}: pass+fail != total_validations"
+
+            # recent_history must only contain this agent's events
+            for h in scoped["recent_history"]:
+                assert h.get("agent_id") == aid, \
+                    f"{aid}: history leaked entry from {h.get('agent_id')}"
+
+            # Leaked fields must be absent (CRT167 Option A)
+            assert "total_errors" not in scoped, f"{aid}: total_errors leaked"
+            assert "total_warnings" not in scoped, f"{aid}: total_warnings leaked"
+            assert "dimensions" not in scoped, f"{aid}: dimensions leaked"
+
+            scoped_totals.append(scoped["total_validations"])
+            scoped_pass.append(scoped["total_pass"])
+            scoped_fail.append(scoped["total_fail"])
+
+        # Sum invariant: per-agent scoped totals must add up to unfiltered total
+        assert sum(scoped_totals) == unfiltered["total_validations"], \
+            "sum of per-agent scoped totals != unfiltered total"
+        assert sum(scoped_pass) == unfiltered["total_pass"], \
+            "sum of per-agent scoped pass != unfiltered pass"
+        assert sum(scoped_fail) == unfiltered["total_fail"], \
+            "sum of per-agent scoped fail != unfiltered fail"
+
+        # Imbalance guard: protects against uniform-average leak where every
+        # scoped response returns unfiltered/N (sum invariant trivially holds
+        # but individual values are all wrong).
+        assert max(scoped_totals) > min(scoped_totals), \
+            "all agents returned identical total_validations — possible uniform leak"
+
+
 # ── top_failing_fields_by_agent (per-agent failure breakdown) ──────────
 
 class TestTopFailingFieldsByAgent:

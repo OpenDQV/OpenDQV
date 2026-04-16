@@ -388,6 +388,16 @@ class ValidationStats:
         # freshly-restarted API covers only uptime, not 24h of calendar time.
         summary["effective_window_seconds"] = round(min(window_hours * 3600, uptime_seconds), 1)
         summary["requested_window_hours"] = window_hours
+        # CRT167: drop fields that cannot be accurately scoped from the inherited
+        # get_summary() view. total_errors/total_warnings/dimensions.by_severity
+        # are lifetime counts across all agents; leaving them in creates misleading
+        # per-record vs aggregate contradictions. A missing key forces the UI to
+        # say "scoped view — totals unavailable", which is strictly better than a
+        # plausible-but-wrong number. v2.4 will replace the inherit-then-override
+        # shape entirely; this is the minimum principled fix today.
+        summary.pop("total_errors", None)
+        summary.pop("total_warnings", None)
+        summary.pop("dimensions", None)
         return summary
 
     def _latency_stats(self) -> dict:
