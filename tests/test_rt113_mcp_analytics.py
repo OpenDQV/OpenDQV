@@ -105,6 +105,77 @@ class TestGetWindowedSummaryForAgent:
         assert result["total_fail"] == 0
 
 
+# ── top_failing_fields_by_agent (per-agent failure breakdown) ──────────
+
+class TestTopFailingFieldsByAgent:
+    def test_empty_when_no_errors(self):
+        vs = ValidationStats()
+        vs.record("c1", "ctx", True, 0, 0, 1.0, agent_id="a")
+        summary = vs.get_summary()
+        assert summary["top_failing_fields_by_agent"] == {}
+
+    def test_aggregates_by_agent_id(self):
+        vs = ValidationStats()
+        err = [{"field": "email", "rule": "email_format", "severity": "error"}]
+        vs.record("c1", "ctx", False, 1, 0, 1.0, errors=err, agent_id="agent-a")
+        vs.record("c1", "ctx", False, 1, 0, 1.0, errors=err, agent_id="agent-a")
+        vs.record("c1", "ctx", False, 1, 0, 1.0, errors=err, agent_id="agent-b")
+        summary = vs.get_summary()
+        by_agent = summary["top_failing_fields_by_agent"]
+        assert "agent-a" in by_agent
+        assert "agent-b" in by_agent
+        assert by_agent["agent-a"][0]["count"] == 2
+        assert by_agent["agent-a"][0]["rule"] == "email_format"
+        assert by_agent["agent-b"][0]["count"] == 1
+
+    def test_missing_agent_id_bucketed_as_unattributed(self):
+        vs = ValidationStats()
+        err = [{"field": "x", "rule": "rx", "severity": "error"}]
+        vs.record("c1", "ctx", False, 1, 0, 1.0, errors=err, agent_id="")
+        summary = vs.get_summary()
+        assert "unattributed" in summary["top_failing_fields_by_agent"]
+
+    def test_ranks_per_agent_top_first(self):
+        vs = ValidationStats()
+        r1 = [{"field": "a", "rule": "r_a", "severity": "error"}]
+        r2 = [{"field": "b", "rule": "r_b", "severity": "error"}]
+        for _ in range(5):
+            vs.record("c1", "ctx", False, 1, 0, 1.0, errors=r1, agent_id="src")
+        for _ in range(2):
+            vs.record("c1", "ctx", False, 1, 0, 1.0, errors=r2, agent_id="src")
+        summary = vs.get_summary()
+        src = summary["top_failing_fields_by_agent"]["src"]
+        assert src[0]["rule"] == "r_a"
+        assert src[0]["count"] == 5
+        assert src[1]["rule"] == "r_b"
+        assert src[1]["count"] == 2
+
+    def test_windowed_summary_excludes_old_events(self):
+        vs = ValidationStats()
+        # Inject an old error event directly (> 1h ago)
+        old_ts = time.time() - 7_300
+        vs._error_events.append((old_ts, "c1", "old_field", "old_rule", "old-agent"))
+        # Recent error
+        err = [{"field": "new_field", "rule": "new_rule", "severity": "error"}]
+        vs.record("c1", "ctx", False, 1, 0, 1.0, errors=err, agent_id="new-agent")
+
+        summary = vs.get_windowed_summary(window_hours=1)
+        by_agent = summary["top_failing_fields_by_agent"]
+        assert "new-agent" in by_agent
+        assert "old-agent" not in by_agent
+
+    def test_cross_contract_under_same_agent(self):
+        vs = ValidationStats()
+        err_a = [{"field": "x", "rule": "rx", "severity": "error"}]
+        err_b = [{"field": "y", "rule": "ry", "severity": "error"}]
+        vs.record("contract_a", "ctx", False, 1, 0, 1.0, errors=err_a, agent_id="multi")
+        vs.record("contract_b", "ctx", False, 1, 0, 1.0, errors=err_b, agent_id="multi")
+        summary = vs.get_summary()
+        rules = summary["top_failing_fields_by_agent"]["multi"]
+        contracts = {r["contract"] for r in rules}
+        assert contracts == {"contract_a", "contract_b"}
+
+
 # ── get_quality_trend MCP tool ─────────────────────────────────────────
 
 class TestGetQualityTrendTool:

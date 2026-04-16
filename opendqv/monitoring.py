@@ -93,6 +93,10 @@ class ValidationStats:
         self.started_at = datetime.now(timezone.utc)
         self._latencies: list = []  # recent latency values for percentile computation
         self._events: deque = deque(maxlen=10_000)  # (timestamp, contract, context, valid, latency_ms, agent_id)
+        # Parallel stream for failed-rule events, keyed by agent. Larger cap — one
+        # validation call can emit multiple rule failures. Used to build
+        # top_failing_fields_by_agent in summary and windowed_summary.
+        self._error_events: deque = deque(maxlen=50_000)  # (timestamp, contract, field, rule, agent_id)
 
     def record(self, contract: str, context: str, valid: bool, error_count: int,
                warning_count: int, latency_ms: float, errors: list = None, mode: str = "single",
@@ -122,7 +126,15 @@ class ValidationStats:
                 self._latencies = self._latencies[-1000:]
 
             # Timestamped event log for windowed queries (capped at maxlen=10_000)
-            self._events.append((time.time(), contract, ctx, valid, latency_ms, agent_id or ""))
+            _now_ts = time.time()
+            self._events.append((_now_ts, contract, ctx, valid, latency_ms, agent_id or ""))
+            # Per-error event log for per-agent failure attribution.
+            if not valid:
+                for e in (errors or []):
+                    self._error_events.append((
+                        _now_ts, contract, e.get("field", "?"),
+                        e.get("rule", "?"), agent_id or "",
+                    ))
 
             # Append to history (ring buffer)
             self.history.append({
@@ -160,6 +172,29 @@ class ValidationStats:
         if batch_size > 0:
             BATCH_SIZE.labels(contract=contract).observe(batch_size)
 
+    @staticmethod
+    def _aggregate_by_agent(error_events, cutoff: float = 0.0) -> dict:
+        """Aggregate error events by agent_id → list of top failing (contract, field, rule).
+
+        Returns {agent_id: [{contract, field, rule, count}, ...top 10]} sorted by count.
+        Rows with empty agent_id are grouped under "unattributed" so the story still shows.
+        """
+        from collections import defaultdict as _dd
+        per_agent = _dd(lambda: _dd(int))
+        for ts, contract, field, rule, agent_id in error_events:
+            if ts < cutoff:
+                continue
+            aid = agent_id or "unattributed"
+            per_agent[aid][(contract, field, rule)] += 1
+        out = {}
+        for aid, rule_map in per_agent.items():
+            out[aid] = sorted(
+                [{"contract": c, "field": f, "rule": r, "count": v}
+                 for (c, f, r), v in rule_map.items()],
+                key=lambda x: x["count"], reverse=True,
+            )[:10]
+        return out
+
     def get_summary(self) -> dict:
         with self._lock:
             total_pass = sum(v["pass"] for v in self.totals.values())
@@ -179,6 +214,7 @@ class ValidationStats:
                      for k, v in self.field_errors.items()],
                     key=lambda x: x["count"], reverse=True,
                 )[:20],
+                "top_failing_fields_by_agent": self._aggregate_by_agent(list(self._error_events)),
                 "recent_history": list(self.history[-50:]),
                 "latency": self._latency_stats(),
                 "dimensions": {
@@ -227,6 +263,10 @@ class ValidationStats:
         # Reuse the full-summary structure but override the by_contract view
         summary = self.get_summary()
         summary["by_contract"] = dict(windowed_totals)
+        # Recompute per-agent failure breakdown scoped to the same window.
+        summary["top_failing_fields_by_agent"] = self._aggregate_by_agent(
+            list(self._error_events), cutoff=cutoff,
+        )
         summary["total_validations"] = total
         summary["total_pass"] = total_pass
         summary["total_fail"] = total_fail

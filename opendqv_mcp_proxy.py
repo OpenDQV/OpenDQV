@@ -250,13 +250,11 @@ def _call_tool(name: str, arguments: dict) -> str:
 
         elif name == "get_rule_velocity":
             params = {
+                "contract": arguments["contract"],
                 "window_hours": arguments.get("window_hours", 24),
                 "bucket_minutes": arguments.get("bucket_minutes", 5),
             }
-            resp = _client.get(
-                f"/api/v1/contracts/{arguments['contract']}/rule-velocity",
-                params=params,
-            )
+            resp = _client.get("/api/v1/analytics/rule-velocity", params=params)
             resp.raise_for_status()
             return resp.text
 
