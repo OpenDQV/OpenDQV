@@ -146,6 +146,7 @@ class ValidationStats:
                 "warnings": warning_count,
                 "latency_ms": round(latency_ms, 1),
                 "mode": mode,
+                "agent_id": agent_id or "",
             })
             if len(self.history) > self._max_history:
                 self.history = self.history[-self._max_history:]
@@ -344,6 +345,14 @@ class ValidationStats:
         )[:20]
         # top_failing_fields_by_agent is redundant when filtered — drop it to avoid confusion
         summary.pop("top_failing_fields_by_agent", None)
+        # Scope recent_history to this agent's events only. History entries before
+        # the agent_id field was added have agent_id="" and so naturally drop out
+        # of a specific-agent filter (which is what we want — anonymous entries
+        # cannot be attributed to any one agent).
+        summary["recent_history"] = [
+            h for h in summary["recent_history"]
+            if h.get("agent_id") == agent_id
+        ][-50:]
         return summary
 
     def _latency_stats(self) -> dict:

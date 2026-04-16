@@ -104,6 +104,20 @@ class TestGetWindowedSummaryForAgent:
         result = vs.get_windowed_summary_for_agent(window_hours=1, agent_id="a")
         assert result["total_fail"] == 0
 
+    def test_recent_history_scoped_to_agent(self):
+        """recent_history must only contain events from the filtered agent."""
+        vs = ValidationStats()
+        vs.record("c1", "ctx", True, 0, 0, 1.0, agent_id="alpha")
+        vs.record("c1", "ctx", False, 1, 0, 1.0,
+                  errors=[{"field": "x", "rule": "rx", "severity": "error"}],
+                  agent_id="beta")
+        vs.record("c2", "ctx", True, 0, 0, 1.0, agent_id="alpha")
+        result = vs.get_windowed_summary_for_agent(window_hours=1, agent_id="alpha")
+        agents_in_history = {h.get("agent_id") for h in result["recent_history"]}
+        assert agents_in_history == {"alpha"}, \
+            f"history leaked other agents: {agents_in_history}"
+        assert len(result["recent_history"]) == 2
+
     def test_top_failing_fields_scoped_to_agent(self):
         """When filtered to one agent, top_failing_fields must only contain that agent's errors."""
         vs = ValidationStats()
