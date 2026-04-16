@@ -310,8 +310,10 @@ class ValidationStats:
 
     def get_windowed_summary_for_agent(self, window_hours: int, agent_id: str) -> dict:
         """Return windowed summary scoped to a single agent_id."""
-        cutoff = time.time() - window_hours * 3600
+        now_ts = time.time()
+        cutoff = now_ts - window_hours * 3600
         windowed_totals: dict = defaultdict(lambda: {"pass": 0, "fail": 0, "errors": 0, "warnings": 0})
+        agent_latencies: list = []
         with self._lock:
             for ts, contract, ctx, valid, latency_ms, aid in self._events:
                 if ts < cutoff or aid != agent_id:
@@ -321,12 +323,18 @@ class ValidationStats:
                     windowed_totals[key]["pass"] += 1
                 else:
                     windowed_totals[key]["fail"] += 1
+                agent_latencies.append(latency_ms)
             # Scope top_failing_fields to this agent's errors in the window
             agent_field_counts: dict = defaultdict(int)
             for ts, contract, field, rule, aid in self._error_events:
                 if ts < cutoff or aid != agent_id:
                     continue
                 agent_field_counts[(contract, field, rule)] += 1
+            # Effective window = min(requested window, actual uptime) — tells the
+            # caller how much data actually covers this response. In-memory stats
+            # reset on API restart, so a 24h request on a 20-min-old API covers
+            # ~20 minutes, not 24 hours.
+            uptime_seconds = (now_ts - self.started_at.timestamp())
         summary = self.get_summary()
         summary["by_contract"] = dict(windowed_totals)
         total_pass = sum(v["pass"] for v in windowed_totals.values())
@@ -353,6 +361,27 @@ class ValidationStats:
             h for h in summary["recent_history"]
             if h.get("agent_id") == agent_id
         ][-50:]
+        # Scope latency stats to the filtered agent's events only
+        if agent_latencies:
+            sorted_lat = sorted(agent_latencies)
+            n = len(sorted_lat)
+            def _pct(p):
+                idx = max(0, int(n * p / 100) - 1)
+                return round(sorted_lat[idx], 1)
+            summary["latency"] = {
+                "avg_ms": round(sum(sorted_lat) / n, 1),
+                "p50_ms": _pct(50),
+                "p95_ms": _pct(95),
+                "p99_ms": _pct(99),
+                "sample_size": n,
+            }
+        else:
+            summary["latency"] = {"avg_ms": None, "p50_ms": None, "p95_ms": None, "p99_ms": None, "sample_size": 0}
+        # Transparency: tell the caller how much time the response actually covers.
+        # In-memory stats start when the API process starts; a 24h request on a
+        # freshly-restarted API covers only uptime, not 24h of calendar time.
+        summary["effective_window_seconds"] = round(min(window_hours * 3600, uptime_seconds), 1)
+        summary["requested_window_hours"] = window_hours
         return summary
 
     def _latency_stats(self) -> dict:

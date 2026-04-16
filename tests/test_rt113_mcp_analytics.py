@@ -104,6 +104,39 @@ class TestGetWindowedSummaryForAgent:
         result = vs.get_windowed_summary_for_agent(window_hours=1, agent_id="a")
         assert result["total_fail"] == 0
 
+    def test_latency_scoped_to_agent(self):
+        """latency.sample_size must reflect only the filtered agent's events."""
+        vs = ValidationStats()
+        # 3 calls for 'fast', 5 calls for 'slow', different latencies
+        for _ in range(3):
+            vs.record("c1", "ctx", True, 0, 0, 1.0, agent_id="fast")
+        for _ in range(5):
+            vs.record("c1", "ctx", True, 0, 0, 100.0, agent_id="slow")
+        fast = vs.get_windowed_summary_for_agent(window_hours=1, agent_id="fast")
+        slow = vs.get_windowed_summary_for_agent(window_hours=1, agent_id="slow")
+        assert fast["latency"]["sample_size"] == 3
+        assert slow["latency"]["sample_size"] == 5
+        assert fast["latency"]["avg_ms"] == 1.0
+        assert slow["latency"]["avg_ms"] == 100.0
+
+    def test_latency_empty_when_agent_absent(self):
+        vs = ValidationStats()
+        vs.record("c1", "ctx", True, 0, 0, 1.0, agent_id="present")
+        result = vs.get_windowed_summary_for_agent(window_hours=1, agent_id="absent")
+        assert result["latency"]["sample_size"] == 0
+        assert result["latency"]["avg_ms"] is None
+
+    def test_effective_window_present_and_capped_by_uptime(self):
+        vs = ValidationStats()
+        vs.record("c1", "ctx", True, 0, 0, 1.0, agent_id="a")
+        result = vs.get_windowed_summary_for_agent(window_hours=24, agent_id="a")
+        # Fresh stats object — uptime measured in seconds, so effective window
+        # is FAR less than 24h (86400s), tells caller the request was not
+        # fully coverable.
+        assert "effective_window_seconds" in result
+        assert result["effective_window_seconds"] < 86400
+        assert result["requested_window_hours"] == 24
+
     def test_recent_history_scoped_to_agent(self):
         """recent_history must only contain events from the filtered agent."""
         vs = ValidationStats()
