@@ -291,6 +291,20 @@ OpenDQV is in Beta as of 2.0.0. The following stability commitments apply to the
 - **MCP tools** — tool names and parameters are stable within `v2.x`.
 - **Security fixes** — backported to the latest 2.x line on a best-effort basis.
 
+### Known limitations in v2.2.x
+
+- **Rule null handling is inconsistent.** Most format rules fail when the target
+  field is missing; a few (`max_length`, `allowed_values`) pass silently;
+  `field_sum` and `ratio_check` coerce missing operands to `0`. Single-record
+  and batch paths disagree in a few cases. See
+  [`docs/rules/core_rules.md`](docs/rules/core_rules.md#null-handling-current-v22x-behaviour)
+  for the full matrix and the safe pattern to use today. v2.3.0 will make this
+  consistent (loud-by-default with an `optional: true` opt-out).
+- **Unknown rule types pass silently at runtime.** A typo in `type:` (e.g.
+  `min_lenght`) is caught by `opendqv lint` but not by the engine — a typo'd
+  rule is a disabled rule. Always lint before deploy. v2.3.0 will reject
+  unknown types at contract load.
+
 ---
 
 ## Contributing

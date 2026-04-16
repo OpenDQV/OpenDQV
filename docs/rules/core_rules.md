@@ -19,6 +19,33 @@ Optional on any rule: `description`, `condition` (conditional application).
 
 ---
 
+## Null handling (current v2.2.x behaviour)
+
+Rule handlers are not yet fully consistent about missing values:
+
+- Most format rules (`regex`, `min`, `max`, `range`, `date_format`, `checksum`,
+  `compare`, `geospatial_bounds`, `conditional_value`, `cross_field_range`,
+  `conditional_lookup`, `age_match`) **fail** when the target field is `None`
+  or absent.
+- A few (`max_length`, `allowed_values`, single-record `lookup`,
+  single-record `date_diff`) **pass silently** on missing values.
+- `field_sum` and `ratio_check` silently **coerce** missing operands to `0`.
+- In a handful of cases the single-record path and the batch path disagree.
+
+**Safe pattern today:** if you want guaranteed presence enforcement on a
+field, add an explicit `not_empty` rule alongside any format rule. This is
+how most of the 43 shipped contracts already handle it.
+
+**Planned for v2.3.0** (breaking change, tracked to ship after the
+April 2026 demo window): every rule handler will fail on missing values by
+default, with a new `optional: true` flag for authors who want
+"format-validate-if-present, pass-if-absent". Single and batch paths will
+agree in every case. Unknown rule types will be rejected at contract load
+rather than silently passing at runtime. See `CHANGELOG.md` when v2.3.0
+ships for the full migration guide.
+
+---
+
 ## 1. not_empty
 
 Field must be present, non-null, and (for strings) non-blank after trimming.
