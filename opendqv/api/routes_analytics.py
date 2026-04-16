@@ -21,10 +21,21 @@ sub_router = APIRouter()
 async def get_stats(
     request: Request,
     window_hours: Optional[int] = Query(None, ge=1, le=8760, description="If set, return stats for only the last N hours"),
+    agent_id: Optional[str] = Query(None, description="Filter to a specific agent / source system identity"),
     user=Depends(get_current_user),
 ):
-    """Get validation statistics for the monitoring dashboard."""
-    result = stats.get_windowed_summary(window_hours) if window_hours else stats.get_summary()
+    """Get validation statistics for the monitoring dashboard.
+
+    If agent_id is provided, results are scoped to that agent's traffic only —
+    useful for per-source-system drill-down in monitoring dashboards.
+    """
+    if agent_id:
+        # Agent-filtered view always uses a windowed summary (default 24h)
+        result = stats.get_windowed_summary_for_agent(window_hours or 24, agent_id)
+    elif window_hours:
+        result = stats.get_windowed_summary(window_hours)
+    else:
+        result = stats.get_summary()
     contracts = _d.registry.list_contracts()
     draft_count = sum(1 for c in contracts if c["status"] == "draft")
     active_count = sum(1 for c in contracts if c["status"] == "active")

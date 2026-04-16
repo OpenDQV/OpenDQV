@@ -320,6 +320,12 @@ class ValidationStats:
                     windowed_totals[key]["pass"] += 1
                 else:
                     windowed_totals[key]["fail"] += 1
+            # Scope top_failing_fields to this agent's errors in the window
+            agent_field_counts: dict = defaultdict(int)
+            for ts, contract, field, rule, aid in self._error_events:
+                if ts < cutoff or aid != agent_id:
+                    continue
+                agent_field_counts[(contract, field, rule)] += 1
         summary = self.get_summary()
         summary["by_contract"] = dict(windowed_totals)
         total_pass = sum(v["pass"] for v in windowed_totals.values())
@@ -330,6 +336,14 @@ class ValidationStats:
         summary["total_fail"] = total_fail
         summary["pass_rate"] = round(total_pass / total * 100, 1) if total > 0 else 0
         summary["agent_id_filter"] = agent_id
+        # Scope top_failing_fields to this agent
+        summary["top_failing_fields"] = sorted(
+            [{"contract": c, "field": f, "rule": r, "count": v}
+             for (c, f, r), v in agent_field_counts.items()],
+            key=lambda x: x["count"], reverse=True,
+        )[:20]
+        # top_failing_fields_by_agent is redundant when filtered — drop it to avoid confusion
+        summary.pop("top_failing_fields_by_agent", None)
         return summary
 
     def _latency_stats(self) -> dict:

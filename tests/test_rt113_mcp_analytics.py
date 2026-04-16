@@ -104,6 +104,21 @@ class TestGetWindowedSummaryForAgent:
         result = vs.get_windowed_summary_for_agent(window_hours=1, agent_id="a")
         assert result["total_fail"] == 0
 
+    def test_top_failing_fields_scoped_to_agent(self):
+        """When filtered to one agent, top_failing_fields must only contain that agent's errors."""
+        vs = ValidationStats()
+        err_a = [{"field": "x", "rule": "rx", "severity": "error"}]
+        err_b = [{"field": "y", "rule": "ry", "severity": "error"}]
+        vs.record("c1", "ctx", False, 1, 0, 1.0, errors=err_a, agent_id="agent-a")
+        vs.record("c1", "ctx", False, 1, 0, 1.0, errors=err_a, agent_id="agent-a")
+        vs.record("c1", "ctx", False, 1, 0, 1.0, errors=err_b, agent_id="agent-b")
+        result = vs.get_windowed_summary_for_agent(window_hours=1, agent_id="agent-a")
+        rules = [f["rule"] for f in result["top_failing_fields"]]
+        assert "rx" in rules
+        assert "ry" not in rules
+        # top_failing_fields_by_agent is redundant when already filtered — must be removed
+        assert "top_failing_fields_by_agent" not in result
+
 
 # ── top_failing_fields_by_agent (per-agent failure breakdown) ──────────
 

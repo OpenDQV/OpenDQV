@@ -55,6 +55,15 @@ class TestAuthBoundaries:
         r = client.get("/api/v1/stats", headers=auth_headers)
         assert r.status_code == 200
 
+    def test_stats_agent_id_filter_applied(self, client, auth_headers):
+        """The /stats endpoint must accept and apply the agent_id query param."""
+        r = client.get("/api/v1/stats?agent_id=some-agent", headers=auth_headers)
+        assert r.status_code == 200
+        data = r.json()
+        # When agent_id is present, the response must echo it back so the caller
+        # knows the filter was applied (prevents silent-discard regressions).
+        assert data.get("agent_id_filter") == "some-agent"
+
 
 class TestContracts:
     def test_list_contracts(self, client):
