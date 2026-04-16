@@ -16,7 +16,19 @@ All notable changes to OpenDQV are documented here.
 - **16 sample record files** aligned with v1.1 contracts. 11 full rewrites
   (field name changes from v1.0→v1.1), 5 minor fixes (data/comment corrections).
   142/142 sample records now validate correctly against their contracts.
+- **3 broken `min_length` rules** — same alias trap as `max_length`. banking_transaction
+  (account_number, 6 chars) and logistics_shipment (origin/destination_country, 2 chars)
+  used `min:` instead of `min_length:`.
 - MCP proxy version hardcoded — updated to 2.2.3.
+- CVE-2026-40347: bumped python-multipart 0.0.22 → 0.0.26.
+
+### Added
+
+- **Contract linter warnings** `MAX_LENGTH_ALIAS_CONFUSION` and
+  `MIN_LENGTH_ALIAS_CONFUSION` — `opendqv lint` now catches `max:` on `max_length`
+  rules and `min:` on `min_length` rules at author time.
+- **`docs/rules/core_rules.md`** — YAML syntax reference for all 13 core rule types
+  with correct field keys and a Common Pitfalls section.
 
 ## [2.2.2] - 2026-04-12
 
