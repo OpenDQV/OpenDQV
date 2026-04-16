@@ -136,25 +136,6 @@ class TestGetWindowedSummaryForAgent:
         assert result["requested_window_hours"] == 24
         assert result["effective_window_seconds"] < 86400
 
-    def test_known_agents_hint_on_empty_filter(self):
-        """When agent_id filter returns 0, response must list known agents to help typos."""
-        vs = ValidationStats()
-        vs.record("c1", "ctx", True, 0, 0, 1.0, agent_id="real-agent-name")
-        result = vs.get_windowed_summary_for_agent(window_hours=1, agent_id="typo-name")
-        assert result["total_validations"] == 0
-        assert "known_agents_in_window" in result
-        assert "real-agent-name" in result["known_agents_in_window"]
-        assert "note" in result
-        assert "typo-name" in result["note"]
-
-    def test_known_agents_hint_absent_when_filter_matches(self):
-        """When filter matches records, the hint field must NOT be present (no noise)."""
-        vs = ValidationStats()
-        vs.record("c1", "ctx", True, 0, 0, 1.0, agent_id="present")
-        result = vs.get_windowed_summary_for_agent(window_hours=1, agent_id="present")
-        assert "known_agents_in_window" not in result
-        assert "note" not in result
-
     def test_effective_window_present_and_capped_by_uptime(self):
         vs = ValidationStats()
         vs.record("c1", "ctx", True, 0, 0, 1.0, agent_id="a")

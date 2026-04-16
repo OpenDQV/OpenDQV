@@ -388,22 +388,6 @@ class ValidationStats:
         # freshly-restarted API covers only uptime, not 24h of calendar time.
         summary["effective_window_seconds"] = round(min(window_hours * 3600, uptime_seconds), 1)
         summary["requested_window_hours"] = window_hours
-        # If the filter matched nothing, surface which agents ARE present in the
-        # window so a typo (bauer_sf_prod vs salesforce-connector-bauer) doesn't
-        # masquerade as "agent has no activity". Helps AI agents self-correct.
-        if summary["total_validations"] == 0:
-            with self._lock:
-                seen_agents = {
-                    aid for ts, _c, _x, _v, _l, aid in self._events
-                    if ts >= cutoff and aid
-                }
-            summary["known_agents_in_window"] = sorted(seen_agents)
-            summary["note"] = (
-                f"No records matched agent_id='{agent_id}' in the window. "
-                f"See known_agents_in_window for agents that ARE present "
-                f"(in-memory stats only cover ~{summary['effective_window_seconds']:.0f}s "
-                f"since last API restart)."
-            )
         return summary
 
     def _latency_stats(self) -> dict:
