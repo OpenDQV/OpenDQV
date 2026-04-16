@@ -273,11 +273,11 @@ class ValidationStats:
         summary["total_fail"] = total_fail
         summary["pass_rate"] = round(total_pass / total * 100, 1) if total > 0 else 0
         summary["window_hours"] = window_hours
-        # Transparency: effective window = min(requested, actual uptime). In-memory
-        # stats start when the API process starts, so a 24h request on a
-        # freshly-restarted API covers only uptime, not 24h of calendar time.
-        uptime_seconds = time.time() - self.started_at.timestamp()
-        summary["effective_window_seconds"] = round(min(window_hours * 3600, uptime_seconds), 1)
+        # Transparency: effective window = min(requested, actual data coverage).
+        # Coverage is max of API uptime and the age of the oldest event in the deque;
+        # the latter lets hydrated-from-persistent-store events count, even when the
+        # process itself just started. If no data, fall back to uptime.
+        summary["effective_window_seconds"] = self._effective_window_seconds(window_hours)
         summary["requested_window_hours"] = window_hours
         if len(by_agent) > 1:
             summary["by_agent"] = {
@@ -336,11 +336,6 @@ class ValidationStats:
                 if ts < cutoff or aid != agent_id:
                     continue
                 agent_field_counts[(contract, field, rule)] += 1
-            # Effective window = min(requested window, actual uptime) — tells the
-            # caller how much data actually covers this response. In-memory stats
-            # reset on API restart, so a 24h request on a 20-min-old API covers
-            # ~20 minutes, not 24 hours.
-            uptime_seconds = (now_ts - self.started_at.timestamp())
         summary = self.get_summary()
         summary["by_contract"] = dict(windowed_totals)
         total_pass = sum(v["pass"] for v in windowed_totals.values())
@@ -383,10 +378,8 @@ class ValidationStats:
             }
         else:
             summary["latency"] = {"avg_ms": None, "p50_ms": None, "p95_ms": None, "p99_ms": None, "sample_size": 0}
-        # Transparency: tell the caller how much time the response actually covers.
-        # In-memory stats start when the API process starts; a 24h request on a
-        # freshly-restarted API covers only uptime, not 24h of calendar time.
-        summary["effective_window_seconds"] = round(min(window_hours * 3600, uptime_seconds), 1)
+        # Transparency: min(requested window, actual data coverage).
+        summary["effective_window_seconds"] = self._effective_window_seconds(window_hours)
         summary["requested_window_hours"] = window_hours
         # CRT167: drop fields that cannot be accurately scoped from the inherited
         # get_summary() view. total_errors/total_warnings/dimensions.by_severity
@@ -399,6 +392,23 @@ class ValidationStats:
         summary.pop("total_warnings", None)
         summary.pop("dimensions", None)
         return summary
+
+    def _effective_window_seconds(self, requested_window_hours: int) -> float:
+        """Return min(requested window, actual data coverage).
+
+        Coverage is the larger of (a) API uptime and (b) age of the oldest
+        event in the in-memory deque. (b) allows hydrated-from-persistent-store
+        events to count, even when the process just started. Without this, a
+        restarted API would claim only seconds of coverage despite having days
+        of valid hydrated data.
+        """
+        now_ts = time.time()
+        uptime = now_ts - self.started_at.timestamp()
+        with self._lock:
+            oldest_ts = self._events[0][0] if self._events else now_ts
+        oldest_age = now_ts - oldest_ts
+        coverage = max(uptime, oldest_age)
+        return round(min(requested_window_hours * 3600, coverage), 1)
 
     def _latency_stats(self) -> dict:
         """Compute avg/p50/p95/p99 from recent latency values. Called under self._lock."""
@@ -420,6 +430,94 @@ class ValidationStats:
 
 # Singleton instance
 stats = ValidationStats()
+
+
+def hydrate_stats_from_persistent_store(
+    stats_instance: "ValidationStats",
+    db_path: str,
+    window_hours: int = 336,  # 14 days
+) -> dict:
+    """Populate in-memory monitoring deques from the SQLite quality_stats table.
+
+    On API restart, the in-memory window (`_events`, `_error_events`) is empty
+    and takes real-world time to refill. Dashboards that poll /stats then show
+    empty or tiny windows until enough traffic accumulates. This function
+    synthesises per-record events from the persisted aggregates so the in-memory
+    window reflects the real production history immediately.
+
+    Synthesis:
+     - Each quality_stats row stores an aggregate call: total/passed/failed and
+       rule_failure_counts. We emit `passed` valid=True and `failed` valid=False
+       events, plus one error event per rule_failure_count entry.
+     - Timestamps are assembled from recorded_at with small deterministic
+       micro-offsets to keep ordering stable in the deque.
+     - Field name is not stored in the aggregate, so error events get field="?";
+       rule name is preserved (which is what top_failing_fields_by_agent keys on
+       in practice).
+
+    Deques are bounded (maxlen=10k for _events, 50k for _error_events) — older
+    synthesised events are silently dropped if the window is very busy. That's
+    correct: we care about the most recent state.
+
+    Returns a dict with counts for logging: {events, errors, rows_read}.
+    """
+    import sqlite3
+    import json
+    from datetime import timedelta as _td
+
+    cutoff = (datetime.now(timezone.utc) - _td(hours=window_hours)).isoformat()
+
+    try:
+        conn = sqlite3.connect(db_path, timeout=5)
+    except sqlite3.OperationalError:
+        # DB unavailable — silently skip hydration (fresh install, wrong path)
+        return {"events": 0, "errors": 0, "rows_read": 0, "skipped": True}
+
+    try:
+        rows = conn.execute(
+            """
+            SELECT contract_name, context, recorded_at, total_records, passed,
+                   failed, rule_failure_counts, agent_id, mode
+            FROM quality_stats
+            WHERE recorded_at > ?
+            ORDER BY recorded_at ASC
+            """,
+            (cutoff,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        conn.close()
+        return {"events": 0, "errors": 0, "rows_read": 0, "skipped": True}
+    conn.close()
+
+    events_added = 0
+    errors_added = 0
+
+    for contract, context, recorded_at, total, passed, failed, rule_failures_json, agent_id, mode in rows:
+        try:
+            ts_dt = datetime.fromisoformat(recorded_at)
+            ts = ts_dt.timestamp()
+        except (ValueError, TypeError):
+            continue
+        ctx = context or "none"
+        aid = agent_id or ""
+        # Synthesize per-record events with tiny micro-offsets
+        for i in range(passed or 0):
+            stats_instance._events.append((ts + i * 0.0001, contract, ctx, True, 0.3, aid))
+            events_added += 1
+        for i in range(failed or 0):
+            stats_instance._events.append((ts + ((passed or 0) + i) * 0.0001, contract, ctx, False, 0.3, aid))
+            events_added += 1
+        # Synthesize error_events from rule_failure_counts
+        try:
+            rule_failures = json.loads(rule_failures_json) if rule_failures_json else {}
+        except (ValueError, TypeError):
+            rule_failures = {}
+        for rule_name, count in rule_failures.items():
+            for i in range(count or 0):
+                stats_instance._error_events.append((ts + i * 0.0001, contract, "?", rule_name, aid))
+                errors_added += 1
+
+    return {"events": events_added, "errors": errors_added, "rows_read": len(rows), "skipped": False}
 
 
 def update_contract_counts(draft: int, active: int, review: int = 0) -> None:

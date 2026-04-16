@@ -126,6 +126,53 @@ class TestGetWindowedSummaryForAgent:
         assert result["latency"]["sample_size"] == 0
         assert result["latency"]["avg_ms"] is None
 
+    def test_effective_window_reflects_hydrated_events(self, tmp_path):
+        """effective_window_seconds should grow when old events are hydrated into the deque,
+        even if the API process itself just started."""
+        from opendqv.monitoring import hydrate_stats_from_persistent_store
+        from opendqv.core.quality_stats import QualityStats
+        import sqlite3
+        from datetime import datetime, timezone, timedelta
+
+        db = str(tmp_path / "hydrate_test.db")
+        QualityStats(db)  # initialize the table schema
+        # Seed a row with a 3-day-old timestamp
+        three_days_ago = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+        conn = sqlite3.connect(db)
+        conn.execute(
+            "INSERT INTO quality_stats (contract_name, contract_version, context, "
+            "recorded_at, total_records, passed, failed, pass_rate, "
+            "rule_failure_counts, agent_id, mode) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("c1", "v1", "default", three_days_ago, 10, 8, 2,
+             0.8, '{"rule_a": 2}', "agent-x", "enforcement"),
+        )
+        conn.commit()
+        conn.close()
+
+        vs = ValidationStats()
+        # Fresh stats — no events, so effective_window ~= uptime (tiny)
+        assert vs._effective_window_seconds(requested_window_hours=168) < 10
+
+        result = hydrate_stats_from_persistent_store(vs, db, window_hours=168)
+        assert not result["skipped"]
+        assert result["events"] == 10
+        assert result["errors"] == 2
+
+        # After hydration, effective_window should reflect the 3-day-old event
+        eff = vs._effective_window_seconds(requested_window_hours=168)
+        # 3 days = 259,200s; requested 168h = 604,800s; should clamp to ~3 days
+        assert 250_000 < eff < 270_000, f"expected ~3 days of coverage, got {eff}s"
+
+    def test_hydrate_skips_when_db_missing(self, tmp_path):
+        from opendqv.monitoring import hydrate_stats_from_persistent_store
+        vs = ValidationStats()
+        result = hydrate_stats_from_persistent_store(vs, str(tmp_path / "no-such.db"))
+        # DB doesn't exist as a valid table → should skip gracefully, not crash
+        assert result["events"] == 0
+        # Either skipped (OperationalError) or read zero rows from empty new db
+        assert result["rows_read"] == 0
+
     def test_effective_window_present_in_unfiltered_windowed(self):
         """Unfiltered windowed summary must also carry effective_window_seconds."""
         vs = ValidationStats()

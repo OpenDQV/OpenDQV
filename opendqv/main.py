@@ -27,6 +27,8 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from strawberry.fastapi import GraphQLRouter
 
+import os
+
 import opendqv.config as config
 from opendqv.api.routes import router, limiter, set_registry as set_routes_registry
 from opendqv.security.auth import init_db as _init_auth_db
@@ -52,6 +54,21 @@ async def lifespan(app: FastAPI):
     logger.info("OpenDQV worker starting (pid=%d)", __import__("os").getpid())
     config.validate_config()
     _init_auth_db()
+    # Hydrate in-memory monitoring window from persisted quality_stats so
+    # /stats reflects real history immediately instead of waiting for traffic
+    # to accumulate after a restart. Opt-out: OPENDQV_HYDRATE_STATS=false.
+    if os.environ.get("OPENDQV_HYDRATE_STATS", "true").lower() != "false":
+        try:
+            from opendqv.monitoring import hydrate_stats_from_persistent_store, stats
+            result = hydrate_stats_from_persistent_store(stats, config.DB_PATH)
+            if not result.get("skipped"):
+                logger.info(
+                    "Hydrated in-memory stats from persistent store: "
+                    "%d events, %d error-events, %d rows read",
+                    result["events"], result["errors"], result["rows_read"],
+                )
+        except Exception as exc:
+            logger.warning("Stats hydration failed (non-fatal): %s", exc)
     yield
     # ── Shutdown — flush any pending in-memory heartbeat counts ───────
     try:
