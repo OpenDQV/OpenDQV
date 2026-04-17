@@ -238,7 +238,7 @@ OpenDQV Core owns layer one. Your catalog handles layer two, your pipeline tools
 | **Where** | Data pipelines, batch jobs | Source system integration points |
 | **Model** | Scan data at rest | Validate data in flight |
 | **Latency** | Minutes to hours (batch) | Milliseconds (API call) |
-| **Who calls it** | Data engineers | Application developers, CRM admins |
+| **Who calls it** | Data engineers | Data engineers, developers, CRM admins |
 
 **They're complementary.** Use Great Expectations to monitor your warehouse. Use OpenDQV to stop bad data from getting there in the first place.
 
