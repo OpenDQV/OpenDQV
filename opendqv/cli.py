@@ -11,6 +11,7 @@ Commands:
     show <contract>                Show contract details
     validate <contract> <json>     Validate a JSON record against a contract
     validate-file <contract> <path>  Validate a CSV or Parquet file (no API server required)
+    fork <src> <dst>               Fork a contract to a new name as a DRAFT (preserves comments)
     lint <contract>                Lint a contract YAML for logical errors
     export-gx <contract>           Export contract as GX expectation suite JSON
     import-gx <file>               Import GX suite JSON and save as YAML contract
@@ -613,6 +614,73 @@ def cmd_validate_file(args):
         sys.exit(0 if summary["failed"] == 0 else 1)
 
 
+def cmd_fork(args):
+    """Fork a contract — copy its YAML to a new name as a clean DRAFT.
+
+    Mutates in place via targeted regex so comments and structure are preserved.
+    The forked contract gets: name=<dst>, version="1.0", status=draft, and
+    asset_id rewritten to urn:opendqv:<dst>. Everything else (rules, contexts,
+    descriptions, regulatory commentary) is copied verbatim for the author to edit.
+    """
+    import re as _re_fork
+
+    _validate_contract_name(args.src)
+    _validate_contract_name(args.dst)
+
+    if args.src == args.dst:
+        print("Error: source and destination names are identical.", file=sys.stderr)
+        sys.exit(1)
+
+    src_path = CONTRACTS_DIR / f"{args.src}.yaml"
+    if not src_path.exists():
+        print(f"Error: Source contract '{args.src}' not found at {src_path}", file=sys.stderr)
+        sys.exit(1)
+
+    dst_path = CONTRACTS_DIR / f"{args.dst}.yaml"
+    if dst_path.exists() and not args.force:
+        print(f"Error: {dst_path} already exists (use --force to overwrite)", file=sys.stderr)
+        sys.exit(1)
+
+    content = src_path.read_text(encoding="utf-8")
+
+    # Rewrite the first occurrence of each key under the contract: block.
+    # The contract-level fields sit at indent > 0 at the top of the file; rule
+    # entries have name:/version:/status: too but appear later, so count=1 is
+    # enough to hit the contract-level line reliably.
+    content = _re_fork.sub(
+        r'^(\s+name:\s+).*$',
+        rf'\g<1>{args.dst}',
+        content, count=1, flags=_re_fork.MULTILINE,
+    )
+    content = _re_fork.sub(
+        r'^(\s+version:\s+).*$',
+        r'\g<1>"1.0"',
+        content, count=1, flags=_re_fork.MULTILINE,
+    )
+    content = _re_fork.sub(
+        r'^(\s+status:\s+).*$',
+        r'\g<1>draft',
+        content, count=1, flags=_re_fork.MULTILINE,
+    )
+    content = _re_fork.sub(
+        r'^(\s+asset_id:\s+).*$',
+        rf'\g<1>urn:opendqv:{args.dst}',
+        content, count=1, flags=_re_fork.MULTILINE,
+    )
+
+    dst_path.write_text(content, encoding="utf-8")
+
+    print(f"Forked {args.src} -> {args.dst}")
+    print(f"  Source: {src_path}")
+    print(f"  New:    {dst_path}")
+    print()
+    print("The new contract is DRAFT at version 1.0.")
+    print("Edit the rules as needed, then:")
+    print(f"  opendqv lint {args.dst}")
+    print(f"  opendqv validate {args.dst} '{{...}}'")
+    print(f"  opendqv submit-review {args.dst}")
+
+
 def cmd_lint(args):
     """Lint a contract YAML for logical errors before deployment."""
     import json as _json
@@ -1013,6 +1081,15 @@ def main():
         help="Run in observation-only mode: log violations but do not block. Always exits 0.",
     )
 
+    # fork
+    p_fork = subparsers.add_parser(
+        "fork",
+        help="Fork a contract — copy to a new name as a clean DRAFT (preserves comments)",
+    )
+    p_fork.add_argument("src", help="Source contract name (the template to copy)")
+    p_fork.add_argument("dst", help="New contract name (will be created as DRAFT v1.0)")
+    p_fork.add_argument("--force", action="store_true", help="Overwrite dst if it already exists")
+
     # lint
     p_lint = subparsers.add_parser(
         "lint",
@@ -1108,6 +1185,7 @@ def main():
         "export-dbt": cmd_export_dbt,
         "generate": cmd_generate,
         "validate-file": cmd_validate_file,
+        "fork": cmd_fork,
         "lint": cmd_lint,
         "audit-verify": cmd_audit_verify,
         "contracts-import-dir": cmd_contracts_import_dir,

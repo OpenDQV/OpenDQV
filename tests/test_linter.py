@@ -359,3 +359,46 @@ class TestLengthAliasConfusion:
         """Warnings don't block — passed should still be True."""
         result = _lint(_rule(type="max_length", field="name", max=18))
         assert result.passed  # warnings don't count as errors
+
+
+# ── Filename / YAML name mismatch ────────────────────────────────────────────
+
+class TestFilenameNameMismatch:
+    """Catches the 'cp media_content.yaml bauer_ad.yaml and forget to edit name:' footgun."""
+
+    def test_mismatch_emits_error(self):
+        """Filename stem differs from YAML internal name → FILENAME_NAME_MISMATCH."""
+        yaml_str = (
+            "contract:\n  name: media_content\n  version: \"1.0\"\n  status: draft\n"
+            "rules: []\n"
+        )
+        result = lint_contract_yaml(yaml_str, contract_name="bauer_ad")
+        codes = [i.code for i in result.issues]
+        assert "FILENAME_NAME_MISMATCH" in codes
+        mismatch = next(i for i in result.issues if i.code == "FILENAME_NAME_MISMATCH")
+        assert mismatch.severity == "error"
+        assert "bauer_ad" in mismatch.message
+        assert "media_content" in mismatch.message
+        assert not result.passed
+
+    def test_matching_names_no_issue(self):
+        """Filename and YAML name agree → no mismatch issue."""
+        yaml_str = (
+            "contract:\n  name: customer\n  version: \"1.0\"\n  status: draft\n"
+            "rules: []\n"
+        )
+        result = lint_contract_yaml(yaml_str, contract_name="customer")
+        codes = [i.code for i in result.issues]
+        assert "FILENAME_NAME_MISMATCH" not in codes
+        assert result.passed
+
+    def test_no_filename_context_no_check(self):
+        """When called without a filename hint, the mismatch check is skipped."""
+        yaml_str = (
+            "contract:\n  name: media_content\n  version: \"1.0\"\n  status: draft\n"
+            "rules: []\n"
+        )
+        result = lint_contract_yaml(yaml_str)  # no contract_name
+        codes = [i.code for i in result.issues]
+        assert "FILENAME_NAME_MISMATCH" not in codes
+        assert result.passed

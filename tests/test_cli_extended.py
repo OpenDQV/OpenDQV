@@ -447,6 +447,81 @@ class TestCmdValidateFileDirect:
 
 
 # ---------------------------------------------------------------------------
+# TestCmdForkDirect
+# ---------------------------------------------------------------------------
+
+class TestCmdForkDirect:
+    """cmd_fork — copy a contract to a new name as a clean DRAFT."""
+
+    def test_fork_creates_new_draft(self, contracts_dir):
+        args = argparse.Namespace(src="media_content", dst="bauer_ad", force=False)
+        out, _, rc = _capture(cli_module.cmd_fork, args)
+        assert rc == 0
+        assert "Forked" in out
+        forked = (contracts_dir / "bauer_ad.yaml").read_text(encoding="utf-8")
+        assert "name: bauer_ad" in forked
+        assert 'version: "1.0"' in forked
+        assert "status: draft" in forked
+        assert "asset_id: urn:opendqv:bauer_ad" in forked
+        # The original contract's content is preserved
+        assert "content_id_required" in forked
+
+    def test_fork_preserves_comments_and_descriptions(self, contracts_dir):
+        """Forking via regex mutation keeps the long regulatory description intact."""
+        args = argparse.Namespace(src="media_content", dst="bauer_ad", force=False)
+        _capture(cli_module.cmd_fork, args)
+        forked = (contracts_dir / "bauer_ad.yaml").read_text(encoding="utf-8")
+        assert "EIDR" in forked  # from media_content description
+        assert "OFCOM" in forked
+
+    def test_fork_refuses_overwrite_without_force(self, contracts_dir):
+        (contracts_dir / "already_there.yaml").write_text(
+            "contract:\n  name: already_there\n  version: \"1.0\"\n  rules: []\n",
+            encoding="utf-8",
+        )
+        args = argparse.Namespace(src="customer", dst="already_there", force=False)
+        _, err, rc = _capture(cli_module.cmd_fork, args)
+        assert rc != 0
+        assert "already exists" in err
+
+    def test_fork_overwrites_with_force(self, contracts_dir):
+        (contracts_dir / "target.yaml").write_text(
+            "contract:\n  name: target\n  version: \"9.9\"\n  rules: []\n",
+            encoding="utf-8",
+        )
+        args = argparse.Namespace(src="customer", dst="target", force=True)
+        _, _, rc = _capture(cli_module.cmd_fork, args)
+        assert rc == 0
+        forked = (contracts_dir / "target.yaml").read_text(encoding="utf-8")
+        assert "name: target" in forked
+        assert 'version: "1.0"' in forked
+
+    def test_fork_rejects_missing_source(self, contracts_dir):
+        args = argparse.Namespace(src="does_not_exist_zzz", dst="whatever", force=False)
+        _, err, rc = _capture(cli_module.cmd_fork, args)
+        assert rc != 0
+        assert "not found" in err.lower()
+
+    def test_fork_rejects_identical_src_and_dst(self, contracts_dir):
+        args = argparse.Namespace(src="customer", dst="customer", force=False)
+        _, err, rc = _capture(cli_module.cmd_fork, args)
+        assert rc != 0
+        assert "identical" in err
+
+    def test_fork_rejects_invalid_dst_name(self, contracts_dir):
+        args = argparse.Namespace(src="customer", dst="../escape", force=False)
+        _, err, rc = _capture(cli_module.cmd_fork, args)
+        assert rc != 0
+
+    def test_forked_contract_lints_clean(self, contracts_dir):
+        """End-to-end: fork produces a file that `opendqv lint` passes."""
+        _capture(cli_module.cmd_fork, argparse.Namespace(src="customer", dst="my_custom", force=False))
+        out, _, rc = _capture(cli_module.cmd_lint, argparse.Namespace(contract="my_custom", format="text"))
+        assert rc == 0
+        assert "PASS" in out
+
+
+# ---------------------------------------------------------------------------
 # TestCmdLintDirect
 # ---------------------------------------------------------------------------
 

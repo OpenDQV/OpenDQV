@@ -161,9 +161,31 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
 
     # Use contract name from YAML if not provided
     contract_node = data.get("contract", {})
-    if isinstance(contract_node, dict) and not contract_name:
-        contract_name = contract_node.get("name", "")
+    yaml_internal_name = contract_node.get("name", "") if isinstance(contract_node, dict) else ""
+
+    if not contract_name:
+        contract_name = yaml_internal_name
         result.contract_name = contract_name
+    elif yaml_internal_name and yaml_internal_name != contract_name:
+        # The caller provided a name (typically the filename stem) and the YAML
+        # has a different internal `name:`. This is the "cp media_content.yaml
+        # bauer_ad.yaml and forget to edit the name: field" footgun — the
+        # registry keys contracts by the YAML internal name, so the file loads
+        # under the wrong identifier and `opendqv validate <filename_stem>`
+        # returns "not found".
+        result.issues.append(LintIssue(
+            severity="error",
+            rule_name=None,
+            code="FILENAME_NAME_MISMATCH",
+            message=(
+                f"Filename stem '{contract_name}' does not match YAML internal "
+                f"name '{yaml_internal_name}'. The registry keys contracts by "
+                f"their YAML 'name:' field, so this file will load under "
+                f"'{yaml_internal_name}', not '{contract_name}'. "
+                f"Edit the 'name:' field to match the filename, or rename the "
+                f"file to '{yaml_internal_name}.yaml'."
+            ),
+        ))
 
     raw_rules = data.get("rules", [])
     if not isinstance(raw_rules, list):

@@ -2,6 +2,20 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.2.5] - 2026-04-18
+
+### Added
+
+- **`opendqv fork <src> <dst>`** — copy a contract to a new name as a clean DRAFT.
+  Rewrites `name:`, `version: "1.0"`, `status: draft`, and `asset_id:` in place
+  while preserving all comments, descriptions, and rules from the source. One
+  command replaces the `cp + edit name: field + reset version` workflow — and
+  removes the footgun where a forgotten `name:` edit caused `opendqv validate`
+  to return "not found" despite `opendqv lint` passing.
+- **Linter rule `FILENAME_NAME_MISMATCH`** — `opendqv lint` now errors when the
+  filename stem differs from the YAML's internal `name:` field. Catches the
+  same footgun for users who copy files manually instead of using `fork`.
+
 ## [2.2.4] - 2026-04-17
 
 ### Changed
