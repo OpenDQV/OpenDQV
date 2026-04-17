@@ -20,7 +20,7 @@ from pathlib import Path
 # Use the contracts dir from environment (points at temp copy during normal test runs,
 # but points at live contracts/ when run standalone — both are valid for linting).
 _contracts_dir = Path(
-    os.environ.get("OPENDQV_CONTRACTS_DIR", Path(__file__).parent.parent / "contracts")
+    os.environ.get("OPENDQV_CONTRACTS_DIR", Path(__file__).parent.parent / "opendqv" / "contracts")
 )
 
 # ── helpers ───────────────────────────────────────────────────────────────────

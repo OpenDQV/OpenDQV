@@ -10,7 +10,7 @@ from opendqv.core.rule_parser import Rule, ContractStatus
 
 @pytest.fixture
 def registry():
-    contracts_dir = Path(__file__).parent.parent / "contracts"
+    contracts_dir = Path(__file__).parent.parent / "opendqv" / "contracts"
     return ContractRegistry(contracts_dir)
 
 
@@ -265,7 +265,7 @@ class TestYamlParseErrors:
 class TestLoyaltyTierLookup:
     """ACT-040-05 — loyalty_tier lookup rule in customer contract."""
 
-    CONTRACTS_DIR = Path(__file__).parent.parent / "contracts"
+    CONTRACTS_DIR = Path(__file__).parent.parent / "opendqv" / "contracts"
 
     def _get_loyalty_rule(self, registry):
         c = registry.get("customer")

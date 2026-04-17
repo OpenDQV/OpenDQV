@@ -33,8 +33,8 @@ cleanup() {
     # counters auto-incremented by the registry when draft contracts are exercised).
     # Only runs if inside a git repo — safe no-op otherwise.
     if git rev-parse --git-dir > /dev/null 2>&1; then
-      git checkout -- contracts/ 2>/dev/null || true
-      info "contracts/ reset to committed state"
+      git checkout -- opendqv/contracts/ 2>/dev/null || true
+      info "opendqv/contracts/ reset to committed state"
     fi
   fi
 }
@@ -386,7 +386,7 @@ AUDIT=$(docker compose run --rm api bash -c "
 python -c \"
 import opendqv.config as config; config.DB_PATH='/tmp/clean_room_audit.db'
 from pathlib import Path; from opendqv.core.contracts import ContractRegistry
-ContractRegistry(Path('contracts'))
+ContractRegistry(Path('opendqv/contracts'))
 \" && python -m opendqv.cli audit-verify --db /tmp/clean_room_audit.db
 " 2>&1) || true
 if echo "$AUDIT" | grep -q "Chain integrity: PASS"; then
@@ -599,7 +599,7 @@ step "29. Bad contract YAML — malformed file silently rejected, others unaffec
 BEFORE_COUNT=$(curl -sf http://localhost:8000/api/v1/contracts | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
 
 # Write a syntactically broken YAML (unmatched quote triggers yaml.scanner.ScannerError)
-cat > contracts/smoke_bad_yaml_test.yaml << 'EOF'
+cat > opendqv/contracts/smoke_bad_yaml_test.yaml << 'EOF'
 contract:
   name: smoke_bad_yaml_test
   rules:
@@ -613,7 +613,7 @@ curl -sf -X POST http://localhost:8000/api/v1/contracts/reload > /dev/null 2>&1 
 AFTER_COUNT=$(curl -sf http://localhost:8000/api/v1/contracts | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
 BAD_PRESENT=$(curl -sf http://localhost:8000/api/v1/contracts | python3 -c "import sys,json; cs=json.load(sys.stdin); print('yes' if any(c['name']=='smoke_bad_yaml_test' for c in cs) else 'no')" 2>/dev/null || echo "unknown")
 
-rm -f contracts/smoke_bad_yaml_test.yaml
+rm -f opendqv/contracts/smoke_bad_yaml_test.yaml
 curl -sf -X POST http://localhost:8000/api/v1/contracts/reload > /dev/null 2>&1 || true
 
 if [ "$BAD_PRESENT" = "no" ] && [ "$AFTER_COUNT" = "$BEFORE_COUNT" ]; then

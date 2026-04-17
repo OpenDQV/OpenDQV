@@ -24,7 +24,7 @@ from opendqv.core.rule_parser import Rule
 from opendqv.core.validator import validate_batch, validate_record, _load_lookup_set
 
 
-CONTRACTS_DIR = Path(__file__).parent.parent / "contracts"
+CONTRACTS_DIR = Path(__file__).parent.parent / "opendqv" / "contracts"
 
 # ── Shared valid record for W1 ────────────────────────────────────────────────
 _VALID_RECORD = {

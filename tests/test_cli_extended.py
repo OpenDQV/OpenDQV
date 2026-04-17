@@ -25,7 +25,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 import opendqv.cli as cli_module  # noqa: E402
 
-CONTRACTS_SRC = PROJECT_ROOT / "contracts"
+CONTRACTS_SRC = PROJECT_ROOT / "opendqv" / "contracts"
 SAMPLE_DIR = PROJECT_ROOT / "tests" / "sample_data"
 
 

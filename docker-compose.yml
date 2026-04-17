@@ -17,7 +17,7 @@ services:
       # balancer instead.
     volumes:
       - db-data:/app/data
-      - ./contracts:/app/contracts
+      - ./opendqv/contracts:/app/opendqv/contracts
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s

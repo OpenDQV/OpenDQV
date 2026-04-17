@@ -590,6 +590,8 @@ class OnboardingWizard:
 
     def __init__(self, contracts_dir: Optional[Path] = None):
         self.contracts_dir = contracts_dir or (Path(__file__).resolve().parent.parent / "contracts")
+        # Note: Path(__file__).resolve().parent is opendqv/core/, so parent.parent is opendqv/,
+        # which now houses the bundled contracts/ directory.
         self.start = time.time()
         self.result = WizardResult()
         self.console = Console() if HAS_RICH else None

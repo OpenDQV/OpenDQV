@@ -106,25 +106,66 @@ rules:
 
 
 def cmd_init(args):
-    """Initialise a contracts directory with a starter contract."""
+    """Initialise a contracts directory.
+
+    Default: writes a single starter customer.yaml.
+    With --all: copies every bundled contract (43+ regulated domains) and
+    reference lookup files to the target directory — a writable working copy
+    of the full OpenDQV library.
+    """
+    import shutil
+    from opendqv.config import _BUNDLED_CONTRACTS_DIR
+
     target = Path(args.dir)
     target.mkdir(parents=True, exist_ok=True)
 
-    starter_path = target / "customer.yaml"
-    if starter_path.exists() and not args.force:
-        print(f"  {starter_path} already exists (use --force to overwrite)")
+    if args.all:
+        if not _BUNDLED_CONTRACTS_DIR.exists():
+            print(f"Error: bundled contracts not found at {_BUNDLED_CONTRACTS_DIR}", file=sys.stderr)
+            sys.exit(1)
+        copied = 0
+        for src in sorted(_BUNDLED_CONTRACTS_DIR.glob("*.yaml")):
+            dst = target / src.name
+            if dst.exists() and not args.force:
+                print(f"  skip {dst} (exists — use --force to overwrite)")
+                continue
+            shutil.copy2(src, dst)
+            copied += 1
+        ref_src = _BUNDLED_CONTRACTS_DIR / "ref"
+        if ref_src.exists():
+            ref_dst = target / "ref"
+            ref_dst.mkdir(exist_ok=True)
+            for src in sorted(ref_src.glob("*")):
+                dst = ref_dst / src.name
+                if dst.exists() and not args.force:
+                    continue
+                shutil.copy2(src, dst)
+        print(f"  Copied {copied} contracts + reference files to {target.resolve()}")
     else:
-        starter_path.write_text(_STARTER_CONTRACT_YAML, encoding="utf-8")
-        print(f"  Created {starter_path}")
+        starter_path = target / "customer.yaml"
+        if starter_path.exists() and not args.force:
+            print(f"  {starter_path} already exists (use --force to overwrite)")
+        else:
+            starter_path.write_text(_STARTER_CONTRACT_YAML, encoding="utf-8")
+            print(f"  Created {starter_path}")
 
     print()
     print("Next steps:")
     print(f"  export OPENDQV_CONTRACTS_DIR={target.resolve()}")
     print("  opendqv list")
-    print("  opendqv validate customer '{\"name\": \"Alice\", \"email\": \"alice@example.com\", \"age\": 30}'")
+    if args.all:
+        print("  opendqv show media_content")
+        print("  opendqv validate-file media_content your.csv")
+    else:
+        print("  opendqv validate customer '{\"name\": \"Alice\", \"email\": \"alice@example.com\", \"age\": 30}'")
     print()
-    print("Add more contracts by creating .yaml files in the contracts directory.")
-    print("See https://github.com/OpenDQV/OpenDQV/tree/main/examples for industry templates.")
+    if args.all:
+        print("All bundled contracts are now writable in your local directory.")
+        print("Run `opendqv init --all --force` to re-sync from the bundle.")
+    else:
+        print("Add more contracts by creating .yaml files in the contracts directory.")
+        print("Or run `opendqv init --all` to copy all bundled regulated contracts.")
+        print("See https://github.com/OpenDQV/OpenDQV/tree/main/examples for industry templates.")
 
 
 def cmd_list(args):
@@ -891,9 +932,10 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # init
-    p_init = subparsers.add_parser("init", help="Initialise a contracts directory with a starter contract")
+    p_init = subparsers.add_parser("init", help="Initialise a contracts directory")
     p_init.add_argument("--dir", default="contracts", help="Target directory (default: ./contracts)")
-    p_init.add_argument("--force", action="store_true", help="Overwrite existing starter contract")
+    p_init.add_argument("--force", action="store_true", help="Overwrite existing contract files")
+    p_init.add_argument("--all", action="store_true", help="Copy every bundled contract (43+ regulated domains) instead of the single starter")
 
     # list
     subparsers.add_parser("list", help="List all contracts")

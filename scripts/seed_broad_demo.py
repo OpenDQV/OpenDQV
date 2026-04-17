@@ -28,7 +28,7 @@ TOKEN = os.environ.get("OPENDQV_TOKEN", "")
 # Contracts dir — try env var first, then relative to this script's parent
 _script_dir = Path(__file__).parent
 CONTRACTS_DIR = Path(
-    os.environ.get("OPENDQV_CONTRACTS_DIR", str(_script_dir.parent / "contracts"))
+    os.environ.get("OPENDQV_CONTRACTS_DIR", str(_script_dir.parent / "opendqv" / "contracts"))
 )
 
 

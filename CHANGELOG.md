@@ -2,6 +2,23 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.2.4] - 2026-04-17
+
+### Changed
+
+- **Contracts now ship in the wheel.** The 43 bundled YAML contracts plus their
+  reference lookup files have moved from `./contracts/` at repo root to
+  `opendqv/contracts/` inside the package. Pip-install users get the full library
+  as the default `CONTRACTS_DIR` — `opendqv list` works out of the box with zero
+  configuration. Dev and Docker workflows unchanged in behaviour: `OPENDQV_CONTRACTS_DIR`
+  still overrides, and the Docker compose mount points at the new path.
+- **`opendqv init --all`** — new flag copies every bundled contract (43+ regulated
+  domains) plus the reference lookup files into the target directory for a writable
+  working copy. Default `opendqv init` still writes the single starter contract.
+- Tagline unified across every user-facing surface: *"Trust is easier to build than
+  to repair."* CLI `--version`, onboarding wizard, Streamlit sidebar, CLI docs, MCP
+  docs — all aligned with README and Protocol 29.
+
 ## [2.2.3] - 2026-04-16
 
 ### Fixed

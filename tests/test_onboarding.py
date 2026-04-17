@@ -440,7 +440,7 @@ class TestBuildSampleRecordsFromRules:
         """Regression: healthcare_patient template produces a valid first record."""
         import yaml
         from pathlib import Path
-        contract_path = Path(__file__).resolve().parent.parent / "contracts" / "healthcare_patient.yaml"
+        contract_path = Path(__file__).resolve().parent.parent / "opendqv" / "contracts" / "healthcare_patient.yaml"
         if not contract_path.exists():
             pytest.skip("healthcare_patient.yaml not present")
         data = yaml.safe_load(contract_path.read_text(encoding="utf-8"))

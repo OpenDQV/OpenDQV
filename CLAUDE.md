@@ -25,8 +25,8 @@ core/           Engine: validator, rule_parser, contracts, code_generator, profi
                 webhooks, federation, trace_log, node_health, isolation_log,
                 quality_stats, worker_heartbeat, onboarding
 core/importers/ 8 format importers: GX, dbt, Soda, CSV, ODCS, CSVW, OTel, NDC
-contracts/      YAML data contracts (30 active, 22+ industry domains)
-contracts/ref/  Lookup reference files used by lookup rules
+opendqv/contracts/      YAML data contracts (43 active, 22+ industry domains) — shipped in the wheel since v2.2.4
+opendqv/contracts/ref/  Lookup reference files used by lookup rules
 docs/           76 markdown files: integration guides, security, operations
 examples/       Starter contracts + sample records by domain
 scripts/        Demo, wizard, perf-test, smoke tests, diagnostics
@@ -86,9 +86,9 @@ States: `draft` → `review` → `active` | `archived`
 - Draft contracts auto-increment version counter on rule mutations and write back to YAML
 
 ### Test isolation
-- `tests/conftest.py` copies `contracts/` to a temp dir at session start
-- All test reads/writes go to the temp copy — never the live `contracts/` directory
-- Do NOT change `OPENDQV_CONTRACTS_DIR` to point at live contracts/
+- `tests/conftest.py` copies `opendqv/contracts/` to a temp dir at session start
+- All test reads/writes go to the temp copy — never the live bundled directory
+- Do NOT change `OPENDQV_CONTRACTS_DIR` to point at live `opendqv/contracts/`
 - Tests use `AUTH_MODE=token` — always provide `auth_headers` / `approver_headers` fixtures
 
 ### Onboarding wizard

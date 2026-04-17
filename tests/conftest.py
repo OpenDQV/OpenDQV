@@ -29,7 +29,7 @@ print(f"\n[conftest] Test DB: {_db_path}", flush=True)
 # Copy contracts to a temp directory so tests that mutate contracts (e.g.
 # TestRuleMutationOnDraft bumping the draft version counter) never write
 # back to the live contracts/ directory on the host filesystem.
-_contracts_src = os.path.join(os.path.dirname(__file__), "..", "contracts")
+_contracts_src = os.path.join(os.path.dirname(__file__), "..", "opendqv", "contracts")
 _tmp_contracts_root = tempfile.mkdtemp(prefix="opendqv_test_contracts_")
 shutil.copytree(_contracts_src, os.path.join(_tmp_contracts_root, "contracts"))
 os.environ["OPENDQV_CONTRACTS_DIR"] = os.path.join(_tmp_contracts_root, "contracts")

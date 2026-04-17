@@ -30,7 +30,7 @@ MARMOT_URL = os.environ.get("MARMOT_URL", "http://localhost:8080")
 MARMOT_TOKEN = os.environ.get("MARMOT_TOKEN", "")
 OPENDQV_URL = os.environ.get("OPENDQV_URL", "http://localhost:8000")
 
-CONTRACTS_DIR = Path(__file__).parent.parent / "contracts"
+CONTRACTS_DIR = Path(__file__).parent.parent / "opendqv" / "contracts"
 
 
 def load_contracts() -> list[dict]:

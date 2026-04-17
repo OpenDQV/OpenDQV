@@ -120,7 +120,7 @@ For tool reference, write guardrails, remote/enterprise mode, and the Marmot com
 
 ## Your First Validation
 
-**1. Write a contract** — drop a YAML file in `contracts/`:
+**1. Write a contract** — drop a YAML file in your contracts directory (run `opendqv init --all` to copy the 43 bundled contracts, or `opendqv init` for a single starter):
 
 ```yaml
 contract:
@@ -246,12 +246,13 @@ OpenDQV Core owns layer one. Your catalog handles layer two, your pipeline tools
 
 ## Contracts
 
-44 production-ready contracts ship in `contracts/` covering GDPR, HIPAA, SOX, MiFID II,
+43 production-ready contracts ship inside the `opendqv` package covering GDPR, HIPAA, SOX, MiFID II,
 UK Building Safety Act, Martyn's Law, Natasha's Law, Ofcom Online Safety Act, EU DORA,
-and 20+ other regulatory frameworks across UK, EU, and US.
+and 20+ other regulatory frameworks across UK, EU, and US. `pip install opendqv` gives you all of them
+— `opendqv list` works with zero configuration.
 
 See [docs/compliance-contracts.md](docs/compliance-contracts.md) for the full list with
-regulatory context, or browse [contracts/](contracts/) directly.
+regulatory context, or browse [opendqv/contracts/](opendqv/contracts/) directly.
 17 minimal starter templates are in [examples/starter_contracts/](examples/starter_contracts/).
 
 ---

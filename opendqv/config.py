@@ -26,12 +26,15 @@ except Exception:
 
 # Paths
 # _PACKAGE_DIR is where the opendqv/ package lives (used for py.typed etc.)
-# BASE_DIR is the project root (one level up) — where contracts/, docs/ etc. live.
-# For pip installs, BASE_DIR points to site-packages parent which won't have
-# contracts/ — users must set OPENDQV_CONTRACTS_DIR or use `opendqv init`.
+# BASE_DIR is the project root (one level up) — kept for compatibility with
+# callers that expect a project-root reference (tests, scripts). From v2.2.4
+# onwards the 43 bundled YAML contracts live INSIDE the package at
+# opendqv/contracts/ so they ship in the wheel. Pip-install users get them
+# for free; dev installs edit them in place.
 _PACKAGE_DIR = Path(__file__).resolve().parent
 BASE_DIR = _PACKAGE_DIR.parent
-CONTRACTS_DIR = Path(os.environ.get("OPENDQV_CONTRACTS_DIR", str(BASE_DIR / "contracts")))
+_BUNDLED_CONTRACTS_DIR = _PACKAGE_DIR / "contracts"
+CONTRACTS_DIR = Path(os.environ.get("OPENDQV_CONTRACTS_DIR", str(_BUNDLED_CONTRACTS_DIR)))
 
 # Security
 DEFAULT_SECRET_KEY: str = "change-me-to-a-random-secret-key"

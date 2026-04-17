@@ -452,7 +452,7 @@ class TestLocalValidatorSmoke:
     """In-process SDK — no API server required."""
 
     def _contracts_dir(self):
-        return os.path.join(os.path.dirname(__file__), "..", "contracts")
+        return os.path.join(os.path.dirname(__file__), "..", "opendqv", "contracts")
 
     def test_valid_record_passes(self):
         from opendqv.sdk.local import LocalValidator
