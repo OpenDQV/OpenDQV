@@ -144,7 +144,7 @@ When write access is enabled, OpenDQV enforces strict guardrails to prevent agen
 - **ACTIVE contracts are immutable.** No agent can add, update, or delete rules on an ACTIVE contract. To modify an ACTIVE contract, fork it via `POST /contracts/{name}/version` — this creates a new DRAFT at the next version number.
 - **All agent writes are attributed.** The `source` field is set to `"mcp"` on any contract or rule created by an agent. This attribution is permanent and auditable.
 
-These guardrails exist because "trust is cheaper to build than to repair." A contract silently mutated by an agent is a trust failure. The design makes that impossible by construction.
+These guardrails exist because "trust is easier to build than to repair." A contract silently mutated by an agent is a trust failure. The design makes that impossible by construction.
 
 ## What agents can and cannot do
 

@@ -325,7 +325,7 @@ class TestCLIVersion:
     def test_version_flag_shows_ethos(self):
         r = run("--version")
         output = r.stdout + r.stderr
-        assert "Trust is cheaper to build than to repair" in output
+        assert "Trust is easier to build than to repair" in output
 
     def test_short_version_flag(self):
         r = run("-V")

@@ -163,7 +163,7 @@ headers = {"Authorization": f"Bearer {st.session_state.token}"} if st.session_st
 _logo_path = os.path.join(os.path.dirname(__file__), "opendqv-mark.png")
 if os.path.exists(_logo_path):
     st.sidebar.image(_logo_path, width=64)
-st.sidebar.caption("Trust is cheaper to build than to repair.")
+st.sidebar.caption("Trust is easier to build than to repair.")
 st.sidebar.markdown("---")
 
 

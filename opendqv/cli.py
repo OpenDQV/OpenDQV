@@ -886,7 +886,7 @@ def main():
     parser.add_argument(
         "--version", "-V",
         action="version",
-        version=f"opendqv {_cli_version}\nTrust is cheaper to build than to repair.",
+        version=f"opendqv {_cli_version}\nTrust is easier to build than to repair.",
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 

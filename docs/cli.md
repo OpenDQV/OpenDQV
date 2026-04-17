@@ -26,7 +26,7 @@ python -m opendqv.cli <command> [options]
 ```bash
 opendqv --version
 # opendqv 2.1.0
-# Trust is cheaper to build than to repair.
+# Trust is easier to build than to repair.
 ```
 
 ---

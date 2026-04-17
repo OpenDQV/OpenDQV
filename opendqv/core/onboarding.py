@@ -1063,7 +1063,7 @@ class OnboardingWizard:
         self._show_logo()
         self._p()
         self._p("  Welcome. Let's get OpenDQV running in under 90 seconds.", style="dim")
-        self._p('  "Trust is cheaper to build than to repair."', style="dim italic")
+        self._p('  "Trust is easier to build than to repair."', style="dim italic")
         self._p()
 
         if not HAS_RICH:
