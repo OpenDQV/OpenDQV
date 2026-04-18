@@ -41,7 +41,7 @@ Content-Type: application/json
   "contract":        "customer",
   "version":         "1.2",
   "owner":           "data-team@example.com",
-  "engine_version":  "1.0.0"
+  "engine_version":  "<engine-version>"
 }
 ```
 
@@ -90,7 +90,7 @@ Every connector **must** emit a structured trace log entry for each record it va
   "record_id":       "<caller-correlation-id>",
   "contract":        "customer",
   "contract_version": "1.2",
-  "engine_version":  "1.0.0",
+  "engine_version":  "<engine-version>",
   "context":         "salesforce",
   "valid":           true,
   "error_count":     0,

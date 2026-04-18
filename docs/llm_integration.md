@@ -461,7 +461,7 @@ Every validation response has the same shape:
   "contract": "banking_transaction",
   "version": "1.0",
   "contract_hash": "sha256:abc123...",
-  "engine_version": "2.2.5"
+  "engine_version": "<engine-version>"
 }
 ```
 
