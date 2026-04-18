@@ -92,7 +92,7 @@ print(result["errors"])            # [...] (violations are still listed)
     }
   ],
   "warnings": [],
-  "engine_version": "1.8.8",
+  "engine_version": "2.2.5",
   "validated_at": "2026-03-27T10:00:00Z",
   "latency_ms": 2.1
 }

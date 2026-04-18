@@ -21,7 +21,7 @@ cp .env.example .env
 ```
 
 If you prefer not to use a terminal:
-👉 [Download OpenDQV-v2.1.0.zip](https://github.com/OpenDQV/OpenDQV/archive/refs/tags/v2.1.0.zip)
+👉 [Download the latest OpenDQV release](https://github.com/OpenDQV/OpenDQV/releases/latest) — click the "Source code (zip)" asset on the release page.
 Unzip it, then skip to Step 2. The install script handles the `.env` file automatically.
 
 ---

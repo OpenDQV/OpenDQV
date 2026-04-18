@@ -208,7 +208,7 @@ def validate_task(records: list[dict], contract: str) -> dict:
 
 ## 5. Contract Version Discovery
 
-> **v1.0.0 note:** Version pinning — requesting validation against a specific older version — is not implemented. All validation requests resolve to the currently `ACTIVE` version regardless of the `version` field passed. Pass `"latest"` or the current active version string; both resolve identically. Version pinning is a post-v1.0.0 roadmap item. See `docs/contract_versioning.md` for details.
+> **Current-version limitation:** Version pinning — requesting validation against a specific older version — is not implemented. All validation requests resolve to the currently `ACTIVE` version regardless of the `version` field passed. Pass `"latest"` or the current active version string; both resolve identically. Version pinning is a roadmap item. See `docs/contract_versioning.md` for details.
 
 Connectors should resolve `"latest"` to the exact version at the start of each batch run, and log it:
 

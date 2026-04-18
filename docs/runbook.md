@@ -470,7 +470,7 @@ done && echo "Postgres ready"
 
 ### SQLite → Postgres migration
 
-**Migration is not supported in v1.0.0.** The Postgres backend starts fresh — existing SQLite contract history is not carried over. If you need to preserve history, remain on SQLite until a migration path is available.
+**Migration is not currently supported.** The Postgres backend starts fresh — existing SQLite contract history is not carried over. If you need to preserve history, remain on SQLite until a migration path is available. Migration tooling is a roadmap item.
 
 ### Teardown
 

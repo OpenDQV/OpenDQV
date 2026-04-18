@@ -24,7 +24,7 @@ opendqv serve
 
 بعد بضع ثوانٍ، ستظهر الرسالة:
 ```
-OpenDQV v1.0.0 listening on http://localhost:8000
+OpenDQV v2.2.5 listening on http://localhost:8000
 ```
 
 ---
@@ -81,7 +81,7 @@ curl -X POST http://localhost:8000/api/v1/validate \
   "warnings": [],
   "contract": "customer",
   "version": "1.0",
-  "engine_version": "1.0.0"
+  "engine_version": "2.2.5"
 }
 ```
 
