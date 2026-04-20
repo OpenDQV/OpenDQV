@@ -135,7 +135,7 @@ Five issues come up most often.
 
 If you installed with `install.sh` / `install.bat` and something isn't working:
 
-1. **Server not starting** — run `uvicorn main:app` directly in your terminal to see the full error output instead of a silent failure.
+1. **Server not starting** — run `uvicorn opendqv.main:app` directly in your terminal to see the full error output instead of a silent failure.
 
 2. **Port conflict** — open `.env` in a text editor and change `API_PORT=8000` or `WORKBENCH_PORT=8501` to a free port, then restart.
 

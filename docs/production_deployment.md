@@ -13,7 +13,7 @@ and must not be exposed to untrusted networks.
 Set `AUTH_MODE=token` in your environment before starting the API:
 
 ```bash
-AUTH_MODE=token uvicorn main:app --host 0.0.0.0 --port 8000
+AUTH_MODE=token uvicorn opendqv.main:app --host 0.0.0.0 --port 8000
 ```
 
 Or in your Docker Compose override:

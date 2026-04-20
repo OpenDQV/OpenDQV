@@ -10,26 +10,26 @@ If you installed with `install.sh` / `install.bat` and are not using Docker, the
 
 **1. Server not starting**
 
-Run `uvicorn main:app` directly in your terminal to see the full error output:
+Run `uvicorn opendqv.main:app` directly in your terminal to see the full error output:
 
 ```bash
 source .venv/bin/activate   # Mac/Linux
-uvicorn main:app
+uvicorn opendqv.main:app
 ```
 
 ```bat
 .venv\Scripts\activate      # Windows
-uvicorn main:app
+uvicorn opendqv.main:app
 ```
 
-The error message will point at the specific problem (missing env var, bad config, etc.).
+The error message will point at the specific problem (missing env var, bad config, etc.). For a backgrounded launch with a health check, use `bash scripts/start_api.sh --bg`.
 
 **2. Port conflict**
 
 Open `.env` and change `API_PORT=8000` to a free port (e.g. `8001`), or change `WORKBENCH_PORT=8501` to `8502`. Then restart:
 
 ```bash
-python -m uvicorn main:app --port 8001
+python -m uvicorn opendqv.main:app --port 8001
 ```
 
 **3. Python version wrong**
@@ -67,7 +67,7 @@ pip install -r requirements.txt
 ```yaml
 services:
   api:
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn opendqv.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 **Also check:** Stale Docker image. If you changed `ui/app.py` and the workbench is still showing old content, the image needs a rebuild:
