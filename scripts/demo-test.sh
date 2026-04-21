@@ -240,7 +240,7 @@ header "Test 6: GET /api/v1/contracts — contract registry"
 RESP=$(curl -s "${BASE_URL}/api/v1/contracts")
 COUNT=$(echo "$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d))")
 if [ "$COUNT" -ge 5 ]; then
-  pass "${COUNT} contracts registered (customer, bfsi_customer, sf_contact, sf_lead, customer_onboarding)"
+  pass "${COUNT} contracts registered (customer, bfsi_customer, salesforce_contact, salesforce_lead, customer_onboarding)"
 else
   fail "Expected ≥5 contracts, got ${COUNT}"
   echo "  Response: ${RESP}"

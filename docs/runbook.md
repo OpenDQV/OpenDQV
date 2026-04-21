@@ -136,7 +136,7 @@ curl -s -X PATCH http://localhost:8000/api/v1/contracts/<contract_name>/status \
   -d '{"status": "active"}'
 ```
 
-Replace `<contract_name>` with the value of the `contract.name` field in the YAML (e.g. `sf_contact`).
+Replace `<contract_name>` with the value of the `contract.name` field in the YAML (e.g. `salesforce_contact`).
 
 ### Rotating the SECRET_KEY
 

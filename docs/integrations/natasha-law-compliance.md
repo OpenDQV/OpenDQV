@@ -269,29 +269,12 @@ declarations at the time of review.
 
 ---
 
-## Django / AllerEasy integration
-
-For food businesses using [AllerEasy](https://www.allereasy.co.uk/) — the open-source
-Django allergen management tool — OpenDQV provides a complementary enforcement layer
-via the `allereasy_dish` contract and `LocalValidator` SDK.
-
-AllerEasy stores allergens as a ManyToMany relationship, which means a dish can be
-published without the allergen field ever being touched. The `allereasy_dish` contract
-adds a three-field audit trail (review confirmed, reviewed by, review date) and enforces
-it at `Dish.clean()` before the record reaches the database.
-
-**See:** [docs/integrations/allereasy.md](allereasy.md) for the full Django setup guide.
-
----
-
 ## Related resources
 
 - Contract: `contracts/ppds_menu_item.yaml` — 14 boolean allergen fields (REST API / bulk validation)
-- Contract: `contracts/allereasy_dish.yaml` — allergen review audit trail (Django LocalValidator)
 - Starter contract: `examples/ppds/ppds_menu_item.yaml`
 - Sample records: `examples/ppds/`
 - Reference files: `contracts/ref/allergen_boolean.txt`, `allergen_gluten_cereals.txt`,
   `allergen_tree_nut_types.txt`, `qsr_item_categories.txt`
-- AllerEasy: [allereasy.co.uk](https://www.allereasy.co.uk/) — open-source Django allergen management
 - UK legislation: [food.gov.uk/business-guidance/natashas-law](https://www.food.gov.uk/business-guidance/introduction-to-allergen-labelling-changes-ppds)
 - EU FIC: Regulation (EU) No 1169/2011

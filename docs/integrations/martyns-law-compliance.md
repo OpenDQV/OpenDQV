@@ -285,24 +285,12 @@ time of review.
 
 ---
 
-## OSS project integrations
-
-The following open-source platforms have been extended with Martyn's Law contracts
-and integration guides:
-
-| Platform | What it is | Integration guide |
-|----------|-----------|-------------------|
-| [Pretix](https://pretix.eu) | Open-source event ticketing (AGPL v3, Django) — conferences, festivals, public events | [docs/integrations/pretix.md](pretix.md) |
-
----
-
 ## Related resources
 
 - Contract: `contracts/martyns_law_venue.yaml`
 - Contract: `contracts/martyns_law_event.yaml`
-- Contract: `contracts/pretix_event.yaml`
 - Starter contract: `examples/martyns_law/martyns_law_venue.yaml`
-- Sample records: `examples/martyns_law/`, `examples/martyns_law_event/`, `examples/pretix/`
+- Sample records: `examples/martyns_law/`, `examples/martyns_law_event/`
 - Reference files: `contracts/ref/martyns_law_duty_tiers.txt`,
   `contracts/ref/martyns_law_venue_types.txt`
 - UK legislation: [legislation.gov.uk — Terrorism (Protection of Premises) Act 2025](https://www.legislation.gov.uk/ukpga/2025/14)

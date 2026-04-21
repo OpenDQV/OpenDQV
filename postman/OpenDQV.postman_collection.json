@@ -218,9 +218,9 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"contract\": \"sf_contact\",\n  \"record\": {\n    \"FirstName\": \"Sarah\",\n    \"LastName\": \"Chen\",\n    \"Email\": \"sarah.chen@acme.com\",\n    \"Phone\": \"+442071234567\",\n    \"Title\": \"Head of Data\",\n    \"AccountName\": \"Acme Corp\",\n    \"MailingCountry\": \"GB\"\n  }\n}"
+              "raw": "{\n  \"contract\": \"salesforce_contact\",\n  \"record\": {\n    \"FirstName\": \"Sarah\",\n    \"LastName\": \"Chen\",\n    \"Email\": \"sarah.chen@acme.com\",\n    \"Phone\": \"+442071234567\",\n    \"Title\": \"Head of Data\",\n    \"AccountName\": \"Acme Corp\",\n    \"MailingCountry\": \"GB\"\n  }\n}"
             },
-            "description": "Validates a Salesforce-style Contact record. Note PascalCase field names matching the sf_contact contract."
+            "description": "Validates a Salesforce-style Contact record. Note PascalCase field names matching the salesforce_contact contract."
           }
         },
         {
@@ -357,7 +357,7 @@
               "mode": "raw",
               "raw": "{\n  \"target\": \"apex\"\n}"
             },
-            "description": "Generates a Salesforce Apex trigger/class that enforces the contract rules natively in your Salesforce org. Use the sf_contact contract for best results."
+            "description": "Generates a Salesforce Apex trigger/class that enforces the contract rules natively in your Salesforce org. Use the salesforce_contact contract for best results."
           }
         },
         {

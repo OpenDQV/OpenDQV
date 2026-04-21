@@ -34,7 +34,7 @@ The seeder loads ~740 validation events across 7 contracts:
 |----------|---------|------------------|--------|
 | `customer` | 200 | 85% | CRM / customer data |
 | `proof_of_play` | 150 | 80% | Out-of-home advertising |
-| `sf_contact` | 100 | 90% | Salesforce CRM |
+| `salesforce_contact` | 100 | 90% | Salesforce CRM |
 | `banking_transaction` | 100 | 88% | Payments / finance |
 | `logistics_shipment` | 80 | 92% | Supply chain |
 | `nhs_dsp_patient` | 60 | 85% | Clinical / NHS DSP Toolkit |

@@ -1,10 +1,10 @@
 contract:
-  name: sf_lead
+  name: salesforce_lead
   version: "1.0"
   description: "Salesforce Lead — data quality validation for inbound lead records"
   owner: "CRM Data Team"
   status: active
-  asset_id: urn:opendqv:sf_lead
+  asset_id: urn:opendqv:salesforce_lead
 
   rules:
     - name: first_name_required

@@ -33,7 +33,7 @@ Usage:
     # Label the source system (mirrors production log output)
     python scripts/source_system_simulator.py \\
       --source-system "salesforce-prod" \\
-      --contract sf_contact \\
+      --contract salesforce_contact \\
       --records 20 \\
       --error-rate 0.3
 
@@ -76,7 +76,7 @@ SAMPLE_RECORDS_DIR = PROJECT_ROOT / "examples" / "starter_contracts" / "sample_r
 
 # ── Inline sample records for Salesforce contracts ────────────────────────────
 # These are used when no sample_records/{contract}.json file exists.
-# Mirrors the field structure of the sf_contact / sf_lead contracts.
+# Mirrors the field structure of the salesforce_contact / salesforce_lead contracts.
 
 _SF_CONTACT_SAMPLES = [
     {
@@ -211,8 +211,8 @@ _SF_LEAD_SAMPLES = [
 ]
 
 _INLINE_SAMPLES: dict[str, list[dict]] = {
-    "sf_contact": _SF_CONTACT_SAMPLES,
-    "sf_lead": _SF_LEAD_SAMPLES,
+    "salesforce_contact": _SF_CONTACT_SAMPLES,
+    "salesforce_lead": _SF_LEAD_SAMPLES,
 }
 
 
@@ -224,7 +224,7 @@ def load_sample_records(contract: str) -> list[dict]:
 
     Search order:
     1. examples/starter_contracts/sample_records/{contract}.json  (exact match)
-    2. Built-in inline samples (sf_contact, sf_lead)
+    2. Built-in inline samples (salesforce_contact, salesforce_lead)
     3. Domain-prefix match: 'banking_transaction' → banking.json
     4. Fallback: universal.json
     """
@@ -627,7 +627,7 @@ def main() -> None:
     parser.add_argument(
         "--contract",
         required=False,
-        help="Contract name to validate against (e.g. banking, sf_contact, healthcare)",
+        help="Contract name to validate against (e.g. banking, salesforce_contact, healthcare)",
     )
     parser.add_argument(
         "--records",

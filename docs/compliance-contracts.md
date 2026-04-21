@@ -1,6 +1,6 @@
 # Compliance Contracts Reference
 
-OpenDQV ships 44 production-ready contracts in `contracts/` covering agriculture, automotive,
+OpenDQV ships 41 production-ready contracts in `contracts/` covering agriculture, automotive,
 banking, building safety, corporate compliance, data protection, education, energy, financial
 controls, FMCG, food safety, healthcare, HR, insurance, logistics, manufacturing, media,
 pharma, public safety, public sector, real estate, retail, telecoms, travel, water utility,
@@ -17,14 +17,13 @@ See [docs/community_use_cases.md](community_use_cases.md) for real-world example
 | Contract | Description | Contexts | Highlights |
 |----------|-------------|----------|-----------|
 | `customer` | General customer validation (email, age, name, phone, etc.) | `kids_app`, `financial` | — |
-| `sf_contact` | Salesforce Contact — 18 validation criteria, production-grade | `salesforce_prod`, `salesforce_sandbox`, `emea_region` | Sentinel date rejection |
-| `sf_lead` | Salesforce Lead — 16 validation criteria with lead-specific checks | `web_form`, `trade_show`, `partner_referral` | — |
+| `salesforce_contact` | Salesforce Contact — 18 validation criteria, production-grade | `salesforce_prod`, `salesforce_sandbox`, `emea_region` | Sentinel date rejection |
+| `salesforce_lead` | Salesforce Lead — 16 validation criteria with lead-specific checks | `web_form`, `trade_show`, `partner_referral` | — |
 | `proof_of_play` | **Reference contract: OOH advertising impression validation** | `billing`, `operations` | Cross-field rules, conditional constraints, context-aware billing thresholds |
 | `social_media_age_compliance` | UK Online Safety Act / Ofcom age assurance — 13+ age gate, DOB consistency, identity verification audit trail | — | `age_match` rule, identity verification lookup, verification timestamp |
 | `ppds_menu_item` | Natasha's Law (PPDS) allergen compliance — all 14 major allergens must be explicitly declared before a QSR menu item is saved or labelled | — | 14 mandatory boolean fields, `required_if` for gluten/tree-nut type, sulphite threshold, audit trail |
 | `martyns_law_venue` | Martyn's Law (Terrorism (Protection of Premises) Act 2025) — venue terrorism preparedness compliance, two-tier (standard/enhanced), mandatory SRP and SIA registration for 800+ capacity venues | — | Two-tier `required_if` enforcement, capacity minimum, enhanced-duty field gate, audit trail |
 | `martyns_law_event` | Martyn's Law — qualifying events (temporary/one-off, 200+ expected attendance). Organiser-centric; SIA notification not registration; staff briefing not training; time-bounded with start/end dates | — | Distinct from venue contract: `sia_notification_reference` not `sia_registration_number`; event dates required |
-| `pretix_event` | Martyn's Law — [Pretix](https://pretix.eu) event ticketing platform integration. Enforces expected_attendance, duty tier, evacuation/invacuation/lockdown procedures, staff briefing, and compliance audit trail at the point of write | — | Pretix-specific: `expected_attendance` field; `pre_save` signal via LocalValidator; see [docs/integrations/pretix.md](integrations/pretix.md) |
 | `building_safety_golden_thread` | Building Safety Act 2022 — Golden Thread compliance for higher-risk buildings (18m+ / 7+ storeys). Enforces accountable person, BSR registration, safety case, and golden thread audit trail at point of write | — | Named accountable person + BSM mandatory, BSR registration gate, `required_if safety_case_documented = true` |
 | `companies_house_filing` | Economic Crime and Corporate Transparency Act 2023 — identity verification for Companies House director and PSC filings. A missing verification field blocks the record before submission | — | `required_if id_verification_completed = true` gates method, date, and verifier; role and method lookups |
 | `gdpr_processing_record` | UK GDPR Article 30 — Record of Processing Activities (ROPA). Enforces lawful basis declaration, consent-specific fields, legitimate interests assessment, special category data basis, and international transfer safeguard at the point of write | — | All 6 Article 6 lawful bases via lookup; consent/LIA/special-category/transfer fields via `required_if`; DPO audit trail |
@@ -54,24 +53,17 @@ identity verification method tracking, and verification timestamp audit trail.
 
 The `ppds_menu_item` contract enforces explicit allergen declaration for Pre-Packed for Direct
 Sale (PPDS) food at the point of write. All 14 major allergens are mandatory fields — omission
-is structurally impossible and triggers a 422 before the record enters the system. The
-`allereasy_dish` contract extends this for [AllerEasy](https://www.allereasy.co.uk/)
-(open-source Django allergen management), adding a timestamped review audit trail enforced in
-`Dish.clean()` via the `LocalValidator` SDK. See
-[docs/integrations/natasha-law-compliance.md](integrations/natasha-law-compliance.md) and
-[docs/integrations/allereasy.md](integrations/allereasy.md).
+is structurally impossible and triggers a 422 before the record enters the system. See
+[docs/integrations/natasha-law-compliance.md](integrations/natasha-law-compliance.md).
 
 ### Martyn's Law (Royal Assent 3 April 2025)
 
 The `martyns_law_venue` and `martyns_law_event` contracts enforce terrorism preparedness
 compliance for venues and events with a capacity of 200 or more. Enhanced-duty premises (800+)
 must declare a named Senior Responsible Person, SIA registration/notification reference, and
-Terrorism Protection Plan — omission triggers a 422 before the record enters the system. The
-`pretix_event` contract extends this for [Pretix](https://pretix.eu) (open-source event
-ticketing), adding a compliance audit trail enforced via a `pre_save` signal and the
-`LocalValidator` SDK. Named after Martyn Hett (1987–2017), killed in the Manchester Arena
-attack. See [docs/integrations/martyns-law-compliance.md](integrations/martyns-law-compliance.md)
-and [docs/integrations/pretix.md](integrations/pretix.md).
+Terrorism Protection Plan — omission triggers a 422 before the record enters the system. Named
+after Martyn Hett (1987–2017), killed in the Manchester Arena attack. See
+[docs/integrations/martyns-law-compliance.md](integrations/martyns-law-compliance.md).
 
 ### Building Safety Act 2022 — Golden Thread
 

@@ -20,7 +20,7 @@ const PAYLOADS = [
   {
     path: "/api/v1/validate",
     body: {
-      contract: "sf_contact", version: "1.0", context: "salesforce_prod",
+      contract: "salesforce_contact", version: "1.0", context: "salesforce_prod",
       record: { FirstName: "Sarah", LastName: "Chen", Email: "sarah@acme.com", Phone: "+1 415-555-0101", Birthdate: "1985-03-15", AccountName: "Acme Corp", MailingCity: "SF", MailingCountry: "US" },
     },
   },
@@ -28,7 +28,7 @@ const PAYLOADS = [
   {
     path: "/api/v1/validate",
     body: {
-      contract: "sf_contact", version: "1.0", context: "salesforce_prod",
+      contract: "salesforce_contact", version: "1.0", context: "salesforce_prod",
       record: { FirstName: "", LastName: "", Email: "bad", Birthdate: "not-a-date", AccountName: "" },
     },
   },
@@ -36,7 +36,7 @@ const PAYLOADS = [
   {
     path: "/api/v1/validate",
     body: {
-      contract: "sf_lead", version: "1.0", context: "web_form",
+      contract: "salesforce_lead", version: "1.0", context: "web_form",
       record: { FirstName: "Mike", LastName: "T", Company: "DataFlow", Email: "mike@dataflow.com", LeadSource: "Web", Status: "New" },
     },
   },
@@ -44,7 +44,7 @@ const PAYLOADS = [
   {
     path: "/api/v1/validate",
     body: {
-      contract: "sf_lead", version: "1.0", context: "web_form",
+      contract: "salesforce_lead", version: "1.0", context: "web_form",
       record: { FirstName: "Spam", LastName: "Bot", Company: "Fake", Email: "spam@mailinator.com", LeadSource: "Web", Status: "New" },
     },
   },
@@ -60,7 +60,7 @@ const PAYLOADS = [
   {
     path: "/api/v1/validate/batch",
     body: {
-      contract: "sf_contact", version: "1.0", context: "salesforce_prod",
+      contract: "salesforce_contact", version: "1.0", context: "salesforce_prod",
       records: [
         { FirstName: "A", LastName: "B", Email: "a@b.com", Birthdate: "1990-01-01", AccountName: "X" },
         { FirstName: "", LastName: "", Email: "bad", Birthdate: "", AccountName: "" },

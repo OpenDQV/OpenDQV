@@ -144,8 +144,8 @@ def seed_customer(n: int = 200):
     print(f"    ✓ {sent} customer records validated")
 
 
-def seed_sf_contact(n: int = 100):
-    print(f"  Seeding sf_contact ({n} records, ~90% pass rate) …")
+def seed_salesforce_contact(n: int = 100):
+    print(f"  Seeding salesforce_contact ({n} records, ~90% pass rate) …")
     titles = ["Head of Data", "VP Engineering", "CTO", "Data Engineer", "Analyst", "Director"]
     countries = ["GB", "DE", "FR", "US", "NL", "SE", "IE"]
     sent = 0
@@ -161,9 +161,9 @@ def seed_sf_contact(n: int = 100):
             "Birthdate": random_date(365 * 40) if valid else "not-a-date",
             "MailingCountry": random.choice(countries) if valid else "UK",  # UK not valid ISO 3166
         }
-        post("/api/v1/validate", {"contract": "sf_contact", "record": record})
+        post("/api/v1/validate", {"contract": "salesforce_contact", "record": record})
         sent += 1
-    print(f"    ✓ {sent} sf_contact records validated")
+    print(f"    ✓ {sent} salesforce_contact records validated")
 
 
 def seed_proof_of_play(n: int = 150):
@@ -378,7 +378,7 @@ def main():
 
     print("Seeding demo data …")
     seed_customer(200)
-    seed_sf_contact(100)
+    seed_salesforce_contact(100)
     seed_proof_of_play(150)
     seed_banking(100)
     seed_logistics(80)

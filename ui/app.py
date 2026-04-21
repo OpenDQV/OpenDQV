@@ -357,7 +357,7 @@ if _warn_open or _warn_secret:
 
 # Domain label mapping — cleans up the prefix-derived industry names
 _DOMAIN_LABELS = {
-    "sf":         "Salesforce",
+    "salesforce": "Salesforce",
     "consumer":   "Consumer Goods",
     "financial":  "Financial Services",
     "hr":         "HR / People",
@@ -367,7 +367,6 @@ _DOMAIN_LABELS = {
     "universal":  "Cross-Industry",
     "books":      "Publishing",
     "martyns":    "Martyn's Law",
-    "allereasy":  "AllerEasy",
     "ppds":       "Natasha's Law / PPDS",
 }
 
@@ -2225,7 +2224,7 @@ if section == "Webhooks":
     )
     wh_contract_filter = st.text_input(
         "Contract filter (optional — leave blank for all contracts)",
-        placeholder="customer, sf_contact",
+        placeholder="customer, salesforce_contact",
         key="wh_contract_filter",
     )
 

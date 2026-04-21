@@ -6,13 +6,13 @@ OpenDQV integrates with Salesforce across a spectrum — from zero infrastructur
 
 ## Quick start — validate a Contact in 5 minutes
 
-### 1. Use the built-in sf_contact contract
+### 1. Use the built-in salesforce_contact contract
 
-OpenDQV ships `contracts/sf_contact.yaml` with 18 production-grade validation rules out of the box — no setup required. To write your own:
+OpenDQV ships `contracts/salesforce_contact.yaml` with 18 production-grade validation rules out of the box — no setup required. To write your own:
 
 ```yaml
 contract:
-  name: sf_contact
+  name: salesforce_contact
   version: "1.0"
   description: "Salesforce Contact quality validation"
   owner: "Data Governance Team"
@@ -66,7 +66,7 @@ curl -X POST http://localhost:8000/api/v1/validate \
   -H "Content-Type: application/json" \
   -d '{
     "record": {"FirstName": "Sarah", "Email": "sarah@acme.com", "Birthdate": "2015-03-15"},
-    "contract": "sf_contact",
+    "contract": "salesforce_contact",
     "context": "salesforce_prod"
   }'
 ```
@@ -89,7 +89,7 @@ Map<String, Object> data = new Map<String, Object>{
     'Email'     => contact.Email,
     'Birthdate' => String.valueOf(contact.Birthdate)
 };
-if (!OpenDQVValidator.validateRecord(data, 'sf_contact')) {
+if (!OpenDQVValidator.validateRecord(data, 'salesforce_contact')) {
     contact.addError('Record failed data quality validation');
 }
 ```
@@ -378,7 +378,7 @@ trigger OpenDQVContactTrigger on Contact (before insert, before update) {
 
     // Pass a context to apply environment-specific rules (e.g. 18+ age in prod).
     // Use 'salesforce_sandbox' for test orgs, 'salesforce_prod' for production.
-    List<Object> results = OpenDQVCallout.validate('sf_contact', records, 'salesforce_prod');
+    List<Object> results = OpenDQVCallout.validate('salesforce_contact', records, 'salesforce_prod');
 
     if (results == null) {
         // Fail-open: OpenDQV unreachable or returned an error — records pass through.

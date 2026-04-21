@@ -7,7 +7,7 @@
 - Auth mode: open
 - Rate limits: 50,000/minute (raised for testing)
 - Concurrency: 10 workers
-- Payload mix: 6 variants (sf_contact, sf_lead, customer_onboarding; single + batch; valid + invalid)
+- Payload mix: 6 variants (salesforce_contact, salesforce_lead, customer_onboarding; single + batch; valid + invalid)
 
 ## Results
 
@@ -166,7 +166,7 @@ Full test suite: **473/473 passed** before benchmark run.
 
 ```
 Tool:         load-test.js (Node.js, 600 s, 200 concurrency)
-Payload mix:  6 variants (sf_contact, sf_lead, customer_onboarding; single + batch)
+Payload mix:  6 variants (salesforce_contact, salesforce_lead, customer_onboarding; single + batch)
 Environment:  Docker, 4 Gunicorn workers (WEB_CONCURRENCY=4)
 Rate limit:   300000/minute (raised for benchmark; restored to 300/minute after)
 

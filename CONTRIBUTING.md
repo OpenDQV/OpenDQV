@@ -287,7 +287,7 @@ The `skipped` list is important — callers need to know which rules could not b
 ### Adding a New Contract
 
 1. Create a YAML file in `contracts/`
-2. Follow the `contract:` format (see `sf_contact.yaml` for a complete example)
+2. Follow the `contract:` format (see `salesforce_contact.yaml` for a complete example)
 3. Restart the API or call `POST /api/v1/contracts/reload`
 4. Add sample data in `tests/sample_data/` if useful for testing
 

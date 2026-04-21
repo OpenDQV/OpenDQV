@@ -24,14 +24,14 @@ the same validation, no network dependency.
 # Salesforce Apex
 curl -s -X POST "http://localhost:8000/api/v1/generate" \
   -H "Authorization: Bearer <token>" \
-  -G --data-urlencode "contract_name=sf_contact" \
+  -G --data-urlencode "contract_name=salesforce_contact" \
      --data-urlencode "target=salesforce" \
      --data-urlencode "context=salesforce_prod"
 
 # JavaScript (Node.js, browser, etc.)
 curl -s -X POST "http://localhost:8000/api/v1/generate" \
   -H "Authorization: Bearer <token>" \
-  -G --data-urlencode "contract_name=sf_contact" \
+  -G --data-urlencode "contract_name=salesforce_contact" \
      --data-urlencode "target=js"
 
 # Snowflake JavaScript UDF
@@ -61,7 +61,7 @@ curl -s -X POST "http://localhost:8000/api/v1/generate" \
 python -m opendqv.cli generate <contract> <target> [--context <context>]
 
 # Examples
-python -m opendqv.cli generate sf_contact salesforce --context salesforce_prod
+python -m opendqv.cli generate salesforce_contact salesforce --context salesforce_prod
 python -m opendqv.cli generate customer js
 python -m opendqv.cli generate customer snowflake
 ```

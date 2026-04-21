@@ -1,10 +1,10 @@
 contract:
-  name: sf_contact
+  name: salesforce_contact
   version: "1.0"
   description: "Salesforce Contact — data quality validation for CRM contact records"
   owner: "CRM Data Team"
   status: active
-  asset_id: urn:opendqv:sf_contact
+  asset_id: urn:opendqv:salesforce_contact
 
   rules:
     - name: first_name_required

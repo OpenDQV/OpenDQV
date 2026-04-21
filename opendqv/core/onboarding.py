@@ -314,7 +314,7 @@ _TEMPLATE_LABELS: dict[str, str] = {
 
 # Contracts that exist on disk but should not appear in the wizard picker
 _EXCLUDED_TEMPLATES = {
-    "sf_contact", "sf_lead", "financial_services_customer",
+    "salesforce_contact", "salesforce_lead", "financial_services_customer",
 }
 
 
