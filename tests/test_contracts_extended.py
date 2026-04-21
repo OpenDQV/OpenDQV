@@ -326,9 +326,9 @@ class TestExplainContractRuleTypeBranches:
         explanation = r.json()["explanation"]
         assert len(explanation) > 0
 
-    def test_explain_healthcare_patient_has_required_if(self, client, auth_headers):
+    def test_explain_nhs_dsp_patient_has_required_if(self, client, auth_headers):
         """required_if (lines 161-162) rule description."""
-        r = client.get("/api/v1/contracts/healthcare_patient/explain", headers=auth_headers)
+        r = client.get("/api/v1/contracts/nhs_dsp_patient/explain", headers=auth_headers)
         assert r.status_code == 200
 
     def test_explain_social_media_has_min_age(self, client, auth_headers):

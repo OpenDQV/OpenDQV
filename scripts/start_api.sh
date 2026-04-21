@@ -46,13 +46,18 @@ if [[ "$BG" -eq 1 ]]; then
     echo "Starting API in background on $HOST:$PORT → $LOG"
     nohup "${CMD[@]}" >> "$LOG" 2>&1 &
     disown
-    sleep 2
-    if curl -sSf --max-time 3 "http://localhost:${PORT}/health" >/dev/null; then
-        echo "API healthy on http://localhost:${PORT}"
-    else
-        echo "API did not respond on /health — tail $LOG for details." >&2
-        exit 1
-    fi
+    # Startup can take several seconds on populated installs while the persistent
+    # stats store hydrates in-memory state (worker_heartbeat, quality_stats).
+    # Poll /health for up to 30s before giving up.
+    for _ in $(seq 1 30); do
+        if curl -sSf --max-time 2 "http://localhost:${PORT}/health" >/dev/null 2>&1; then
+            echo "API healthy on http://localhost:${PORT}"
+            exit 0
+        fi
+        sleep 1
+    done
+    echo "API did not respond on /health within 30s — tail $LOG for details." >&2
+    exit 1
 else
     exec "${CMD[@]}"
 fi

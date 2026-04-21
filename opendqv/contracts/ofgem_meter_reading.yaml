@@ -1,5 +1,5 @@
 contract:
-  name: energy_meter_reading
+  name: ofgem_meter_reading
   version: "1.1"
   description: >
     Energy meter reading record validation aligned with Ofgem Smart Metering
@@ -14,7 +14,7 @@ contract:
     out-of-sequence readings.
   owner: "Smart Metering Data Team"
   status: active
-  asset_id: urn:opendqv:energy_meter_reading
+  asset_id: urn:opendqv:ofgem_meter_reading
 
   rules:
     - name: meter_id_required

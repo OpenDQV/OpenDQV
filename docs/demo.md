@@ -37,7 +37,7 @@ The seeder loads ~740 validation events across 7 contracts:
 | `sf_contact` | 100 | 90% | Salesforce CRM |
 | `banking_transaction` | 100 | 88% | Payments / finance |
 | `logistics_shipment` | 80 | 92% | Supply chain |
-| `healthcare_patient` | 60 | 85% | Clinical / NHS |
+| `nhs_dsp_patient` | 60 | 85% | Clinical / NHS DSP Toolkit |
 | `demo_order` | 50 | 83% | Lifecycle demo contract |
 
 The `demo_order` contract also goes through a complete **draft → review → active** lifecycle so you can see the governance audit trail in action from day one.

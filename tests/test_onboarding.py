@@ -436,13 +436,13 @@ class TestBuildSampleRecordsFromRules:
         valid, _ = build_sample_records_from_rules(rules)
         assert valid["status"] != "DEMO-001"
 
-    def test_healthcare_patient_contract_valid_record(self):
-        """Regression: healthcare_patient template produces a valid first record."""
+    def test_nhs_dsp_patient_contract_valid_record(self):
+        """Regression: nhs_dsp_patient template produces a valid first record."""
         import yaml
         from pathlib import Path
-        contract_path = Path(__file__).resolve().parent.parent / "opendqv" / "contracts" / "healthcare_patient.yaml"
+        contract_path = Path(__file__).resolve().parent.parent / "opendqv" / "contracts" / "nhs_dsp_patient.yaml"
         if not contract_path.exists():
-            pytest.skip("healthcare_patient.yaml not present")
+            pytest.skip("nhs_dsp_patient.yaml not present")
         data = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
         rules = data["contract"]["rules"]
         valid, invalid = build_sample_records_from_rules(rules)

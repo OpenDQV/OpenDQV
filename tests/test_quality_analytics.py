@@ -48,7 +48,7 @@ def seeded_db(tmp_path):
                     {"email_format": 12, "ni_number_format": 8})
     qs.record_batch("manufacturing_iot", "1.0", "default", 100, 40, 60,
                     {"status_values": 30, "alert_level_values": 20, "device_type_values": 10})
-    qs.record_batch("energy_meter_reading", "1.0", "default", 50, 45, 5,
+    qs.record_batch("ofgem_meter_reading", "1.0", "default", 50, 45, 5,
                     {"read_type_values": 3, "meter_type_valid": 2})
 
     # Insert one old row directly into SQLite with a past timestamp (10 days ago)
@@ -97,7 +97,7 @@ class TestCrossContractSummary:
     def test_energy_meter_is_best(self, seeded_db):
         _, qa = seeded_db
         result = qa.cross_contract_summary(days=7)
-        assert result[-1]["contract"] == "energy_meter_reading"
+        assert result[-1]["contract"] == "ofgem_meter_reading"
 
     def test_correct_total_records(self, seeded_db):
         _, qa = seeded_db

@@ -1,5 +1,5 @@
 contract:
-  name: healthcare_patient
+  name: nhs_dsp_patient
   version: "1.1"
   description: >
     Healthcare patient record validation aligned with NHS Data Dictionary standards,
@@ -13,7 +13,7 @@ contract:
     (Maternity Services Data Set) pipelines.
   owner: "Clinical Data Team"
   status: active
-  asset_id: urn:opendqv:healthcare_patient
+  asset_id: urn:opendqv:nhs_dsp_patient
 
   rules:
     - name: patient_id_required

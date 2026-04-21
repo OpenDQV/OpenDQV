@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Customer Healthcare demo — validates patient records against healthcare_patient
+Customer Healthcare demo — validates patient records against nhs_dsp_patient
 (NHS Data Dictionary, Caldicott Principles, ICD-10) and prints a pass/fail summary.
 
 Usage:
@@ -50,7 +50,7 @@ _FAIL_LABELS = {
 
 def build_healthcare_record(procedure: str, patient_id: str, admission_type: str,
                              fail_mode, overrides: dict) -> dict:
-    """Build a valid healthcare_patient record then apply the requested failure mode."""
+    """Build a valid nhs_dsp_patient record then apply the requested failure mode."""
     record: dict = {
         "patient_id":       patient_id,
         "first_name":       "A",
@@ -87,7 +87,7 @@ def build_healthcare_record(procedure: str, patient_id: str, admission_type: str
 
 def run(customer: str) -> None:
     menu = _load_menu("healthcare", customer, _DEFAULT_MENU)
-    run_demo("Healthcare Patient", "healthcare_patient", customer, menu,
+    run_demo("Healthcare Patient", "nhs_dsp_patient", customer, menu,
              build_healthcare_record, _FAIL_LABELS)
 
 

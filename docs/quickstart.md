@@ -72,7 +72,7 @@ Open your browser and go to **http://localhost:8501**.
 
 You will see the OpenDQV workbench — a visual interface for exploring contracts and validating records. No login is required for local use.
 
-On the left, you will find a sidebar with navigation sections. Click on **Contracts**. You will see industry templates already loaded — things like `customer`, `banking_transaction`, `healthcare_patient`, and more. Click any contract to browse its validation rules and see what fields it expects.
+On the left, you will find a sidebar with navigation sections. Click on **Contracts**. You will see industry templates already loaded — things like `customer`, `banking_transaction`, `nhs_dsp_patient`, and more. Click any contract to browse its validation rules and see what fields it expects.
 
 Take a moment to explore. Each rule has a plain-English description of what it checks.
 

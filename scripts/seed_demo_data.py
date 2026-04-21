@@ -243,7 +243,7 @@ def seed_logistics(n: int = 80):
 
 
 def seed_healthcare(n: int = 60):
-    print(f"  Seeding healthcare_patient ({n} records, ~85% pass rate) …")
+    print(f"  Seeding nhs_dsp_patient ({n} records, ~85% pass rate) …")
     sexes = ["male", "female", "indeterminate", "not_known"]
     admission_types = ["elective", "emergency", "maternity", "other"]
     wards = ["cardiology", "oncology", "orthopaedics", "general_medicine", "paediatrics"]
@@ -275,9 +275,9 @@ def seed_healthcare(n: int = 60):
             "discharge_date": discharge,
             "discharge_reason": random.choice(discharge_reasons),
         }
-        post("/api/v1/validate", {"contract": "healthcare_patient", "record": record})
+        post("/api/v1/validate", {"contract": "nhs_dsp_patient", "record": record})
         sent += 1
-    print(f"    ✓ {sent} healthcare_patient records validated")
+    print(f"    ✓ {sent} nhs_dsp_patient records validated")
 
 
 # ── Lifecycle demo ────────────────────────────────────────────────────

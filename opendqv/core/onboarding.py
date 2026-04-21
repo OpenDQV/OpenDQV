@@ -276,12 +276,12 @@ _TEMPLATE_LABELS: dict[str, str] = {
     "banking_transaction":      "Banking                — transactions, accounts",
     "customer":                 "Customer               — generic customer record",
     "education_student":        "Education              — student records, GPA, enrolment",
-    "energy_meter_reading":     "Energy & Utilities     — meter readings, tariffs",
+    "ofgem_meter_reading":      "Energy & Utilities     — Ofgem-aligned meter readings, tariffs",
     "financial_trade":          "Financial Services     — trades, instruments",
     "consumer_goods_product":   "Consumer Goods         — products, sales, shelf life",
     "fmcg_product":             "Consumer Goods (FMCG)  — products, sales, shelf life",
     "social_media_age_compliance": "Social Media           — age compliance, DOB verification",
-    "healthcare_patient":       "Healthcare             — patient records, clinical data",
+    "nhs_dsp_patient":          "Healthcare / NHS       — NHS DSP Toolkit-aligned patient records",
     "hr_employee":              "HR & Workforce         — employee records, payroll",
     "insurance_claim":          "Insurance              — claims, policies",
     "logistics_shipment":       "Logistics              — shipments, supply chain",
@@ -309,7 +309,7 @@ _TEMPLATE_LABELS: dict[str, str] = {
     "hipaa_disclosure_accounting": "Healthcare / HIPAA  — US HIPAA PHI disclosure accounting (45 CFR 164.528)",
     "sox_control_test":         "Financial Controls     — US SOX 404 internal control test record",
     "mifid_transaction_report": "Capital Markets        — MiFID II/MiFIR Article 26 transaction reporting",
-    "water_utility_reading":    "Water Utilities        — meter readings, consumption",
+    "ofwat_meter_reading":      "Water Utilities        — Ofwat-aligned meter readings, consumption",
 }
 
 # Contracts that exist on disk but should not appear in the wizard picker
