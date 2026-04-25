@@ -206,6 +206,19 @@ class QualityTrendResponse(BaseModel):
     context: Optional[str] = None
     points: list[QualityTrendPoint]
     asset_id: Optional[str] = None  # catalog asset identifier — enables quality signal self-discovery
+    # CRT170/J6: data_confidence band parity with get_quality_metrics
+    data_confidence: Optional[str] = Field(
+        None,
+        description="Confidence band based on total validations: no_data | low | medium | high",
+    )
+    confidence_note: Optional[str] = Field(
+        None,
+        description="Human-readable caveat when confidence is no_data or low",
+    )
+    total_validations: Optional[int] = Field(
+        None,
+        description="Total validations underpinning this trend (sum across days)",
+    )
 
 
 # ── Contract history / diff / reload ─────────────────────────────────
@@ -352,6 +365,19 @@ class RuleVelocityResponse(BaseModel):
     bucket_minutes: int = Field(..., description="Bucket width in minutes")
     series: dict[str, list[RuleVelocityBucket]] = Field(
         ..., description="Per-rule time-series (top 5 rules by total failures)"
+    )
+    # CRT170/J6: data_confidence band parity with get_quality_metrics
+    data_confidence: Optional[str] = Field(
+        None,
+        description="Confidence band based on total validations: no_data | low | medium | high",
+    )
+    confidence_note: Optional[str] = Field(
+        None,
+        description="Human-readable caveat when confidence is no_data or low",
+    )
+    total_validations: Optional[int] = Field(
+        None,
+        description="Total validations within the window underpinning this velocity series",
     )
 
 

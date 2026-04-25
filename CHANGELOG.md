@@ -2,6 +2,36 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.5] - 2026-04-26
+
+### Added
+
+- **`data_confidence` band now appears on every quality analytics
+  response.** Previously, the confidence band (`no_data` / `low` /
+  `medium` / `high`) and accompanying `confidence_note` shipped only on
+  `get_quality_metrics` (MCP) and the `/stats`-derived REST surface.
+  `get_quality_trend` and `get_rule_velocity` returned numbers without
+  any signal of how much underlying data they were derived from, so a
+  client could not tell a 100% pass-rate built on 3 validations apart
+  from one built on 30,000. Both tools, plus their REST counterparts
+  `GET /api/v1/contracts/{name}/quality-trend` and
+  `GET /api/v1/analytics/rule-velocity`, now return:
+  - `data_confidence` — `no_data`, `low` (<10), `medium` (<100), `high`
+  - `confidence_note` — caveat string when confidence is `no_data` /
+    `low`, otherwise `null`
+  - `total_validations` — the underlying count the band was computed
+    from (sum across days for trend; window-scoped count for velocity)
+  Single source of truth lives in
+  `opendqv.core.quality_stats.quality_confidence(total)`; both MCP
+  tools and both REST endpoints call it, so thresholds and copy stay
+  in sync. Found via CRT170 / J6 audit. Working principle (extends
+  CRT170/J1, /J3): a response surface that reports a metric must also
+  report enough context for the consumer to judge that metric's
+  reliability.
+
+  No client migration required — the new fields are additive on the
+  response.
+
 ## [2.3.4] - 2026-04-25
 
 ### Changed (client-visible behaviour)

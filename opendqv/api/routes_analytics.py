@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request
 
 import opendqv.api.deps as _d
+from opendqv.core.quality_stats import quality_confidence
 from opendqv.monitoring import stats, update_contract_counts
 from opendqv.security.auth import get_current_user
 
@@ -174,6 +175,13 @@ async def get_analytics_rule_velocity(
         window_hours=window_hours,
         bucket_minutes=bucket_minutes,
     )
+    # CRT170/J6: total validations underpinning this window → confidence band.
+    try:
+        totals = _d._quality_stats.get_windowed_totals(contract, window_hours)
+        total_validations = int(totals.get("total", 0))
+    except Exception:
+        total_validations = 0
+    confidence, confidence_note = quality_confidence(total_validations)
     return RuleVelocityResponse(
         contract=data["contract"],
         window_hours=data["window_hours"],
@@ -182,6 +190,9 @@ async def get_analytics_rule_velocity(
             rule: [RuleVelocityBucket(**b) for b in buckets]
             for rule, buckets in data["series"].items()
         },
+        data_confidence=confidence,
+        confidence_note=confidence_note,
+        total_validations=total_validations,
     )
 
 

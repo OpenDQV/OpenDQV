@@ -93,7 +93,7 @@ from opendqv.core.validator import validate_record as _validate_record, validate
 from opendqv.core.explainer import explain_rule
 from opendqv.core.rule_parser import ContractStatus, Rule as _Rule
 from opendqv.monitoring import stats as _stats
-from opendqv.core.quality_stats import QualityStats as _QualityStats
+from opendqv.core.quality_stats import QualityStats as _QualityStats, quality_confidence as _quality_confidence
 from opendqv.core.quality_analytics import QualityAnalytics as _QualityAnalytics
 
 # ── Governance tips ───────────────────────────────────────────────────
@@ -934,25 +934,7 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
                     top_rules = top_rules[:5]
             except Exception:
                 pass
-        def _confidence(n: int) -> str:
-            if n == 0:
-                return "no_data"
-            if n < 10:
-                return "low"
-            if n < 100:
-                return "medium"
-            return "high"
-
-        confidence = _confidence(total_val)
-        confidence_note = (
-            f"Based on {total_val} validation{'s' if total_val != 1 else ''} — treat with caution"
-            if confidence == "low"
-            else (
-                "No validation data recorded yet for this contract."
-                if confidence == "no_data"
-                else None
-            )
-        )
+        confidence, confidence_note = _quality_confidence(total_val)
         entry = {
             "contract": cname,
             "window_hours": window_hours,
@@ -1025,11 +1007,17 @@ async def _tool_get_quality_trend(args: dict) -> list[types.TextContent]:
         return [types.TextContent(type="text", text=json.dumps(resp.json(), default=str))]
 
     points = _quality_stats.get_trend(contract_name, days=days, context=context)
+    # CRT170/J6: total validations underpinning this trend → confidence band.
+    total_validations = sum(int(p.get("total_records", 0)) for p in points)
+    confidence, confidence_note = _quality_confidence(total_validations)
     result = {
         "contract": contract_name,
         "days": days,
         "context": context,
         "points": points,
+        "data_confidence": confidence,
+        "confidence_note": confidence_note,
+        "total_validations": total_validations,
         "summary": {
             "total_days_with_data": len(points),
             "latest_pass_rate": points[-1]["pass_rate"] if points else None,
@@ -1067,6 +1055,18 @@ async def _tool_get_rule_velocity(args: dict) -> list[types.TextContent]:
         )
     except Exception as exc:
         return [types.TextContent(type="text", text=json.dumps({"error": str(exc)}))]
+
+    # CRT170/J6: total validations underpinning this window → confidence band.
+    try:
+        totals = _quality_stats.get_windowed_totals(contract_name, window_hours)
+        total_validations = int(totals.get("total", 0))
+    except Exception:
+        total_validations = 0
+    confidence, confidence_note = _quality_confidence(total_validations)
+    if isinstance(data, dict):
+        data["data_confidence"] = confidence
+        data["confidence_note"] = confidence_note
+        data["total_validations"] = total_validations
 
     return [types.TextContent(type="text", text=json.dumps(data, default=str))]
 

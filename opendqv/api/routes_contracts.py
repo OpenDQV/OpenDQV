@@ -6,6 +6,7 @@ from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Requ
 import opendqv.api.deps as _d
 import opendqv.config as config
 from opendqv.core.contracts import validate_promotion_readiness
+from opendqv.core.quality_stats import quality_confidence
 from opendqv.core.rule_parser import ContractStatus
 from opendqv.security.auth import get_current_user, get_current_role
 
@@ -341,12 +342,18 @@ async def get_quality_trend(
     c = _d._get_contract_or_404(name)
 
     points = _d._quality_stats.get_trend(name, days=days, context=context)
+    # CRT170/J6: total validations underpinning this trend → confidence band.
+    total_validations = sum(int(p.get("total_records", 0)) for p in points)
+    confidence, confidence_note = quality_confidence(total_validations)
     return QualityTrendResponse(
         contract=name,
         days=days,
         context=context,
         points=[QualityTrendPoint(**p) for p in points],
         asset_id=c.asset_id,
+        data_confidence=confidence,
+        confidence_note=confidence_note,
+        total_validations=total_validations,
     )
 
 

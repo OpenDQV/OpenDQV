@@ -316,3 +316,21 @@ class QualityStats:
                 "pass_rate": round(passed / total, 4) if total > 0 else 1.0,
             })
         return result
+
+
+# ── Confidence band helper (CRT170/J6) ──────────────────────────────────
+# Single source of truth for the data_confidence + confidence_note pair
+# attached to MCP and REST analytics responses. Same scale across
+# get_quality_metrics, get_quality_trend, and get_rule_velocity so clients
+# interpret data sufficiency consistently.
+
+def quality_confidence(total: int) -> tuple[str, Optional[str]]:
+    """Return (data_confidence, confidence_note) for `total` underlying validations."""
+    if total <= 0:
+        return "no_data", "No validation data recorded yet for this contract."
+    if total < 10:
+        s = "s" if total != 1 else ""
+        return "low", f"Based on {total} validation{s} — treat with caution"
+    if total < 100:
+        return "medium", None
+    return "high", None
