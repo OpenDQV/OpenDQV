@@ -106,13 +106,16 @@ TOOLS = [
     {
         "name": "get_contract",
         "description": (
-            "Get full contract details including all field rules, valid value constraints, and owner."
+            "Get full contract details including all field rules, valid value constraints, and owner. "
+            "Pass `hash` (the contract_hash from a prior validate response) to retrieve the exact "
+            "historical version that produced that hash — for point-in-time audit retrieval."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "Contract name."},
                 "version": {"type": "string", "description": "Contract version or 'latest' (default).", "default": "latest"},
+                "hash": {"type": "string", "description": "Contract hash (from a prior validate response). Takes precedence over version."},
             },
             "required": ["name"],
         },
@@ -221,9 +224,12 @@ def _call_tool(name: str, arguments: dict) -> str:
 
         elif name == "get_contract":
             version = arguments.get("version", "latest")
+            contract_hash = arguments.get("hash")
             url = f"/api/v1/contracts/{arguments['name']}"
-            if version != "latest":
-                url += f"/at?version={version}"
+            if contract_hash:
+                url += f"?hash={contract_hash}"
+            elif version != "latest":
+                url += f"?version={version}"
             resp = _client.get(url)
             resp.raise_for_status()
             return resp.text
