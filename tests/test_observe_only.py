@@ -118,6 +118,8 @@ class TestAPIObserveOnlySingle:
     """POST /api/v1/validate with observe_only=True."""
 
     def test_observe_only_returns_200_with_violations(self, client, auth_headers):
+        # CRT170/J1: in observe mode, HTTP is always 200 (never blocks),
+        # but `valid` reflects the actual outcome — bad record → valid=False.
         body = {
             "record": {"email": "not-an-email", "age": -5, "name": ""},
             "contract": "customer",
@@ -126,10 +128,10 @@ class TestAPIObserveOnlySingle:
         r = client.post("/api/v1/validate", json=body, headers=auth_headers)
         assert r.status_code == 200
         data = r.json()
-        assert data["valid"] is True  # observe-only: always valid
+        assert data["valid"] is False
         assert data["mode"] == "observation_only"
         assert data["would_have_failed"] is True
-        assert len(data["errors"]) > 0  # violations still reported
+        assert len(data["errors"]) > 0
 
     def test_observe_only_good_record(self, client, auth_headers):
         body = {
@@ -161,6 +163,82 @@ class TestAPIObserveOnlySingle:
         assert data["valid"] is False
         assert data.get("mode") is None
         assert data.get("would_have_failed") is None
+
+
+class TestJ1ValidCoherenceAcceptance:
+    """CRT170/J1 acceptance — `valid` means what its name claims, in any mode.
+
+    Working principle: observation mode is a *blocking* policy (never block,
+    always return 200), not a truth policy. A response field's value must
+    reflect its name: `valid` == "did this record pass validation". In v2.3.2
+    and earlier, observe mode hardcoded `valid: true` even when the record
+    failed every rule — making it indistinguishable from a passing record at
+    the field level. Clients had to read `would_have_failed` to recover the
+    real outcome. This was a name/value mismatch.
+    """
+
+    def test_observe_mode_valid_mirrors_real_outcome_failing(
+        self, client, auth_headers,
+    ):
+        """Bad record in observe mode → HTTP 200 AND valid=False AND would_have_failed=True."""
+        r = client.post(
+            "/api/v1/validate",
+            json={
+                "record": {"email": "not-an-email", "age": -5, "name": ""},
+                "contract": "customer",
+                "observe_only": True,
+            },
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["valid"] is False
+        assert data["would_have_failed"] is True
+        # Sanity: valid + would_have_failed are the negation of each other
+        # in observe mode — same fact, two field names.
+        assert data["valid"] != data["would_have_failed"]
+
+    def test_observe_mode_valid_mirrors_real_outcome_passing(
+        self, client, auth_headers,
+    ):
+        """Good record in observe mode → HTTP 200 AND valid=True AND would_have_failed=False."""
+        r = client.post(
+            "/api/v1/validate",
+            json={
+                "record": {
+                    "email": "test@example.com", "age": 25, "name": "Alice",
+                    "id": "12345", "phone": "+1234567890", "balance": 100,
+                    "score": 85, "date": "2024-01-15",
+                    "username": "alice_w", "password": "securepass123",
+                },
+                "contract": "customer",
+                "observe_only": True,
+            },
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["valid"] is True
+        assert data["would_have_failed"] is False
+        assert data["valid"] != data["would_have_failed"]
+
+    def test_observe_mode_never_blocks_with_http(self, client, auth_headers):
+        """Observe mode always returns 200 even for failing records — the
+        blocking policy is independent of `valid`."""
+        r = client.post(
+            "/api/v1/validate",
+            json={
+                "record": {"email": "bad", "age": -5, "name": ""},
+                "contract": "customer",
+                "observe_only": True,
+            },
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        # Enforcement mode also returns 200 currently — the contract is that
+        # observe mode never raises 4xx-validation, not that enforcement does.
+        # The semantic difference is downstream: clients reading `valid` may
+        # choose to block in enforcement and only log in observation.
 
 
 class TestAPIObserveOnlyBatch:

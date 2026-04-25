@@ -178,12 +178,16 @@ async def validate_single(
     _entry_hash, _content_hash = _d._get_contract_hash(contract.name)
 
     _observe = getattr(body, "observe_only", False)
-    _effective_valid = True if _observe else result["valid"]
+    # CRT170/J1: `valid` reflects the actual validation outcome regardless of mode.
+    # `observe_only` only affects whether the response is HTTP 200 (always 200 here)
+    # and whether downstream systems block — it does not change the truth of `valid`.
+    # `would_have_failed` is retained for clients that read it; in observe mode it
+    # is the negation of `valid` (kept for symmetry with prior shape).
     _mode = "observation_only" if _observe else None
     _would_have_failed = (not result["valid"]) if _observe else None
 
     return ValidateResponse(
-        valid=_effective_valid,
+        valid=result["valid"],
         event_id=event_id,
         record_id=body.record_id,
         errors=[FieldErrorResponse(**e) for e in _d._mask_errors(_d._add_suggested_fixes(result["errors"], rules))],

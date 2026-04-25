@@ -2,6 +2,32 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.4] - 2026-04-25
+
+### Changed (client-visible behaviour)
+
+- **`POST /api/v1/validate` with `observe_only=true` now returns the real
+  `valid` value.** Previously, observation mode hardcoded `valid: true`
+  in the response body even when the record failed every rule, forcing
+  callers to read `would_have_failed` to recover the truth. The response
+  field's name (`valid`) now matches its meaning. Observation mode's
+  blocking semantic is unchanged: HTTP is always 200, downstream systems
+  do not block, violations are still reported in `errors[]`. The
+  redundant `would_have_failed` field is retained for backward
+  compatibility — in observation mode it is the negation of `valid`.
+  Found via CRT170 / J1 audit; covered by
+  `tests/test_observe_only.py::TestJ1ValidCoherenceAcceptance` plus
+  realigned assertions across `test_observe_only.py` and `test_smoke.py`.
+  Working principle (extends CRT170/J3): a response field's value must
+  reflect what its name claims. Observation mode is a *blocking* policy,
+  not a truth policy.
+
+  Migration: clients that read `valid` to mean "was this record valid in
+  reality" already worked correctly under the prior shape *only* in
+  enforcement mode and were silently broken in observation mode. They
+  now work correctly in both. Clients that read `valid` to mean "did the
+  request return 200" should switch to checking `r.status_code` directly.
+
 ## [2.3.3] - 2026-04-25
 
 ### Fixed

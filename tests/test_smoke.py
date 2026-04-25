@@ -483,7 +483,9 @@ class TestLocalValidatorSmoke:
 class TestObservationModeSmoke:
     """16. Observation mode — basic happy path"""
 
-    def test_observe_only_single_returns_valid_true(self, client, auth_headers):
+    def test_observe_only_single_returns_200_with_real_valid(self, client, auth_headers):
+        # CRT170/J1: observe mode never blocks (always HTTP 200) but `valid`
+        # reflects actual outcome — bad record → valid=False.
         r = client.post(
             "/api/v1/validate",
             json={"record": _INVALID_CUSTOMER, "contract": "customer", "observe_only": True},
@@ -491,7 +493,7 @@ class TestObservationModeSmoke:
         )
         assert r.status_code == 200
         data = r.json()
-        assert data["valid"] is True
+        assert data["valid"] is False
         assert data["mode"] == "observation_only"
 
     def test_observe_only_mode_field_in_response(self, client, auth_headers):
