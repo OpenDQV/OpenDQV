@@ -2,6 +2,46 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.7] - 2026-04-26
+
+### Added
+
+- **`caller_principal` is now returned on every validation response and
+  recorded on every audit row — server-derived from the authenticated
+  token, cannot be spoofed.** Previously, `agent_id` was the only
+  caller-attribution field on a validation response. It is
+  caller-asserted: any client could send `{"agent_id": "anyone"}` in
+  the request body and have that string echoed in the response and
+  written to the SQLite audit row. There was no field on the response
+  whose value was provably the authenticated identity, so a downstream
+  system could not use the response alone to attribute a validation
+  back to a specific token.
+
+  `caller_principal` closes that gap. It is derived server-side from
+  the JWT `sub` claim (or `"anonymous"` in `AUTH_MODE=open`) and
+  appears on:
+  - `POST /api/v1/validate` → `ValidateResponse.caller_principal`
+  - `POST /api/v1/validate/batch` → `BatchValidateResponse.caller_principal`
+  - the `caller_principal` column on `quality_stats` (idempotent
+    `ALTER TABLE` migration on first boot of v2.3.7)
+
+  `agent_id` is preserved unchanged for self-labelling and session
+  correlation. The two fields now have orthogonal semantics:
+
+  | Field | Source | Trust | Use |
+  |---|---|---|---|
+  | `agent_id` | request body | caller-asserted | session/agent label |
+  | `caller_principal` | JWT `sub` | server-verified | audit attribution |
+
+  Found via CRT170 / J2 audit. Working principle (extends CRT170/J1,
+  /J3, /J4, /J6): a response field's value must reflect what its name
+  claims. `caller_principal` claims to be the authenticated identity
+  and provably is.
+
+  No client migration required — the new field is additive. Old call
+  sites that don't pass `caller_principal` continue to work; the
+  column defaults to empty string.
+
 ## [2.3.6] - 2026-04-26
 
 ### Changed (client-visible breaking change)

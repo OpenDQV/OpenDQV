@@ -148,6 +148,7 @@ async def validate_single(
             agent_id=body.agent_id or "",
             mode="observation_only" if getattr(body, "observe_only", False) else "enforcement",
             event_id=event_id,
+            caller_principal=user or "",
         )
 
     if not result["valid"] and not body.dry_run:
@@ -203,6 +204,7 @@ async def validate_single(
         validated_at=datetime.now(timezone.utc).isoformat(),
         latency_ms=round(elapsed_ms, 1),
         agent_id=body.agent_id,
+        caller_principal=user or "anonymous",
         mode=_mode,
         would_have_failed=_would_have_failed,
     )
@@ -290,6 +292,7 @@ async def validate_batch_endpoint(
             agent_id=body.agent_id or "",
             mode="observation_only" if getattr(body, "observe_only", False) else "enforcement",
             event_id=batch_event_id,
+            caller_principal=user or "",
         )
 
         if result["summary"]["failed"] > 0:
@@ -338,6 +341,7 @@ async def validate_batch_endpoint(
         validated_at=datetime.now(timezone.utc).isoformat(),
         latency_ms=round(elapsed_ms, 1),
         agent_id=body.agent_id,
+        caller_principal=user or "anonymous",
         mode=_mode,
         would_have_failed=_would_have_failed,
     )

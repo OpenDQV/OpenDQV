@@ -17,7 +17,7 @@ class ValidateRequest(BaseModel):
     version: str = Field("latest", description="Contract version or 'latest'")
     context: Optional[str] = Field(None, description="Context override (e.g. 'kids_app', 'salesforce')")
     record_id: Optional[str] = Field(None, description="Caller's correlation ID for tracking")
-    agent_id: Optional[str] = Field(None, description="Caller identity — AI agent name, service name, or team. Echoed in response for session correlation.")
+    agent_id: Optional[str] = Field(None, description="Caller-asserted identity (AI agent name, service name, or team) — NOT authenticated. Use for self-labelling and session correlation. For trustable attribution, read `caller_principal` from the response — that is server-derived from the authenticated token and cannot be spoofed.")
     dry_run: bool = Field(False, description="If true, validate without recording results in quality metrics. Use for testing and demos.")
     observe_only: bool = Field(False, description="If true, run in observation-only mode: log violations but do not block. Always returns HTTP 200.")
 
@@ -73,6 +73,7 @@ class ValidateResponse(BaseModel):
     validated_at: Optional[str] = Field(None, description="ISO 8601 UTC timestamp of validation — use for time-series correlation with quality metrics")
     latency_ms: Optional[float] = Field(None, description="Server-side validation latency in milliseconds")
     agent_id: Optional[str] = Field(None, description="Echo of caller's agent_id — for session and caller attribution")
+    caller_principal: Optional[str] = Field(None, description="Server-derived from the authenticated token (JWT sub claim, or 'anonymous' in AUTH_MODE=open). Unlike `agent_id`, this cannot be spoofed by the caller — use as the trustable attribution key for audit and per-tenant SLA accounting.")
     mode: Optional[str] = Field(None, description="Validation mode: 'enforcement' (default) or 'observation_only'")
     would_have_failed: Optional[bool] = Field(None, description="Present only in observation_only mode: true if the record would have been rejected under enforcement")
 
@@ -85,7 +86,7 @@ class BatchValidateRequest(BaseModel):
     contract: str = Field(..., description="Contract name")
     version: str = Field("latest", description="Contract version or 'latest'")
     context: Optional[str] = Field(None, description="Context override")
-    agent_id: Optional[str] = Field(None, description="Caller identity — AI agent name, service name, or team. Echoed in response for session correlation.")
+    agent_id: Optional[str] = Field(None, description="Caller-asserted identity (AI agent name, service name, or team) — NOT authenticated. Use for self-labelling and session correlation. For trustable attribution, read `caller_principal` from the response — that is server-derived from the authenticated token and cannot be spoofed.")
     dry_run: bool = Field(False, description="If true, validate without recording results in quality metrics. Use for testing and demos.")
     observe_only: bool = Field(False, description="If true, run in observation-only mode: log violations but do not block. Always returns HTTP 200.")
 
@@ -140,6 +141,7 @@ class BatchValidateResponse(BaseModel):
     validated_at: Optional[str] = Field(None, description="ISO 8601 UTC timestamp of batch validation — use for time-series correlation with quality metrics")
     latency_ms: Optional[float] = Field(None, description="Server-side batch validation latency in milliseconds (total wall-clock time for the batch)")
     agent_id: Optional[str] = Field(None, description="Echo of caller's agent_id — for session and caller attribution")
+    caller_principal: Optional[str] = Field(None, description="Server-derived from the authenticated token (JWT sub claim, or 'anonymous' in AUTH_MODE=open). Unlike `agent_id`, this cannot be spoofed by the caller — use as the trustable attribution key for audit and per-tenant SLA accounting.")
     mode: Optional[str] = Field(None, description="Validation mode: 'enforcement' (default) or 'observation_only'")
     would_have_failed: Optional[bool] = Field(None, description="Present only in observation_only mode: true if any record would have been rejected under enforcement")
 

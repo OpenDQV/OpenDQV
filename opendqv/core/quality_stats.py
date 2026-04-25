@@ -27,20 +27,23 @@ CREATE TABLE IF NOT EXISTS quality_stats (
     pass_rate        REAL    NOT NULL,
     rule_failure_counts TEXT NOT NULL DEFAULT '{}',
     agent_id         TEXT    NOT NULL DEFAULT '',
-    mode             TEXT    NOT NULL DEFAULT 'enforcement'
+    mode             TEXT    NOT NULL DEFAULT 'enforcement',
+    caller_principal TEXT    NOT NULL DEFAULT ''
 )
 """
 
 _MIGRATE_AGENT_ID = "ALTER TABLE quality_stats ADD COLUMN agent_id TEXT NOT NULL DEFAULT ''"
 _MIGRATE_MODE = "ALTER TABLE quality_stats ADD COLUMN mode TEXT NOT NULL DEFAULT 'enforcement'"
 _MIGRATE_EVENT_ID = "ALTER TABLE quality_stats ADD COLUMN event_id TEXT NOT NULL DEFAULT ''"
+_MIGRATE_CALLER_PRINCIPAL = "ALTER TABLE quality_stats ADD COLUMN caller_principal TEXT NOT NULL DEFAULT ''"
 _CREATE_EVENT_ID_INDEX = "CREATE INDEX IF NOT EXISTS idx_quality_stats_event_id ON quality_stats(event_id)"
 
 _INSERT = """
 INSERT INTO quality_stats
     (event_id, contract_name, contract_version, context, recorded_at,
-     total_records, passed, failed, pass_rate, rule_failure_counts, agent_id, mode)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     total_records, passed, failed, pass_rate, rule_failure_counts, agent_id, mode,
+     caller_principal)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 _DELETE_BY_CONTEXT = "DELETE FROM quality_stats WHERE context = ?"
@@ -118,6 +121,12 @@ class QualityStats:
                 conn.commit()
             except sqlite3.OperationalError:
                 pass  # column already exists
+            # CRT170/J2: server-derived caller principal (cannot be spoofed)
+            try:
+                conn.execute(_MIGRATE_CALLER_PRINCIPAL)
+                conn.commit()
+            except sqlite3.OperationalError:
+                pass  # column already exists
             try:
                 conn.execute(_CREATE_EVENT_ID_INDEX)
                 conn.commit()
@@ -139,6 +148,7 @@ class QualityStats:
         agent_id: str = "",
         mode: str = "enforcement",
         event_id: str = "",
+        caller_principal: str = "",
     ) -> None:
         """Persist one batch validation result."""
         pass_rate = passed / total if total > 0 else 1.0
@@ -153,6 +163,7 @@ class QualityStats:
                 json.dumps(rule_failure_counts),
                 agent_id or "",
                 mode or "enforcement",
+                caller_principal or "",
             ))
             conn.commit()
         except (sqlite3.Error, OSError, ValueError) as exc:
