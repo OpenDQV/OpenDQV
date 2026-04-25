@@ -1030,7 +1030,9 @@ def validate_batch(
                 "rule": rule.name,
                 "message": rule.error_message,
                 "severity": rule.severity.value,
-                "error_code": f"OPENDQV_{rule.type.upper()}_001",
+                # CRT170/J4: reuse the cached, rule-instance-shaped code so
+                # the batch path and single-record path always agree.
+                "error_code": rule.cached_error_code,
             }
 
             for idx in failing_indices:

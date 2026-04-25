@@ -1,52 +1,56 @@
 # OpenDQV Error Code Catalogue
 
 Every validation failure in OpenDQV carries a stable `error_code` field. Error codes are
-derived deterministically from the rule type: `OPENDQV_{RULE_TYPE}_001`.
+derived deterministically from the rule type **and the rule name**:
+`OPENDQV_{RULE_TYPE}_{RULE_NAME}`.
 
 Use these codes to route failures in dead-letter queues, trigger PagerDuty/ServiceNow alerts,
 and build retry logic — without parsing human-readable `message` strings that may change
 between contract versions.
+
+> **Breaking change in v2.3.6 (CRT170/J4).** Prior to v2.3.6, the suffix was a
+> hard-coded `_001`, so two rules of the same type — e.g. `valid_email` and
+> `valid_phone`, both `regex` — collapsed to the same `OPENDQV_REGEX_001` code,
+> which made rule-instance routing impossible. Codes now encode the actual rule
+> name. Clients matching exactly on `OPENDQV_REGEX_001` must update; clients
+> matching the prefix `OPENDQV_REGEX_` continue to work. See CHANGELOG v2.3.6
+> for migration notes.
 
 ---
 
 ## Format
 
 ```
-OPENDQV_{RULE_TYPE}_001
+OPENDQV_{RULE_TYPE}_{RULE_NAME}
 ```
 
 - `OPENDQV` — namespace prefix, always present
-- `{RULE_TYPE}` — rule type from the contract YAML, uppercased with underscores
-- `001` — severity suffix, reserved for future severity variants
+- `{RULE_TYPE}` — rule type from the contract YAML (`regex`, `not_empty`, `range`, …),
+  uppercased with underscores
+- `{RULE_NAME}` — rule `name` from the contract YAML, uppercased with underscores
+
+Both segments are derived from the contract YAML and are stable as long as the rule
+keeps its name and type.
 
 ---
 
-## Code Catalogue
+## Examples by Rule Type
 
-| Error Code | Rule Type | Description |
-|-----------|-----------|-------------|
-| `OPENDQV_NOT_EMPTY_001` | `not_empty` | Field is null, missing, or blank |
-| `OPENDQV_REGEX_001` | `regex` | Field value does not match the required pattern |
-| `OPENDQV_MIN_001` | `min` | Numeric value is below the minimum threshold |
-| `OPENDQV_MAX_001` | `max` | Numeric value exceeds the maximum threshold |
-| `OPENDQV_RANGE_001` | `range` | Numeric value is outside the allowed range |
-| `OPENDQV_MIN_LENGTH_001` | `min_length` | String is shorter than the minimum length |
-| `OPENDQV_MAX_LENGTH_001` | `max_length` | String exceeds the maximum length |
-| `OPENDQV_DATE_FORMAT_001` | `date_format` | Value does not match the expected date/datetime format |
-| `OPENDQV_UNIQUE_001` | `unique` | Duplicate value detected in batch |
-| `OPENDQV_COMPARE_001` | `compare` | Cross-field comparison failed |
-| `OPENDQV_REQUIRED_IF_001` | `required_if` | Conditionally required field is missing |
-| `OPENDQV_FORBIDDEN_IF_001` | `forbidden_if` | Conditionally forbidden field is present |
-| `OPENDQV_CONDITIONAL_VALUE_001` | `conditional_value` | Field has an unexpected value given the condition |
-| `OPENDQV_CROSS_FIELD_RANGE_001` | `cross_field_range` | Cross-field numeric range violation |
-| `OPENDQV_ALLOWED_VALUES_001` | `allowed_values` | Value is not in the allowed set |
-| `OPENDQV_LOOKUP_001` | `lookup` | Value not found in the reference lookup file |
-| `OPENDQV_CHECKSUM_001` | `checksum` | Checksum / check-digit validation failed |
-| `OPENDQV_FIELD_SUM_001` | `field_sum` | Sum of fields does not equal the expected value |
-| `OPENDQV_DATE_DIFF_001` | `date_diff` | Date difference is outside the allowed range |
-| `OPENDQV_RATIO_CHECK_001` | `ratio_check` | Ratio between fields is outside the allowed range |
-| `OPENDQV_GEOSPATIAL_BOUNDS_001` | `geospatial_bounds` | Lat/lon coordinates are outside the allowed bounds |
-| `OPENDQV_AGE_MATCH_001` | `age_match` | Age derived from date of birth does not match stated age |
+| Contract YAML (`name` / `type`) | Resulting `error_code` |
+|---|---|
+| `name_required` / `not_empty` | `OPENDQV_NOT_EMPTY_NAME_REQUIRED` |
+| `valid_email` / `regex` | `OPENDQV_REGEX_VALID_EMAIL` |
+| `valid_phone` / `regex` | `OPENDQV_REGEX_VALID_PHONE` |
+| `username_format` / `regex` | `OPENDQV_REGEX_USERNAME_FORMAT` |
+| `age_range` / `range` | `OPENDQV_RANGE_AGE_RANGE` |
+| `country_iso` / `lookup` | `OPENDQV_LOOKUP_COUNTRY_ISO` |
+| `iban_check` / `checksum` | `OPENDQV_CHECKSUM_IBAN_CHECK` |
+| `date_of_birth_format` / `date_format` | `OPENDQV_DATE_FORMAT_DATE_OF_BIRTH_FORMAT` |
+| `unique_customer_id` / `unique` | `OPENDQV_UNIQUE_UNIQUE_CUSTOMER_ID` |
+| `dob_matches_age` / `age_match` | `OPENDQV_AGE_MATCH_DOB_MATCHES_AGE` |
+
+The `RULE_TYPE` segment lets you group failures by category (all regex failures, all
+range failures, …); the `RULE_NAME` segment lets you route on the specific rule.
 
 ---
 
@@ -58,10 +62,10 @@ OPENDQV_{RULE_TYPE}_001
   "errors": [
     {
       "field": "email",
-      "rule": "email_format",
+      "rule": "valid_email",
       "message": "email must match pattern ^[\\w.+-]+@[\\w-]+\\.[\\w.]+$",
       "severity": "error",
-      "error_code": "OPENDQV_REGEX_001"
+      "error_code": "OPENDQV_REGEX_VALID_EMAIL"
     }
   ],
   "warnings": []
@@ -72,17 +76,25 @@ OPENDQV_{RULE_TYPE}_001
 
 ## Using Error Codes
 
-**Kafka dead-letter routing:**
+**Kafka dead-letter routing — by rule type (prefix match):**
 ```python
-if record["error_code"] == "OPENDQV_REGEX_001":
+if record["error_code"].startswith("OPENDQV_REGEX_"):
     producer.send("dlq-format-errors", record)
-elif record["error_code"] == "OPENDQV_NOT_EMPTY_001":
+elif record["error_code"].startswith("OPENDQV_NOT_EMPTY_"):
     producer.send("dlq-missing-fields", record)
+```
+
+**Kafka dead-letter routing — by rule instance (exact match):**
+```python
+if record["error_code"] == "OPENDQV_REGEX_VALID_EMAIL":
+    producer.send("dlq-bad-emails", record)
+elif record["error_code"] == "OPENDQV_REGEX_VALID_PHONE":
+    producer.send("dlq-bad-phones", record)
 ```
 
 **PagerDuty / alerting rule:**
 ```
-IF error_code = "OPENDQV_CHECKSUM_001" AND count > 10 THEN page on-call
+IF error_code STARTSWITH "OPENDQV_CHECKSUM_" AND count > 10 THEN page on-call
 ```
 
 **ServiceNow auto-ticket:**
@@ -93,7 +105,23 @@ the `message` field which may change when error messages are improved.
 
 ## Stability Guarantee
 
-Error codes are **stable across contract versions** for the same rule type. The code
-`OPENDQV_REGEX_001` will always mean a regex rule failed, regardless of what the pattern
-or error message says. Codes are additive — new rule types get new codes, existing codes
-are never removed or renamed.
+Error codes are **stable as long as the rule keeps its name and type.** The code
+`OPENDQV_REGEX_VALID_EMAIL` will always mean the rule named `valid_email` (a regex rule)
+failed, regardless of what the pattern or error message says. Codes are additive — new
+rules get new codes, existing codes are never silently re-mapped.
+
+Renaming a rule in the contract YAML produces a new error_code (the segment after the
+type changes). Treat rule names like API contract identifiers: stable in production,
+versioned via the contract.
+
+---
+
+## Migration from v2.3.5 and earlier
+
+Code matching `OPENDQV_<TYPE>_001` no longer exists.
+
+| Before (v2.3.5 and earlier) | After (v2.3.6+) |
+|---|---|
+| `code == "OPENDQV_REGEX_001"` | `code.startswith("OPENDQV_REGEX_")` (rule type) |
+| `code == "OPENDQV_REGEX_001"` | `code == "OPENDQV_REGEX_VALID_EMAIL"` (rule instance) |
+| `code.endswith("_001")` | drop — the `_001` suffix is gone |

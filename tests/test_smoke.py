@@ -9,7 +9,7 @@ Coverage:
   1.  Health / service info
   2.  Contracts list and detail
   3.  Single-record validation — valid and invalid
-  4.  Error codes present in validation responses (OPENDQV_<TYPE>_001 format)
+  4.  Error codes present in validation responses (OPENDQV_<TYPE>_<RULE_NAME> format — CRT170/J4)
   5.  Batch validation — mixed pass/fail
   6.  Batch validation — dry_run does not error
   7.  Contract linter — clean contract passes, unknown contract 404s
@@ -151,7 +151,7 @@ class TestValidateSingleSmoke:
 # ── 4. Error codes in validation responses ────────────────────────────────────
 
 class TestErrorCodesSmoke:
-    """Verify OPENDQV_<TYPE>_001 error codes appear on every failed field."""
+    """Verify OPENDQV_<TYPE>_<RULE_NAME> error codes appear on every failed field (CRT170/J4)."""
 
     def test_error_code_present_on_failure(self, client, auth_headers):
         r = client.post(
@@ -166,7 +166,7 @@ class TestErrorCodesSmoke:
             assert "error_code" in err, f"error_code missing from: {err}"
 
     def test_error_code_format(self, client, auth_headers):
-        """Error codes must match OPENDQV_<RULETYPE>_001 pattern."""
+        """Error codes must match OPENDQV_<RULETYPE>_<RULE_NAME_UPPER> pattern (CRT170/J4)."""
         r = client.post(
             "/api/v1/validate",
             json={"record": {"email": "bad", "age": -1}, "contract": "customer"},
@@ -176,7 +176,11 @@ class TestErrorCodesSmoke:
         for err in errors:
             code = err["error_code"]
             assert code.startswith("OPENDQV_"), f"Bad error_code format: {code}"
-            assert code.endswith("_001"), f"Bad error_code suffix: {code}"
+            # Code ends with the rule name in upper-snake-case — derived from rule.name.
+            rule_name_segment = err["rule"].upper()
+            assert code.endswith(f"_{rule_name_segment}"), (
+                f"error_code {code!r} does not end with rule name {rule_name_segment!r}"
+            )
 
     def test_error_code_in_batch_response(self, client, auth_headers):
         r = client.post(

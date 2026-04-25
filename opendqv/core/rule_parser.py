@@ -305,7 +305,11 @@ class Rule(BaseModel):
         # Hot-path caches — avoid repeated Pydantic/Enum access per validation call
         self.cached_has_condition = bool(self.condition)
         self.cached_severity_value = self.severity.value
-        self.cached_error_code = f"OPENDQV_{self.type.upper()}_001"
+        # CRT170/J4: error_code is rule-instance-shaped, not rule-type-shaped.
+        # Two regex rules (e.g., valid_email and valid_phone) used to share
+        # OPENDQV_REGEX_001; they now get OPENDQV_REGEX_VALID_EMAIL and
+        # OPENDQV_REGEX_VALID_PHONE so consumers can route on the actual rule.
+        self.cached_error_code = f"OPENDQV_{self.type.upper()}_{self.name.upper()}"
         self.cached_has_age_constraint = self.min_age is not None or self.max_age is not None
         return self
 

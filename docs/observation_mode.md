@@ -68,7 +68,7 @@ print(result["errors"])            # [...] (violations are still listed)
 
 ```json
 {
-  "valid": true,
+  "valid": false,
   "mode": "observation_only",
   "would_have_failed": true,
   "contract": "customer",
@@ -76,18 +76,18 @@ print(result["errors"])            # [...] (violations are still listed)
   "errors": [
     {
       "field": "name",
-      "rule": "not_empty",
+      "rule": "name_required",
       "message": "Field 'name' must not be empty",
       "severity": "error",
-      "error_code": "OPENDQV_NOT_EMPTY_001",
+      "error_code": "OPENDQV_NOT_EMPTY_NAME_REQUIRED",
       "suggested_fix": "Provide a non-empty value for 'name'"
     },
     {
       "field": "email",
-      "rule": "regex",
+      "rule": "valid_email",
       "message": "Field 'email' does not match expected pattern",
       "severity": "error",
-      "error_code": "OPENDQV_REGEX_001",
+      "error_code": "OPENDQV_REGEX_VALID_EMAIL",
       "suggested_fix": "Provide a valid email address"
     }
   ],

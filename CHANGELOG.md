@@ -2,6 +2,56 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.6] - 2026-04-26
+
+### Changed (client-visible breaking change)
+
+- **`error_code` is now rule-instance-shaped, not rule-type-shaped.**
+  Previously, every rule of the same type collapsed to the same code:
+  `valid_email`, `valid_phone`, and `username_format` (all `regex`) all
+  returned `OPENDQV_REGEX_001`, so consumers using `error_code` as a
+  routing key in dead-letter queues could not distinguish "bad email"
+  from "bad phone number" — the response field's name (`error_code`)
+  did not match its meaning. Codes now encode the actual rule:
+
+  ```
+  before: OPENDQV_<TYPE>_001
+  after:  OPENDQV_<TYPE>_<RULE_NAME>
+  ```
+
+  | Rule | Before | After |
+  |---|---|---|
+  | `valid_email` (regex) | `OPENDQV_REGEX_001` | `OPENDQV_REGEX_VALID_EMAIL` |
+  | `valid_phone` (regex) | `OPENDQV_REGEX_001` | `OPENDQV_REGEX_VALID_PHONE` |
+  | `name_required` (not_empty) | `OPENDQV_NOT_EMPTY_001` | `OPENDQV_NOT_EMPTY_NAME_REQUIRED` |
+
+  Single source of truth: `Rule.cached_error_code` (`rule_parser.py`).
+  Both the single-record and batch (DuckDB) paths now read from the same
+  cached value, so they cannot diverge.
+
+  **Migration.** Clients matching exactly on the old code must update;
+  clients matching on the type prefix continue to work:
+
+  ```python
+  # before: dead-letter on regex failure
+  if err["error_code"] == "OPENDQV_REGEX_001":         # breaks
+      ...
+  # after — by rule type (prefix match, recommended for category routing)
+  if err["error_code"].startswith("OPENDQV_REGEX_"):   # works
+      ...
+  # after — by specific rule (exact match, recommended for fine-grained routing)
+  if err["error_code"] == "OPENDQV_REGEX_VALID_EMAIL": # works
+      ...
+  ```
+
+  Found via CRT170 / J4 audit; covered by
+  `tests/test_crt170_j4_error_code_instance.py` (15 tests) plus an
+  inverted assertion in `tests/test_smoke.py::TestErrorCodesSmoke`.
+  Documentation updated in `docs/error_codes.md`. Working principle
+  (extends CRT170/J1, /J3, /J6): a response field's value must reflect
+  what its name claims. `error_code` claims to identify the rule that
+  failed; it now does.
+
 ## [2.3.5] - 2026-04-26
 
 ### Added
