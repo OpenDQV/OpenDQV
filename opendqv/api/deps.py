@@ -106,6 +106,7 @@ async def _async_record_quality_stats(
     rule_failure_counts: dict,
     agent_id: str,
     mode: str = "enforcement",
+    event_id: str = "",
 ) -> None:
     try:
         await asyncio.to_thread(
@@ -119,6 +120,7 @@ async def _async_record_quality_stats(
             rule_failure_counts=rule_failure_counts,
             agent_id=agent_id,
             mode=mode,
+            event_id=event_id,
         )
     except Exception:
         logger.exception("async quality_stats.record_batch failed — stats may be incomplete")

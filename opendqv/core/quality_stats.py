@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS quality_stats (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id         TEXT    NOT NULL DEFAULT '',
     contract_name    TEXT    NOT NULL,
     contract_version TEXT    NOT NULL,
     context          TEXT    NOT NULL DEFAULT 'default',
@@ -32,12 +33,14 @@ CREATE TABLE IF NOT EXISTS quality_stats (
 
 _MIGRATE_AGENT_ID = "ALTER TABLE quality_stats ADD COLUMN agent_id TEXT NOT NULL DEFAULT ''"
 _MIGRATE_MODE = "ALTER TABLE quality_stats ADD COLUMN mode TEXT NOT NULL DEFAULT 'enforcement'"
+_MIGRATE_EVENT_ID = "ALTER TABLE quality_stats ADD COLUMN event_id TEXT NOT NULL DEFAULT ''"
+_CREATE_EVENT_ID_INDEX = "CREATE INDEX IF NOT EXISTS idx_quality_stats_event_id ON quality_stats(event_id)"
 
 _INSERT = """
 INSERT INTO quality_stats
-    (contract_name, contract_version, context, recorded_at,
+    (event_id, contract_name, contract_version, context, recorded_at,
      total_records, passed, failed, pass_rate, rule_failure_counts, agent_id, mode)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 _DELETE_BY_CONTEXT = "DELETE FROM quality_stats WHERE context = ?"
@@ -109,6 +112,17 @@ class QualityStats:
                 conn.commit()
             except sqlite3.OperationalError:
                 pass  # column already exists
+            # Migration: add event_id to existing DBs (idempotent)
+            try:
+                conn.execute(_MIGRATE_EVENT_ID)
+                conn.commit()
+            except sqlite3.OperationalError:
+                pass  # column already exists
+            try:
+                conn.execute(_CREATE_EVENT_ID_INDEX)
+                conn.commit()
+            except sqlite3.OperationalError:
+                pass
         finally:
             if self._db_path != ":memory:":
                 conn.close()
@@ -124,6 +138,7 @@ class QualityStats:
         rule_failure_counts: dict,
         agent_id: str = "",
         mode: str = "enforcement",
+        event_id: str = "",
     ) -> None:
         """Persist one batch validation result."""
         pass_rate = passed / total if total > 0 else 1.0
@@ -132,6 +147,7 @@ class QualityStats:
         conn = self._connect()
         try:
             conn.execute(_INSERT, (
+                event_id or "",
                 contract_name, contract_version, ctx, now,
                 total, passed, failed, pass_rate,
                 json.dumps(rule_failure_counts),

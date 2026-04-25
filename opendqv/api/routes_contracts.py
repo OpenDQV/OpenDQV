@@ -33,9 +33,35 @@ async def list_contracts(
 
 @sub_router.get("/contracts/{name}", response_model=ContractDetail)
 @_d._default_limit
-async def get_contract(request: Request, name: str, version: str = Query("latest")):
-    """Get full detail of a data contract including its rules."""
-    contract = _d._get_contract_versioned_or_404(name, version)
+async def get_contract(
+    request: Request,
+    name: str,
+    version: str = Query("latest"),
+    hash: Optional[str] = Query(
+        None,
+        description=(
+            "SHA-256 contract_hash returned from a prior validate response. "
+            "When provided, the exact historical contract version that produced that hash "
+            "is returned — required for regulator-grade point-in-time audit retrieval. "
+            "Takes precedence over `version`."
+        ),
+    ),
+):
+    """Get full detail of a data contract including its rules.
+
+    By default returns the latest version. Pass ?version=<v> for a named version,
+    or ?hash=<contract_hash> to retrieve the exact historical version that produced
+    a hash returned on a prior validate response.
+    """
+    if hash:
+        contract = _d.registry.contract_by_hash(name, hash)
+        if not contract:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Contract '{name}' has no history entry matching hash '{hash}'",
+            )
+    else:
+        contract = _d._get_contract_versioned_or_404(name, version)
 
     def _rule_values(r) -> list[str] | None:
         if r.type != "lookup" or not r.lookup_file or r.lookup_file.startswith("http"):

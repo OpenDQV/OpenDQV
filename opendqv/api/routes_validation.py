@@ -1,5 +1,4 @@
 import time
-import uuid
 import logging
 
 from datetime import datetime, timezone
@@ -10,6 +9,7 @@ from fastapi.responses import JSONResponse
 
 import opendqv.api.deps as _d
 import opendqv.config as config
+from opendqv.core._uuid7 import uuid7
 from opendqv.core.contracts import UnknownContextError
 from opendqv.core.rule_parser import ContractStatus, Rule
 from opendqv.core.validator import validate_record, validate_batch
@@ -54,7 +54,7 @@ async def validate_single(
     Pass ?as_of=<ISO8601> to validate against the contract version active at a historical point in time.
     """
     start = time.monotonic()
-    trace_id = str(uuid.uuid4())
+    event_id = str(uuid7())
     client_ip = request.client.host if request.client else "unknown"
 
     if as_of:
@@ -84,6 +84,7 @@ async def validate_single(
                     )
                     resp_data = ValidateResponse(
                         valid=snap_result["valid"],
+                        event_id=event_id,
                         record_id=body.record_id,
                         errors=[FieldErrorResponse(**e) for e in _d._mask_errors(snap_result["errors"])],
                         warnings=[FieldErrorResponse(**w) for w in _d._mask_errors(snap_result["warnings"])],
@@ -117,9 +118,9 @@ async def validate_single(
 
     elapsed_ms = (time.monotonic() - start) * 1000
     logger.info(
-        "validate trace_id=%s caller=%s ip=%s record_id=%s contract=%s v%s context=%s "
+        "validate event_id=%s caller=%s ip=%s record_id=%s contract=%s v%s context=%s "
         "valid=%s errors=%d warnings=%d %.1fms",
-        trace_id, user, client_ip, body.record_id or "-",
+        event_id, user, client_ip, body.record_id or "-",
         contract.name, contract.version, body.context or "default",
         result["valid"], len(result["errors"]), len(result["warnings"]), elapsed_ms,
     )
@@ -146,6 +147,7 @@ async def validate_single(
             rule_failure_counts=rule_failure_counts,
             agent_id=body.agent_id or "",
             mode="observation_only" if getattr(body, "observe_only", False) else "enforcement",
+            event_id=event_id,
         )
 
     if not result["valid"] and not body.dry_run:
@@ -182,6 +184,7 @@ async def validate_single(
 
     return ValidateResponse(
         valid=_effective_valid,
+        event_id=event_id,
         record_id=body.record_id,
         errors=[FieldErrorResponse(**e) for e in _d._mask_errors(_d._add_suggested_fixes(result["errors"], rules))],
         warnings=[FieldErrorResponse(**w) for w in _d._mask_errors(_d._add_suggested_fixes(result["warnings"], rules))],
@@ -237,7 +240,7 @@ async def validate_batch_endpoint(
 
     _d._check_validate_in_states(contract, body.contract, allow_draft)
 
-    trace_id = str(uuid.uuid4())
+    batch_event_id = str(uuid7())
     try:
         rules = _d.registry.get_rules_with_context(contract, body.context)
     except UnknownContextError as exc:
@@ -253,9 +256,9 @@ async def validate_batch_endpoint(
     elapsed_ms = (time.monotonic() - start) * 1000
     client_ip = request.client.host if request.client else "unknown"
     logger.info(
-        "validate_batch trace_id=%s caller=%s ip=%s contract=%s v%s context=%s "
+        "validate_batch event_id=%s caller=%s ip=%s contract=%s v%s context=%s "
         "total=%d passed=%d failed=%d %.1fms",
-        trace_id, user, client_ip, contract.name, contract.version, body.context or "default",
+        batch_event_id, user, client_ip, contract.name, contract.version, body.context or "default",
         result["summary"]["total"], result["summary"]["passed"],
         result["summary"]["failed"], elapsed_ms,
     )
@@ -280,6 +283,7 @@ async def validate_batch_endpoint(
             rule_failure_counts=result["summary"].get("rule_failure_counts", {}),
             agent_id=body.agent_id or "",
             mode="observation_only" if getattr(body, "observe_only", False) else "enforcement",
+            event_id=batch_event_id,
         )
 
         if result["summary"]["failed"] > 0:
@@ -306,10 +310,12 @@ async def validate_batch_endpoint(
     _would_have_failed = (result["summary"]["failed"] > 0) if _observe else None
 
     return BatchValidateResponse(
+        event_id=batch_event_id,
         summary=BatchSummary(**result["summary"]),
         results=[
             BatchResultItem(
                 index=r["index"],
+                event_id=str(uuid7()),
                 valid=r["valid"],
                 errors=[FieldErrorResponse(**e) for e in _d._mask_errors(_d._add_suggested_fixes(r["errors"], rules))],
                 warnings=[FieldErrorResponse(**w) for w in _d._mask_errors(_d._add_suggested_fixes(r["warnings"], rules))],

@@ -886,6 +886,31 @@ class ContractRegistry:
             contexts=snap["contexts"],
         )
 
+    def contract_by_hash(self, name: str, contract_hash: str) -> Optional["DataContract"]:
+        """
+        Reconstruct the DataContract whose history entry matches the given hash.
+
+        Used by GET /contracts/{name}?hash=<contract_hash> — callers want the
+        exact contract version that produced a given entry_hash on a prior
+        validation response, for regulator-grade point-in-time audit retrieval.
+        Returns None if no history entry matches.
+        """
+        if not contract_hash:
+            return None
+        for snap in self.history.get_history(name):
+            if snap.get("entry_hash") == contract_hash:
+                rules = [Rule(**r) for r in snap["rules"]]
+                return DataContract(
+                    name=name,
+                    version=snap["version"],
+                    description=snap["description"],
+                    owner=snap["owner"],
+                    status=snap["status"],
+                    rules=rules,
+                    contexts=snap["contexts"],
+                )
+        return None
+
     def get_history(self, name: str) -> list[dict]:
         """Get version history for a contract."""
         return self.history.get_history(name)

@@ -2,6 +2,34 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.2.6] - 2026-04-25
+
+### Added — audit credibility (CRT168, external-eval driven)
+
+- **Server-generated `event_id` on every validate response.** Every
+  `POST /api/v1/validate` and `POST /api/v1/validate/batch` response now
+  carries a UUID v7 (RFC 9562) `event_id` — the audit primary key for that
+  call. Batch responses additionally carry a per-record `event_id` on each
+  `BatchResultItem`, so every record is independently addressable in the
+  audit trail. Persisted on the corresponding row in `quality_stats` (new
+  `event_id TEXT` column with index, idempotent migration).
+- **`GET /api/v1/contracts/{name}?hash=<contract_hash>`** — retrieve the
+  exact historical contract version that produced a given `contract_hash`
+  on a prior validate response. Hash lookup takes precedence over
+  `?version=`. Required for regulator-grade point-in-time audit retrieval
+  (EMA, MiFIR, Basel III workflows). MCP `get_contract` tool exposes the
+  same `hash` parameter.
+- **`opendqv.core._uuid7.uuid7()`** — internal RFC 9562 §5.7 UUID v7 shim.
+  Stays in place permanently; not contingent on the Python 3.14 stdlib
+  addition.
+
+### Why
+
+External regulator-facing review (Data Governance Lead persona, MCP eval,
+2026-04-25) flagged that responses returned `record_id: null` and that
+`get_contract` could not retrieve a contract by its hash — both blockers
+for credible point-in-time audit retrieval. CRT168 scoped the fix.
+
 ## [2.2.5] - 2026-04-18
 
 ### Added

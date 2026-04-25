@@ -46,6 +46,7 @@ class FieldErrorResponse(BaseModel):
 class ValidateResponse(BaseModel):
     """Single-record validation response."""
     valid: bool = Field(..., description="True if no blocking errors (warnings allowed)")
+    event_id: str = Field(..., description="Server-generated audit primary key (UUID v7, RFC 9562). Persisted with the audit row — use to correlate this response with the SQLite audit trail and the optional TRACE_LOG entry.")
     record_id: Optional[str] = Field(None, description="Echo of caller's correlation ID")
     errors: list[FieldErrorResponse] = Field(default_factory=list, description="Blocking validation failures")
     warnings: list[FieldErrorResponse] = Field(default_factory=list, description="Non-blocking quality warnings")
@@ -96,6 +97,7 @@ class BatchValidateRequest(BaseModel):
 class BatchResultItem(BaseModel):
     """Validation result for a single record within a batch."""
     index: int = Field(..., description="Zero-based position of this record in the submitted list")
+    event_id: str = Field(..., description="Server-generated audit primary key for this record (UUID v7, RFC 9562). Distinct from the batch-level event_id — every record is independently addressable in the audit trail.")
     valid: bool = Field(..., description="True if no blocking errors for this record")
     errors: list[FieldErrorResponse] = Field(default_factory=list, description="Blocking validation failures for this record")
     warnings: list[FieldErrorResponse] = Field(default_factory=list, description="Non-blocking quality warnings for this record")
@@ -117,6 +119,7 @@ class BatchSummary(BaseModel):
 
 class BatchValidateResponse(BaseModel):
     """Batch validation response."""
+    event_id: str = Field(..., description="Server-generated audit primary key for the batch call (UUID v7, RFC 9562). Persisted with the batch's quality_stats row.")
     summary: BatchSummary = Field(..., description="Aggregate statistics across all submitted records")
     results: list[BatchResultItem] = Field(..., description="Per-record validation results in submission order")
     contract: str = Field(..., description="Contract that was evaluated")

@@ -311,7 +311,9 @@ async def list_tools() -> list[types.Tool]:
             description=(
                 "Get full contract details including all field rules, valid value constraints, and owner. "
                 "Use this to understand what a contract requires before validating, "
-                "or to generate type-safe data structures that match the contract."
+                "or to generate type-safe data structures that match the contract. "
+                "Pass `hash` (the contract_hash from a prior validate response) to retrieve "
+                "the exact historical version that produced that hash — for point-in-time audit retrieval."
             ),
             inputSchema={
                 "type": "object",
@@ -324,6 +326,10 @@ async def list_tools() -> list[types.Tool]:
                         "type": "string",
                         "description": "Contract version or 'latest' (default).",
                         "default": "latest",
+                    },
+                    "hash": {
+                        "type": "string",
+                        "description": "SHA-256 contract_hash from a prior validate response. Takes precedence over `version`.",
                     },
                 },
                 "required": ["name"],
@@ -627,20 +633,33 @@ async def _tool_list_contracts(args: dict) -> list[types.TextContent]:
 async def _tool_get_contract(args: dict) -> list[types.TextContent]:
     name = args["name"]
     version = args.get("version", "latest")
+    contract_hash = args.get("hash")
 
     if _remote_client:
         url = f"/api/v1/contracts/{name}"
-        if version and version != "latest":
-            url += f"?version={version}"
+        params = []
+        if contract_hash:
+            params.append(f"hash={contract_hash}")
+        elif version and version != "latest":
+            params.append(f"version={version}")
+        if params:
+            url += "?" + "&".join(params)
         resp = _remote_client.get(url)
         resp.raise_for_status()
         return [types.TextContent(type="text", text=resp.text)]
 
-    contract = _registry.get(name, version)
-    if not contract:
-        return [types.TextContent(type="text", text=json.dumps({
-            "error": f"Contract '{name}' not found."
-        }))]
+    if contract_hash:
+        contract = _registry.contract_by_hash(name, contract_hash)
+        if not contract:
+            return [types.TextContent(type="text", text=json.dumps({
+                "error": f"Contract '{name}' has no history entry matching hash '{contract_hash}'."
+            }))]
+    else:
+        contract = _registry.get(name, version)
+        if not contract:
+            return [types.TextContent(type="text", text=json.dumps({
+                "error": f"Contract '{name}' not found."
+            }))]
 
     rules = [
         {
