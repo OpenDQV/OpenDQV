@@ -593,15 +593,17 @@ class TestCmdAuditVerifyDirect:
     """cmd_audit_verify — direct call coverage."""
 
     def _make_db(self, tmp_path):
-        """Create a minimal contract_history table."""
+        """Create a contract_history table mirroring the v2.3.0 schema."""
         db_path = tmp_path / "test.db"
         conn = sqlite3.connect(str(db_path))
         conn.row_factory = sqlite3.Row
         conn.execute(
             "CREATE TABLE contract_history ("
             "id INTEGER PRIMARY KEY, contract_name TEXT, version TEXT, "
-            "status TEXT, rules TEXT, contexts TEXT, opendqv_node_id TEXT, "
-            "updated_at TEXT, prev_hash TEXT, entry_hash TEXT)"
+            "status TEXT, description TEXT, owner TEXT, owner_email TEXT, "
+            "owner_team TEXT, asset_id TEXT, downstream_consumers TEXT, "
+            "rules TEXT, contexts TEXT, opendqv_node_id TEXT, "
+            "updated_at TEXT, prev_hash TEXT, entry_hash TEXT, content_hash TEXT)"
         )
         conn.commit()
         return db_path, conn
@@ -639,17 +641,25 @@ class TestCmdAuditVerifyDirect:
             contract_name="test_contract",
             version="1.0",
             status="active",
-            rules_json="[]",
-            contexts_json="{}",
+            owner="",
+            owner_email=None,
+            owner_team=None,
+            asset_id=None,
+            description="",
+            downstream_consumers=[],
+            rules=[],
+            contexts={},
             opendqv_node_id="node-1",
             updated_at="2026-01-01T00:00:00",
         )
         conn.execute(
             "INSERT INTO contract_history "
-            "(contract_name, version, status, rules, contexts, opendqv_node_id, "
-            "updated_at, prev_hash, entry_hash) VALUES (?,?,?,?,?,?,?,?,?)",
-            ("test_contract", "1.0", "active", "[]", "{}", "node-1",
-             "2026-01-01T00:00:00", genesis, entry_hash),
+            "(contract_name, version, status, description, owner, "
+            " owner_email, owner_team, asset_id, downstream_consumers, "
+            " rules, contexts, opendqv_node_id, updated_at, prev_hash, entry_hash) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            ("test_contract", "1.0", "active", "", "", None, None, None, "[]",
+             "[]", "{}", "node-1", "2026-01-01T00:00:00", genesis, entry_hash),
         )
         conn.commit()
         conn.close()
@@ -666,10 +676,12 @@ class TestCmdAuditVerifyDirect:
 
         conn.execute(
             "INSERT INTO contract_history "
-            "(contract_name, version, status, rules, contexts, opendqv_node_id, "
-            "updated_at, prev_hash, entry_hash) VALUES (?,?,?,?,?,?,?,?,?)",
-            ("test_contract", "1.0", "active", "[]", "{}", "node-1",
-             "2026-01-01T00:00:00", "0" * 64, "tampered_hash"),
+            "(contract_name, version, status, description, owner, "
+            " owner_email, owner_team, asset_id, downstream_consumers, "
+            " rules, contexts, opendqv_node_id, updated_at, prev_hash, entry_hash) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            ("test_contract", "1.0", "active", "", "", None, None, None, "[]",
+             "[]", "{}", "node-1", "2026-01-01T00:00:00", "0" * 64, "tampered_hash"),
         )
         conn.commit()
         conn.close()

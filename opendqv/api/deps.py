@@ -60,7 +60,10 @@ def _get_contract_versioned_or_404(name: str, version: str):
 
 def _get_contract_hash(contract_name: str):
     history = registry.get_history(contract_name)
-    return history[-1]["entry_hash"] if history else None
+    if not history:
+        return None, None
+    last = history[-1]
+    return last.get("entry_hash"), last.get("content_hash")
 
 
 def _check_validate_in_states(contract, contract_name: str, allow_draft: bool) -> None:

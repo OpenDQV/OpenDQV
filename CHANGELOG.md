@@ -2,6 +2,49 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.0] - 2026-04-25
+
+### Changed — hash domain expansion (CRT169) — BREAKING for hash values
+
+- **Hash domain now covers every semantically meaningful contract field.**
+  `entry_hash` is computed over: `name`, `version`, `status`, `owner`,
+  `owner_email`, `owner_team`, `asset_id`, `description`,
+  `downstream_consumers`, `rules`, `contexts`, plus the chain fields
+  (`prev_hash`, `opendqv_node_id`, `updated_at`). Pre-v2.3.0 chain entries
+  hashed only `version`/`status`/`description`/`owner`/`rules`/`contexts`,
+  so edits to `owner_email`, `owner_team`, `asset_id`, or
+  `downstream_consumers` could update a contract without producing a new
+  chain entry — the audit trail silently pointed at a stale snapshot.
+- **New `content_hash` companion to `entry_hash`.** `content_hash` covers
+  the content fields only (excludes `prev_hash`, `opendqv_node_id`,
+  `updated_at`), so two byte-identical contracts share `content_hash`
+  even when recorded at different times or on different nodes. Both
+  hashes are returned on `validate`, `validate/batch`, and
+  `GET /contracts/{name}` responses; `?hash=<value>` accepts either.
+- **Canonical JSON serialisation for hash inputs.** `sort_keys=True`,
+  `separators=(",", ":")`, `ensure_ascii=False` — guarantees byte-stable
+  hashing across Python versions and dict insertion orders.
+- **Scrub-and-restart migration.** On first boot under v2.3.0, the
+  engine deletes all chain entries with `domain_version < 2` and
+  re-records the current state of every contract under the v2 hash
+  domain. Idempotent across boots; no manual intervention required.
+- **CI guard against silent hash-domain drift.** A new test in
+  `tests/test_versioning.py::TestHashDomainCompleteness` introspects
+  `DataContract.model_fields` and fails CI if a new field is added
+  without an explicit content/exclusion classification — preventing
+  a future CRT169 from happening twice.
+- **Response shape additions.** `entry_hash` and `content_hash` join
+  the existing `contract_hash` (which is now an alias of `entry_hash`,
+  retained for backward compatibility) on validate, batch validate, and
+  `GET /contracts/{name}` responses.
+
+This release is a deliberate breaking change to chain hash values,
+not to the public API surface. Hashes captured under v2.2.x will not
+match any chain entry after the upgrade — clients pinning to a prior
+hash should re-fetch from `validate` or `GET /contracts/{name}` and
+store the new value. OpenDQV is pre-launch; no external customers are
+known to depend on pre-v2.3.0 hashes.
+
 ## [2.2.8] - 2026-04-25
 
 ### Fixed — MCP proxy dual-path consistency (CRT168 PR-A follow-up)

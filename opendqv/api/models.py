@@ -59,7 +59,15 @@ class ValidateResponse(BaseModel):
     )
     contract_hash: Optional[str] = Field(
         None,
-        description="SHA-256 hash of the contract ruleset at validation time — enables point-in-time audit evidence",
+        description="Alias of entry_hash, retained for backward compatibility. Prefer entry_hash on new integrations.",
+    )
+    entry_hash: Optional[str] = Field(
+        None,
+        description="SHA-256 over the full hash domain (content + chain + node + timestamp). Uniquely identifies the audit chain entry — use to retrieve point-in-time audit evidence.",
+    )
+    content_hash: Optional[str] = Field(
+        None,
+        description="SHA-256 over the contract content fields only (excludes prev_hash, opendqv_node_id, updated_at). Two semantically identical contracts share content_hash even if recorded at different times or nodes.",
     )
     owner_team: Optional[str] = None
     validated_at: Optional[str] = Field(None, description="ISO 8601 UTC timestamp of validation — use for time-series correlation with quality metrics")
@@ -126,7 +134,9 @@ class BatchValidateResponse(BaseModel):
     version: str = Field(..., description="Contract version that was evaluated")
     owner: str = Field("", description="Contract owner — for routing disputes and on-call escalation")
     engine_version: str = Field("", description="OpenDQV engine version — for regulatory audit trails")
-    contract_hash: Optional[str] = Field(None, description="SHA-256 hash of the contract ruleset at validation time")
+    contract_hash: Optional[str] = Field(None, description="Alias of entry_hash, retained for backward compatibility. Prefer entry_hash on new integrations.")
+    entry_hash: Optional[str] = Field(None, description="SHA-256 over the full hash domain — uniquely identifies the audit chain entry for this batch's contract version.")
+    content_hash: Optional[str] = Field(None, description="SHA-256 over content fields only — stable across re-recordings of the same contract.")
     validated_at: Optional[str] = Field(None, description="ISO 8601 UTC timestamp of batch validation — use for time-series correlation with quality metrics")
     latency_ms: Optional[float] = Field(None, description="Server-side batch validation latency in milliseconds (total wall-clock time for the batch)")
     agent_id: Optional[str] = Field(None, description="Echo of caller's agent_id — for session and caller attribution")
@@ -169,6 +179,9 @@ class ContractDetail(BaseModel):
     asset_id: Optional[str] = Field(None, description="Data catalog asset ID")
     owner_team: Optional[str] = Field(None, description="Owning team name")
     owner_email: Optional[str] = Field(None, description="Owning team contact email")
+    contract_hash: Optional[str] = Field(None, description="Alias of entry_hash, retained for backward compatibility.")
+    entry_hash: Optional[str] = Field(None, description="SHA-256 over the full hash domain for this contract version's history entry.")
+    content_hash: Optional[str] = Field(None, description="SHA-256 over content fields only — stable across re-recordings.")
 
 
 # ── Quality trend models ──────────────────────────────────────────────

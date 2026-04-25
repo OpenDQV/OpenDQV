@@ -63,6 +63,14 @@ async def get_contract(
     else:
         contract = _d._get_contract_versioned_or_404(name, version)
 
+    _entry_hash = None
+    _content_hash = None
+    for _snap in reversed(_d.registry.get_history(name)):
+        if _snap.get("version") == contract.version:
+            _entry_hash = _snap.get("entry_hash")
+            _content_hash = _snap.get("content_hash")
+            break
+
     def _rule_values(r) -> list[str] | None:
         if r.type != "lookup" or not r.lookup_file or r.lookup_file.startswith("http"):
             return None
@@ -95,6 +103,9 @@ async def get_contract(
         asset_id=contract.asset_id,
         owner_team=contract.owner_team,
         owner_email=contract.owner_email,
+        contract_hash=_entry_hash,
+        entry_hash=_entry_hash,
+        content_hash=_content_hash,
     )
 
 

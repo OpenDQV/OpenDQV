@@ -106,12 +106,18 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
             status          TEXT        NOT NULL,
             description     TEXT,
             owner           TEXT,
+            owner_email     TEXT,
+            owner_team      TEXT,
+            asset_id        TEXT,
+            downstream_consumers TEXT,
             rules           TEXT        NOT NULL,
             contexts        TEXT        NOT NULL,
             opendqv_node_id TEXT        NOT NULL,
             updated_at      TEXT        NOT NULL,
             prev_hash       TEXT        NOT NULL DEFAULT '',
             entry_hash      TEXT        NOT NULL DEFAULT '',
+            content_hash    TEXT        NOT NULL DEFAULT '',
+            domain_version  INTEGER     NOT NULL DEFAULT 1,
             approved_by     TEXT,
             proposed_by     TEXT,
             proposed_at     TEXT,
@@ -125,6 +131,16 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
         CREATE INDEX IF NOT EXISTS idx_contract_history_name
             ON contract_history(contract_name);
     """
+
+    # v2.3.0 (CRT169) hash-domain expansion — applied to existing tables.
+    _MIGRATIONS_V2 = (
+        "ALTER TABLE contract_history ADD COLUMN IF NOT EXISTS owner_email TEXT",
+        "ALTER TABLE contract_history ADD COLUMN IF NOT EXISTS owner_team TEXT",
+        "ALTER TABLE contract_history ADD COLUMN IF NOT EXISTS asset_id TEXT",
+        "ALTER TABLE contract_history ADD COLUMN IF NOT EXISTS downstream_consumers TEXT",
+        "ALTER TABLE contract_history ADD COLUMN IF NOT EXISTS content_hash TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE contract_history ADD COLUMN IF NOT EXISTS domain_version INTEGER NOT NULL DEFAULT 1",
+    )
 
     def __init__(self, db_url: str):
         if not db_url:
@@ -148,11 +164,21 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
         return psycopg2.connect(self.db_url)
 
     def _init_db(self) -> None:
+        from opendqv.core.contracts import _HASH_DOMAIN_VERSION
+
         conn = self._connect()
         try:
             with conn:
                 with conn.cursor() as cur:
                     cur.execute(self._DDL)
+                    for stmt in self._MIGRATIONS_V2:
+                        cur.execute(stmt)
+                    # Scrub-and-restart: drop any pre-v2 chain entries.
+                    # Idempotent — second boot finds 0 rows and no-ops.
+                    cur.execute(
+                        "DELETE FROM contract_history WHERE domain_version != %s",
+                        (_HASH_DOMAIN_VERSION,),
+                    )
         finally:
             conn.close()
 
@@ -167,49 +193,76 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
         updated_at = datetime.now(timezone.utc).isoformat()
         rules_json = json.dumps(rules, sort_keys=True)
         contexts_json = json.dumps(contexts, sort_keys=True)
+        downstream_consumers = list(contract.downstream_consumers or [])
+        downstream_json = json.dumps(downstream_consumers, sort_keys=True)
 
         conn = self._connect()
         try:
             with conn:
                 with conn.cursor() as cur:
-                    # Fetch most recent snapshot to detect duplicates and build hash chain
                     cur.execute(
-                        "SELECT version, status, description, owner, rules, contexts, entry_hash "
+                        "SELECT version, status, description, owner, owner_email, "
+                        "owner_team, asset_id, downstream_consumers, rules, contexts, "
+                        "entry_hash "
                         "FROM contract_history WHERE contract_name = %s "
                         "ORDER BY id DESC LIMIT 1",
                         (contract.name,),
                     )
                     row = cur.fetchone()
 
-                    from opendqv.core.contracts import _GENESIS_HASH, _compute_entry_hash
+                    from opendqv.core.contracts import (
+                        _GENESIS_HASH, _HASH_DOMAIN_VERSION,
+                        _compute_entry_hash, _compute_content_hash,
+                    )
                     import opendqv.config as config
 
                     prev_hash = _GENESIS_HASH
                     if row:
-                        last_version, last_status, last_desc, last_owner, \
-                            last_rules, last_contexts, last_entry_hash = row
+                        (last_version, last_status, last_desc, last_owner,
+                         last_owner_email, last_owner_team, last_asset_id,
+                         last_downstream, last_rules, last_contexts,
+                         last_entry_hash) = row
                         if (last_version == contract.version
                                 and last_status == contract.status.value
                                 and last_rules == rules_json
                                 and last_contexts == contexts_json
                                 and last_desc == contract.description
-                                and last_owner == contract.owner):
+                                and last_owner == contract.owner
+                                and last_owner_email == contract.owner_email
+                                and last_owner_team == contract.owner_team
+                                and last_asset_id == contract.asset_id
+                                and (last_downstream or "[]") == downstream_json):
                             return  # no change — skip duplicate snapshot
                         prev_hash = last_entry_hash or _GENESIS_HASH
 
                     entry_hash = _compute_entry_hash(
                         prev_hash, contract.name, contract.version, contract.status.value,
-                        rules_json, contexts_json, config.OPENDQV_NODE_ID, updated_at,
+                        contract.owner, contract.owner_email, contract.owner_team,
+                        contract.asset_id, contract.description, downstream_consumers,
+                        rules, contexts,
+                        config.OPENDQV_NODE_ID, updated_at,
+                    )
+                    content_hash = _compute_content_hash(
+                        contract.name, contract.version, contract.status.value,
+                        contract.owner, contract.owner_email, contract.owner_team,
+                        contract.asset_id, contract.description, downstream_consumers,
+                        rules, contexts,
                     )
 
                     cur.execute(
                         "INSERT INTO contract_history "
-                        "(contract_name, version, status, description, owner, rules, contexts, "
-                        " opendqv_node_id, updated_at, prev_hash, entry_hash, approved_by) "
-                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                        "(contract_name, version, status, description, owner, "
+                        " owner_email, owner_team, asset_id, downstream_consumers, "
+                        " rules, contexts, opendqv_node_id, updated_at, "
+                        " prev_hash, entry_hash, content_hash, domain_version, approved_by) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                         (contract.name, contract.version, contract.status.value,
-                         contract.description, contract.owner, rules_json, contexts_json,
-                         config.OPENDQV_NODE_ID, updated_at, prev_hash, entry_hash, approved_by),
+                         contract.description, contract.owner,
+                         contract.owner_email, contract.owner_team, contract.asset_id,
+                         downstream_json, rules_json, contexts_json,
+                         config.OPENDQV_NODE_ID, updated_at,
+                         prev_hash, entry_hash, content_hash, _HASH_DOMAIN_VERSION,
+                         approved_by),
                     )
         finally:
             conn.close()
@@ -222,8 +275,9 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT version, status, description, owner, rules, contexts, "
-                    "       opendqv_node_id, updated_at "
+                    "SELECT version, status, description, owner, "
+                    "       owner_email, owner_team, asset_id, downstream_consumers, "
+                    "       rules, contexts, opendqv_node_id, updated_at "
                     "FROM contract_history "
                     "WHERE contract_name = %s AND updated_at <= %s "
                     "ORDER BY id DESC LIMIT 1",
@@ -235,13 +289,18 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
 
         if not row:
             return None
-        version, status, description, owner, rules_json, contexts_json, \
-            opendqv_node_id, updated_at = row
+        (version, status, description, owner, owner_email, owner_team,
+         asset_id, downstream_json, rules_json, contexts_json,
+         opendqv_node_id, updated_at) = row
         return {
             "version": version,
             "status": status,
             "description": description or "",
             "owner": owner or "",
+            "owner_email": owner_email,
+            "owner_team": owner_team,
+            "asset_id": asset_id,
+            "downstream_consumers": json.loads(downstream_json) if downstream_json else [],
             "rules": json.loads(rules_json),
             "contexts": json.loads(contexts_json),
             "opendqv_node_id": opendqv_node_id,
@@ -256,8 +315,10 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT version, status, description, owner, rules, contexts, "
-                    "       opendqv_node_id, updated_at, prev_hash, entry_hash, approved_by, "
+                    "SELECT version, status, description, owner, "
+                    "       owner_email, owner_team, asset_id, downstream_consumers, "
+                    "       rules, contexts, opendqv_node_id, updated_at, "
+                    "       prev_hash, entry_hash, content_hash, domain_version, approved_by, "
                     "       proposed_by, proposed_at, rejected_by, rejected_at, rejection_reason "
                     "FROM contract_history WHERE contract_name = %s ORDER BY id",
                     (contract_name,),
@@ -267,20 +328,28 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
             conn.close()
 
         history = []
-        for (version, status, description, owner, rules_json, contexts_json,
-             opendqv_node_id, updated_at, prev_hash, entry_hash, approved_by,
-             proposed_by, proposed_at, rejected_by, rejected_at, rejection_reason) in rows:
+        for (version, status, description, owner, owner_email, owner_team,
+             asset_id, downstream_json, rules_json, contexts_json,
+             opendqv_node_id, updated_at, prev_hash, entry_hash, content_hash,
+             domain_version, approved_by, proposed_by, proposed_at,
+             rejected_by, rejected_at, rejection_reason) in rows:
             history.append({
                 "version": version,
                 "status": status,
                 "description": description,
                 "owner": owner,
+                "owner_email": owner_email,
+                "owner_team": owner_team,
+                "asset_id": asset_id,
+                "downstream_consumers": json.loads(downstream_json) if downstream_json else [],
                 "rules": json.loads(rules_json),
                 "contexts": json.loads(contexts_json),
                 "opendqv_node_id": opendqv_node_id,
                 "updated_at": updated_at,
                 "prev_hash": prev_hash,
                 "entry_hash": entry_hash,
+                "content_hash": content_hash,
+                "domain_version": domain_version,
                 "approved_by": approved_by,
                 "proposed_by": proposed_by,
                 "proposed_at": proposed_at,

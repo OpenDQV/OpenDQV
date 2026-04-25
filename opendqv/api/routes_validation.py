@@ -175,7 +175,7 @@ async def validate_single(
             "violations": result["warnings"],
         })
 
-    _contract_hash = _d._get_contract_hash(contract.name)
+    _entry_hash, _content_hash = _d._get_contract_hash(contract.name)
 
     _observe = getattr(body, "observe_only", False)
     _effective_valid = True if _observe else result["valid"]
@@ -192,7 +192,9 @@ async def validate_single(
         version=contract.version,
         owner=contract.owner or "",
         engine_version=config.ENGINE_VERSION,
-        contract_hash=_contract_hash,
+        contract_hash=_entry_hash,
+        entry_hash=_entry_hash,
+        content_hash=_content_hash,
         owner_team=contract.owner_team,
         validated_at=datetime.now(timezone.utc).isoformat(),
         latency_ms=round(elapsed_ms, 1),
@@ -303,7 +305,7 @@ async def validate_batch_endpoint(
                 "violations": failed_errors[:50],
             })
 
-    _contract_hash = _d._get_contract_hash(contract.name)
+    _entry_hash, _content_hash = _d._get_contract_hash(contract.name)
 
     _observe = getattr(body, "observe_only", False)
     _mode = "observation_only" if _observe else None
@@ -326,7 +328,9 @@ async def validate_batch_endpoint(
         version=contract.version,
         owner=contract.owner or "",
         engine_version=config.ENGINE_VERSION,
-        contract_hash=_contract_hash,
+        contract_hash=_entry_hash,
+        entry_hash=_entry_hash,
+        content_hash=_content_hash,
         validated_at=datetime.now(timezone.utc).isoformat(),
         latency_ms=round(elapsed_ms, 1),
         agent_id=body.agent_id,

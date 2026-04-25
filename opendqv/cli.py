@@ -832,8 +832,9 @@ def cmd_audit_verify(args):
     conn.row_factory = sqlite3.Row
     try:
         rows = conn.execute(
-            "SELECT id, contract_name, version, status, rules, contexts, "
-            "opendqv_node_id, updated_at, prev_hash, entry_hash "
+            "SELECT id, contract_name, version, status, description, owner, "
+            "owner_email, owner_team, asset_id, downstream_consumers, "
+            "rules, contexts, opendqv_node_id, updated_at, prev_hash, entry_hash "
             "FROM contract_history ORDER BY id"
         ).fetchall()
     except sqlite3.OperationalError as e:
@@ -871,13 +872,23 @@ def cmd_audit_verify(args):
         prev_hash = _GENESIS_HASH
         for entry_num, row in enumerate(contracts_map[contract_name], start=1):
             total_entries += 1
+            import json as _json
+            _rules = _json.loads(row["rules"]) if row["rules"] else []
+            _contexts = _json.loads(row["contexts"]) if row["contexts"] else {}
+            _downstream = _json.loads(row["downstream_consumers"]) if row["downstream_consumers"] else []
             expected_hash = _compute_entry_hash(
                 prev_hash=row["prev_hash"],
                 contract_name=row["contract_name"],
                 version=row["version"],
                 status=row["status"],
-                rules_json=row["rules"] or "",
-                contexts_json=row["contexts"] or "",
+                owner=row["owner"] or "",
+                owner_email=row["owner_email"],
+                owner_team=row["owner_team"],
+                asset_id=row["asset_id"],
+                description=row["description"] or "",
+                downstream_consumers=_downstream,
+                rules=_rules,
+                contexts=_contexts,
                 opendqv_node_id=row["opendqv_node_id"],
                 updated_at=row["updated_at"],
             )

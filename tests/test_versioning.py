@@ -179,9 +179,13 @@ class TestHashChainAuditLog:
 
     # 6
     def test_compute_entry_hash_deterministic(self):
-        h1 = _compute_entry_hash("p", "name", "1.0", "active", "[]", "{}", "node1", "2026-01-01T00:00:00+00:00")
-        h2 = _compute_entry_hash("p", "name", "1.0", "active", "[]", "{}", "node1", "2026-01-01T00:00:00+00:00")
-        assert h1 == h2
+        kwargs = dict(
+            prev_hash="p", contract_name="name", version="1.0", status="active",
+            owner="", owner_email=None, owner_team=None, asset_id=None,
+            description="", downstream_consumers=[], rules=[], contexts={},
+            opendqv_node_id="node1", updated_at="2026-01-01T00:00:00+00:00",
+        )
+        assert _compute_entry_hash(**kwargs) == _compute_entry_hash(**kwargs)
 
     # 7
     def test_different_contracts_have_independent_chains(self):
@@ -351,3 +355,55 @@ class TestVersioningEdgeCases:
         after = client.get("/api/v1/contracts/customer/history", headers=approver_headers)
         count_after = len(after.json()["history"])
         assert count_after > count_before
+
+
+class TestHashDomainCompleteness:
+    """
+    CRT169 guard — every DataContract field is either part of the v2 hash
+    domain or explicitly excluded. Adding a new field to DataContract without
+    updating one of these sets causes this test to fail, forcing the author
+    to make a deliberate decision instead of silently dropping it from the
+    chain.
+    """
+
+    EXCLUDED_FROM_HASH = frozenset({
+        "catalog_visible",
+        "sensitive_fields",
+        "validate_in_states",
+        "last_active_snapshot",
+        "source",
+        "proposed_by", "proposed_at",
+        "reviewed_by", "reviewed_at",
+        "approved_by", "approved_at",
+        "rejected_by", "rejected_at", "rejection_reason",
+    })
+
+    def test_every_data_contract_field_classified(self):
+        from opendqv.core.contracts import (
+            DataContract, _HASH_DOMAIN_CONTENT_FIELDS,
+        )
+
+        all_fields = set(DataContract.model_fields.keys())
+        content = set(_HASH_DOMAIN_CONTENT_FIELDS)
+        excluded = self.EXCLUDED_FROM_HASH
+
+        overlap = content & excluded
+        assert not overlap, (
+            f"Fields appear in both hash domain and exclusion list: {overlap}. "
+            "A field cannot be both."
+        )
+
+        unclassified = all_fields - content - excluded
+        assert not unclassified, (
+            f"DataContract fields not classified: {unclassified}. "
+            "Add to _HASH_DOMAIN_CONTENT_FIELDS in opendqv/core/contracts.py "
+            "(if semantically meaningful for audit replay) or to EXCLUDED_FROM_HASH "
+            "in this test (if intentionally excluded — e.g. lifecycle metadata, "
+            "display flags, server-set provenance)."
+        )
+
+        ghosts = content - all_fields
+        assert not ghosts, (
+            f"_HASH_DOMAIN_CONTENT_FIELDS references unknown DataContract fields: "
+            f"{ghosts}. Field renamed or removed without updating the hash domain."
+        )

@@ -55,6 +55,10 @@ def _make_contract(name="test_contract", version="1.0", status="active"):
     contract.status.value = status
     contract.description = "Test description"
     contract.owner = "test-owner"
+    contract.owner_email = None
+    contract.owner_team = None
+    contract.asset_id = None
+    contract.downstream_consumers = []
     contract.rules = []
     contract.contexts = {}
     return contract
@@ -111,15 +115,19 @@ class TestPostgresRecordVersion:
         rules_json = json.dumps([], sort_keys=True)
         contexts_json = json.dumps({}, sort_keys=True)
 
-        # Simulate previous row with identical content
+        # Simulate previous row with identical content (v2.3.0 shape, 11 cols)
         mock_cursor.fetchone.return_value = (
-            contract.version,    # last_version
-            contract.status.value,  # last_status
-            contract.description,   # last_desc
-            contract.owner,         # last_owner
-            rules_json,             # last_rules
-            contexts_json,          # last_contexts
-            "abc" * 21 + "d",      # last_entry_hash (64 chars)
+            contract.version,           # last_version
+            contract.status.value,      # last_status
+            contract.description,       # last_desc
+            contract.owner,             # last_owner
+            contract.owner_email,       # last_owner_email
+            contract.owner_team,        # last_owner_team
+            contract.asset_id,          # last_asset_id
+            "[]",                       # last_downstream
+            rules_json,                 # last_rules
+            contexts_json,              # last_contexts
+            "abc" * 21 + "d",           # last_entry_hash (64 chars)
         )
 
         with patch.dict("sys.modules", {"psycopg2": mock_psycopg2}):
@@ -153,6 +161,7 @@ class TestPostgresGetAsOf:
         backend, mock_psycopg2, mock_conn, mock_cursor = _make_pg_backend()
         mock_cursor.fetchone.return_value = (
             "1.0", "active", "description", "owner",
+            None, None, None, None,
             json.dumps([]), json.dumps({}),
             "node-1", "2026-01-01T12:00:00",
         )
@@ -189,10 +198,11 @@ class TestPostgresGetHistory:
         mock_cursor.fetchall.return_value = [
             (
                 "1.0", "active", "desc", "owner",
+                None, None, None, None,
                 json.dumps([{"name": "r1", "type": "not_empty", "field": "email"}]),
                 json.dumps({}),
                 "node-1", "2026-01-01T12:00:00",
-                "0" * 64, "abc" * 21 + "d",
+                "0" * 64, "abc" * 21 + "d", "0" * 64, 2,
                 "approver", None, None, None, None, None,
             )
         ]

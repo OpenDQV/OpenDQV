@@ -106,15 +106,104 @@ def check_inheritance_invariant(base_rule: "Rule", proposed_rule: "Rule") -> lis
 
 _GENESIS_HASH = "0" * 64
 
+# Hash domain marker. Bumped when the set of fields covered by entry_hash /
+# content_hash changes. Pre-v2 chain entries are scrubbed on first boot
+# under v2.3.0 — see ContractHistory._scrub_pre_v2_entries.
+_HASH_DOMAIN_VERSION = 2
+
+# Canonical contract field set covered by the v2 hash domain. Single source of
+# truth — referenced by the linter guard test in tests/test_hash_domain_guard.py
+# to detect future field additions that aren't covered by the hash.
+_HASH_DOMAIN_CONTENT_FIELDS = (
+    "name", "version", "status",
+    "owner", "owner_email", "owner_team", "asset_id", "description",
+    "downstream_consumers",
+    "rules", "contexts",
+)
+
+
+def _canonical_json(obj) -> str:
+    """Deterministic JSON serialisation for hash inputs.
+
+    sort_keys=True makes serialisation independent of dict construction order.
+    separators strips JSON's default whitespace. ensure_ascii=False preserves
+    UTF-8 in description text (£, €, §, …) so the hash reflects the file
+    bytes rather than escape-encoded representations that drift across
+    serialisers.
+    """
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def _content_payload_parts(
+    contract_name: str, version: str, status: str,
+    owner: str, owner_email: Optional[str], owner_team: Optional[str],
+    asset_id: Optional[str], description: str,
+    downstream_consumers: list,
+    rules, contexts,
+) -> list[str]:
+    """Canonical JSON parts for content fields, in fixed order.
+
+    Used by both _compute_entry_hash and _compute_content_hash to guarantee
+    that any field present in one is present in the other. Field order
+    matches _HASH_DOMAIN_CONTENT_FIELDS.
+    """
+    return [
+        _canonical_json(contract_name),
+        _canonical_json(version),
+        _canonical_json(status),
+        _canonical_json(owner),
+        _canonical_json(owner_email),
+        _canonical_json(owner_team),
+        _canonical_json(asset_id),
+        _canonical_json(description),
+        _canonical_json(downstream_consumers),
+        _canonical_json(rules),
+        _canonical_json(contexts),
+    ]
+
+
+def _compute_content_hash(
+    contract_name: str, version: str, status: str,
+    owner: str, owner_email: Optional[str], owner_team: Optional[str],
+    asset_id: Optional[str], description: str,
+    downstream_consumers: list,
+    rules, contexts,
+) -> str:
+    """SHA-256 over content fields only — excludes prev_hash, node_id, updated_at.
+
+    Two boots of byte-identical YAML produce identical content_hash regardless
+    of timestamp or node identity. Use this for content-equality questions
+    (audit-packet diffs, replay verification).
+    """
+    parts = _content_payload_parts(
+        contract_name, version, status, owner, owner_email, owner_team,
+        asset_id, description, downstream_consumers, rules, contexts,
+    )
+    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
+
 
 def _compute_entry_hash(
     prev_hash: str, contract_name: str, version: str, status: str,
-    rules_json: str, contexts_json: str, opendqv_node_id: str, updated_at: str,
+    owner: str, owner_email: Optional[str], owner_team: Optional[str],
+    asset_id: Optional[str], description: str,
+    downstream_consumers: list,
+    rules, contexts,
+    opendqv_node_id: str, updated_at: str,
 ) -> str:
-    """SHA-256 over the canonical pipe-delimited payload for a history entry."""
-    payload = "|".join([prev_hash, contract_name, version, status,
-                        rules_json, contexts_json, opendqv_node_id, updated_at])
-    return hashlib.sha256(payload.encode()).hexdigest()
+    """SHA-256 over the v2 canonical payload for a history entry.
+
+    Hashes prev_hash, all content fields, plus node_id and updated_at — so
+    the entry_hash uniquely identifies the audit event, including its
+    position in the chain and when/where it was recorded.
+    """
+    parts = [prev_hash]
+    parts.extend(_content_payload_parts(
+        contract_name, version, status, owner, owner_email, owner_team,
+        asset_id, description, downstream_consumers, rules, contexts,
+    ))
+    parts.append(_canonical_json(opendqv_node_id))
+    parts.append(_canonical_json(updated_at))
+    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
 
 
 class DataContract(BaseModel):
@@ -165,6 +254,31 @@ class DataContract(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+def _contract_from_snapshot(name: str, snap: dict) -> "DataContract":
+    """Rebuild a DataContract from a chain entry snapshot.
+
+    Restores every field that's covered by the v2 hash domain, so a contract
+    retrieved by hash round-trips byte-for-byte against the live YAML state
+    that produced the hash. CRT169 root cause: pre-v2.3.0 reconstruction
+    only restored name/version/description/owner/status/rules/contexts —
+    so even after the hash domain is fixed, reconstruction had to be too.
+    """
+    rules = [Rule(**r) for r in snap["rules"]]
+    return DataContract(
+        name=name,
+        version=snap["version"],
+        description=snap.get("description") or "",
+        owner=snap.get("owner") or "",
+        owner_email=snap.get("owner_email"),
+        owner_team=snap.get("owner_team"),
+        asset_id=snap.get("asset_id"),
+        downstream_consumers=snap.get("downstream_consumers") or [],
+        status=snap["status"],
+        rules=rules,
+        contexts=snap.get("contexts") or {},
+    )
+
+
 class ContractHistory(ContractHistoryBackend):
     """Tracks version history for contracts, persisted in SQLite."""
 
@@ -194,12 +308,18 @@ class ContractHistory(ContractHistoryBackend):
             "status TEXT NOT NULL, "
             "description TEXT, "
             "owner TEXT, "
+            "owner_email TEXT, "
+            "owner_team TEXT, "
+            "asset_id TEXT, "
+            "downstream_consumers TEXT, "
             "rules TEXT, "
             "contexts TEXT, "
             "opendqv_node_id TEXT NOT NULL, "
             "updated_at TEXT NOT NULL, "
             "prev_hash TEXT NOT NULL DEFAULT '', "
             "entry_hash TEXT NOT NULL DEFAULT '', "
+            "content_hash TEXT NOT NULL DEFAULT '', "
+            "domain_version INTEGER NOT NULL DEFAULT 1, "
             "approved_by TEXT)"
         )
         conn.execute("PRAGMA journal_mode=WAL")
@@ -231,9 +351,50 @@ class ContractHistory(ContractHistoryBackend):
                 conn.execute(f"ALTER TABLE contract_history ADD COLUMN {col_def}")
             except sqlite3.OperationalError:
                 pass
+        # Migrate: v2.3.0 hash-domain expansion (CRT169) — content fields and content_hash
+        for col_def in (
+            "owner_email TEXT",
+            "owner_team TEXT",
+            "asset_id TEXT",
+            "downstream_consumers TEXT",
+            "content_hash TEXT NOT NULL DEFAULT ''",
+            "domain_version INTEGER NOT NULL DEFAULT 1",
+        ):
+            try:
+                conn.execute(f"ALTER TABLE contract_history ADD COLUMN {col_def}")
+            except sqlite3.OperationalError:
+                pass
+        # Scrub-and-restart: any pre-v2 chain entries are dev artefacts and are
+        # discarded on first boot under v2.3.0. The next reload() will write
+        # fresh genesis entries under the v2 hash domain. Idempotent — second
+        # boot finds no rows with domain_version != 2 and is a no-op.
+        self._scrub_pre_v2_entries(conn)
         conn.commit()
         if self._mem_conn is None:
             conn.close()
+
+    def _scrub_pre_v2_entries(self, conn) -> None:
+        """Truncate any chain entries minted under a pre-v2 hash domain.
+
+        Idempotent: runs on every backend init. First boot post-upgrade finds
+        legacy rows (domain_version = 1, the column default for ALTERed rows
+        that predate this migration) and clears them. Second boot finds 0
+        such rows and no-ops.
+        """
+        cur = conn.execute(
+            "SELECT COUNT(*) FROM contract_history WHERE domain_version != ?",
+            (_HASH_DOMAIN_VERSION,),
+        )
+        count = cur.fetchone()[0]
+        if count > 0:
+            logger.info(
+                "Scrubbing %d pre-v%d chain entries from contract_history",
+                count, _HASH_DOMAIN_VERSION,
+            )
+            conn.execute(
+                "DELETE FROM contract_history WHERE domain_version != ?",
+                (_HASH_DOMAIN_VERSION,),
+            )
 
     def record_version(self, contract: DataContract, approved_by: Optional[str] = None):
         """Snapshot the current state of a contract.
@@ -250,43 +411,72 @@ class ContractHistory(ContractHistoryBackend):
 
         rules_json = json.dumps(rules, sort_keys=True)
         contexts_json = json.dumps(contexts, sort_keys=True)
+        downstream_consumers = list(contract.downstream_consumers or [])
+        downstream_json = json.dumps(downstream_consumers, sort_keys=True)
 
         # Don't record duplicate consecutive snapshots for the same version
-        # unless something actually changed
+        # unless something actually changed. Compare-tuple covers every field
+        # in the v2 hash domain — extending the hash domain without extending
+        # this comparison would silently skip metadata-only edits and leave
+        # the chain pointing at a stale snapshot (CRT169 root cause).
         conn = self._connect()
         is_shared = self._mem_conn is not None
         try:
             row = conn.execute(
-                "SELECT version, status, description, owner, rules, contexts, entry_hash "
+                "SELECT version, status, description, owner, owner_email, "
+                "owner_team, asset_id, downstream_consumers, rules, contexts, "
+                "entry_hash "
                 "FROM contract_history WHERE contract_name = ? ORDER BY id DESC LIMIT 1",
                 (contract.name,),
             ).fetchone()
 
             prev_hash = _GENESIS_HASH
             if row:
-                last_version, last_status, last_desc, last_owner, last_rules, last_contexts, last_entry_hash = row
+                (last_version, last_status, last_desc, last_owner,
+                 last_owner_email, last_owner_team, last_asset_id,
+                 last_downstream, last_rules, last_contexts,
+                 last_entry_hash) = row
                 if (last_version == contract.version
                         and last_status == contract.status.value
                         and last_rules == rules_json
                         and last_contexts == contexts_json
                         and last_desc == contract.description
-                        and last_owner == contract.owner):
+                        and last_owner == contract.owner
+                        and last_owner_email == contract.owner_email
+                        and last_owner_team == contract.owner_team
+                        and last_asset_id == contract.asset_id
+                        and (last_downstream or "[]") == downstream_json):
                     return
                 prev_hash = last_entry_hash or _GENESIS_HASH
 
             entry_hash = _compute_entry_hash(
                 prev_hash, contract.name, contract.version, contract.status.value,
-                rules_json, contexts_json, config.OPENDQV_NODE_ID, updated_at,
+                contract.owner, contract.owner_email, contract.owner_team,
+                contract.asset_id, contract.description, downstream_consumers,
+                rules, contexts,
+                config.OPENDQV_NODE_ID, updated_at,
+            )
+            content_hash = _compute_content_hash(
+                contract.name, contract.version, contract.status.value,
+                contract.owner, contract.owner_email, contract.owner_team,
+                contract.asset_id, contract.description, downstream_consumers,
+                rules, contexts,
             )
 
             conn.execute(
                 "INSERT INTO contract_history "
-                "(contract_name, version, status, description, owner, rules, contexts, "
-                "opendqv_node_id, updated_at, prev_hash, entry_hash, approved_by) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "(contract_name, version, status, description, owner, "
+                " owner_email, owner_team, asset_id, downstream_consumers, "
+                " rules, contexts, opendqv_node_id, updated_at, "
+                " prev_hash, entry_hash, content_hash, domain_version, approved_by) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (contract.name, contract.version, contract.status.value,
-                 contract.description, contract.owner, rules_json, contexts_json,
-                 config.OPENDQV_NODE_ID, updated_at, prev_hash, entry_hash, approved_by),
+                 contract.description, contract.owner,
+                 contract.owner_email, contract.owner_team, contract.asset_id,
+                 downstream_json, rules_json, contexts_json,
+                 config.OPENDQV_NODE_ID, updated_at,
+                 prev_hash, entry_hash, content_hash, _HASH_DOMAIN_VERSION,
+                 approved_by),
             )
             conn.commit()
         finally:
@@ -308,8 +498,10 @@ class ContractHistory(ContractHistoryBackend):
         is_shared = self._mem_conn is not None
         try:
             row = conn.execute(
-                "SELECT version, status, description, owner, rules, contexts, "
-                "opendqv_node_id, updated_at FROM contract_history "
+                "SELECT version, status, description, owner, "
+                "owner_email, owner_team, asset_id, downstream_consumers, "
+                "rules, contexts, opendqv_node_id, updated_at "
+                "FROM contract_history "
                 "WHERE contract_name = ? AND updated_at <= ? "
                 "ORDER BY id DESC LIMIT 1",
                 (contract_name, timestamp),
@@ -320,12 +512,18 @@ class ContractHistory(ContractHistoryBackend):
 
         if not row:
             return None
-        version, status, description, owner, rules_json, contexts_json, opendqv_node_id, updated_at = row
+        (version, status, description, owner, owner_email, owner_team,
+         asset_id, downstream_json, rules_json, contexts_json,
+         opendqv_node_id, updated_at) = row
         return {
             "version": version,
             "status": status,
             "description": description or "",
             "owner": owner or "",
+            "owner_email": owner_email,
+            "owner_team": owner_team,
+            "asset_id": asset_id,
+            "downstream_consumers": json.loads(downstream_json) if downstream_json else [],
             "rules": json.loads(rules_json),
             "contexts": json.loads(contexts_json),
             "opendqv_node_id": opendqv_node_id,
@@ -338,8 +536,10 @@ class ContractHistory(ContractHistoryBackend):
         is_shared = self._mem_conn is not None
         try:
             rows = conn.execute(
-                "SELECT version, status, description, owner, rules, contexts, "
-                "opendqv_node_id, updated_at, prev_hash, entry_hash, approved_by, "
+                "SELECT version, status, description, owner, "
+                "owner_email, owner_team, asset_id, downstream_consumers, "
+                "rules, contexts, opendqv_node_id, updated_at, "
+                "prev_hash, entry_hash, content_hash, domain_version, approved_by, "
                 "proposed_by, proposed_at, rejected_by, rejected_at, rejection_reason "
                 "FROM contract_history WHERE contract_name = ? ORDER BY id",
                 (contract_name,),
@@ -349,20 +549,28 @@ class ContractHistory(ContractHistoryBackend):
                 conn.close()
 
         history = []
-        for version, status, description, owner, rules_json, contexts_json, \
-                opendqv_node_id, updated_at, prev_hash, entry_hash, approved_by, \
-                proposed_by, proposed_at, rejected_by, rejected_at, rejection_reason in rows:
+        for (version, status, description, owner, owner_email, owner_team,
+             asset_id, downstream_json, rules_json, contexts_json,
+             opendqv_node_id, updated_at, prev_hash, entry_hash, content_hash,
+             domain_version, approved_by, proposed_by, proposed_at,
+             rejected_by, rejected_at, rejection_reason) in rows:
             history.append({
                 "version": version,
                 "status": status,
                 "description": description,
                 "owner": owner,
+                "owner_email": owner_email,
+                "owner_team": owner_team,
+                "asset_id": asset_id,
+                "downstream_consumers": json.loads(downstream_json) if downstream_json else [],
                 "rules": json.loads(rules_json),
                 "contexts": json.loads(contexts_json),
                 "opendqv_node_id": opendqv_node_id,
                 "updated_at": updated_at,
                 "prev_hash": prev_hash,
                 "entry_hash": entry_hash,
+                "content_hash": content_hash,
+                "domain_version": domain_version,
                 "approved_by": approved_by,
                 "proposed_by": proposed_by,
                 "proposed_at": proposed_at,
@@ -875,16 +1083,7 @@ class ContractRegistry:
         snap = self.history.get_as_of(name, timestamp)
         if not snap:
             return None
-        rules = [Rule(**r) for r in snap["rules"]]
-        return DataContract(
-            name=name,
-            version=snap["version"],
-            description=snap["description"],
-            owner=snap["owner"],
-            status=snap["status"],
-            rules=rules,
-            contexts=snap["contexts"],
-        )
+        return _contract_from_snapshot(name, snap)
 
     def contract_by_hash(self, name: str, contract_hash: str) -> Optional["DataContract"]:
         """
@@ -893,22 +1092,16 @@ class ContractRegistry:
         Used by GET /contracts/{name}?hash=<contract_hash> — callers want the
         exact contract version that produced a given entry_hash on a prior
         validation response, for regulator-grade point-in-time audit retrieval.
+        Matches against either entry_hash or content_hash so callers that
+        captured a content_hash from a v2.3.0+ response can replay too.
         Returns None if no history entry matches.
         """
         if not contract_hash:
             return None
         for snap in self.history.get_history(name):
-            if snap.get("entry_hash") == contract_hash:
-                rules = [Rule(**r) for r in snap["rules"]]
-                return DataContract(
-                    name=name,
-                    version=snap["version"],
-                    description=snap["description"],
-                    owner=snap["owner"],
-                    status=snap["status"],
-                    rules=rules,
-                    contexts=snap["contexts"],
-                )
+            if (snap.get("entry_hash") == contract_hash
+                    or snap.get("content_hash") == contract_hash):
+                return _contract_from_snapshot(name, snap)
         return None
 
     def get_history(self, name: str) -> list[dict]:
