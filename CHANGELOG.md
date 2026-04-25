@@ -2,6 +2,40 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.8] - 2026-04-26
+
+### Added
+
+- **`GET /config` — consolidated tenant configuration snapshot,
+  auth-gated to admin or auditor.** Previously, an auditor wanting to
+  confirm "what `AUTH_MODE`, `AUDIT_MODE`, federation state, and rate
+  limits is this node actually running?" had to read three surfaces
+  (`/`, `/health` extended, the `opendqv.config` module) and would
+  still miss federation, MCP, and policy values. The new endpoint
+  returns one structured response with named sections:
+  - `auth` — mode, token expiry, secret-key insecurity flag
+  - `audit` — mode (basic/signed), proxy header trust
+  - `storage` — DB backend, contracts dir, presence of DB URL
+  - `limits` — batch, isolation, SSE caps
+  - `rate_limits` — default/validate/tokens, active flag
+  - `federation` — federated mode, presence of upstream/join token
+  - `mcp` — remote mode, presence of API URL/token
+  - `policy` — strict-draft-validation, contract edit mode
+
+  **Secrets are deliberately omitted.** `SECRET_KEY`, `DB_URL`,
+  `JOIN_TOKEN`, and `MCP_TOKEN` values are never returned — only a
+  boolean indicator of presence (e.g. `auth.secret_key_insecure`,
+  `mcp.token_set`). Test guards in
+  `tests/test_crt172_k5_config_endpoint.py::TestConfigSecretsNeverLeak`
+  pin this contract.
+
+  Found via CRT172 / K5 audit. Working principle (extends CRT170/J1,
+  /J3, /J4, /J6, /J2): a response field's value must reflect what its
+  name claims. Each section block is named for the regulatory concern
+  it represents.
+
+  No client migration required — additive endpoint.
+
 ## [2.3.7] - 2026-04-26
 
 ### Added

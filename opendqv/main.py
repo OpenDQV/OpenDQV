@@ -22,7 +22,7 @@ except PackageNotFoundError:
     else:
         APP_VERSION = "unknown"
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from strawberry.fastapi import GraphQLRouter
@@ -31,7 +31,7 @@ import os
 
 import opendqv.config as config
 from opendqv.api.routes import router, limiter, set_registry as set_routes_registry
-from opendqv.security.auth import init_db as _init_auth_db
+from opendqv.security.auth import get_current_role, init_db as _init_auth_db
 from opendqv.api.graphql_schema import schema, set_registry as set_graphql_registry
 from opendqv.core.contracts import ContractRegistry
 from opendqv.core.worker_heartbeat import heartbeat as worker_heartbeat
@@ -230,3 +230,65 @@ async def health():
             "rate_limit_validate_active": config.RATE_LIMIT_VALIDATE.strip().lower() not in _rl_off,
         })
     return resp
+
+
+@app.get("/config", tags=["Health"])
+async def get_config(role: str = Depends(get_current_role)):
+    """
+    Tenant configuration snapshot — auth, audit, federation, and limits.
+
+    Consolidates values that previously lived scattered across `/`, `/health`
+    (extended), and `opendqv.config`. Read-only. The secret key, DB URL, and
+    join token are deliberately omitted — only their presence is reported.
+
+    Auth-gated to admin and auditor roles. CRT172 / K5.
+    """
+    if role not in ("admin", "auditor"):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Role '{role}' cannot read tenant config. Required: admin or auditor.",
+        )
+    rl_off = {"off", "0", "disabled"}
+    return {
+        "engine_version": config.ENGINE_VERSION,
+        "node_id": config.OPENDQV_NODE_ID,
+        "auth": {
+            "mode": config.AUTH_MODE,
+            "secret_key_insecure": config.SECRET_KEY == config.DEFAULT_SECRET_KEY,
+            "token_expiry_days": config.TOKEN_EXPIRY_DAYS,
+        },
+        "audit": {
+            "mode": config.AUDIT_MODE,
+            "trust_proxy_headers": config.TRUST_PROXY_HEADERS,
+        },
+        "storage": {
+            "db_backend": config.DB_BACKEND,
+            "db_url_set": bool(config.DB_URL),
+            "contracts_dir": str(config.CONTRACTS_DIR),
+        },
+        "limits": {
+            "max_batch_rows": config.MAX_BATCH_ROWS,
+            "max_isolation_hours": config.MAX_ISOLATION_HOURS,
+            "max_sse_connections": config.MAX_SSE_CONNECTIONS,
+        },
+        "rate_limits": {
+            "default": config.RATE_LIMIT_DEFAULT,
+            "validate": config.RATE_LIMIT_VALIDATE,
+            "tokens": config.RATE_LIMIT_TOKENS,
+            "validate_active": config.RATE_LIMIT_VALIDATE.strip().lower() not in rl_off,
+        },
+        "federation": {
+            "is_federated": config.IS_FEDERATED,
+            "upstream_set": bool(config.UPSTREAM_URL),
+            "join_token_set": bool(config.JOIN_TOKEN),
+        },
+        "mcp": {
+            "remote_mode": bool(config.MCP_API_URL),
+            "api_url_set": bool(config.MCP_API_URL),
+            "token_set": bool(config.MCP_TOKEN),
+        },
+        "policy": {
+            "strict_draft_validation": config.STRICT_DRAFT_VALIDATION,
+            "contract_edit_mode": config.CONTRACT_EDIT_MODE,
+        },
+    }
