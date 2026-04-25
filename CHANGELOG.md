@@ -2,6 +2,28 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.2.8] - 2026-04-25
+
+### Fixed — MCP proxy dual-path consistency (CRT168 PR-A follow-up)
+
+- **`opendqv_mcp_proxy.py` now exposes the `hash` parameter on
+  `get_contract`.** v2.2.6 added `?hash=<contract_hash>` to the engine
+  and to `opendqv/mcp_server.py`, but the standalone stdio bridge that
+  ships for Claude Desktop integrations carries its own hand-maintained
+  inputSchema and URL routing, and it was missed. Buyers connecting via
+  the proxy saw only `name` and `version` on the tool schema, with no
+  way to pin a contract by hash.
+- **URL routing in the proxy was broken for `version` too.** The
+  previous handler routed `version` through the `/at?version=` timestamp
+  endpoint, which returned 422 without a timestamp. The proxy now hits
+  `/api/v1/contracts/{name}` directly with `?hash=` taking precedence
+  over `?version=`, matching the engine API.
+
+No engine logic changed in this release; the version bump exists so
+that buyers and reviewers can identify which `opendqv_mcp_proxy.py`
+revision is on disk by checking `engine_version` on a validate
+response.
+
 ## [2.2.7] - 2026-04-25
 
 ### Added — audit credibility part 2 (CRT168 PR-B + PR-C)
