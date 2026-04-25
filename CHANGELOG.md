@@ -2,6 +2,18 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.1] - 2026-04-25
+
+### Fixed
+
+- **`opendqv_mcp_proxy.py` advertised version string.** The proxy's
+  `initialize` response reported `serverInfo.version: 2.2.5` even after
+  the v2.2.6/v2.2.8/v2.3.0 releases — a hardcoded string that was
+  missed during those bumps. Now reports `2.3.1`. No tool behaviour
+  changed; this only affects the version string Claude Desktop and other
+  MCP clients see at handshake time. Spotted by a stdio-level smoke
+  test of the proxy after v2.3.0 shipped.
+
 ## [2.3.0] - 2026-04-25
 
 ### Changed — hash domain expansion (CRT169) — BREAKING for hash values
