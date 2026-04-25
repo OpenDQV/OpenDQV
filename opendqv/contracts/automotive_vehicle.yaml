@@ -8,6 +8,7 @@ contract:
     transmission, and body type. Prevents sentinel/placeholder VINs and malformed
     registration numbers from entering vehicle data pipelines.
   owner: Automotive Data Team
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:automotive_vehicle
   rules:

@@ -12,6 +12,7 @@ contract:
     fines up to EUR 20M or 4% of global annual turnover under Article 83(5) for violations
     of data subject rights (Articles 12–22).
   owner: "Data Protection Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:eu_gdpr_dsar_request
 

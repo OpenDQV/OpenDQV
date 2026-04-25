@@ -11,6 +11,7 @@ contract:
     revenue leakage, and Ofcom compliance failures caused by malformed CDRs entering
     mediation, rating, and NRTRDE (Near Real Time Roaming Data Exchange) pipelines.
   owner: "Network Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:telecoms_cdr
 

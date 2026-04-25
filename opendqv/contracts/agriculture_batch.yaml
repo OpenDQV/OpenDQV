@@ -11,6 +11,7 @@ contract:
     GlobalG.A.P. chain-of-custody traceability requirements and DEFRA cross-compliance
     audit records.
   owner: Agri Supply Chain Data Team
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:agriculture_batch
   rules:

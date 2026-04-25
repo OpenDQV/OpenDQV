@@ -11,6 +11,7 @@ contract:
     OFCOM broadcast licensing, AVMS Directive (EU) 2018/1808, and rights clearance
     obligations apply.
   owner: "Content Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:media_content
 

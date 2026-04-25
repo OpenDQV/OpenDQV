@@ -3,6 +3,7 @@ contract:
   version: "1.0"
   description: Standard customer data quality validation
   owner: Data Governance Team
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:customer
   rules:
@@ -41,7 +42,7 @@ contract:
     type: unique
     field: id
     severity: error
-    error_message: Duplicate customer ID
+    error_message: Duplicate customer ID detected within this batch.
     inherited: false
     negate: false
     all_of: false

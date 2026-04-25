@@ -13,6 +13,7 @@ contract:
     and predictive maintenance pipelines where ISO 13374 (condition monitoring)
     and ATEX zone safety obligations apply.
   owner: "Operations Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:manufacturing_iot
 

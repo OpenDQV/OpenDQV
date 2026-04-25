@@ -10,6 +10,7 @@ contract:
     (1987–2017), killed in the Manchester Arena attack. The omission failure mode
     this contract prevents: "we didn't fill that field in."
   owner: "Public Safety Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:martyns_law_venue
 

@@ -11,6 +11,7 @@ contract:
     submission failures, right-to-work compliance gaps, and HMRC RTI rejection at
     source.
   owner: "People Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:hr_employee
 

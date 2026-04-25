@@ -12,6 +12,7 @@ contract:
     PAS (Patient Administration System), SUS+ (Secondary Uses Service), and MSDS
     (Maternity Services Data Set) pipelines.
   owner: "Clinical Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:nhs_dsp_patient
 

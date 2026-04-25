@@ -11,6 +11,7 @@ contract:
     products without lifecycle status from entering EPoS, WMS, and retailer catalogue
     exchange pipelines.
   owner: "Merchandising Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:retail_product
 

@@ -13,6 +13,7 @@ contract:
     pipelines where FCA RMAR (Regular Reporting) and Lloyd's market data obligations
     apply.
   owner: "Claims Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:insurance_claim
 

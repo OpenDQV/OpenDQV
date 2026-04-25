@@ -14,6 +14,7 @@ contract:
     Competent authority imposes administrative penalties under Article 50. For critical ICT
     third-party providers, authorisation may be withdrawn under Article 35.
   owner: "ICT Risk Management Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:dora_ict_incident
 
@@ -30,7 +31,7 @@ contract:
       field: incident_id
       type: unique
       severity: error
-      error_message: "incident_id must be unique — duplicate incident identifiers compromise the incident register per Article 17(1) DORA"
+      error_message: "incident_id must be unique within this batch — duplicate incident identifiers compromise the incident register per Article 17(1) DORA. Note: OpenDQV validates uniqueness within the input payload only; cross-batch uniqueness against the firm's incident register is the responsibility of the upstream system."
 
     - name: incident_title_required
       field: incident_title

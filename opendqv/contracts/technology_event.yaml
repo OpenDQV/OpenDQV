@@ -11,6 +11,7 @@ contract:
     5(1)(c) data minimisation and ICO Privacy by Design obligations apply to user
     behavioural data collection.
   owner: "Product Analytics Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:technology_event
 

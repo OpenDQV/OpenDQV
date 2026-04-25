@@ -11,6 +11,7 @@ contract:
     category management systems. Pack unit standardisation prevents unit-of-measure
     mismatches in NPD and promotional analysis pipelines.
   owner: "Consumer Goods Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:fmcg_product
 

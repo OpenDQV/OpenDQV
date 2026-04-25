@@ -10,6 +10,7 @@ contract:
     identity having been verified. A missing verification field triggers a 422
     before the record enters the filing system.
   owner: "Corporate Compliance Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:companies_house_filing
 

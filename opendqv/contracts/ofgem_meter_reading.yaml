@@ -13,6 +13,7 @@ contract:
     and Ofgem settlement system rejections caused by invalid meter identifiers or
     out-of-sequence readings.
   owner: "Smart Metering Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:ofgem_meter_reading
 

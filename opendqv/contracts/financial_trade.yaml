@@ -11,6 +11,7 @@ contract:
     reports see mifid_transaction_report contract. This contract covers internal
     order management and execution records prior to ARM submission.
   owner: "Trading Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:financial_trade
 

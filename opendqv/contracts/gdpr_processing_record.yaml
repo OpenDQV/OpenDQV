@@ -10,6 +10,7 @@ contract:
     The omission failure mode: a processing activity recorded without lawful basis,
     purpose, or retention period. ICO audit fails. Enforcement notice issued.
   owner: "Data Protection Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:gdpr_processing_record
 

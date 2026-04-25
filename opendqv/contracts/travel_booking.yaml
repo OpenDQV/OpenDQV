@@ -3,6 +3,7 @@ contract:
   version: "1.0"
   description: "Travel booking record validation"
   owner: "Reservations Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:travel_booking
 

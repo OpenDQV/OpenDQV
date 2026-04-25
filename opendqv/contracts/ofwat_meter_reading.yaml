@@ -12,6 +12,7 @@ contract:
     erroneous readings from triggering incorrect billing, false leak alerts, or
     water efficiency misreporting under Environment Agency obligations.
   owner: "Water Utility Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:ofwat_meter_reading
 

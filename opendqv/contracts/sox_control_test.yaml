@@ -14,6 +14,7 @@ contract:
     personal certification liability under Section 302 and potential criminal charges
     under Section 906 (up to $5M fine, 20 years imprisonment for false certification).
   owner: "Internal Audit"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:sox_control_test
 
@@ -30,7 +31,7 @@ contract:
       field: control_id
       type: unique
       severity: error
-      error_message: "control_id must be unique — duplicate control IDs compromise the completeness of ICFR testing per PCAOB AS 2201"
+      error_message: "control_id must be unique within this batch — duplicate control IDs compromise the completeness of ICFR testing per PCAOB AS 2201. Note: OpenDQV validates uniqueness within the input payload only; cross-batch uniqueness against the issuer's control register is the responsibility of the upstream system."
 
     - name: control_name_required
       field: control_name

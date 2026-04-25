@@ -3,6 +3,7 @@ contract:
   version: "1.0"
   description: "Salesforce Contact — data quality validation for CRM contact records"
   owner: "CRM Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:salesforce_contact
 
@@ -123,7 +124,7 @@ contract:
       field: Email
       type: unique
       severity: error
-      error_message: "Duplicate Email detected — possible duplicate contact."
+      error_message: "Duplicate Email detected within this batch — possible duplicate contact. Cross-system uniqueness against the Salesforce master register requires Salesforce duplicate management; OpenDQV validates the input batch only."
 
   contexts:
     salesforce_prod:

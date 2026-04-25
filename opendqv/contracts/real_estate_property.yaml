@@ -12,6 +12,7 @@ contract:
     property records from entering Rightmove/Zoopla feed APIs, RICS valuation
     databases, and HM Land Registry submission pipelines.
   owner: "Property Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:real_estate_property
 

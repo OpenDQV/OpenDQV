@@ -28,6 +28,7 @@ contract:
     Sentinel placeholder dates of birth are explicitly rejected to prevent known
     bad data from propagating into risk and compliance systems.
   owner: "Data Governance Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:financial_services_customer
 

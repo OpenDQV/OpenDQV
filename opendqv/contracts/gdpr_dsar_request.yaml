@@ -11,6 +11,7 @@ contract:
     missed because key fields were never recorded. ICO enforcement action.
     Fines up to £17.5M or 4% of global annual turnover.
   owner: "Data Protection Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:gdpr_dsar_request
 

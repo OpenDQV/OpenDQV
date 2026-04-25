@@ -3,6 +3,7 @@ contract:
   version: "1.0"
   description: "Universal benchmark contract — all core rule types, used for performance baseline"
   owner: "OpenDQV Internal"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: "urn:opendqv:benchmark:universal"
 

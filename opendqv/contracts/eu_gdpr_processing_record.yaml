@@ -13,6 +13,7 @@ contract:
     authority audit fails. Administrative fines up to EUR 10M or 2% of global annual
     turnover under Article 83(4) for Article 30 violations.
   owner: "Data Protection Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:eu_gdpr_processing_record
 

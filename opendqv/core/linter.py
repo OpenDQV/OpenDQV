@@ -6,6 +6,9 @@ either silently skips or only surfaces at the first failing record.
 
 Checks performed:
   - Duplicate rule names within a contract
+  - Missing contract.owner_email (audit trail accountability)
+  - `unique` rule without an explicit scope qualifier in error_message
+    (engine validates within the input batch, not against any master register)
   - Unknown rule type (not in the supported set)
   - Range: min_value > max_value
   - Length: min_length > max_length
@@ -32,6 +35,17 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 import yaml
+
+
+# Lightweight RFC-5322-ish email shape — enough to flag obvious typos / placeholders.
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+# Words that signal the scope is local-batch — sufficient to satisfy the
+# uniqueness scope-note linter check (in addition to "scope:" / "within"+noun).
+_UNIQUE_SCOPE_HINT_WORDS = frozenset({
+    "batch", "file", "dataset", "input", "request", "submission",
+    "payload", "load", "ingest",
+})
 
 
 # ── Supported rule types ──────────────────────────────────────────────────────
@@ -187,7 +201,40 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
             ),
         ))
 
-    raw_rules = data.get("rules", [])
+    # ── Contract-level: owner_email present and well-shaped ──────────────────
+    # Skip the check on top-level fragment YAML (just `rules:`) — there is no
+    # contract block to attach an owner_email to. Only flag when the YAML
+    # genuinely declares a contract block.
+    if isinstance(data.get("contract"), dict):
+        owner_email = contract_node.get("owner_email")
+        if not owner_email:
+            result.issues.append(LintIssue(
+                severity="warning",
+                rule_name=None,
+                code="OWNER_EMAIL_MISSING",
+                message=(
+                    "contract.owner_email is missing. The audit trail records "
+                    "validation events without a contact, which weakens "
+                    "accountability when a regulator or auditor follows up."
+                ),
+            ))
+        elif isinstance(owner_email, str) and not _EMAIL_RE.match(owner_email.strip()):
+            result.issues.append(LintIssue(
+                severity="warning",
+                rule_name=None,
+                code="OWNER_EMAIL_INVALID",
+                message=(
+                    f"contract.owner_email '{owner_email}' does not look like a "
+                    f"valid email address."
+                ),
+            ))
+
+    # Bundled contracts nest rules under `contract:`; legacy / fragment YAML
+    # used in unit tests puts them at the top level. Accept both.
+    if isinstance(contract_node, dict) and "rules" in contract_node:
+        raw_rules = contract_node.get("rules", [])
+    else:
+        raw_rules = data.get("rules", [])
     if not isinstance(raw_rules, list):
         result.issues.append(LintIssue(
             severity="error",
@@ -358,6 +405,24 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
             if not raw.get("lookup_file"):
                 err("LOOKUP_MISSING_FILE",
                     "lookup rule requires 'lookup_file' (path or URL).")
+
+        # ── unique: error_message must qualify scope ──────────────────────────
+        # The engine de-duplicates within the input batch. It does NOT consult
+        # any master register. A rule that promises "must be unique" without
+        # scope qualification can mislead a regulator reading the audit trail.
+        if rule_type == "unique":
+            msg = (raw.get("error_message") or "").lower()
+            if not msg:
+                warn("UNIQUE_RULE_MISSING_SCOPE_NOTE",
+                     "unique rule has no error_message — add one that names "
+                     "the validation scope (e.g. 'within this batch').")
+            elif not any(word in msg for word in _UNIQUE_SCOPE_HINT_WORDS):
+                warn("UNIQUE_RULE_MISSING_SCOPE_NOTE",
+                     "unique rule's error_message does not name the scope "
+                     "(batch/file/dataset/etc.). The engine validates "
+                     "uniqueness within the input batch only — not against "
+                     "any master register. Make this explicit so the audit "
+                     "trail does not overstate coverage.")
 
         # ── allowed_values ────────────────────────────────────────────────────
         if rule_type == "allowed_values":

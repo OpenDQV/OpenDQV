@@ -11,6 +11,7 @@ contract:
     on the same premises — QSRs, cafés, bakeries, delis, school canteens, and hospital
     food services.
   owner: "Food Safety Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:ppds_menu_item
 

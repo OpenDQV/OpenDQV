@@ -11,6 +11,7 @@ contract:
     delivery must be on or after dispatch). Prevents customs declaration rejections,
     incorrect duty calculation, and carrier SLA misreporting in WMS and TMS pipelines.
   owner: "Supply Chain Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:logistics_shipment
 

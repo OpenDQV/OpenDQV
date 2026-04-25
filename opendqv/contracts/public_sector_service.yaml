@@ -3,6 +3,7 @@ contract:
   version: "1.0"
   description: "Public sector service case record validation"
   owner: "Digital Services Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:public_sector_service
 

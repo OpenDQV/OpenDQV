@@ -11,6 +11,7 @@ contract:
     this contract makes inaccurate or incomplete records structurally impossible
     before they enter a building management system.
   owner: "Building Safety Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:building_safety_golden_thread
 

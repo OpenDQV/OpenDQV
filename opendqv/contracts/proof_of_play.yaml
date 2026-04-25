@@ -6,6 +6,7 @@ contract:
     Validates impression records before billing reconciliation and regulatory reporting.
     Authored with reference to OOH industry requirements (Roundtable 6, 2026-03-08).
   owner: Data Governance Team
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:proof_of_play
 

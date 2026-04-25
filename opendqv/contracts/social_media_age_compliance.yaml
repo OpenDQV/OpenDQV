@@ -4,6 +4,7 @@ contract:
   description: Social media user age compliance — age gate, DOB format, and identity
     verification audit trail
   owner: Data Governance Team
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:example:social_media:social_media_age_compliance
   rules:

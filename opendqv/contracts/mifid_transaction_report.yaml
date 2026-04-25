@@ -13,6 +13,7 @@ contract:
     UBS GBP 27.6M in 2014 for equivalent MiFID I reporting failures. ESMA can impose fines
     on trading venues and systematic internalisers under Article 70 MiFID II.
   owner: "Regulatory Reporting Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:mifid_transaction_report
 
@@ -29,7 +30,7 @@ contract:
       field: transaction_reference
       type: unique
       severity: error
-      error_message: "transaction_reference must be unique — duplicate transaction references compromise reporting integrity"
+      error_message: "transaction_reference must be unique within this batch — duplicate transaction references compromise reporting integrity (MiFID II/MiFIR Article 26). Note: OpenDQV validates uniqueness within the input payload only; cross-batch uniqueness against the firm's transaction reporting system is the responsibility of the upstream pipeline."
 
     # ── EXECUTION TIMESTAMP ──────────────────────────────────────────────────
     - name: execution_timestamp_required

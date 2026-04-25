@@ -2,6 +2,38 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.2.7] - 2026-04-25
+
+### Added — audit credibility part 2 (CRT168 PR-B + PR-C)
+
+- **`lookup_source` field on explainer + `explain_error` API.** A logical,
+  user-facing name for the reference list backing a `lookup` rule
+  (e.g. `universal_currency`), separate from the engine-internal
+  `lookup_file` constraint. Stops the server's `ref/<filename>.txt`
+  filesystem path leaking into the human explanation that ships in
+  audit/regulator-facing copy.
+- **`OWNER_EMAIL_MISSING` linter warning.** Every contract should declare
+  a contact in `contract.owner_email`; without one the audit trail is
+  anonymous when a regulator follows up. Companion `OWNER_EMAIL_INVALID`
+  warning catches obvious typos / placeholders.
+- **`UNIQUE_RULE_MISSING_SCOPE_NOTE` linter warning.** `unique` rules
+  must qualify scope in their `error_message` (batch / file / dataset /
+  etc.). The engine de-duplicates within the input batch only — bare
+  "must be unique" overstates coverage to a reviewer.
+- All 41 bundled contracts now ship with
+  `owner_email: opendqv@bgmsconsultants.com` and explicit batch-scope
+  wording on every `unique` rule. Regulatory contracts (DORA, HIPAA,
+  MiFID, SOX, ICH-GCP) carry an additional note that cross-batch
+  uniqueness against the master register is the upstream system's
+  responsibility.
+
+### Fixed
+
+- `lint_contract_yaml` previously read `rules` only at the YAML top
+  level, which silently no-op'd rule-level checks on bundled contracts
+  that nest under `contract.rules`. The linter now accepts both
+  structures.
+
 ## [2.2.6] - 2026-04-25
 
 ### Added — audit credibility (CRT168, external-eval driven)

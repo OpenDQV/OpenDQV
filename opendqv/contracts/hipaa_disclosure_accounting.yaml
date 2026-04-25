@@ -14,6 +14,7 @@ contract:
     violation category per year under 42 USC 1320d-5. Criminal referral possible under
     42 USC 1320d-6 (up to $250K fine and 10 years imprisonment for wrongful disclosure).
   owner: "Privacy Office"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:hipaa_disclosure_accounting
 
@@ -30,7 +31,7 @@ contract:
       field: record_id
       type: unique
       severity: error
-      error_message: "record_id must be unique — duplicate records compromise the disclosure accounting log"
+      error_message: "record_id must be unique within this batch — duplicate records compromise the disclosure accounting log (45 CFR 164.528). Note: OpenDQV validates uniqueness within the input payload only; cross-batch uniqueness against the covered entity's disclosure register is the responsibility of the upstream system."
 
     # ── COVERED ENTITY ───────────────────────────────────────────────────────
     - name: covered_entity_name_required

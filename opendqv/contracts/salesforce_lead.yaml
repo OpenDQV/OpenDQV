@@ -3,6 +3,7 @@ contract:
   version: "1.0"
   description: "Salesforce Lead — data quality validation for inbound lead records"
   owner: "CRM Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:salesforce_lead
 
@@ -110,7 +111,7 @@ contract:
       field: Email
       type: unique
       severity: error
-      error_message: "Duplicate Email — possible duplicate lead."
+      error_message: "Duplicate Email within this batch — possible duplicate lead. Cross-system uniqueness against the Salesforce master register requires Salesforce duplicate management; OpenDQV validates the input batch only."
 
   contexts:
     web_form:

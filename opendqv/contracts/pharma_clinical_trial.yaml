@@ -10,6 +10,7 @@ contract:
     submission pipelines where FDA 21 CFR Part 11 and EMA CPMP/ICH/135/95 compliance
     requires audit-ready, complete records.
   owner: "Clinical Research Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:pharma_clinical_trial
 
@@ -27,8 +28,11 @@ contract:
       field: subject_id
       type: unique
       severity: error
-      error_message: "subject_id must be unique — duplicate subject identifiers indicate
-        a data integrity failure (ICH-GCP E6(R2) 4.11)"
+      error_message: "subject_id must be unique within this batch — duplicate subject
+        identifiers indicate a data integrity failure (ICH-GCP E6(R2) 4.11). Note:
+        OpenDQV validates uniqueness within the input payload only; cross-batch
+        uniqueness against the trial master file is the responsibility of the
+        upstream EDC system."
 
     - name: site_id_required
       field: site_id

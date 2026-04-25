@@ -10,6 +10,7 @@ contract:
     registration), and all procedures are event-specific and time-bounded. Enhanced
     duty applies at 800+ expected attendance.
   owner: "Public Safety Data Team"
+  owner_email: opendqv@bgmsconsultants.com
   status: active
   asset_id: urn:opendqv:martyns_law_event
 
