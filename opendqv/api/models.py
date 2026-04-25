@@ -278,6 +278,14 @@ class ExplainErrorResponse(BaseModel):
     explanation: str = Field(..., description="Plain-English explanation of the constraint and how to fix it")
     valid_examples: list = Field(default_factory=list, description="Example values that would pass this rule")
     invalid_examples: list = Field(default_factory=list, description="Example values that would fail this rule")
+    lookup_source: Optional[str] = Field(
+        None,
+        description=(
+            "Logical name of the reference list a `lookup` rule resolves against (e.g. "
+            "`universal_currency`, `iso_country_alpha2`). Audit-friendly identifier "
+            "that does not expose server filesystem layout. Present only on `lookup` rules."
+        ),
+    )
     constraint: dict = Field(default_factory=dict, description="The raw constraint values from the contract (e.g. {'min': 0.01})")
 
 

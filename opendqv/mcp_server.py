@@ -725,7 +725,7 @@ async def _tool_explain_error(args: dict) -> list[types.TextContent]:
             error_message=r.get("error_message", ""),
         )
         info = explain_rule(rule_obj)
-        return [types.TextContent(type="text", text=json.dumps({
+        payload = {
             "contract": contract_name,
             "field": rule_obj.field,
             "rule": rule_obj.name,
@@ -734,7 +734,10 @@ async def _tool_explain_error(args: dict) -> list[types.TextContent]:
             "valid_examples": info["valid_examples"],
             "invalid_examples": info["invalid_examples"],
             "constraint": info["constraint"],
-        }))]
+        }
+        if "lookup_source" in info:
+            payload["lookup_source"] = info["lookup_source"]
+        return [types.TextContent(type="text", text=json.dumps(payload))]
 
     contract = _registry.get(contract_name)
     if not contract:
@@ -763,6 +766,8 @@ async def _tool_explain_error(args: dict) -> list[types.TextContent]:
         "invalid_examples": info["invalid_examples"],
         "constraint": info["constraint"],
     }
+    if "lookup_source" in info:
+        response["lookup_source"] = info["lookup_source"]
     return [types.TextContent(type="text", text=json.dumps(response, default=str))]
 
 

@@ -246,18 +246,38 @@ def _enum(field: str, pattern) -> dict:
     }
 
 
+def _logical_lookup_source(lookup_file) -> str:
+    """Derive the audit-friendly logical name of a lookup reference.
+
+    Strips internal filesystem details (`ref/` prefix, `.txt` suffix) so
+    user-facing copy never exposes the server's directory layout.
+    External URLs collapse to "external reference" — the URL itself stays
+    available on the rule for callers who need to fetch it.
+    """
+    if not lookup_file:
+        return "reference list"
+    if isinstance(lookup_file, str) and lookup_file.startswith(("http://", "https://")):
+        return "external reference"
+    name = str(lookup_file)
+    if "/" in name:
+        name = name.rsplit("/", 1)[-1]
+    if name.endswith(".txt"):
+        name = name[:-4]
+    return name or "reference list"
+
+
 def _lookup(field: str, lookup_file) -> dict:
-    src = lookup_file or "(reference list)"
+    source = _logical_lookup_source(lookup_file)
     return {
         "rule_type": "lookup",
         "explanation": (
-            f"The '{field}' field must match a value from the reference list at: {src}. "
-            "Check that the value exists in the reference list and matches exactly "
-            "(case-sensitive). If the reference list is a URL, it may have been recently updated."
+            f"The '{field}' field must match a value from the '{source}' reference list. "
+            "Check that the value exists in the list and matches exactly (case-sensitive)."
         ),
         "valid_examples": ["(a value present in the reference list)"],
         "invalid_examples": ["(a value not in the reference list)", None, ""],
-        "constraint": {"lookup_file": src},
+        "lookup_source": source,
+        "constraint": {"lookup_file": lookup_file or "(reference list)"},
     }
 
 

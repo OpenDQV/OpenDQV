@@ -387,7 +387,10 @@ class TestExplainRule:
                                lookup_file="contracts/ref/loyalty_tiers.txt")
         result = explain_rule(rule)
         assert result["rule_type"] == "lookup"
-        assert "loyalty_tiers.txt" in result["explanation"]
+        assert "loyalty_tiers" in result["explanation"]
+        assert "loyalty_tiers.txt" not in result["explanation"]
+        assert "contracts/ref/" not in result["explanation"]
+        assert result["lookup_source"] == "loyalty_tiers"
 
     def test_unknown_rule_type_falls_back_to_generic(self):
         from opendqv.core.explainer import explain_rule

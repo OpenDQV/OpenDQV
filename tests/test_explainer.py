@@ -142,7 +142,9 @@ class TestExplainRuleAllTypes:
         r = _rule(type="lookup", lookup_file="/path/to/ids.txt")
         result = explain_rule(r)
         _assert_explain_structure(result)
-        assert "ids.txt" in result["explanation"]
+        assert "ids" in result["explanation"]
+        assert "ids.txt" not in result["explanation"]
+        assert "/path/to/" not in result["explanation"]
 
     def test_lookup_none(self):
         r = _rule(type="lookup")

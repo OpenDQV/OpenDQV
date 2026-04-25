@@ -274,6 +274,7 @@ async def explain_error(
         explanation=info["explanation"],
         valid_examples=info["valid_examples"],
         invalid_examples=info["invalid_examples"],
+        lookup_source=info.get("lookup_source"),
         constraint=info["constraint"],
     )
 
