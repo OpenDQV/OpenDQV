@@ -357,6 +357,101 @@ class TestVersioningEdgeCases:
         assert count_after > count_before
 
 
+class TestHistoricalHashEcho:
+    """
+    CRT169 follow-up (v2.3.2) — when ?hash=<historical_hash> is supplied,
+    the response must echo the SAME entry_hash that was requested, not the
+    current latest hash. Bug shape: with two history entries sharing a
+    version (e.g. two v1.0 snapshots after an in-place description edit
+    plus reload), the buggy code matched by version alone and reported
+    the latest entry's hashes for any historical lookup.
+    """
+
+    def test_historical_hash_lookup_echoes_requested_hash(
+        self, client, approver_headers
+    ):
+        import os
+        import pathlib
+        from opendqv.api import deps as _api_deps
+
+        contracts_dir = pathlib.Path(os.environ["OPENDQV_CONTRACTS_DIR"])
+        yaml_path = contracts_dir / "customer.yaml"
+        original_yaml = yaml_path.read_text(encoding="utf-8")
+
+        import yaml as _yaml
+        on_disk_version = _yaml.safe_load(original_yaml)["contract"]["version"]
+
+        try:
+            hist_before = client.get(
+                "/api/v1/contracts/customer/history", headers=approver_headers
+            ).json()["history"]
+            v_entries_before = [h for h in hist_before if h["version"] == on_disk_version]
+            assert v_entries_before, (
+                f"fixture must have at least one v{on_disk_version} history entry"
+            )
+            original_entry_hash = v_entries_before[-1]["entry_hash"]
+
+            mutated = original_yaml.replace(
+                "description: Standard customer data quality validation",
+                "description: Standard customer data quality validation v2",
+                1,
+            )
+            assert mutated != original_yaml, "description marker not found in fixture"
+            yaml_path.write_text(mutated, encoding="utf-8")
+
+            _api_deps.registry.reload()
+
+            hist_after = client.get(
+                "/api/v1/contracts/customer/history", headers=approver_headers
+            ).json()["history"]
+            v_entries_after = [h for h in hist_after if h["version"] == on_disk_version]
+            assert len(v_entries_after) == len(v_entries_before) + 1, (
+                "in-place description edit must record exactly one new "
+                f"v{on_disk_version} history entry"
+            )
+            new_entry_hash = v_entries_after[-1]["entry_hash"]
+            assert new_entry_hash != original_entry_hash, (
+                "content change must produce a different entry_hash"
+            )
+
+            old_resp = client.get(
+                f"/api/v1/contracts/customer?hash={original_entry_hash}",
+                headers=approver_headers,
+            )
+            assert old_resp.status_code == 200, old_resp.text
+            old_body = old_resp.json()
+            assert old_body["entry_hash"] == original_entry_hash
+            assert old_body["contract_hash"] == original_entry_hash
+            assert old_body["content_hash"] is not None
+            old_content_hash = old_body["content_hash"]
+
+            new_resp = client.get(
+                f"/api/v1/contracts/customer?hash={new_entry_hash}",
+                headers=approver_headers,
+            )
+            assert new_resp.status_code == 200, new_resp.text
+            new_body = new_resp.json()
+            assert new_body["entry_hash"] == new_entry_hash
+            assert new_body["content_hash"] is not None
+            assert new_body["content_hash"] != old_content_hash, (
+                "different content must produce different content_hash"
+            )
+
+            content_hash_resp = client.get(
+                f"/api/v1/contracts/customer?hash={old_content_hash}",
+                headers=approver_headers,
+            )
+            assert content_hash_resp.status_code == 200, content_hash_resp.text
+            content_hash_body = content_hash_resp.json()
+            assert content_hash_body["content_hash"] == old_content_hash, (
+                "content_hash round-trip: response must echo the requested content_hash"
+            )
+            assert content_hash_body["entry_hash"] is not None
+        finally:
+            yaml_path.write_text(original_yaml, encoding="utf-8")
+            _api_deps.registry.reload()
+
+
 class TestHashDomainCompleteness:
     """
     CRT169 guard — every DataContract field is either part of the v2 hash

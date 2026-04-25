@@ -2,6 +2,34 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.2] - 2026-04-25
+
+### Fixed
+
+- **`GET /contracts/{name}?hash=<historical_hash>` now echoes the requested
+  hash on the response.** Previously the endpoint correctly returned the
+  historical contract body but reported the LATEST `entry_hash` /
+  `content_hash` / `contract_hash` for that contract version, not the
+  hashes of the snapshot whose body was returned. Cause: the response-
+  shape code resolved the body by hash but then walked history matching
+  by `version` only; when two history entries shared a version (e.g. a
+  symmetric in-place description edit) it picked the most recent entry's
+  hashes. The lookup now matches the snapshot whose `entry_hash` or
+  `content_hash` equals the requested value, so the body and the hash
+  fields always agree. Found by an external reviewer running a CRT169
+  symmetric-edit round-trip; covered by
+  `tests/test_versioning.py::TestHistoricalHashEcho`.
+
+### Changed
+
+- **`contexts` array in `GET /contracts/{name}` is now alphabetically
+  sorted.** Previously the response used insertion order, which was
+  deterministic within a single boot but could change across reloads
+  if the YAML key order changed. Alphabetical ordering is stable across
+  reloads and across nodes, which makes it safer for diffing audit
+  responses. Clients that depended on insertion order for UI display
+  should re-sort client-side if a different order is needed.
+
 ## [2.3.1] - 2026-04-25
 
 ### Fixed

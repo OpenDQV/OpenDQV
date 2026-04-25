@@ -53,6 +53,8 @@ async def get_contract(
     or ?hash=<contract_hash> to retrieve the exact historical version that produced
     a hash returned on a prior validate response.
     """
+    _entry_hash = None
+    _content_hash = None
     if hash:
         contract = _d.registry.contract_by_hash(name, hash)
         if not contract:
@@ -60,16 +62,18 @@ async def get_contract(
                 status_code=404,
                 detail=f"Contract '{name}' has no history entry matching hash '{hash}'",
             )
+        for _snap in _d.registry.get_history(name):
+            if _snap.get("entry_hash") == hash or _snap.get("content_hash") == hash:
+                _entry_hash = _snap.get("entry_hash")
+                _content_hash = _snap.get("content_hash")
+                break
     else:
         contract = _d._get_contract_versioned_or_404(name, version)
-
-    _entry_hash = None
-    _content_hash = None
-    for _snap in reversed(_d.registry.get_history(name)):
-        if _snap.get("version") == contract.version:
-            _entry_hash = _snap.get("entry_hash")
-            _content_hash = _snap.get("content_hash")
-            break
+        for _snap in reversed(_d.registry.get_history(name)):
+            if _snap.get("version") == contract.version:
+                _entry_hash = _snap.get("entry_hash")
+                _content_hash = _snap.get("content_hash")
+                break
 
     def _rule_values(r) -> list[str] | None:
         if r.type != "lookup" or not r.lookup_file or r.lookup_file.startswith("http"):
@@ -99,7 +103,7 @@ async def get_contract(
             )
             for r in contract.rules
         ],
-        contexts=list(contract.contexts.keys()),
+        contexts=sorted(contract.contexts.keys()),
         asset_id=contract.asset_id,
         owner_team=contract.owner_team,
         owner_email=contract.owner_email,
