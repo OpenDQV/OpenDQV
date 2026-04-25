@@ -60,12 +60,13 @@ class TestCompareTodayNow:
         result = validate_record({"expiry_date": "2000-01-01"}, [rule])
         assert result["valid"] is False
 
-    def test_compare_to_today_none_field_fails(self):
+    def test_compare_to_today_none_field_skipped(self):
+        # CRT170/J3: target field absent — compare skips (not_empty is the catcher).
         rule = Rule(name="r", type="compare", field="event_date",
                     compare_to="today", compare_op="lte",
                     error_message="Required")
         result = validate_record({"event_date": None}, [rule])
-        assert result["valid"] is False
+        assert result["valid"] is True
 
     def test_compare_to_now_passes_past_datetime(self):
         rule = Rule(name="r", type="compare", field="created_at",
@@ -217,11 +218,12 @@ class TestChecksumRule:
         result = validate_record({"isin": "US0378331006"}, [rule])  # wrong check digit
         assert result["valid"] is False
 
-    def test_checksum_none_value_fails(self):
+    def test_checksum_none_value_skipped(self):
+        # CRT170/J3: target field absent — checksum skips (not_empty is the catcher).
         rule = Rule(name="r", type="checksum", field="barcode",
                     checksum_algorithm="mod10_gs1", error_message="Required")
         result = validate_record({"barcode": None}, [rule])
-        assert result["valid"] is False
+        assert result["valid"] is True
 
     def test_checksum_batch_mode(self):
         rule = Rule(name="r", type="checksum", field="iban",

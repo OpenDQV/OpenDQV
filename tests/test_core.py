@@ -267,9 +267,10 @@ class TestCrossFieldRules:
         rules = [Rule(name="r", type="compare", field="end", compare_to="start", compare_op="gt")]
         assert validate_record({"end": 10}, rules)["valid"] is False
 
-    def test_compare_null_field_fails(self):
+    def test_compare_null_field_skipped(self):
+        # CRT170/J3: target field absent — compare skips (not_empty is the catcher).
         rules = [Rule(name="r", type="compare", field="end", compare_to="start", compare_op="gt")]
-        assert validate_record({"start": 5, "end": None}, rules)["valid"] is False
+        assert validate_record({"start": 5, "end": None}, rules)["valid"] is True
 
     def test_required_if_triggers(self):
         rules = [Rule(name="refresh_required", type="required_if", field="refresh_rate_hz",

@@ -37,9 +37,10 @@ class TestGeospatialBounds:
         result = validate_record({"lat": 999.0}, [rule])
         assert result["valid"] is False
 
-    def test_none_lat_fails(self):
+    def test_none_lat_skipped(self):
+        # CRT170/J3: target field absent — skip (not_empty is the catcher).
         result = validate_record({"lat": None, "lon": 0.0}, [self._uk_rule()])
-        assert result["valid"] is False
+        assert result["valid"] is True
 
     def test_lat_only_bounds(self):
         rule = Rule(name="r", type="geospatial_bounds", field="lat",

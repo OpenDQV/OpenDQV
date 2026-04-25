@@ -2,6 +2,31 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.3] - 2026-04-25
+
+### Fixed
+
+- **Format-class rules no longer double-fire on absent fields.** When a
+  contract declared both `not_empty` and a format-class rule (e.g.
+  `date_format`, `regex`, `min`, `max`, `range`, `min_length`,
+  `max_length`, `compare`, `checksum`, `cross_field_range`,
+  `conditional_lookup`, `geospatial_bounds`, `age_match`, `age`) on the
+  same field, an empty record reported **two errors for the same fact**
+  — one from `not_empty`, one from the format-class rule firing on the
+  None / empty-string value. The format-class rules now skip absent
+  values (None, missing key, whitespace-only string) and `not_empty` is
+  the single catcher for absence. Both the single-record handlers and
+  the batch DuckDB SQL queries are covered. The relational-class rules
+  (`compare`, `cross_field_range`, etc.) skip when the **target** field
+  is absent but still fail when a present target references an **absent
+  counterpart** (a real cross-field error). Found via CRT170 / J3 audit;
+  covered by `tests/test_rule_coverage.py::TestAbsentFieldSkipping` and
+  realigned assertions across `test_rule_coverage.py`, `test_core.py`,
+  `test_geospatial.py`, `test_p1_features.py`. Working principle: a
+  presence-class rule is the single catcher for absence; format-class
+  rules characterise the shape of a value and have nothing to say about
+  an absent one.
+
 ## [2.3.2] - 2026-04-25
 
 ### Fixed

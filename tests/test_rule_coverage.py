@@ -408,14 +408,15 @@ class TestCompareRuleEdgeCases:
         )
         assert result["valid"] is True
 
-    def test_compare_null_value_fails(self):
+    def test_compare_null_value_skipped(self):
+        # CRT170/J3: target field absent — compare skips (not_empty is the catcher).
         result = _validate(
             {"other": "10"},
             type="compare", name="c",
             field="value",
             compare_to="other", compare_op="gt",
         )
-        assert result["valid"] is False
+        assert result["valid"] is True
 
     def test_compare_string_values(self):
         result = _validate(
@@ -508,8 +509,10 @@ class TestBatchValidation:
         assert result["summary"]["failed"] == 0
 
     def test_date_format_fails(self):
+        # CRT170/J3: None values are skipped (not_empty is the catcher).
+        # Only the malformed value should fail.
         result = _batch([{"value": "not-a-date"}, {"value": None}], type="date_format")
-        assert result["summary"]["failed"] == 2
+        assert result["summary"]["failed"] == 1
 
     def test_unique_global_passes(self):
         result = _batch([{"value": "a"}, {"value": "b"}, {"value": "c"}], type="unique")
@@ -568,17 +571,21 @@ class TestBatchValidation:
         result = validate_batch(records, [rule], contract_name="test")
         assert result["summary"]["failed"] == 0
 
-    def test_compare_batch_null_value_fails(self):
+    def test_compare_batch_null_value_skipped(self):
+        # CRT170/J3: target field absent — compare skips (not_empty is the catcher).
         rule = _rule(type="compare", compare_to="other", compare_op="gt")
         records = [{"value": None, "other": 5}]
         result = validate_batch(records, [rule], contract_name="test")
-        assert result["summary"]["failed"] == 1
+        assert result["summary"]["failed"] == 0
 
-    def test_compare_batch_null_other_fails(self):
+    def test_compare_batch_null_other_skipped(self):
+        # CRT170/J3: cross-field counterpart absent — compare skips (the
+        # comparison cannot be evaluated). A presence rule on the counterpart
+        # field is the place to enforce its presence.
         rule = _rule(type="compare", compare_to="other", compare_op="gt")
         records = [{"value": 10, "other": None}]
         result = validate_batch(records, [rule], contract_name="test")
-        assert result["summary"]["failed"] == 1
+        assert result["summary"]["failed"] == 0
 
     def test_compare_batch_missing_field_warns(self):
         """compare_to references a field not in data → warning, no crash."""
@@ -633,10 +640,12 @@ class TestBatchValidation:
         assert result["summary"]["failed"] == 0
 
     def test_checksum_batch_iban_fails(self):
+        # CRT170/J3: None is skipped (not_empty is the catcher); only the
+        # malformed IBAN fails.
         rule = _rule(type="checksum", checksum_algorithm="iban_mod97")
         records = [{"value": "BADIBAN"}, {"value": None}]
         result = validate_batch(records, [rule], contract_name="test")
-        assert result["summary"]["failed"] == 2
+        assert result["summary"]["failed"] == 1
 
     def test_cross_field_range_batch_passes(self):
         rule = _rule(
@@ -659,10 +668,11 @@ class TestBatchValidation:
         assert result["summary"]["failed"] == 1
 
     def test_cross_field_range_batch_null_value(self):
+        # CRT170/J3: target field absent — skip (not_empty is the catcher).
         rule = _rule(type="cross_field_range", cross_min_field="lo", cross_max_field="hi")
         records = [{"value": None, "lo": 1, "hi": 10}]
         result = validate_batch(records, [rule], contract_name="test")
-        assert result["summary"]["failed"] == 1
+        assert result["summary"]["failed"] == 0
 
     def test_field_sum_batch_passes(self):
         rule = _rule(
@@ -734,11 +744,14 @@ class TestBatchValidation:
         result = validate_batch(records, [rule], contract_name="test")
         assert result["summary"]["failed"] == 1
 
-    def test_date_diff_batch_null_fails(self):
+    def test_date_diff_batch_null_skipped(self):
+        # CRT170/J3: target field absent — skip (not_empty is the catcher).
+        # Single-record _check_date_diff already had this behaviour; batch
+        # path is now aligned.
         rule = _rule(type="date_diff", date_diff_field="end_date", min_value=1.0)
         records = [{"value": None, "end_date": "2026-01-01"}]
         result = validate_batch(records, [rule], contract_name="test")
-        assert result["summary"]["failed"] == 1
+        assert result["summary"]["failed"] == 0
 
     def test_date_diff_batch_missing_field_warns(self):
         rule = _rule(type="date_diff", date_diff_field="ghost_field", min_value=1.0)
@@ -824,10 +837,11 @@ class TestBatchValidation:
         assert result["summary"]["failed"] == 1
 
     def test_geospatial_batch_null_value(self):
+        # CRT170/J3: target field absent — skip (not_empty is the catcher).
         rule = _rule(type="geospatial_bounds")
         records = [{"value": None}]
         result = validate_batch(records, [rule], contract_name="test")
-        assert result["summary"]["failed"] == 1
+        assert result["summary"]["failed"] == 0
 
     def test_geospatial_batch_invalid_lat_range(self):
         """Latitude outside -90..90 fails."""
@@ -1042,11 +1056,11 @@ class TestValidatorEdgeCases:
         r = validate_record({"value": "anything"}, [rule])
         assert r["valid"]
 
-    def test_cross_field_range_none_value_fails(self):
-        """cross_field_range with None value → returns error (line 548)."""
+    def test_cross_field_range_none_value_skipped(self):
+        """CRT170/J3: cross_field_range with None value — skip (not_empty is the catcher)."""
         rule = _rule(type="cross_field_range", cross_min_field="low", cross_max_field="high")
         r = validate_record({"value": None, "low": 0, "high": 100}, [rule])
-        assert not r["valid"]
+        assert r["valid"]
 
     def test_cross_field_range_non_numeric_fails(self):
         """cross_field_range with non-numeric value → except branch (lines 560-561)."""
@@ -1110,11 +1124,11 @@ class TestValidatorEdgeCases:
         r = validate_record({"value": "something"}, [rule])
         assert r["valid"]
 
-    def test_conditional_lookup_none_value_fails(self):
-        """conditional_lookup with None value → returns error_message (line 668)."""
+    def test_conditional_lookup_none_value_skipped(self):
+        """CRT170/J3: conditional_lookup with None value — skip (not_empty is the catcher)."""
         rule = _rule(type="conditional_lookup", lookup_file="ref/some_lookup.csv")
         r = validate_record({"value": None}, [rule])
-        assert not r["valid"]
+        assert r["valid"]
 
     def test_conditional_lookup_missing_file_fails(self):
         """conditional_lookup with nonexistent file → except branch (lines 675-677)."""
@@ -1148,11 +1162,11 @@ class TestValidatorEdgeCases:
         r = validate_record({"value": 25}, [rule])
         assert r["valid"]
 
-    def test_age_match_none_value_fails(self):
-        """age_match with value=None → returns error (line 727)."""
+    def test_age_match_none_value_skipped(self):
+        """CRT170/J3: age_match with target value=None — skip (not_empty is the catcher)."""
         rule = _rule(type="age_match", dob_field="dob")
         r = validate_record({"value": None, "dob": "1999-01-01"}, [rule])
-        assert not r["valid"]
+        assert r["valid"]
 
     def test_age_match_none_dob_passes(self):
         """age_match with dob_val=None → returns None/skip (line 730)."""
@@ -1234,3 +1248,169 @@ class TestBatchValidationEdgeCases:
         records = [{"value": "not-a-number", "low": 0, "high": 100}]
         result = validate_batch(records, [rule], contract_name="test")
         assert result["summary"]["failed"] == 1
+
+
+# ---------------------------------------------------------------------------
+# CRT170 / J3 — absent-field skip principle
+# ---------------------------------------------------------------------------
+#
+# Format-class rules characterise a value's shape; they have nothing to say
+# about an absent value. `not_empty` (and `required_if`) is the single
+# catcher for absence. Without this discipline, an empty record on a contract
+# with `not_empty + date_format` double-fires and reports two errors for the
+# same fact. The acceptance test below pins the headline scenario; the sweep
+# tests cover every format-class rule type (single-record + batch).
+
+import pytest
+
+
+class TestAbsentFieldSkipping:
+
+    # ── Headline acceptance ────────────────────────────────────────────────
+
+    def test_j3_acceptance_not_empty_plus_date_format_single_error(self):
+        """Empty record on contract with `not_empty + date_format` fires
+        exactly one error (not_empty)."""
+        rules = [
+            Rule(name="ne", type="not_empty", field="dob",
+                 error_message="dob is required"),
+            Rule(name="df", type="date_format", field="dob",
+                 date_format="%Y-%m-%d",
+                 error_message="dob must be YYYY-MM-DD"),
+        ]
+        result = validate_record({"dob": None}, rules, contract_name="test")
+        assert result["valid"] is False
+        assert len(result["errors"]) == 1
+        assert result["errors"][0]["rule"] == "ne"
+
+    def test_j3_acceptance_empty_string_also_single_error(self):
+        """Whitespace-only string is also `absent` for format-class rules."""
+        rules = [
+            Rule(name="ne", type="not_empty", field="dob",
+                 error_message="dob is required"),
+            Rule(name="df", type="date_format", field="dob",
+                 date_format="%Y-%m-%d",
+                 error_message="dob must be YYYY-MM-DD"),
+        ]
+        result = validate_record({"dob": "   "}, rules, contract_name="test")
+        assert result["valid"] is False
+        assert len(result["errors"]) == 1
+        assert result["errors"][0]["rule"] == "ne"
+
+    def test_j3_acceptance_missing_key_also_single_error(self):
+        """Missing key behaves as absent."""
+        rules = [
+            Rule(name="ne", type="not_empty", field="dob",
+                 error_message="dob is required"),
+            Rule(name="df", type="date_format", field="dob",
+                 date_format="%Y-%m-%d",
+                 error_message="dob must be YYYY-MM-DD"),
+        ]
+        result = validate_record({}, rules, contract_name="test")
+        assert result["valid"] is False
+        assert len(result["errors"]) == 1
+        assert result["errors"][0]["rule"] == "ne"
+
+    # ── Sweep: every format-class rule skips on absent ─────────────────────
+
+    @pytest.mark.parametrize("absent_value", [None, "", "   "])
+    @pytest.mark.parametrize("rule_kwargs", [
+        dict(type="regex", pattern=r"^\d+$"),
+        dict(type="min", min_value=0),
+        dict(type="max", max_value=100),
+        dict(type="range", min_value=0, max_value=100),
+        dict(type="min_length", min_length=1),
+        dict(type="max_length", max_length=10),
+        dict(type="date_format", date_format="%Y-%m-%d"),
+    ])
+    def test_format_class_rule_skips_on_absent_single(self, absent_value, rule_kwargs):
+        """Single-record path: format-class rules return valid on absent."""
+        result = _validate({"value": absent_value}, **rule_kwargs)
+        assert result["valid"] is True, (
+            f"{rule_kwargs['type']} fired on absent value {absent_value!r}"
+        )
+
+    @pytest.mark.parametrize("absent_value", [None, ""])
+    @pytest.mark.parametrize("rule_kwargs", [
+        dict(type="regex", pattern=r"^\d+$"),
+        dict(type="min", min_value=0),
+        dict(type="max", max_value=100),
+        dict(type="range", min_value=0, max_value=100),
+        dict(type="min_length", min_length=1),
+        dict(type="max_length", max_length=10),
+        dict(type="date_format", date_format="%Y-%m-%d"),
+    ])
+    def test_format_class_rule_skips_on_absent_batch(self, absent_value, rule_kwargs):
+        """Batch path (DuckDB SQL) also skips absent values."""
+        rule = _rule(**rule_kwargs)
+        records = [{"value": absent_value}]
+        result = validate_batch(records, [rule], contract_name="test")
+        assert result["summary"]["failed"] == 0, (
+            f"{rule_kwargs['type']} batch fired on absent value {absent_value!r}"
+        )
+
+    # ── Sweep: relational/composite rules also skip on absent target ───────
+
+    def test_compare_skips_on_absent_target(self):
+        result = _validate(
+            {"value": None, "other": 5},
+            type="compare", compare_to="other", compare_op="gt",
+        )
+        assert result["valid"] is True
+
+    def test_checksum_skips_on_absent_target(self):
+        result = _validate(
+            {"value": None},
+            type="checksum", algorithm="luhn",
+        )
+        assert result["valid"] is True
+
+    def test_cross_field_range_skips_on_absent_target(self):
+        result = _validate(
+            {"value": None, "low": 0, "high": 100},
+            type="cross_field_range", cross_min_field="low", cross_max_field="high",
+        )
+        assert result["valid"] is True
+
+    def test_conditional_lookup_skips_on_absent_target(self):
+        result = _validate(
+            {"value": None, "country": "GB"},
+            type="conditional_lookup",
+            condition_field="country", condition_value="GB",
+            lookup_file="ref/nonexistent.csv",
+        )
+        assert result["valid"] is True
+
+    def test_geospatial_skips_on_absent_target(self):
+        result = _validate(
+            {"value": None, "lon": 0.0},
+            type="geospatial_bounds", field="value",
+            geo_lon_field="lon",
+            geo_min_lat=49.0, geo_max_lat=61.0,
+            geo_min_lon=-8.5, geo_max_lon=2.0,
+        )
+        assert result["valid"] is True
+
+    def test_age_match_skips_on_absent_target(self):
+        result = _validate(
+            {"value": None, "dob": "1990-01-01"},
+            type="age_match", age_dob_field="dob",
+        )
+        assert result["valid"] is True
+
+    def test_age_skips_on_absent_target(self):
+        result = _validate(
+            {"value": None},
+            type="age", age_min=18,
+        )
+        assert result["valid"] is True
+
+    # ── Counterpart absence still fails (only TARGET absence is skipped) ───
+
+    def test_compare_fails_when_counterpart_absent(self):
+        """Target present but counterpart absent → still a real error."""
+        result = _validate(
+            {"value": 5, "other": None},
+            type="compare", compare_to="other", compare_op="gt",
+        )
+        assert result["valid"] is False

@@ -366,9 +366,25 @@ def _semver_tuple(v):
 # ── Single-record rule handlers ─────────────────────────────────────────
 # Each handler: (value, rule, record) -> Optional[str]
 # Returns error message on failure, None on pass.
+#
+# CRT170/J3: format-class rules (regex, min, max, range, *_length,
+# date_format, compare, checksum, lookup, geospatial_bounds, age_match,
+# cross_field_range, conditional_lookup) skip when the field is absent
+# (None or whitespace-only string). The presence-class rules (not_empty,
+# required_if) are the single catcher for absence — this prevents
+# double-firing on missing fields.
+
+def _is_field_absent(value) -> bool:
+    """Field has no meaningful value to characterize for format-class rules."""
+    if value is None:
+        return True
+    if isinstance(value, str) and value.strip() == "":
+        return True
+    return False
+
 
 def _check_not_empty(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
-    if value is None or (isinstance(value, str) and value.strip() == ""):
+    if _is_field_absent(value):
         return rule.error_message
     return None
 
@@ -376,6 +392,8 @@ def _check_not_empty(value, rule: Rule, record: Optional[dict] = None) -> Option
 def _check_regex(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if not rule.pattern:
         return rule.error_message  # misconfigured — fail visible rather than silently pass
+    if _is_field_absent(value):
+        return None
     str_val = str(value) if value is not None else ""
     pattern = _BUILTIN_PATTERNS.get(rule.pattern, rule.pattern)
     compiled = rule.compiled_pattern or re.compile(pattern)
@@ -390,8 +408,8 @@ def _check_regex(value, rule: Rule, record: Optional[dict] = None) -> Optional[s
 
 
 def _check_min(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
-    if value is None:
-        return rule.error_message
+    if _is_field_absent(value):
+        return None
     try:
         if float(value) < rule.min_value:
             return rule.error_message
@@ -401,8 +419,8 @@ def _check_min(value, rule: Rule, record: Optional[dict] = None) -> Optional[str
 
 
 def _check_max(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
-    if value is None:
-        return rule.error_message
+    if _is_field_absent(value):
+        return None
     try:
         if float(value) > rule.max_value:
             return rule.error_message
@@ -412,8 +430,8 @@ def _check_max(value, rule: Rule, record: Optional[dict] = None) -> Optional[str
 
 
 def _check_range(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
-    if value is None:
-        return rule.error_message
+    if _is_field_absent(value):
+        return None
     try:
         v = float(value)
         if rule.min_value is not None and v < rule.min_value:
@@ -426,22 +444,26 @@ def _check_range(value, rule: Rule, record: Optional[dict] = None) -> Optional[s
 
 
 def _check_min_length(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
-    str_val = str(value) if value is not None else ""
+    if _is_field_absent(value):
+        return None
+    str_val = str(value)
     if len(str_val) < (rule.min_length or 0):
         return rule.error_message
     return None
 
 
 def _check_max_length(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
-    str_val = str(value) if value is not None else ""
+    if _is_field_absent(value):
+        return None
+    str_val = str(value)
     if len(str_val) > (rule.max_length or 99999):
         return rule.error_message
     return None
 
 
 def _check_date_format(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
-    if value is None:
-        return rule.error_message
+    if _is_field_absent(value):
+        return None
     str_val = str(value)
     formats_to_try = []
     if rule.format:
@@ -465,8 +487,8 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
     if not rule.compare_to or not rule.compare_op:
         logger.warning("compare rule '%s' missing compare_to or compare_op", rule.name)
         return None
-    if value is None:
-        return rule.error_message
+    if _is_field_absent(value):
+        return None
     if rule.compare_to in ("today", "now"):
         if rule.compare_to == "today":
             other = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -555,16 +577,16 @@ def _check_checksum(value, rule: Rule, record: Optional[dict] = None) -> Optiona
     if not rule.checksum_algorithm:
         logger.warning("checksum rule '%s' missing checksum_algorithm", rule.name)
         return None
-    if value is None:
-        return rule.error_message
+    if _is_field_absent(value):
+        return None
     if not _validate_checksum(str(value), rule.checksum_algorithm):
         return rule.error_message
     return None
 
 
 def _check_cross_field_range(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
-    if value is None:
-        return rule.error_message
+    if _is_field_absent(value):
+        return None
     rec = record or {}
     try:
         v = float(value)
@@ -669,8 +691,8 @@ def _check_conditional_lookup(value, rule: Rule, record: Optional[dict] = None) 
     if not rule.lookup_file:
         logger.warning("conditional_lookup rule '%s' missing lookup_file", rule.name)
         return None
-    if value is None:
-        return rule.error_message
+    if _is_field_absent(value):
+        return None
     try:
         if rule.lookup_file.startswith("http://") or rule.lookup_file.startswith("https://"):
             ttl = rule.cache_ttl if rule.cache_ttl is not None else _HTTP_LOOKUP_DEFAULT_TTL
@@ -686,8 +708,8 @@ def _check_conditional_lookup(value, rule: Rule, record: Optional[dict] = None) 
 
 
 def _check_geospatial_bounds(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
-    if value is None:
-        return rule.error_message
+    if _is_field_absent(value):
+        return None
     rec = record or {}
     try:
         lat = float(value)
@@ -724,8 +746,8 @@ def _check_age_match(value, rule: Rule, record: Optional[dict] = None) -> Option
     if not rule.dob_field:
         logger.warning("age_match rule '%s' missing dob_field", rule.name)
         return None
-    if value is None:
-        return rule.error_message
+    if _is_field_absent(value):
+        return None
     dob_val = (record or {}).get(rule.dob_field)
     if dob_val is None:
         return None  # dob_required covers absence
@@ -918,11 +940,14 @@ def _load_http_lookup_set(url: str, lookup_field: str, cache_ttl: int, auth_head
 
 
 def _check_age(value, rule: Rule) -> Optional[str]:
-    """Check min_age/max_age constraints. Runs after the type check passes."""
+    """Check min_age/max_age constraints. Runs after the type check passes.
+
+    CRT170/J3: skip when field is absent — the not_empty/required_if rules
+    are the catcher for absence."""
     if rule.min_age is None and rule.max_age is None:
         return None
-    if value is None:
-        return rule.error_message
+    if _is_field_absent(value):
+        return None
     try:
         dob = datetime.strptime(str(value), "%Y-%m-%d")
         today = datetime.now(timezone.utc)
@@ -1082,7 +1107,12 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
         )
         compiled = rule.compiled_pattern or re.compile(rule.pattern)
         for idx, val in enumerate(df[field]):
-            str_val = str(val) if val is not None else ""
+            # CRT170/J3: skip absent fields (not_empty is the catcher).
+            if val is None or (isinstance(val, float) and pd.isna(val)):
+                continue
+            str_val = str(val)
+            if str_val.strip() == "":
+                continue
             matched = _safe_match(compiled, str_val)
             if rule.negate:
                 if matched:
@@ -1092,37 +1122,38 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
                     failing.add(idx)
 
     elif rule.type == "min" and rule.min_value is not None:
-        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NULL OR CAST("{field}" AS DOUBLE) < {rule.min_value}"""
+        # CRT170/J3: skip absent fields (not_empty is the catcher).
+        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != '' AND CAST("{field}" AS DOUBLE) < {rule.min_value}"""
         for r in con.execute(query).fetchall():
             failing.add(r[0])
 
     elif rule.type == "max" and rule.max_value is not None:
-        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NULL OR CAST("{field}" AS DOUBLE) > {rule.max_value}"""
+        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != '' AND CAST("{field}" AS DOUBLE) > {rule.max_value}"""
         for r in con.execute(query).fetchall():
             failing.add(r[0])
 
     elif rule.type == "range" and rule.min_value is not None and rule.max_value is not None:
-        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NULL OR NOT (CAST("{field}" AS DOUBLE) BETWEEN {rule.min_value} AND {rule.max_value})"""
+        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != '' AND NOT (CAST("{field}" AS DOUBLE) BETWEEN {rule.min_value} AND {rule.max_value})"""
         for r in con.execute(query).fetchall():
             failing.add(r[0])
 
     elif rule.type == "not_empty":
-        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NULL OR CAST("{field}" AS VARCHAR) = ''"""
+        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NULL OR TRIM(CAST("{field}" AS VARCHAR)) = ''"""
         for r in con.execute(query).fetchall():
             failing.add(r[0])
 
     elif rule.type == "min_length" and rule.min_length is not None:
-        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NULL OR LENGTH(CAST("{field}" AS VARCHAR)) < {rule.min_length}"""
+        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != '' AND LENGTH(CAST("{field}" AS VARCHAR)) < {rule.min_length}"""
         for r in con.execute(query).fetchall():
             failing.add(r[0])
 
     elif rule.type == "max_length" and rule.max_length is not None:
-        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NOT NULL AND LENGTH(CAST("{field}" AS VARCHAR)) > {rule.max_length}"""
+        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != '' AND LENGTH(CAST("{field}" AS VARCHAR)) > {rule.max_length}"""
         for r in con.execute(query).fetchall():
             failing.add(r[0])
 
     elif rule.type == "date_format":
-        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NULL OR TRY_CAST("{field}" AS DATE) IS NULL"""
+        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != '' AND TRY_CAST("{field}" AS DATE) IS NULL"""
         for r in con.execute(query).fetchall():
             failing.add(r[0])
 
@@ -1178,10 +1209,10 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
                     else:
                         b_raw = df[rule.compare_to].iloc[idx]
                     if a_raw is None or (isinstance(a_raw, float) and pd.isna(a_raw)):
-                        failing.add(idx)
+                        # CRT170/J3: absent field — skip (not_empty is the catcher).
                         continue
                     if not is_temporal_sentinel and (b_raw is None or (isinstance(b_raw, float) and pd.isna(b_raw))):
-                        failing.add(idx)
+                        # CRT170/J3: cross-field counterpart absent — skip.
                         continue
                     try:
                         a, b = float(a_raw), float(b_raw)
@@ -1232,7 +1263,8 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
             for idx in range(len(df)):
                 val = df[field].iloc[idx]
                 if val is None or (isinstance(val, float) and pd.isna(val)):
-                    failing.add(idx)
+                    # CRT170/J3: absent field — skip (not_empty is the catcher).
+                    continue
                 elif rule.all_of and isinstance(val, list):
                     if any(str(item) not in valid_values for item in val):
                         failing.add(idx)
@@ -1244,7 +1276,8 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
     elif rule.type == "checksum" and rule.checksum_algorithm:
         for idx, val in enumerate(df[field]):
             if val is None or (isinstance(val, float) and pd.isna(val)):
-                failing.add(idx)
+                # CRT170/J3: absent field — skip.
+                continue
             elif not _validate_checksum(str(val), rule.checksum_algorithm):
                 failing.add(idx)
 
@@ -1252,7 +1285,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
         for idx in range(len(df)):
             val = df[field].iloc[idx]
             if val is None or (isinstance(val, float) and pd.isna(val)):
-                failing.add(idx)
+                # CRT170/J3: absent field — skip.
                 continue
             try:
                 v = float(val)
@@ -1314,7 +1347,11 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
             for idx in range(len(df)):
                 val = df[field].iloc[idx]
                 other_val = df[rule.date_diff_field].iloc[idx]
-                if val is None or other_val is None or (isinstance(val, float) and pd.isna(val)):
+                if val is None or (isinstance(val, float) and pd.isna(val)):
+                    # CRT170/J3: target field absent — skip (not_empty is the catcher).
+                    continue
+                if other_val is None or (isinstance(other_val, float) and pd.isna(other_val)):
+                    # Cross-field counterpart absent — fail (the diff cannot be computed).
                     failing.add(idx)
                     continue
                 try:
@@ -1358,7 +1395,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
         for idx in range(len(df)):
             val = df[field].iloc[idx]
             if val is None or (isinstance(val, float) and pd.isna(val)):
-                failing.add(idx)
+                # CRT170/J3: absent field — skip (not_empty is the catcher).
                 continue
             try:
                 lat = float(val)
@@ -1389,11 +1426,11 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
             except (TypeError, ValueError):
                 failing.add(idx)
 
-    # Age checks — apply to any rule with min_age/max_age (typically date fields)
+    # Age checks — apply to any rule with min_age/max_age (typically date fields).
+    # CRT170/J3: skip when field is absent (not_empty is the catcher) or unparseable
+    # as a date. Only present + parseable rows are evaluated against the age bounds.
     if rule.min_age is not None or rule.max_age is not None:
         age_conditions = []
-        age_conditions.append(f'"{field}" IS NULL')
-        age_conditions.append(f'TRY_CAST("{field}" AS DATE) IS NULL')
         if rule.min_age is not None:
             age_conditions.append(
                 f'DATE_DIFF(\'year\', TRY_CAST("{field}" AS DATE), CURRENT_DATE) '
@@ -1406,8 +1443,15 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
                 f'- CASE WHEN (MONTH(CURRENT_DATE), DAY(CURRENT_DATE)) < (MONTH(TRY_CAST("{field}" AS DATE)), DAY(TRY_CAST("{field}" AS DATE))) THEN 1 ELSE 0 END '
                 f'> {rule.max_age}'
             )
-        age_query = f"SELECT __idx__ FROM data WHERE {' OR '.join(age_conditions)}"
-        for r in con.execute(age_query).fetchall():
-            failing.add(r[0])
+        if age_conditions:
+            age_query = (
+                f'SELECT __idx__ FROM data '
+                f'WHERE "{field}" IS NOT NULL '
+                f'AND TRIM(CAST("{field}" AS VARCHAR)) != \'\' '
+                f'AND TRY_CAST("{field}" AS DATE) IS NOT NULL '
+                f"AND ({' OR '.join(age_conditions)})"
+            )
+            for r in con.execute(age_query).fetchall():
+                failing.add(r[0])
 
     return failing
