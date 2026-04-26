@@ -152,7 +152,11 @@ class TestAPIObserveOnlySingle:
         assert data["would_have_failed"] is False
 
     def test_enforcement_mode_unchanged(self, client, auth_headers):
-        """Without observe_only, bad records return valid=False (regression)."""
+        """Without observe_only, bad records return valid=False (regression).
+
+        CRT173/25: as of v2.3.14, mode and would_have_failed are always
+        populated — was previously null in enforcement mode.
+        """
         body = {
             "record": {"email": "not-an-email", "age": -5, "name": ""},
             "contract": "customer",
@@ -161,8 +165,8 @@ class TestAPIObserveOnlySingle:
         assert r.status_code == 200
         data = r.json()
         assert data["valid"] is False
-        assert data.get("mode") is None
-        assert data.get("would_have_failed") is None
+        assert data["mode"] == "enforcement"
+        assert data["would_have_failed"] is True
 
 
 class TestJ1ValidCoherenceAcceptance:
@@ -271,8 +275,9 @@ class TestAPIObserveOnlyBatch:
         r = client.post("/api/v1/validate/batch", json=body, headers=auth_headers)
         assert r.status_code == 200
         data = r.json()
-        assert data.get("mode") is None
-        assert data.get("would_have_failed") is None
+        # CRT173/25: as of v2.3.14, mode and would_have_failed are always populated
+        assert data["mode"] == "enforcement"
+        assert data["would_have_failed"] is True
         assert data["summary"]["failed"] > 0
 
 

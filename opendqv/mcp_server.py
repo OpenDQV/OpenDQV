@@ -96,6 +96,35 @@ from opendqv.monitoring import stats as _stats
 from opendqv.core.quality_stats import QualityStats as _QualityStats, quality_confidence as _quality_confidence
 from opendqv.core.quality_analytics import QualityAnalytics as _QualityAnalytics
 
+
+def _error_envelope(
+    error_code: str,
+    kind: str,
+    detail: str,
+    status: int = 400,
+    remediation: str = "",
+) -> str:
+    """Structured MCP error envelope (CRT173 finding 24).
+
+    Replaces the historical "Error: {exc}" stringification and the loose
+    {"error": "..."} dict shapes. The envelope is the single shape callers
+    can branch on:
+      error_code   — stable machine-readable identifier (UPPER_SNAKE)
+      kind         — coarse category: validation | not_found | bad_request | rate_limited | internal
+      status       — HTTP-equivalent status code (parity with the REST surface)
+      detail       — human-readable specific message
+      remediation  — actionable hint, "" when none applies
+    """
+    return json.dumps({
+        "error": {
+            "error_code": error_code,
+            "kind": kind,
+            "status": status,
+            "detail": detail,
+            "remediation": remediation,
+        },
+    })
+
 # ── Governance tips ───────────────────────────────────────────────────
 _GOVERNANCE_TIPS: dict[str, str] = {
     "not_empty": (
@@ -660,9 +689,21 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         elif name == "get_quality_trend":
             return await _tool_get_quality_trend(arguments)
         else:
-            return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
+            return [types.TextContent(type="text", text=_error_envelope(
+                error_code="UNKNOWN_TOOL",
+                kind="bad_request",
+                status=404,
+                detail=f"Unknown tool: {name}",
+                remediation="Call list_tools to enumerate available tools.",
+            ))]
     except Exception as exc:
-        return [types.TextContent(type="text", text=f"Error: {exc}")]
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="INTERNAL_ERROR",
+            kind="internal",
+            status=500,
+            detail=str(exc),
+            remediation="Check the OpenDQV server logs; if reproducible, file an issue with the tool name and arguments.",
+        ))]
 
 
 async def _tool_validate_record(args: dict) -> list[types.TextContent]:
@@ -688,15 +729,23 @@ async def _tool_validate_record(args: dict) -> list[types.TextContent]:
     if contract_hash:
         contract = _registry.contract_by_hash(contract_name, contract_hash)
         if not contract:
-            return [types.TextContent(type="text", text=json.dumps({
-                "error": f"Contract '{contract_name}' has no history entry matching hash '{contract_hash}'."
-            }))]
+            return [types.TextContent(type="text", text=_error_envelope(
+                error_code="CONTRACT_HASH_MISMATCH",
+                kind="not_found",
+                status=404,
+                detail=f"Contract '{contract_name}' has no history entry matching hash '{contract_hash}'.",
+                remediation="Call list_versions for this contract to see available entry_hash values.",
+            ))]
     else:
         contract = _registry.get(contract_name)
     if not contract:
-        return [types.TextContent(type="text", text=json.dumps({
-            "error": f"Contract '{contract_name}' not found. Use list_contracts to see available contracts."
-        }))]
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="CONTRACT_NOT_FOUND",
+            kind="not_found",
+            status=404,
+            detail=f"Contract '{contract_name}' not found.",
+            remediation="Call list_contracts to see available contract names.",
+        ))]
 
     rules = contract.rules
     if context and hasattr(contract, "contexts") and context in contract.contexts:
@@ -732,23 +781,35 @@ async def _tool_validate_batch(args: dict) -> list[types.TextContent]:
         return [types.TextContent(type="text", text=resp.text)]
 
     if len(records) > 10000:
-        return [types.TextContent(type="text", text=json.dumps({
-            "error": "Maximum 10,000 records per batch call."
-        }))]
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="BATCH_TOO_LARGE",
+            kind="bad_request",
+            status=413,
+            detail=f"Maximum 10,000 records per batch call; received {len(records)}.",
+            remediation="Split the batch into chunks of 10,000 or fewer records.",
+        ))]
 
     contract_hash = args.get("hash")
     if contract_hash:
         contract = _registry.contract_by_hash(contract_name, contract_hash)
         if not contract:
-            return [types.TextContent(type="text", text=json.dumps({
-                "error": f"Contract '{contract_name}' has no history entry matching hash '{contract_hash}'."
-            }))]
+            return [types.TextContent(type="text", text=_error_envelope(
+                error_code="CONTRACT_HASH_MISMATCH",
+                kind="not_found",
+                status=404,
+                detail=f"Contract '{contract_name}' has no history entry matching hash '{contract_hash}'.",
+                remediation="Call list_versions for this contract to see available entry_hash values.",
+            ))]
     else:
         contract = _registry.get(contract_name)
     if not contract:
-        return [types.TextContent(type="text", text=json.dumps({
-            "error": f"Contract '{contract_name}' not found."
-        }))]
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="CONTRACT_NOT_FOUND",
+            kind="not_found",
+            status=404,
+            detail=f"Contract '{contract_name}' not found.",
+            remediation="Call list_contracts to see available contract names.",
+        ))]
 
     result = _validate_batch(records, contract.rules, contract_name)
     result["contract"] = contract_name
@@ -807,25 +868,43 @@ async def _tool_get_contract(args: dict) -> list[types.TextContent]:
     if contract_hash:
         contract = _registry.contract_by_hash(name, contract_hash)
         if not contract:
-            return [types.TextContent(type="text", text=json.dumps({
-                "error": f"Contract '{name}' has no history entry matching hash '{contract_hash}'."
-            }))]
+            return [types.TextContent(type="text", text=_error_envelope(
+                error_code="CONTRACT_HASH_MISMATCH",
+                kind="not_found",
+                status=404,
+                detail=f"Contract '{name}' has no history entry matching hash '{contract_hash}'.",
+                remediation="Call list_versions for this contract to see available entry_hash values.",
+            ))]
     else:
         contract = _registry.get(name, version)
         if not contract:
-            return [types.TextContent(type="text", text=json.dumps({
-                "error": f"Contract '{name}' not found."
-            }))]
+            return [types.TextContent(type="text", text=_error_envelope(
+                error_code="CONTRACT_NOT_FOUND",
+                kind="not_found",
+                status=404,
+                detail=f"Contract '{name}' not found.",
+                remediation="Call list_contracts to see available contract names.",
+            ))]
 
     if context:
         if context not in (contract.contexts or {}):
-            return [types.TextContent(type="text", text=json.dumps({
-                "error": f"Context '{context}' not defined for contract '{name}'."
-            }))]
+            return [types.TextContent(type="text", text=_error_envelope(
+                error_code="CONTEXT_NOT_FOUND",
+                kind="not_found",
+                status=404,
+                detail=f"Context '{context}' not defined for contract '{name}'.",
+                remediation="Omit the context parameter, or call get_contract without it to see contexts defined on this contract.",
+            ))]
         try:
             scoped_rules = _registry.get_rules_with_context(contract, context)
         except Exception as exc:
-            return [types.TextContent(type="text", text=json.dumps({"error": str(exc)}))]
+            return [types.TextContent(type="text", text=_error_envelope(
+                error_code="INTERNAL_ERROR",
+                kind="internal",
+                status=500,
+                detail=str(exc),
+                remediation="Check the OpenDQV server logs; if reproducible, file an issue with the contract name and context.",
+            ))]
         contract = contract.model_copy(update={"rules": scoped_rules})
 
     rules = [
@@ -868,9 +947,13 @@ async def _tool_list_versions(args: dict) -> list[types.TextContent]:
 
     history = _registry.get_history(name)
     if not history and not _registry.get(name):
-        return [types.TextContent(type="text", text=json.dumps({
-            "error": f"Contract '{name}' not found."
-        }))]
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="CONTRACT_NOT_FOUND",
+            kind="not_found",
+            status=404,
+            detail=f"Contract '{name}' not found.",
+            remediation="Call list_contracts to see available contract names.",
+        ))]
     versions = [
         {
             "version": snap.get("version", ""),
@@ -907,14 +990,24 @@ async def _tool_get_contract_jsonschema(args: dict) -> list[types.TextContent]:
 
     contract = _registry.get(name)
     if not contract:
-        return [types.TextContent(type="text", text=json.dumps({
-            "error": f"Contract '{name}' not found."
-        }))]
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="CONTRACT_NOT_FOUND",
+            kind="not_found",
+            status=404,
+            detail=f"Contract '{name}' not found.",
+            remediation="Call list_contracts to see available contract names.",
+        ))]
     if context:
         try:
             scoped_rules = _registry.get_rules_with_context(contract, context)
         except Exception as exc:
-            return [types.TextContent(type="text", text=json.dumps({"error": str(exc)}))]
+            return [types.TextContent(type="text", text=_error_envelope(
+                error_code="INTERNAL_ERROR",
+                kind="internal",
+                status=500,
+                detail=str(exc),
+                remediation="Check the OpenDQV server logs; if reproducible, file an issue with the contract name and context.",
+            ))]
         contract = contract.model_copy(update={"rules": scoped_rules})
     schema = contract_to_jsonschema(contract)
     return [types.TextContent(type="text", text=json.dumps(schema, default=str))]
@@ -934,13 +1027,23 @@ async def _tool_compare_contracts(args: dict) -> list[types.TextContent]:
         return [types.TextContent(type="text", text=resp.text)]
 
     if not _registry.get(name):
-        return [types.TextContent(type="text", text=json.dumps({
-            "error": f"Contract '{name}' not found."
-        }))]
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="CONTRACT_NOT_FOUND",
+            kind="not_found",
+            status=404,
+            detail=f"Contract '{name}' not found.",
+            remediation="Call list_contracts to see available contract names.",
+        ))]
     try:
         diff = _registry.diff_by_hash(name, hash_a, hash_b)
     except ValueError as exc:
-        return [types.TextContent(type="text", text=json.dumps({"error": str(exc)}))]
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="INVALID_HASH",
+            kind="bad_request",
+            status=400,
+            detail=str(exc),
+            remediation="Call list_versions to see valid entry_hash values for this contract.",
+        ))]
     return [types.TextContent(type="text", text=json.dumps(diff, default=str))]
 
 
@@ -955,9 +1058,13 @@ async def _tool_explain_error(args: dict) -> list[types.TextContent]:
         # is pure deterministic logic so we compute it here.
         resp = _remote_client.get(f"/api/v1/contracts/{contract_name}")
         if resp.status_code == 404:
-            return [types.TextContent(type="text", text=json.dumps({
-                "error": f"Contract '{contract_name}' not found on remote API."
-            }))]
+            return [types.TextContent(type="text", text=_error_envelope(
+                error_code="CONTRACT_NOT_FOUND",
+                kind="not_found",
+                status=404,
+                detail=f"Contract '{contract_name}' not found on remote API.",
+                remediation="Call list_contracts to see available contract names on this server.",
+            ))]
         resp.raise_for_status()
         detail = resp.json()
         rules_raw = detail.get("rules", [])
@@ -965,9 +1072,13 @@ async def _tool_explain_error(args: dict) -> list[types.TextContent]:
         if not matching:
             matching = [r for r in rules_raw if r["name"] == rule_name]
         if not matching:
-            return [types.TextContent(type="text", text=json.dumps({
-                "error": f"Rule '{rule_name}' not found in contract '{contract_name}'."
-            }))]
+            return [types.TextContent(type="text", text=_error_envelope(
+                error_code="RULE_NOT_FOUND",
+                kind="not_found",
+                status=404,
+                detail=f"Rule '{rule_name}' not found in contract '{contract_name}'.",
+                remediation="Call get_contract for this contract to see its rules.",
+            ))]
         r = matching[0]
         # Reconstruct a minimal Rule object — constraint fields will be None
         # but explain_rule handles None gracefully via per-type fallbacks.
@@ -994,17 +1105,25 @@ async def _tool_explain_error(args: dict) -> list[types.TextContent]:
 
     contract = _registry.get(contract_name)
     if not contract:
-        return [types.TextContent(type="text", text=json.dumps({
-            "error": f"Contract '{contract_name}' not found."
-        }))]
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="CONTRACT_NOT_FOUND",
+            kind="not_found",
+            status=404,
+            detail=f"Contract '{contract_name}' not found.",
+            remediation="Call list_contracts to see available contract names.",
+        ))]
 
     matching = [r for r in contract.rules if r.name == rule_name and r.field == field]
     if not matching:
         matching = [r for r in contract.rules if r.name == rule_name]
     if not matching:
-        return [types.TextContent(type="text", text=json.dumps({
-            "error": f"Rule '{rule_name}' not found on field '{field}' in contract '{contract_name}'."
-        }))]
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="RULE_NOT_FOUND",
+            kind="not_found",
+            status=404,
+            detail=f"Rule '{rule_name}' not found on field '{field}' in contract '{contract_name}'.",
+            remediation="Call get_contract for this contract to see its rules and their fields.",
+        ))]
 
     rule = matching[0]
     info = explain_rule(rule)
@@ -1035,34 +1154,43 @@ async def _tool_create_contract_draft(args: dict) -> list[types.TextContent]:
     if not created_by:
         created_by = os.environ.get("OPENDQV_AGENT_IDENTITY", "").strip()
     if not created_by:
-        return [types.TextContent(type="text", text=json.dumps({
-            "error": (
-                "created_by is required. Provide it as a parameter, or set the "
-                "OPENDQV_AGENT_IDENTITY environment variable to your email or username. "
-                "This value is recorded in the contract audit trail."
-            )
-        }))]
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="MISSING_CREATED_BY",
+            kind="bad_request",
+            status=400,
+            detail="created_by is required and was not provided.",
+            remediation=(
+                "Pass created_by as a parameter, or set the OPENDQV_AGENT_IDENTITY "
+                "environment variable to your email or username. This value is "
+                "recorded in the contract audit trail."
+            ),
+        ))]
 
     # ACT-045-06: Rate limit — 10 draft creations per identity per hour.
     _now = _time.monotonic()
     _window = _draft_creation_log.setdefault(created_by, [])
     _draft_creation_log[created_by] = [t for t in _window if _now - t < _DRAFT_RATE_WINDOW]
     if len(_draft_creation_log[created_by]) >= _DRAFT_RATE_LIMIT:
-        return [types.TextContent(type="text", text=json.dumps({
-            "error": (
-                f"Rate limit reached: '{created_by}' has created {_DRAFT_RATE_LIMIT} draft "
-                f"contracts in the last hour. Wait before creating more, or contact an admin."
-            )
-        }))]
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="DRAFT_RATE_LIMITED",
+            kind="rate_limited",
+            status=429,
+            detail=(
+                f"Rate limit reached: '{created_by}' has created {_DRAFT_RATE_LIMIT} "
+                f"draft contracts in the last hour."
+            ),
+            remediation="Wait before creating more drafts, or contact an admin to raise the limit.",
+        ))]
 
     # MCP_ prefix guard (also enforced inside ContractRegistry.create_draft)
     if not name.startswith("MCP_"):
-        return [types.TextContent(type="text", text=json.dumps({
-            "error": (
-                f"Agent-created contracts must be named with the 'MCP_' prefix "
-                f"(e.g. MCP_satellite_telemetry). Got: '{name}'"
-            )
-        }))]
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="INVALID_CONTRACT_NAME",
+            kind="validation",
+            status=422,
+            detail=f"Agent-created contracts must be named with the 'MCP_' prefix. Got: '{name}'",
+            remediation="Rename the contract with an 'MCP_' prefix (e.g. MCP_satellite_telemetry) and retry.",
+        ))]
 
     try:
         contract = _registry.create_draft(
@@ -1073,7 +1201,13 @@ async def _tool_create_contract_draft(args: dict) -> list[types.TextContent]:
             rules_data=rules_data,
         )
     except ValueError as exc:
-        return [types.TextContent(type="text", text=json.dumps({"error": str(exc)}))]
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="DRAFT_VALIDATION_ERROR",
+            kind="validation",
+            status=422,
+            detail=str(exc),
+            remediation="Inspect the error detail and adjust the contract name, owner, or rules accordingly.",
+        ))]
 
     _draft_creation_log[created_by].append(_time.monotonic())
 
@@ -1247,12 +1381,24 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
 async def _tool_get_quality_trend(args: dict) -> list[types.TextContent]:
     contract_name = args.get("contract", "")
     if not contract_name:
-        return [types.TextContent(type="text", text=json.dumps({"error": "contract is required"}))]
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="MISSING_CONTRACT",
+            kind="bad_request",
+            status=400,
+            detail="contract is required and was not provided.",
+            remediation="Pass the contract name as the 'contract' argument.",
+        ))]
     days = max(1, min(90, int(args.get("days", 7))))
     context = args.get("context") or None
     by = args.get("by", "date")
     if by not in ("date", "agent", "context", "rule"):
-        return [types.TextContent(type="text", text=json.dumps({"error": f"invalid by={by}"}))]
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="INVALID_PARAMETER",
+            kind="bad_request",
+            status=400,
+            detail=f"invalid by={by!r}; expected one of: date, agent, context, rule.",
+            remediation="Pass by='date' (default) or one of agent | context | rule.",
+        ))]
 
     if _remote_client:
         params: dict = {"days": days, "by": by}
@@ -1301,7 +1447,13 @@ async def _tool_list_agents(args: dict) -> list[types.TextContent]:
 async def _tool_get_rule_velocity(args: dict) -> list[types.TextContent]:
     contract_name = args.get("contract", "")
     if not contract_name:
-        return [types.TextContent(type="text", text=json.dumps({"error": "contract is required"}))]
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="MISSING_CONTRACT",
+            kind="bad_request",
+            status=400,
+            detail="contract is required and was not provided.",
+            remediation="Pass the contract name as the 'contract' argument.",
+        ))]
     window_hours = max(1, min(168, int(args.get("window_hours", 24))))
     bucket_minutes = max(1, min(60, int(args.get("bucket_minutes", 5))))
 
@@ -1320,7 +1472,13 @@ async def _tool_get_rule_velocity(args: dict) -> list[types.TextContent]:
             bucket_minutes=bucket_minutes,
         )
     except Exception as exc:
-        return [types.TextContent(type="text", text=json.dumps({"error": str(exc)}))]
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="INTERNAL_ERROR",
+            kind="internal",
+            status=500,
+            detail=str(exc),
+            remediation="Check the OpenDQV server logs; if reproducible, file an issue with the contract name and parameters.",
+        ))]
 
     # CRT170/J6: total validations underpinning this window → confidence band.
     try:

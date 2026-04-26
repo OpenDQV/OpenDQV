@@ -2,6 +2,56 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.14] - 2026-04-26
+
+### Added
+
+- **`pass_rate_ratio` (0–1, 4dp) on every quality surface** alongside the
+  legacy `pass_rate` (percent, 1dp). Two integrations had already pushed
+  ratios through fields named `pass_rate` after assuming the unit;
+  naming the unit at the field name removes the ambiguity. Emitted on
+  `get_summary`, windowed and per-agent summaries, the agents listing,
+  and per-contract quality metrics. The legacy `pass_rate` continues
+  unchanged. CRT173 / Persona B finding 20.
+
+- **`mode` and `would_have_failed` always populated on validate
+  responses.** Previously `null` in enforcement mode (the default),
+  forcing every caller to defensively branch on null. Now `mode`
+  always returns `"enforcement"` or `"observation_only"` and
+  `would_have_failed` always returns `not valid` (single) or
+  `summary.failed > 0` (batch). Wire shape is deterministic.
+  CRT173 / Persona B finding 25.
+
+### Changed
+
+- **MCP errors return a structured envelope.** Every tool that
+  previously emitted `{"error": "<string>"}` or `"Error: {exc}"` now
+  returns `{"error": {error_code, kind, status, detail, remediation}}`.
+  Stable, machine-readable error codes (e.g. `CONTRACT_NOT_FOUND`,
+  `BATCH_TOO_LARGE`, `MISSING_CREATED_BY`, `DRAFT_RATE_LIMITED`,
+  `INTERNAL_ERROR`) replace ad-hoc string matching, and every error
+  carries an actionable `remediation` hint. Single source for all 22
+  error sites in `mcp_server.py`. CRT173 / Persona B finding 24.
+
+- **`confidence_note` always populated as a string.** `medium` and
+  `high` bands now return `""` instead of `None`. The wire shape was
+  previously three-state: null, absent, or a string — two states too
+  many. `quality_confidence()` now returns `tuple[str, str]`. CRT173
+  / Persona B finding 23.
+
+### Documentation
+
+- **`contract_hash` field marked deprecated** in API model
+  descriptions. Preserved on the wire as an alias of `entry_hash` for
+  v2.3.x; removal targeted for v2.4. New integrations should read
+  `entry_hash` and `content_hash`. CRT173 / Persona B finding 21.
+
+- **Window field semantics** documented inline in `monitoring.py`:
+  `window_hours` is the canonical caller-requested window;
+  `effective_window_seconds` reports actual data coverage from the
+  oldest event to now; `requested_window_hours` is deprecated in
+  favour of `window_hours`. CRT173 / Persona B finding 22.
+
 ## [2.3.13] - 2026-04-26
 
 ### Added

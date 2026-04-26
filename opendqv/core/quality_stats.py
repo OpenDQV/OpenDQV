@@ -540,13 +540,18 @@ class QualityStats:
 # get_quality_metrics, get_quality_trend, and get_rule_velocity so clients
 # interpret data sufficiency consistently.
 
-def quality_confidence(total: int) -> tuple[str, Optional[str]]:
-    """Return (data_confidence, confidence_note) for `total` underlying validations."""
+def quality_confidence(total: int) -> tuple[str, str]:
+    """Return (data_confidence, confidence_note) for `total` underlying validations.
+
+    confidence_note is ALWAYS a string. Returns "" when no caveat is needed
+    (medium/high bands). v2.3.14 / CRT173 finding 23: prior shape varied
+    between null, absent, and string — three states is two too many.
+    """
     if total <= 0:
         return "no_data", "No validation data recorded yet for this contract."
     if total < 10:
         s = "s" if total != 1 else ""
         return "low", f"Based on {total} validation{s} — treat with caution"
     if total < 100:
-        return "medium", None
-    return "high", None
+        return "medium", ""
+    return "high", ""

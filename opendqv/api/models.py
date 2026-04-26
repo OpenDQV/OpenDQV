@@ -60,7 +60,7 @@ class ValidateResponse(BaseModel):
     )
     contract_hash: Optional[str] = Field(
         None,
-        description="Alias of entry_hash, retained for backward compatibility. Prefer entry_hash on new integrations.",
+        description="DEPRECATED v2.3.14, removed v2.4. Alias of entry_hash. Prefer entry_hash on new integrations.",
     )
     entry_hash: Optional[str] = Field(
         None,
@@ -75,8 +75,8 @@ class ValidateResponse(BaseModel):
     latency_ms: Optional[float] = Field(None, description="Server-side validation latency in milliseconds")
     agent_id: Optional[str] = Field(None, description="Echo of caller's agent_id — for session and caller attribution")
     caller_principal: Optional[str] = Field(None, description="Server-derived from the authenticated token (JWT sub claim, or 'anonymous' in AUTH_MODE=open). Unlike `agent_id`, this cannot be spoofed by the caller — use as the trustable attribution key for audit and per-tenant SLA accounting.")
-    mode: Optional[str] = Field(None, description="Validation mode: 'enforcement' (default) or 'observation_only'")
-    would_have_failed: Optional[bool] = Field(None, description="Present only in observation_only mode: true if the record would have been rejected under enforcement")
+    mode: Optional[str] = Field("enforcement", description="Validation mode: 'enforcement' (default) or 'observation_only'. Always populated since v2.3.14.")
+    would_have_failed: Optional[bool] = Field(False, description="True if the record would have been rejected under enforcement (equivalent to `not valid`). Always populated since v2.3.14 — was previously null in enforcement mode.")
 
 
 # ── Batch validation request/response ────────────────────────────────
@@ -137,15 +137,15 @@ class BatchValidateResponse(BaseModel):
     version: str = Field(..., description="Contract version that was evaluated")
     owner: str = Field("", description="Contract owner — for routing disputes and on-call escalation")
     engine_version: str = Field("", description="OpenDQV engine version — for regulatory audit trails")
-    contract_hash: Optional[str] = Field(None, description="Alias of entry_hash, retained for backward compatibility. Prefer entry_hash on new integrations.")
+    contract_hash: Optional[str] = Field(None, description="DEPRECATED v2.3.14, removed v2.4. Alias of entry_hash. Prefer entry_hash on new integrations — see entry_hash and content_hash for the canonical pair.")
     entry_hash: Optional[str] = Field(None, description="SHA-256 over the full hash domain — uniquely identifies the audit chain entry for this batch's contract version.")
     content_hash: Optional[str] = Field(None, description="SHA-256 over content fields only — stable across re-recordings of the same contract.")
     validated_at: Optional[str] = Field(None, description="ISO 8601 UTC timestamp of batch validation — use for time-series correlation with quality metrics")
     latency_ms: Optional[float] = Field(None, description="Server-side batch validation latency in milliseconds (total wall-clock time for the batch)")
     agent_id: Optional[str] = Field(None, description="Echo of caller's agent_id — for session and caller attribution")
     caller_principal: Optional[str] = Field(None, description="Server-derived from the authenticated token (JWT sub claim, or 'anonymous' in AUTH_MODE=open). Unlike `agent_id`, this cannot be spoofed by the caller — use as the trustable attribution key for audit and per-tenant SLA accounting.")
-    mode: Optional[str] = Field(None, description="Validation mode: 'enforcement' (default) or 'observation_only'")
-    would_have_failed: Optional[bool] = Field(None, description="Present only in observation_only mode: true if any record would have been rejected under enforcement")
+    mode: Optional[str] = Field("enforcement", description="Validation mode: 'enforcement' (default) or 'observation_only'. Always populated since v2.3.14.")
+    would_have_failed: Optional[bool] = Field(False, description="True if any record in the batch would have been rejected under enforcement (equivalent to summary.failed > 0). Always populated since v2.3.14 — was previously null in enforcement mode.")
 
 
 # ── Contract models ──────────────────────────────────────────────────
@@ -250,9 +250,13 @@ class QualityTrendResponse(BaseModel):
         None,
         description="Confidence band based on total validations: no_data | low | medium | high",
     )
-    confidence_note: Optional[str] = Field(
-        None,
-        description="Human-readable caveat when confidence is no_data or low",
+    confidence_note: str = Field(
+        "",
+        description=(
+            "Human-readable caveat when confidence is no_data or low. "
+            "Always present as a string — empty when no caveat applies. "
+            "v2.3.14 / CRT173 finding 23."
+        ),
     )
     total_validations: Optional[int] = Field(
         None,
@@ -431,9 +435,13 @@ class RuleVelocityResponse(BaseModel):
         None,
         description="Confidence band based on total validations: no_data | low | medium | high",
     )
-    confidence_note: Optional[str] = Field(
-        None,
-        description="Human-readable caveat when confidence is no_data or low",
+    confidence_note: str = Field(
+        "",
+        description=(
+            "Human-readable caveat when confidence is no_data or low. "
+            "Always present as a string — empty when no caveat applies. "
+            "v2.3.14 / CRT173 finding 23."
+        ),
     )
     total_validations: Optional[int] = Field(
         None,

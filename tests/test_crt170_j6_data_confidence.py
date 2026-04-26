@@ -62,20 +62,22 @@ class TestQualityConfidenceHelper:
         assert "9 validations" in note  # plural
 
     def test_medium_band(self):
+        # CRT173/23: medium/high bands return "" (empty string), not None.
         from opendqv.core.quality_stats import quality_confidence
         band, note = quality_confidence(10)
         assert band == "medium"
-        assert note is None
+        assert note == ""
 
         band, note = quality_confidence(99)
         assert band == "medium"
-        assert note is None
+        assert note == ""
 
     def test_high_band(self):
+        # CRT173/23: medium/high bands return "" (empty string), not None.
         from opendqv.core.quality_stats import quality_confidence
         band, note = quality_confidence(100)
         assert band == "high"
-        assert note is None
+        assert note == ""
 
         band, note = quality_confidence(10_000)
         assert band == "high"
@@ -116,7 +118,8 @@ class TestMcpGetQualityTrendConfidence:
         )
         data = _parse(await _tool_get_quality_trend({"contract": "customer", "days": 7}))
         assert data["data_confidence"] == "high"
-        assert data["confidence_note"] is None
+        # CRT173/23: confidence_note is "" (empty string) for high band, not None.
+        assert data["confidence_note"] == ""
         assert data["total_validations"] == 500
 
 

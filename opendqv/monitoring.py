@@ -207,7 +207,11 @@ class ValidationStats:
                 "total_validations": total,
                 "total_pass": total_pass,
                 "total_fail": total_fail,
+                # pass_rate is a percent (0–100, 1dp) for legacy wire compat;
+                # pass_rate_ratio is the canonical 0–1 4dp form, matching the
+                # trend / windowed-totals surfaces. v2.4 collapses to ratio.
                 "pass_rate": round(total_pass / total * 100, 1) if total > 0 else 0,
+                "pass_rate_ratio": round(total_pass / total, 4) if total > 0 else 1.0,
                 # *_violations are sums of per-record rule violations: a single
                 # failing record with N broken rules contributes N. total_fail is
                 # a record count. The two are equal only when each failing record
@@ -283,11 +287,23 @@ class ValidationStats:
         summary["total_pass"] = total_pass
         summary["total_fail"] = total_fail
         summary["pass_rate"] = round(total_pass / total * 100, 1) if total > 0 else 0
+        summary["pass_rate_ratio"] = round(total_pass / total, 4) if total > 0 else 1.0
+        # Window field semantics (CRT173 finding 22):
+        #   window_hours              = caller's requested window, in hours.
+        #   effective_window_seconds  = min(requested, actual data coverage),
+        #                               in seconds. Coverage is the larger of
+        #                               API uptime and the age of the oldest
+        #                               event in the deque (which counts
+        #                               hydrated-from-persistent-store events
+        #                               even when the process just started).
+        #                               Diverges from window_hours only when
+        #                               the API has been up for less than the
+        #                               requested window AND there is no
+        #                               hydrated history.
+        #   requested_window_hours    = DEPRECATED v2.3.14, removed v2.4.
+        #                               Always equal to window_hours; emitted
+        #                               for back-compat only.
         summary["window_hours"] = window_hours
-        # Transparency: effective window = min(requested, actual data coverage).
-        # Coverage is max of API uptime and the age of the oldest event in the deque;
-        # the latter lets hydrated-from-persistent-store events count, even when the
-        # process itself just started. If no data, fall back to uptime.
         summary["effective_window_seconds"] = self._effective_window_seconds(window_hours)
         summary["requested_window_hours"] = window_hours
         if len(by_agent) > 1:
@@ -362,6 +378,7 @@ class ValidationStats:
         summary["total_pass"] = total_pass
         summary["total_fail"] = total_fail
         summary["pass_rate"] = round(total_pass / total * 100, 1) if total > 0 else 0
+        summary["pass_rate_ratio"] = round(total_pass / total, 4) if total > 0 else 1.0
         summary["agent_id_filter"] = agent_id
         # Scope top_failing_fields to this agent
         summary["top_failing_fields"] = sorted(
@@ -460,6 +477,7 @@ class ValidationStats:
                 "total_pass": v["total_pass"],
                 "total_fail": v["total_fail"],
                 "pass_rate": round(v["total_pass"] / t * 100, 1) if t > 0 else 0,
+                "pass_rate_ratio": round(v["total_pass"] / t, 4) if t > 0 else 1.0,
                 "last_seen": datetime.fromtimestamp(
                     v["last_seen_ts"], tz=timezone.utc
                 ).isoformat(),

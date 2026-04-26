@@ -132,7 +132,9 @@ class TestMCPValidateRecord:
             {"contract": "nonexistent", "record": {}}
         ))
         assert "error" in data
-        assert "nonexistent" in data["error"]
+        # CRT173/24: structured envelope — error_code + kind + status + detail.
+        assert data["error"]["error_code"] == "CONTRACT_NOT_FOUND"
+        assert "nonexistent" in data["error"]["detail"]
 
     async def test_result_includes_contract_and_version_keys(self):
         data = _parse(await _tool_validate_record(
@@ -180,7 +182,9 @@ class TestMCPValidateBatch:
             {"contract": "banking_transaction", "records": [{}] * 10001}
         ))
         assert "error" in data
-        assert "10,000" in data["error"]
+        # CRT173/24: structured envelope.
+        assert data["error"]["error_code"] == "BATCH_TOO_LARGE"
+        assert "10,000" in data["error"]["detail"]
 
     async def test_batch_unknown_contract_returns_error_dict_no_exception(self):
         data = _parse(await _tool_validate_batch(
@@ -284,7 +288,10 @@ class TestMCPCallToolDispatch:
         result = await call_tool("validate_record", {})
         assert isinstance(result, list)
         assert len(result) == 1
-        assert "Error:" in result[0].text
+        # CRT173/24: dispatch-level catch-all returns the INTERNAL_ERROR envelope.
+        data = json.loads(result[0].text)
+        assert data["error"]["error_code"] == "INTERNAL_ERROR"
+        assert data["error"]["status"] == 500
 
 
 # ── TestMCPCreateContractDraft ────────────────────────────────────────────────
@@ -360,7 +367,9 @@ class TestMCPCreateContractDraft:
             "rules": _DRAFT_RULES,
         }))
         assert "error" in data
-        assert "MCP_" in data["error"]
+        # CRT173/24: structured envelope.
+        assert data["error"]["error_code"] == "INVALID_CONTRACT_NAME"
+        assert "MCP_" in data["error"]["detail"]
 
     async def test_create_draft_rejects_missing_created_by_and_no_env_var(self):
         data = _parse(await _tool_create_contract_draft({
@@ -371,7 +380,10 @@ class TestMCPCreateContractDraft:
             "rules": _DRAFT_RULES,
         }))
         assert "error" in data
-        assert "created_by" in data["error"] or "OPENDQV_AGENT_IDENTITY" in data["error"]
+        # CRT173/24: structured envelope.
+        assert data["error"]["error_code"] == "MISSING_CREATED_BY"
+        body = data["error"]["detail"] + " " + data["error"].get("remediation", "")
+        assert "created_by" in body or "OPENDQV_AGENT_IDENTITY" in body
 
     async def test_create_draft_uses_env_var_when_created_by_omitted(self):
         os.environ["OPENDQV_AGENT_IDENTITY"] = "env-user@example.com"
@@ -395,7 +407,9 @@ class TestMCPCreateContractDraft:
         await _tool_create_contract_draft(args)
         data = _parse(await _tool_create_contract_draft(args))
         assert "error" in data
-        assert "already exists" in data["error"]
+        # CRT173/24: ValueError from create_draft is wrapped as DRAFT_VALIDATION_ERROR.
+        assert data["error"]["error_code"] == "DRAFT_VALIDATION_ERROR"
+        assert "already exists" in data["error"]["detail"]
 
     async def test_create_draft_rejects_invalid_rule(self):
         data = _parse(await _tool_create_contract_draft({
@@ -531,7 +545,10 @@ class TestMCPRateLimiting:
             "rules": _DRAFT_RULES,
         }))
         assert "error" in data
-        assert "Rate limit" in data["error"]
+        # CRT173/24: structured envelope.
+        assert data["error"]["error_code"] == "DRAFT_RATE_LIMITED"
+        assert data["error"]["status"] == 429
+        assert "Rate limit" in data["error"]["detail"]
 
     async def test_different_identities_have_separate_counters(self):
         """10 creations for identity A do not block identity B."""
@@ -623,10 +640,13 @@ class TestCallToolDispatcher:
         assert "Unknown tool" in result[0].text
 
     async def test_call_tool_handles_exception(self):
-        """call_tool catches exceptions and returns Error: message (line 526)."""
+        """call_tool catches exceptions and returns INTERNAL_ERROR envelope."""
         # validate_record with missing required 'contract' key raises KeyError
         result = await call_tool("validate_record", {"record": {}})
-        assert "Error:" in result[0].text
+        # CRT173/24: dispatch-level catch-all returns the INTERNAL_ERROR envelope.
+        data = json.loads(result[0].text)
+        assert data["error"]["error_code"] == "INTERNAL_ERROR"
+        assert data["error"]["status"] == 500
 
 
 # ---------------------------------------------------------------------------
@@ -666,7 +686,9 @@ class TestQualityTrend:
         result = await _tool_get_quality_trend({})
         data = _parse(result)
         assert "error" in data
-        assert "contract is required" in data["error"]
+        # CRT173/24: structured envelope.
+        assert data["error"]["error_code"] == "MISSING_CONTRACT"
+        assert "contract is required" in data["error"]["detail"]
 
     async def test_with_valid_contract(self):
         """Lines 1003-1020: returns trend structure."""
@@ -708,7 +730,9 @@ class TestRuleVelocity:
         result = await _tool_get_rule_velocity({})
         data = _parse(result)
         assert "error" in data
-        assert "contract is required" in data["error"]
+        # CRT173/24: structured envelope.
+        assert data["error"]["error_code"] == "MISSING_CONTRACT"
+        assert "contract is required" in data["error"]["detail"]
 
     async def test_with_valid_contract(self):
         """Lines 1038-1047: returns velocity data."""
@@ -869,4 +893,6 @@ class TestRuleVelocityException:
             result = await _tool_get_rule_velocity({"contract": "customer"})
             data = _parse(result)
             assert "error" in data
-            assert "DB failure" in data["error"]
+            # CRT173/24: structured envelope.
+            assert data["error"]["error_code"] == "INTERNAL_ERROR"
+            assert "DB failure" in data["error"]["detail"]

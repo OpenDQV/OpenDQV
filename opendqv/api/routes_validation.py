@@ -186,13 +186,11 @@ async def validate_single(
     _entry_hash, _content_hash = _d._get_contract_hash(contract.name)
 
     _observe = getattr(body, "observe_only", False)
-    # CRT170/J1: `valid` reflects the actual validation outcome regardless of mode.
-    # `observe_only` only affects whether the response is HTTP 200 (always 200 here)
-    # and whether downstream systems block — it does not change the truth of `valid`.
-    # `would_have_failed` is retained for clients that read it; in observe mode it
-    # is the negation of `valid` (kept for symmetry with prior shape).
-    _mode = "observation_only" if _observe else None
-    _would_have_failed = (not result["valid"]) if _observe else None
+    # CRT170/J1 + CRT173/25: `valid` reflects the actual validation outcome
+    # regardless of mode. `mode` and `would_have_failed` are always populated
+    # so the wire shape is deterministic — clients never have to branch on null.
+    _mode = "observation_only" if _observe else "enforcement"
+    _would_have_failed = not result["valid"]
 
     return ValidateResponse(
         valid=result["valid"],
@@ -336,8 +334,11 @@ async def validate_batch_endpoint(
     _entry_hash, _content_hash = _d._get_contract_hash(contract.name)
 
     _observe = getattr(body, "observe_only", False)
-    _mode = "observation_only" if _observe else None
-    _would_have_failed = (result["summary"]["failed"] > 0) if _observe else None
+    # CRT173/25: always populate mode and would_have_failed so callers never
+    # see null in either mode. would_have_failed is summary.failed > 0 in both
+    # modes — observe_only only affects whether downstream systems block.
+    _mode = "observation_only" if _observe else "enforcement"
+    _would_have_failed = result["summary"]["failed"] > 0
 
     return BatchValidateResponse(
         event_id=batch_event_id,
