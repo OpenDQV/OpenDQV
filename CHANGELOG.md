@@ -2,6 +2,23 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.16] - 2026-04-26
+
+### Changed
+
+- **MCP proxy (`opendqv_mcp_proxy.py`) catches up with v2.3.15.** The
+  in-process MCP server (`opendqv/mcp_server.py`) shipped the
+  `include_system` parameter on `get_quality_metrics` and `list_agents`
+  in v2.3.15; the proxy did not. v2.3.16 brings the proxy's tool
+  inputSchemas and dispatcher in line — the suppression now works
+  identically whether a client connects in-process or through the proxy.
+
+  *Why this matters.* The dual-path discipline
+  (`feedback_release_mcp_dual_path.md`) exists precisely so
+  client-visible tool surfaces don't drift between the two entry
+  points. v2.3.15 missed the proxy. v2.3.16 closes that gap before
+  the next external eval.
+
 ## [2.3.15] - 2026-04-26
 
 ### Added

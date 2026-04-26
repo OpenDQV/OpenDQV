@@ -205,7 +205,9 @@ TOOLS = [
             "counts. total_error_violations / total_warning_violations are RULE-VIOLATION "
             "sums (a single failing record with N broken rules contributes N). The legacy "
             "keys total_errors / total_warnings are aliases for the *_violations keys and "
-            "will be removed in v2.4 — prefer the *_violations names."
+            "will be removed in v2.4 — prefer the *_violations names. OpenDQV system "
+            "agents (agent_ids prefixed 'OpenDQV_SA_') are suppressed from aggregates by "
+            "default; pass include_system=true for diagnostic views."
         ),
         "inputSchema": {
             "type": "object",
@@ -213,6 +215,11 @@ TOOLS = [
                 "contract": {"type": "string", "description": "Contract name. Omit for all contracts."},
                 "window_hours": {"type": "integer", "default": 24, "description": "Look-back window in hours."},
                 "agent_id": {"type": "string", "description": "Optional: filter to a specific source/agent."},
+                "include_system": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "If true, include OpenDQV system agents (OpenDQV_SA_* prefix — smoke probes, demos, MCP self-tests). Default false hides them from tenant-facing metrics.",
+                },
             },
         },
     },
@@ -221,14 +228,21 @@ TOOLS = [
         "description": (
             "List the agents (source systems) that emitted validation traffic in the "
             "window. Returns [{agent_id, total_validations, total_pass, total_fail, "
-            "pass_rate, last_seen}], sorted by traffic volume desc. Call this BEFORE "
-            "filtering get_quality_metrics or get_quality_trend by agent_id — it is "
-            "the only way to discover which agent_id values are actually present."
+            "pass_rate, last_seen, is_system_agent}], sorted by traffic volume desc. "
+            "Call this BEFORE filtering get_quality_metrics or get_quality_trend by "
+            "agent_id — it is the only way to discover which agent_id values are "
+            "actually present. OpenDQV system agents (agent_ids prefixed 'OpenDQV_SA_') "
+            "are suppressed by default; pass include_system=true for diagnostic views."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "window_hours": {"type": "integer", "default": 24, "description": "Look-back window in hours."},
+                "include_system": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "If true, include OpenDQV system agents (OpenDQV_SA_* prefix). Default false suppresses them from customer-facing views.",
+                },
             },
         },
     },
@@ -369,12 +383,16 @@ def _call_tool(name: str, arguments: dict) -> str:
                 params["window_hours"] = arguments["window_hours"]
             if arguments.get("agent_id"):
                 params["agent_id"] = arguments["agent_id"]
+            if arguments.get("include_system"):
+                params["include_system"] = "true"
             resp = _client.get("/api/v1/stats", params=params)
             resp.raise_for_status()
             return resp.text
 
         elif name == "list_agents":
             params = {"window_hours": arguments.get("window_hours", 24)}
+            if arguments.get("include_system"):
+                params["include_system"] = "true"
             resp = _client.get("/api/v1/agents", params=params)
             resp.raise_for_status()
             return resp.text
@@ -442,7 +460,7 @@ def main() -> None:
                     "protocolVersion": params.get("protocolVersion", "2025-11-25"),
                     "serverInfo": {
                         "name": "OpenDQV",
-                        "version": "2.3.15",
+                        "version": "2.3.16",
                         "icons": [
                             {
                                 "src": "https://raw.githubusercontent.com/OpenDQV/OpenDQV/main/docs/assets/opendqv-favicon-128.png",
