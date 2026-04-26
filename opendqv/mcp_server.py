@@ -508,6 +508,11 @@ async def list_tools() -> list[types.Tool]:
                         "type": "string",
                         "description": "Optional: filter metrics to a specific source/agent (e.g. 'broadsign-prod'). Omit to see all sources combined.",
                     },
+                    "include_system": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "If true, include OpenDQV system agents (agent_ids prefixed 'OpenDQV_SA_' — smoke probes, demos, MCP self-tests) in the response. Default false hides them from tenant-facing metrics so customer-visible views stay clean of dev/test traffic.",
+                    },
                 },
             },
         ),
@@ -516,10 +521,11 @@ async def list_tools() -> list[types.Tool]:
             description=(
                 "List the agents (source systems) that emitted validation traffic in the "
                 "window. Returns [{agent_id, total_validations, total_pass, total_fail, "
-                "pass_rate, last_seen}], sorted by traffic volume desc. Call this BEFORE "
-                "filtering get_quality_metrics or get_quality_trend by agent_id — it is "
-                "the only way to discover which agent_id values are actually present, "
-                "without guessing."
+                "pass_rate, last_seen, is_system_agent}], sorted by traffic volume desc. "
+                "Call this BEFORE filtering get_quality_metrics or get_quality_trend by "
+                "agent_id — it is the only way to discover which agent_id values are "
+                "actually present, without guessing. OpenDQV system agents (OpenDQV_SA_*) "
+                "are suppressed by default; pass include_system=true to surface them."
             ),
             inputSchema={
                 "type": "object",
@@ -528,6 +534,11 @@ async def list_tools() -> list[types.Tool]:
                         "type": "integer",
                         "default": 24,
                         "description": "Look-back window in hours (1–8760). Default 24.",
+                    },
+                    "include_system": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "If true, include OpenDQV system agents (OpenDQV_SA_* prefix). Default false suppresses them from customer-facing views.",
                     },
                 },
             },
@@ -1252,6 +1263,7 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
     contract_name = args.get("contract", "")
     window_hours = args.get("window_hours", 24)
     agent_id_filter = args.get("agent_id", "")
+    include_system = bool(args.get("include_system", False))
     governance_tip = (
         "Pass this contract's asset_id to your catalog MCP server to retrieve "
         "lineage and ownership context."
@@ -1259,13 +1271,21 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
 
     if _remote_client:
         params = {"window_hours": window_hours} if window_hours else {}
+        if include_system:
+            params["include_system"] = "true"
         resp = _remote_client.get("/api/v1/stats", params=params)
         resp.raise_for_status()
         summary = resp.json()
     elif agent_id_filter:
+        # Explicit agent filter — caller is asking for that exact agent_id, so
+        # suppression is irrelevant (they get what they asked for).
         summary = _stats.get_windowed_summary_for_agent(window_hours or 24, agent_id_filter)
     else:
-        summary = _stats.get_windowed_summary(window_hours) if window_hours else _stats.get_summary()
+        summary = (
+            _stats.get_windowed_summary(window_hours, include_system=include_system)
+            if window_hours
+            else _stats.get_summary(include_system=include_system)
+        )
         # SQLite fallback: if in-memory events are empty (e.g. after a restart), use persisted data
         if summary.get("total_validations", 0) == 0 and not _remote_client:
             try:
@@ -1437,10 +1457,18 @@ async def _tool_get_quality_trend(args: dict) -> list[types.TextContent]:
 
 async def _tool_list_agents(args: dict) -> list[types.TextContent]:
     window_hours = max(1, min(8760, int(args.get("window_hours", 24))))
+    include_system = bool(args.get("include_system", False))
     if _remote_client:
-        resp = _remote_client.get("/api/v1/agents", params={"window_hours": window_hours})
+        params = {"window_hours": window_hours}
+        if include_system:
+            params["include_system"] = "true"
+        resp = _remote_client.get("/api/v1/agents", params=params)
         return [types.TextContent(type="text", text=resp.text)]
-    out = {"window_hours": window_hours, "agents": _stats.list_agents(window_hours)}
+    out = {
+        "window_hours": window_hours,
+        "agents": _stats.list_agents(window_hours, include_system=include_system),
+        "include_system": include_system,
+    }
     return [types.TextContent(type="text", text=json.dumps(out, default=str))]
 
 

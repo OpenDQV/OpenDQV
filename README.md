@@ -101,6 +101,8 @@ OpenDQV ships a built-in [Model Context Protocol](https://modelcontextprotocol.i
 
 For tool reference, write guardrails, remote/enterprise mode, and the Marmot composition pattern, see **[docs/mcp.md](docs/mcp.md)**.
 
+**Reserved `agent_id` prefix.** The prefix `OpenDQV_SA_` is reserved for OpenDQV-owned system traffic — smoke probes, demos, MCP self-tests, perf harnesses. The pattern is `OpenDQV_SA_[Category]_[Scope]` (e.g. `OpenDQV_SA_smoke_v240`, `OpenDQV_SA_probe_persona_b`). Customer-facing metrics endpoints (`/api/v1/stats`, `/api/v1/agents`, MCP `get_quality_metrics`, MCP `list_agents`) suppress these by default so tenant views stay clean of dev/test traffic. Pass `include_system=true` to surface them for diagnostics — each row carries an `is_system_agent` flag.
+
 ---
 
 ## Install

@@ -23,6 +23,7 @@ async def get_stats(
     request: Request,
     window_hours: Optional[int] = Query(None, ge=1, le=8760, description="If set, return stats for only the last N hours"),
     agent_id: Optional[str] = Query(None, description="Filter to a specific agent / source system identity"),
+    include_system: bool = Query(False, description="If true, include OpenDQV system agents (agent_ids prefixed 'OpenDQV_SA_' — smoke probes, demos, MCP self-tests). Default false hides them from tenant-facing metrics."),
     user=Depends(get_current_user),
 ):
     """Get validation statistics for the monitoring dashboard.
@@ -31,12 +32,13 @@ async def get_stats(
     useful for per-source-system drill-down in monitoring dashboards.
     """
     if agent_id:
-        # Agent-filtered view always uses a windowed summary (default 24h)
+        # Explicit agent filter — caller asked for that exact agent_id, suppression
+        # is irrelevant (they get what they asked for).
         result = stats.get_windowed_summary_for_agent(window_hours or 24, agent_id)
     elif window_hours:
-        result = stats.get_windowed_summary(window_hours)
+        result = stats.get_windowed_summary(window_hours, include_system=include_system)
     else:
-        result = stats.get_summary()
+        result = stats.get_summary(include_system=include_system)
     contracts = _d.registry.list_contracts()
     draft_count = sum(1 for c in contracts if c["status"] == "draft")
     active_count = sum(1 for c in contracts if c["status"] == "active")
@@ -55,16 +57,23 @@ async def get_stats(
 async def list_agents_endpoint(
     request: Request,
     window_hours: int = Query(24, ge=1, le=8760, description="Look-back window in hours"),
+    include_system: bool = Query(False, description="If true, include OpenDQV system agents (OpenDQV_SA_* prefix). Default false suppresses them from customer-facing views."),
     user=Depends(get_current_user),
 ):
     """Return the agents (source systems) that emitted traffic in the window.
 
     Each entry: agent_id, total_validations, total_pass, total_fail, pass_rate,
-    last_seen. Sorted by total_validations desc. Closes the v2.3.x gap where
+    last_seen, is_system_agent. Sorted by total_validations desc. OpenDQV system
+    agents (agent_ids prefixed 'OpenDQV_SA_') are suppressed by default;
+    pass include_system=true for diagnostic views. Closes the v2.3.x gap where
     operators had to filter by agent_id without first being able to enumerate
     them.
     """
-    return {"window_hours": window_hours, "agents": stats.list_agents(window_hours)}
+    return {
+        "window_hours": window_hours,
+        "agents": stats.list_agents(window_hours, include_system=include_system),
+        "include_system": include_system,
+    }
 
 
 @sub_router.get("/rejection-summary")

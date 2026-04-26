@@ -2,6 +2,29 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.15] - 2026-04-26
+
+### Added
+
+- **Reserved `OpenDQV_SA_*` agent_id prefix for OpenDQV-owned system
+  traffic.** Smoke probes, demos, MCP self-tests and perf harnesses
+  now sit under a clearly-namespaced prefix
+  (`OpenDQV_SA_[Category]_[Scope]`). Customer-facing metrics endpoints
+  suppress these by default — `/api/v1/stats`, `/api/v1/agents`, MCP
+  `get_quality_metrics`, MCP `list_agents`. Pass `include_system=true`
+  to surface them; each agent row carries an `is_system_agent` flag
+  for diagnostic views. An explicit `agent_id=` filter bypasses
+  suppression so callers always get exactly what they ask for.
+  CRT173 / Persona B findings 26, 27, 28.
+
+  *Why this matters.* The Persona B reviewer reading "production-shaped"
+  metrics saw `impostor`, `cursor-walk`, `smoke-v239` mixed into the
+  agent listing and read it as a tenant-isolation smell. The leak was
+  cosmetic (dev/test agent_ids in a single-tenant dev DB), but the
+  signal was real: customer-visible surfaces should not advertise
+  internal traffic. Suppression is at the read surface only — no
+  write-path rejection, since the prefix is self-evidently ours.
+
 ## [2.3.14] - 2026-04-26
 
 ### Added

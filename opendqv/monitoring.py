@@ -80,6 +80,19 @@ ACTIVE_CONTRACT_COUNT = Gauge(
 
 # ── In-memory stats for dashboard (no external DB needed) ────────────
 
+# CRT173 / items 26-28 — reserved prefix for OpenDQV-owned system agents
+# (smoke, probe, demo, mcp, perf). Default-suppressed from customer-visible
+# metrics to keep tenant views clean of dev/test traffic. The prefix is
+# self-documenting in audit rows; clients pass include_system=True for
+# diagnostics. See README "Reserved agent_id prefix" section.
+SYSTEM_AGENT_PREFIX = "OpenDQV_SA_"
+
+
+def _is_system_agent(agent_id: str) -> bool:
+    """True if agent_id is an OpenDQV-owned system agent (OpenDQV_SA_* prefix)."""
+    return bool(agent_id) and agent_id.startswith(SYSTEM_AGENT_PREFIX)
+
+
 class ValidationStats:
     """Thread-safe in-memory validation statistics for the dashboard."""
 
@@ -174,16 +187,20 @@ class ValidationStats:
             BATCH_SIZE.labels(contract=contract).observe(batch_size)
 
     @staticmethod
-    def _aggregate_by_agent(error_events, cutoff: float = 0.0) -> dict:
+    def _aggregate_by_agent(error_events, cutoff: float = 0.0,
+                            include_system: bool = False) -> dict:
         """Aggregate error events by agent_id → list of top failing (contract, field, rule).
 
         Returns {agent_id: [{contract, field, rule, count}, ...top 10]} sorted by count.
         Rows with empty agent_id are grouped under "unattributed" so the story still shows.
+        System agents (OpenDQV_SA_*) are suppressed unless include_system=True.
         """
         from collections import defaultdict as _dd
         per_agent = _dd(lambda: _dd(int))
         for ts, contract, field, rule, agent_id in error_events:
             if ts < cutoff:
+                continue
+            if not include_system and _is_system_agent(agent_id):
                 continue
             aid = agent_id or "unattributed"
             per_agent[aid][(contract, field, rule)] += 1
@@ -196,13 +213,16 @@ class ValidationStats:
             )[:10]
         return out
 
-    def get_summary(self) -> dict:
+    def get_summary(self, include_system: bool = False) -> dict:
         with self._lock:
             total_pass = sum(v["pass"] for v in self.totals.values())
             total_fail = sum(v["fail"] for v in self.totals.values())
             total = total_pass + total_fail
             _err_violations = sum(v["errors"] for v in self.totals.values())
             _warn_violations = sum(v["warnings"] for v in self.totals.values())
+            recent = list(self.history[-50:])
+            if not include_system:
+                recent = [h for h in recent if not _is_system_agent(h.get("agent_id", ""))]
             return {
                 "total_validations": total,
                 "total_pass": total_pass,
@@ -230,8 +250,10 @@ class ValidationStats:
                      for k, v in self.field_errors.items()],
                     key=lambda x: x["count"], reverse=True,
                 )[:20],
-                "top_failing_fields_by_agent": self._aggregate_by_agent(list(self._error_events)),
-                "recent_history": list(self.history[-50:]),
+                "top_failing_fields_by_agent": self._aggregate_by_agent(
+                    list(self._error_events), include_system=include_system,
+                ),
+                "recent_history": recent,
                 "latency": self._latency_stats(),
                 "dimensions": {
                     "by_severity": {
@@ -244,14 +266,17 @@ class ValidationStats:
                     "active_count": 0,
                     "review_count": 0,
                 },
+                "include_system": include_system,
             }
 
 
-    def get_windowed_summary(self, window_hours: int) -> dict:
+    def get_windowed_summary(self, window_hours: int, include_system: bool = False) -> dict:
         """Return pass/fail totals per contract:context key for events within the last window_hours.
 
         Returns a dict with the same shape as get_summary() but scoped to the time window.
         Keys not present in the window will be absent from by_contract.
+        System agents (OpenDQV_SA_*) are suppressed from by_agent and
+        top_failing_fields_by_agent unless include_system=True.
         """
         cutoff = time.time() - window_hours * 3600
         windowed_totals: dict = defaultdict(lambda: {"pass": 0, "fail": 0, "errors": 0, "warnings": 0})
@@ -268,6 +293,8 @@ class ValidationStats:
                     windowed_totals[key]["fail"] += 1
                 windowed_latencies.append(latency_ms)
                 if agent_id:
+                    if not include_system and _is_system_agent(agent_id):
+                        continue
                     if valid:
                         by_agent[agent_id]["pass"] += 1
                     else:
@@ -277,11 +304,11 @@ class ValidationStats:
         total_fail = sum(v["fail"] for v in windowed_totals.values())
         total = total_pass + total_fail
         # Reuse the full-summary structure but override the by_contract view
-        summary = self.get_summary()
+        summary = self.get_summary(include_system=include_system)
         summary["by_contract"] = dict(windowed_totals)
         # Recompute per-agent failure breakdown scoped to the same window.
         summary["top_failing_fields_by_agent"] = self._aggregate_by_agent(
-            list(self._error_events), cutoff=cutoff,
+            list(self._error_events), cutoff=cutoff, include_system=include_system,
         )
         summary["total_validations"] = total
         summary["total_pass"] = total_pass
@@ -444,18 +471,21 @@ class ValidationStats:
         coverage = max(uptime, oldest_age)
         return round(min(requested_window_hours * 3600, coverage), 1)
 
-    def list_agents(self, window_hours: int = 24) -> list:
+    def list_agents(self, window_hours: int = 24, include_system: bool = False) -> list:
         """Return per-agent totals seen in the last window_hours from _events deque.
 
         Each entry: {agent_id, total_validations, total_pass, total_fail,
-        pass_rate, last_seen}. Sorted by total_validations desc. Records with
-        empty agent_id are excluded.
+        pass_rate, last_seen, is_system_agent}. Sorted by total_validations desc.
+        Records with empty agent_id are excluded. System agents (OpenDQV_SA_*)
+        are suppressed unless include_system=True.
         """
         cutoff = time.time() - window_hours * 3600
         per_agent: dict = {}
         with self._lock:
             for ts, _contract, _ctx, valid, _latency_ms, agent_id in self._events:
                 if ts < cutoff or not agent_id:
+                    continue
+                if not include_system and _is_system_agent(agent_id):
                     continue
                 a = per_agent.setdefault(
                     agent_id,
@@ -481,6 +511,7 @@ class ValidationStats:
                 "last_seen": datetime.fromtimestamp(
                     v["last_seen_ts"], tz=timezone.utc
                 ).isoformat(),
+                "is_system_agent": _is_system_agent(aid),
             })
         out.sort(key=lambda x: x["total_validations"], reverse=True)
         return out

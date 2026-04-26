@@ -18,7 +18,7 @@ class ValidateRequest(BaseModel):
     hash: Optional[str] = Field(None, description="Pin validation to a specific historical contract version by SHA-256 hash (entry_hash or content_hash from a prior response, or from list_versions). Takes precedence over `version` and `as_of`. Returns 404 if the hash is not in the contract's history.")
     context: Optional[str] = Field(None, description="Context override (e.g. 'kids_app', 'salesforce')")
     record_id: Optional[str] = Field(None, description="Caller's correlation ID for tracking")
-    agent_id: Optional[str] = Field(None, description="Caller-asserted identity (AI agent name, service name, or team) — NOT authenticated. Use for self-labelling and session correlation. For trustable attribution, read `caller_principal` from the response — that is server-derived from the authenticated token and cannot be spoofed.")
+    agent_id: Optional[str] = Field(None, description="Caller-asserted identity (AI agent name, service name, or team) — NOT authenticated. Use for self-labelling and session correlation. For trustable attribution, read `caller_principal` from the response — that is server-derived from the authenticated token and cannot be spoofed. Reserved prefix: agent_ids starting with 'OpenDQV_SA_' are reserved for OpenDQV-owned system traffic (smoke probes, demos, MCP self-tests) and are suppressed from customer-facing metrics by default. Pass include_system=true on metrics endpoints to surface them.")
     dry_run: bool = Field(False, description="If true, validate without recording results in quality metrics. Use for testing and demos.")
     observe_only: bool = Field(False, description="If true, run in observation-only mode: log violations but do not block. Always returns HTTP 200.")
 
@@ -88,7 +88,7 @@ class BatchValidateRequest(BaseModel):
     version: str = Field("latest", description="Contract version or 'latest'")
     hash: Optional[str] = Field(None, description="Pin batch to a specific historical contract version by SHA-256 hash. Takes precedence over `version` and `as_of`. Returns 404 if the hash is not in the contract's history.")
     context: Optional[str] = Field(None, description="Context override")
-    agent_id: Optional[str] = Field(None, description="Caller-asserted identity (AI agent name, service name, or team) — NOT authenticated. Use for self-labelling and session correlation. For trustable attribution, read `caller_principal` from the response — that is server-derived from the authenticated token and cannot be spoofed.")
+    agent_id: Optional[str] = Field(None, description="Caller-asserted identity (AI agent name, service name, or team) — NOT authenticated. Use for self-labelling and session correlation. For trustable attribution, read `caller_principal` from the response — that is server-derived from the authenticated token and cannot be spoofed. Reserved prefix: agent_ids starting with 'OpenDQV_SA_' are reserved for OpenDQV-owned system traffic (smoke probes, demos, MCP self-tests) and are suppressed from customer-facing metrics by default. Pass include_system=true on metrics endpoints to surface them.")
     dry_run: bool = Field(False, description="If true, validate without recording results in quality metrics. Use for testing and demos.")
     observe_only: bool = Field(False, description="If true, run in observation-only mode: log violations but do not block. Always returns HTTP 200.")
 
