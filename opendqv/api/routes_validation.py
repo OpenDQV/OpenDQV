@@ -57,7 +57,14 @@ async def validate_single(
     event_id = str(uuid7())
     client_ip = request.client.host if request.client else "unknown"
 
-    if as_of:
+    if body.hash:
+        contract = _d.registry.contract_by_hash(body.contract, body.hash)
+        if not contract:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Contract '{body.contract}' has no history entry matching hash '{body.hash}'.",
+            )
+    elif as_of:
         contract = _d.registry.contract_as_of(body.contract, as_of)
         if not contract:
             raise HTTPException(
@@ -243,7 +250,15 @@ async def validate_batch_endpoint(
             ),
         )
 
-    contract = _d._get_contract_versioned_or_404(body.contract, body.version)
+    if body.hash:
+        contract = _d.registry.contract_by_hash(body.contract, body.hash)
+        if not contract:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Contract '{body.contract}' has no history entry matching hash '{body.hash}'.",
+            )
+    else:
+        contract = _d._get_contract_versioned_or_404(body.contract, body.version)
 
     if contract.status == ContractStatus.DRAFT and not allow_draft:
         if not config.STRICT_DRAFT_VALIDATION:

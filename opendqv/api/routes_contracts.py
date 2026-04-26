@@ -6,6 +6,7 @@ from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Requ
 import opendqv.api.deps as _d
 import opendqv.config as config
 from opendqv.core.contracts import validate_promotion_readiness
+from opendqv.core.jsonschema import contract_to_jsonschema
 from opendqv.core.quality_stats import quality_confidence
 from opendqv.core.rule_parser import ContractStatus
 from opendqv.security.auth import get_current_user, get_current_role
@@ -15,6 +16,7 @@ from .models import (
     QualityTrendPoint, QualityTrendResponse,
     ExplainErrorResponse,
     ContractHistoryResponse, ContractDiffResponse, ContractReloadResponse,
+    ContractVersionsResponse, ContractVersionSummary,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,12 +49,22 @@ async def get_contract(
             "Takes precedence over `version`."
         ),
     ),
+    context: Optional[str] = Query(
+        None,
+        description=(
+            "Optional context to apply (e.g. 'salesforce', 'kids_app'). "
+            "When provided, the returned `rules` are the effective rule set with "
+            "context overrides resolved — what validate_record(context=...) would "
+            "actually run. Default rules are returned when omitted."
+        ),
+    ),
 ):
     """Get full detail of a data contract including its rules.
 
     By default returns the latest version. Pass ?version=<v> for a named version,
     or ?hash=<contract_hash> to retrieve the exact historical version that produced
-    a hash returned on a prior validate response.
+    a hash returned on a prior validate response. Pass ?context=<name> to return
+    the rules already merged with that context's overrides.
     """
     _entry_hash = None
     _content_hash = None
@@ -87,6 +99,18 @@ async def get_contract(
         except Exception:
             return None
 
+    effective_rules = list(contract.rules)
+    if context:
+        if context not in (contract.contexts or {}):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Context '{context}' not defined for contract '{name}'.",
+            )
+        try:
+            effective_rules = _d.registry.get_rules_with_context(contract, context)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
     return ContractDetail(
         name=contract.name,
         version=contract.version,
@@ -101,8 +125,22 @@ async def get_contract(
                 severity=r.severity.value,
                 error_message=r.error_message,
                 values=_rule_values(r),
+                pattern=r.pattern,
+                min=r.min_value,
+                max=r.max_value,
+                min_length=r.min_length,
+                max_length=r.max_length,
+                format=r.format,
+                compare_to=r.compare_to,
+                compare_op=r.compare_op,
+                min_age=r.min_age,
+                max_age=r.max_age,
+                allowed_values=r.allowed_values or None,
+                lookup_file=r.lookup_file,
+                checksum_algorithm=r.checksum_algorithm,
+                negate=r.negate if r.type == "regex" else None,
             )
-            for r in contract.rules
+            for r in effective_rules
         ],
         contexts=sorted(contract.contexts.keys()),
         asset_id=contract.asset_id,
@@ -610,18 +648,101 @@ async def get_contract_history(
     return {"contract": name, "history": history}
 
 
+@sub_router.get("/contracts/{name}/versions", response_model=ContractVersionsResponse)
+@_d._default_limit
+async def list_contract_versions(
+    request: Request,
+    name: str,
+):
+    """
+    Lean version listing — metadata only, no rule bodies.
+
+    Complement to /history for callers (UIs, MCP clients, audit consoles)
+    that need the version list to drive a picker without paying the cost
+    of streaming every rule snapshot.
+    """
+    history = _d.registry.get_history(name)
+    if not history and not _d.registry.get(name):
+        raise HTTPException(status_code=404, detail=f"Contract '{name}' not found")
+    versions = [
+        ContractVersionSummary(
+            version=snap.get("version", ""),
+            status=snap.get("status", ""),
+            entry_hash=snap.get("entry_hash"),
+            content_hash=snap.get("content_hash"),
+            created_at=snap.get("updated_at"),
+            owner=snap.get("owner"),
+            owner_team=snap.get("owner_team"),
+            approved_by=snap.get("approved_by"),
+            proposed_by=snap.get("proposed_by"),
+        )
+        for snap in history
+    ]
+    return ContractVersionsResponse(contract=name, versions=versions)
+
+
+@sub_router.get("/contracts/{name}/jsonschema")
+@_d._default_limit
+async def get_contract_jsonschema(
+    request: Request,
+    name: str,
+    context: Optional[str] = Query(None, description="Optional context to apply (e.g. 'salesforce', 'kids_app')"),
+    user=Depends(get_current_user),
+):
+    """Emit a JSON Schema (draft 2020-12) document for the contract.
+
+    Cross-field and stateful rules (compare, unique, required_if, lookup) cannot
+    be expressed in plain JSON Schema — they appear in `x-opendqv-unmapped` so
+    consumers know the schema is a structural hint, not a complete validator.
+    """
+    contract = _d.registry.get(name)
+    if not contract:
+        raise HTTPException(status_code=404, detail=f"Contract '{name}' not found")
+
+    if context:
+        try:
+            scoped_rules = _d.registry.get_rules_with_context(contract, context)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        scoped = contract.model_copy(update={"rules": scoped_rules})
+        return contract_to_jsonschema(scoped)
+
+    return contract_to_jsonschema(contract)
+
+
 @sub_router.get("/contracts/{name}/diff", response_model=ContractDiffResponse)
 @_d._default_limit
 async def diff_contract_versions(
     request: Request,
     name: str,
-    version_a: str = Query(..., description="First version to compare"),
-    version_b: str = Query(..., description="Second version to compare"),
+    version_a: Optional[str] = Query(None, description="First version to compare (mutually exclusive with hash_a)"),
+    version_b: Optional[str] = Query(None, description="Second version to compare (mutually exclusive with hash_b)"),
+    hash_a: Optional[str] = Query(None, description="First snapshot hash (entry_hash or content_hash) to compare"),
+    hash_b: Optional[str] = Query(None, description="Second snapshot hash (entry_hash or content_hash) to compare"),
     user=Depends(get_current_user),
 ):
-    """Compare two versions of a contract."""
+    """Compare two versions of a contract by version pair OR by hash pair.
+
+    Hash pair takes precedence when both are provided. Hash mode resolves a
+    specific historical snapshot (an entry_hash or content_hash from
+    /contracts/{name}/versions) which is more precise than version, since a
+    single version can produce multiple snapshots over its lifetime.
+    """
     if not _d.registry.get(name):
         raise HTTPException(status_code=404, detail=f"Contract '{name}' not found")
+
+    if hash_a and hash_b:
+        try:
+            return _d.registry.diff_by_hash(name, hash_a, hash_b)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+
+    if not (version_a and version_b):
+        raise HTTPException(
+            status_code=400,
+            detail="Must supply either (version_a, version_b) or (hash_a, hash_b).",
+        )
+
     try:
         diff = _d.registry.diff_versions(name, version_a, version_b)
     except ValueError:

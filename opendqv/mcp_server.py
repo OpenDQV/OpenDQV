@@ -256,6 +256,10 @@ async def list_tools() -> list[types.Tool]:
                         "description": "If true, validate without recording results in quality metrics. Use for testing.",
                         "default": False,
                     },
+                    "hash": {
+                        "type": "string",
+                        "description": "Optional content_hash from list_versions to pin validation to a specific historical contract version. Returns 404 if no matching history entry.",
+                    },
                 },
                 "required": ["contract", "record"],
             },
@@ -295,6 +299,10 @@ async def list_tools() -> list[types.Tool]:
                         "description": "If true, validate without recording results in quality metrics. Use for testing.",
                         "default": False,
                     },
+                    "hash": {
+                        "type": "string",
+                        "description": "Optional content_hash from list_versions to pin all records to a specific historical contract version.",
+                    },
                 },
                 "required": ["contract", "records"],
             },
@@ -319,7 +327,10 @@ async def list_tools() -> list[types.Tool]:
                 "Use this to understand what a contract requires before validating, "
                 "or to generate type-safe data structures that match the contract. "
                 "Pass `hash` (the contract_hash from a prior validate response) to retrieve "
-                "the exact historical version that produced that hash — for point-in-time audit retrieval."
+                "the exact historical version that produced that hash — for point-in-time audit retrieval. "
+                "Pass `context` (e.g. 'salesforce', 'kids_app') to return the effective rule set "
+                "with that context's overrides already merged in — what validate_record(context=...) "
+                "would actually run."
             ),
             inputSchema={
                 "type": "object",
@@ -337,8 +348,78 @@ async def list_tools() -> list[types.Tool]:
                         "type": "string",
                         "description": "SHA-256 contract_hash from a prior validate response. Takes precedence over `version`.",
                     },
+                    "context": {
+                        "type": "string",
+                        "description": "Optional context (e.g. 'salesforce', 'kids_app'). When set, rules are returned with that context's overrides resolved.",
+                    },
                 },
                 "required": ["name"],
+            },
+        ),
+        types.Tool(
+            name="list_versions",
+            description=(
+                "List the version history for a contract — metadata only, no rule bodies. "
+                "Returns version, status, entry_hash, content_hash, created_at, owner. "
+                "Use this when you need to drive a version picker, audit a "
+                "lineage, or pin a downstream call to a specific historical hash "
+                "via validate_record(hash=...). Lighter than get_contract for "
+                "every version when only the listing is needed."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Contract name.",
+                    },
+                },
+                "required": ["name"],
+            },
+        ),
+        types.Tool(
+            name="get_contract_jsonschema",
+            description=(
+                "Emit a JSON Schema (draft 2020-12) document for a contract. "
+                "Use this to bootstrap a producer's structural validation, generate "
+                "API request/response shapes, or feed a typed code generator. "
+                "Cross-field rules (compare, unique, required_if, lookup) cannot "
+                "be expressed in plain JSON Schema and appear in the response under "
+                "`x-opendqv-unmapped` — those rules are still enforced by the "
+                "OpenDQV runtime, but JSON Schema callers must rely on validate_record "
+                "for full semantic coverage."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Contract name."},
+                    "context": {
+                        "type": "string",
+                        "description": "Optional context to apply (e.g. 'salesforce', 'kids_app').",
+                    },
+                },
+                "required": ["name"],
+            },
+        ),
+        types.Tool(
+            name="compare_contracts",
+            description=(
+                "Compare two historical snapshots of the same contract identified "
+                "by entry_hash or content_hash (from list_versions). Returns "
+                "rules_added, rules_removed, rules_changed, and metadata_changed "
+                "between the two snapshots. Use this to inspect what changed "
+                "between two pinned hashes — for audit, change review, or "
+                "drift analysis. Hash pair is more precise than version pair "
+                "because a single version may produce multiple snapshots."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Contract name."},
+                    "hash_a": {"type": "string", "description": "First snapshot hash (entry_hash or content_hash)."},
+                    "hash_b": {"type": "string", "description": "Second snapshot hash (entry_hash or content_hash)."},
+                },
+                "required": ["name", "hash_a", "hash_b"],
             },
         ),
         types.Tool(
@@ -522,6 +603,12 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             return await _tool_list_contracts(arguments)
         elif name == "get_contract":
             return await _tool_get_contract(arguments)
+        elif name == "list_versions":
+            return await _tool_list_versions(arguments)
+        elif name == "compare_contracts":
+            return await _tool_compare_contracts(arguments)
+        elif name == "get_contract_jsonschema":
+            return await _tool_get_contract_jsonschema(arguments)
         elif name == "explain_error":
             return await _tool_explain_error(arguments)
         elif name == "create_contract_draft":
@@ -551,11 +638,21 @@ async def _tool_validate_record(args: dict) -> list[types.TextContent]:
             payload["agent_id"] = args["agent_id"]
         if args.get("dry_run"):
             payload["dry_run"] = True
+        if args.get("hash"):
+            payload["hash"] = args["hash"]
         resp = _remote_client.post("/api/v1/validate?allow_draft=true", json=payload)
         resp.raise_for_status()
         return [types.TextContent(type="text", text=resp.text)]
 
-    contract = _registry.get(contract_name)
+    contract_hash = args.get("hash")
+    if contract_hash:
+        contract = _registry.contract_by_hash(contract_name, contract_hash)
+        if not contract:
+            return [types.TextContent(type="text", text=json.dumps({
+                "error": f"Contract '{contract_name}' has no history entry matching hash '{contract_hash}'."
+            }))]
+    else:
+        contract = _registry.get(contract_name)
     if not contract:
         return [types.TextContent(type="text", text=json.dumps({
             "error": f"Contract '{contract_name}' not found. Use list_contracts to see available contracts."
@@ -588,6 +685,8 @@ async def _tool_validate_batch(args: dict) -> list[types.TextContent]:
             payload["agent_id"] = args["agent_id"]
         if args.get("dry_run"):
             payload["dry_run"] = True
+        if args.get("hash"):
+            payload["hash"] = args["hash"]
         resp = _remote_client.post("/api/v1/validate/batch?allow_draft=true", json=payload)
         resp.raise_for_status()
         return [types.TextContent(type="text", text=resp.text)]
@@ -597,7 +696,15 @@ async def _tool_validate_batch(args: dict) -> list[types.TextContent]:
             "error": "Maximum 10,000 records per batch call."
         }))]
 
-    contract = _registry.get(contract_name)
+    contract_hash = args.get("hash")
+    if contract_hash:
+        contract = _registry.contract_by_hash(contract_name, contract_hash)
+        if not contract:
+            return [types.TextContent(type="text", text=json.dumps({
+                "error": f"Contract '{contract_name}' has no history entry matching hash '{contract_hash}'."
+            }))]
+    else:
+        contract = _registry.get(contract_name)
     if not contract:
         return [types.TextContent(type="text", text=json.dumps({
             "error": f"Contract '{contract_name}' not found."
@@ -640,6 +747,7 @@ async def _tool_get_contract(args: dict) -> list[types.TextContent]:
     name = args["name"]
     version = args.get("version", "latest")
     contract_hash = args.get("hash")
+    context = args.get("context")
 
     if _remote_client:
         url = f"/api/v1/contracts/{name}"
@@ -648,6 +756,8 @@ async def _tool_get_contract(args: dict) -> list[types.TextContent]:
             params.append(f"hash={contract_hash}")
         elif version and version != "latest":
             params.append(f"version={version}")
+        if context:
+            params.append(f"context={context}")
         if params:
             url += "?" + "&".join(params)
         resp = _remote_client.get(url)
@@ -666,6 +776,17 @@ async def _tool_get_contract(args: dict) -> list[types.TextContent]:
             return [types.TextContent(type="text", text=json.dumps({
                 "error": f"Contract '{name}' not found."
             }))]
+
+    if context:
+        if context not in (contract.contexts or {}):
+            return [types.TextContent(type="text", text=json.dumps({
+                "error": f"Context '{context}' not defined for contract '{name}'."
+            }))]
+        try:
+            scoped_rules = _registry.get_rules_with_context(contract, context)
+        except Exception as exc:
+            return [types.TextContent(type="text", text=json.dumps({"error": str(exc)}))]
+        contract = contract.model_copy(update={"rules": scoped_rules})
 
     rules = [
         {
@@ -695,6 +816,92 @@ async def _tool_get_contract(args: dict) -> list[types.TextContent]:
         "rules": rules,
     }
     return [types.TextContent(type="text", text=json.dumps(detail, default=str))]
+
+
+async def _tool_list_versions(args: dict) -> list[types.TextContent]:
+    name = args["name"]
+
+    if _remote_client:
+        resp = _remote_client.get(f"/api/v1/contracts/{name}/versions")
+        resp.raise_for_status()
+        return [types.TextContent(type="text", text=resp.text)]
+
+    history = _registry.get_history(name)
+    if not history and not _registry.get(name):
+        return [types.TextContent(type="text", text=json.dumps({
+            "error": f"Contract '{name}' not found."
+        }))]
+    versions = [
+        {
+            "version": snap.get("version", ""),
+            "status": snap.get("status", ""),
+            "entry_hash": snap.get("entry_hash"),
+            "content_hash": snap.get("content_hash"),
+            "created_at": snap.get("updated_at"),
+            "owner": snap.get("owner"),
+            "owner_team": snap.get("owner_team"),
+            "approved_by": snap.get("approved_by"),
+            "proposed_by": snap.get("proposed_by"),
+        }
+        for snap in history
+    ]
+    return [types.TextContent(type="text", text=json.dumps({
+        "contract": name,
+        "versions": versions,
+    }, default=str))]
+
+
+async def _tool_get_contract_jsonschema(args: dict) -> list[types.TextContent]:
+    name = args["name"]
+    context = args.get("context")
+
+    if _remote_client:
+        url = f"/api/v1/contracts/{name}/jsonschema"
+        if context:
+            url += f"?context={context}"
+        resp = _remote_client.get(url)
+        resp.raise_for_status()
+        return [types.TextContent(type="text", text=resp.text)]
+
+    from opendqv.core.jsonschema import contract_to_jsonschema
+
+    contract = _registry.get(name)
+    if not contract:
+        return [types.TextContent(type="text", text=json.dumps({
+            "error": f"Contract '{name}' not found."
+        }))]
+    if context:
+        try:
+            scoped_rules = _registry.get_rules_with_context(contract, context)
+        except Exception as exc:
+            return [types.TextContent(type="text", text=json.dumps({"error": str(exc)}))]
+        contract = contract.model_copy(update={"rules": scoped_rules})
+    schema = contract_to_jsonschema(contract)
+    return [types.TextContent(type="text", text=json.dumps(schema, default=str))]
+
+
+async def _tool_compare_contracts(args: dict) -> list[types.TextContent]:
+    name = args["name"]
+    hash_a = args["hash_a"]
+    hash_b = args["hash_b"]
+
+    if _remote_client:
+        resp = _remote_client.get(
+            f"/api/v1/contracts/{name}/diff",
+            params={"hash_a": hash_a, "hash_b": hash_b},
+        )
+        resp.raise_for_status()
+        return [types.TextContent(type="text", text=resp.text)]
+
+    if not _registry.get(name):
+        return [types.TextContent(type="text", text=json.dumps({
+            "error": f"Contract '{name}' not found."
+        }))]
+    try:
+        diff = _registry.diff_by_hash(name, hash_a, hash_b)
+    except ValueError as exc:
+        return [types.TextContent(type="text", text=json.dumps({"error": str(exc)}))]
+    return [types.TextContent(type="text", text=json.dumps(diff, default=str))]
 
 
 async def _tool_explain_error(args: dict) -> list[types.TextContent]:

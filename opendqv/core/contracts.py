@@ -597,6 +597,33 @@ class ContractHistory(ContractHistoryBackend):
         if not snap_b:
             raise ValueError(f"Version '{version_b}' not found in history for '{contract_name}'")
 
+        return self._diff_snaps(contract_name, snap_a, snap_b, version_a, version_b)
+
+    def diff_by_hash(self, contract_name: str, hash_a: str, hash_b: str) -> dict:
+        """Compare two snapshots of a contract identified by entry_hash or content_hash."""
+        history = self.get_history(contract_name)
+
+        def _find(h: str) -> Optional[dict]:
+            for snap in history:
+                if snap.get("entry_hash") == h or snap.get("content_hash") == h:
+                    return snap
+            return None
+
+        snap_a = _find(hash_a)
+        snap_b = _find(hash_b)
+
+        if not snap_a:
+            raise ValueError(f"Hash '{hash_a}' not found in history for '{contract_name}'")
+        if not snap_b:
+            raise ValueError(f"Hash '{hash_b}' not found in history for '{contract_name}'")
+
+        result = self._diff_snaps(contract_name, snap_a, snap_b, snap_a["version"], snap_b["version"])
+        result["from_hash"] = hash_a
+        result["to_hash"] = hash_b
+        return result
+
+    def _diff_snaps(self, contract_name: str, snap_a: dict, snap_b: dict,
+                    version_a: str, version_b: str) -> dict:
         # Index rules by name for comparison
         rules_a = {r["name"]: r for r in snap_a["rules"]}
         rules_b = {r["name"]: r for r in snap_b["rules"]}
@@ -1111,6 +1138,10 @@ class ContractRegistry:
     def diff_versions(self, name: str, version_a: str, version_b: str) -> dict:
         """Compare two versions of a contract."""
         return self.history.diff(name, version_a, version_b)
+
+    def diff_by_hash(self, name: str, hash_a: str, hash_b: str) -> dict:
+        """Compare two history snapshots identified by entry_hash or content_hash."""
+        return self.history.diff_by_hash(name, hash_a, hash_b)
 
     @staticmethod
     def _bump_draft_patch_counter(version: str) -> str:

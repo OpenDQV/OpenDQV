@@ -15,6 +15,7 @@ class ValidateRequest(BaseModel):
     record: dict = Field(..., description="The data record to validate")
     contract: str = Field(..., description="Contract name (e.g. 'customer')")
     version: str = Field("latest", description="Contract version or 'latest'")
+    hash: Optional[str] = Field(None, description="Pin validation to a specific historical contract version by SHA-256 hash (entry_hash or content_hash from a prior response, or from list_versions). Takes precedence over `version` and `as_of`. Returns 404 if the hash is not in the contract's history.")
     context: Optional[str] = Field(None, description="Context override (e.g. 'kids_app', 'salesforce')")
     record_id: Optional[str] = Field(None, description="Caller's correlation ID for tracking")
     agent_id: Optional[str] = Field(None, description="Caller-asserted identity (AI agent name, service name, or team) — NOT authenticated. Use for self-labelling and session correlation. For trustable attribution, read `caller_principal` from the response — that is server-derived from the authenticated token and cannot be spoofed.")
@@ -85,6 +86,7 @@ class BatchValidateRequest(BaseModel):
     records: list[dict] = Field(..., description="List of data records to validate")
     contract: str = Field(..., description="Contract name")
     version: str = Field("latest", description="Contract version or 'latest'")
+    hash: Optional[str] = Field(None, description="Pin batch to a specific historical contract version by SHA-256 hash. Takes precedence over `version` and `as_of`. Returns 404 if the hash is not in the contract's history.")
     context: Optional[str] = Field(None, description="Context override")
     agent_id: Optional[str] = Field(None, description="Caller-asserted identity (AI agent name, service name, or team) — NOT authenticated. Use for self-labelling and session correlation. For trustable attribution, read `caller_principal` from the response — that is server-derived from the authenticated token and cannot be spoofed.")
     dry_run: bool = Field(False, description="If true, validate without recording results in quality metrics. Use for testing and demos.")
@@ -167,6 +169,20 @@ class RuleInfo(BaseModel):
     severity: str = Field(..., description="'error' blocks the record; 'warning' allows but flags it")
     error_message: str = Field(..., description="Message returned when this rule fails")
     values: Optional[list[str]] = Field(None, description="Valid values for lookup rules — first entry used to pre-populate workbench sample records")
+    pattern: Optional[str] = Field(None, description="Regex pattern (regex rule)")
+    min: Optional[float] = Field(None, description="Numeric lower bound (min, range rule)")
+    max: Optional[float] = Field(None, description="Numeric upper bound (max, range rule)")
+    min_length: Optional[int] = Field(None, description="String length lower bound (min_length rule)")
+    max_length: Optional[int] = Field(None, description="String length upper bound (max_length rule)")
+    format: Optional[str] = Field(None, description="Format pattern (date_format rule), e.g. YYYY-MM-DD")
+    compare_to: Optional[str] = Field(None, description="Other field name or temporal sentinel (compare rule)")
+    compare_op: Optional[str] = Field(None, description="Comparison operator: gt, gte, lt, lte, eq (compare rule)")
+    min_age: Optional[int] = Field(None, description="Minimum age in years (age_match rule)")
+    max_age: Optional[int] = Field(None, description="Maximum age in years (age_match rule)")
+    allowed_values: Optional[list[str]] = Field(None, description="Inline allowed values (allowed_values / enum rule)")
+    lookup_file: Optional[str] = Field(None, description="Reference file path for lookup rule")
+    checksum_algorithm: Optional[str] = Field(None, description="Algorithm name for checksum rule (e.g. mod10_gs1, iban_mod97)")
+    negate: Optional[bool] = Field(None, description="True when the regex must NOT match")
 
 
 class ContractDetail(BaseModel):
@@ -251,6 +267,25 @@ class ContractHistoryResponse(BaseModel):
     history: list[ContractHistoryEntry]
 
 
+class ContractVersionSummary(BaseModel):
+    """Lean version metadata — exploration without payload weight."""
+    version: str
+    status: str
+    entry_hash: Optional[str] = None
+    content_hash: Optional[str] = None
+    created_at: Optional[str] = None
+    owner: Optional[str] = None
+    owner_team: Optional[str] = None
+    approved_by: Optional[str] = None
+    proposed_by: Optional[str] = None
+
+
+class ContractVersionsResponse(BaseModel):
+    """List of versions for a contract — metadata only, no rule bodies."""
+    contract: str
+    versions: list[ContractVersionSummary] = Field(default_factory=list)
+
+
 class DiffRuleSummary(BaseModel):
     """A rule that was added or removed between two versions."""
     name: str
@@ -283,6 +318,8 @@ class ContractDiffResponse(BaseModel):
     contract: str
     from_version: str
     to_version: str
+    from_hash: Optional[str] = None
+    to_hash: Optional[str] = None
     changes: DiffChanges
 
 

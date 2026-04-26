@@ -2,6 +2,64 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.12] - 2026-04-26
+
+### Added
+
+- **Uniform constraint exposure on `GET /api/v1/contracts/{name}`.**
+  `RuleInfo` now surfaces `pattern`, `min`, `max`, `min_length`,
+  `max_length`, `format`, `compare_to`, `compare_op`, `min_age`,
+  `max_age`, `allowed_values`, `lookup_file`, `checksum_algorithm`,
+  and `negate` on every rule. Previously each rule type bled different
+  constraint fields onto the response — agents had to know the rule
+  type before they could read its bound. Now the contract surface is
+  uniform: the value is `null` when not applicable, populated when it
+  is. CRT173 / Persona B finding 8.
+
+- **`GET /api/v1/contracts/{name}/versions`** — lean version listing
+  (metadata only, no rule bodies). Returns `version`, `status`,
+  `entry_hash`, `content_hash`, `created_at`, `owner`, `owner_team`,
+  `approved_by`, `proposed_by` for each historical snapshot. Use to
+  drive a version picker or pin a downstream call to a specific hash
+  via `validate_record(hash=...)` without paying the cost of streaming
+  every rule body. New MCP tool `list_versions` mirrors it. CRT173 /
+  Persona B finding 9.
+
+- **`validate_record(hash=...)` and `validate_batch(hash=...)` accept a
+  `content_hash` (or `entry_hash`) to pin validation to a specific
+  historical contract version.** Returns 404 when the hash does not
+  match a known history entry — silent fallback to the latest version
+  is a regulator-grade hazard for point-in-time replay. Wired through
+  REST, the bundled MCP server, and the proxy. CRT173 / Persona B
+  finding 10.
+
+- **`GET /api/v1/contracts/{name}/diff` accepts `hash_a` + `hash_b`.**
+  Compares two historical snapshots identified by entry_hash or
+  content_hash and returns `rules_added`, `rules_removed`,
+  `rules_changed`, `metadata_changed`, plus `from_hash` / `to_hash`
+  on the response so the payload is self-documenting. The existing
+  version-pair mode is preserved for backward compatibility. New MCP
+  tool `compare_contracts` exposes the hash-pair surface. CRT173 /
+  Persona B finding 11.
+
+- **`GET /api/v1/contracts/{name}/jsonschema`** — emits a JSON Schema
+  draft 2020-12 document derived from the contract's rules. Maps
+  `not_empty` → `required[]`, `regex` → `pattern`, `min`/`max` →
+  `minimum`/`maximum`, `min_length`/`max_length` →
+  `minLength`/`maxLength`, `allowed_values` → `enum`, `date_format` →
+  `format: date` or `date-time`. Cross-field and stateful rules
+  (`unique`, `compare`, `required_if`, `lookup`) cannot be expressed in
+  plain JSON Schema and are surfaced under `x-opendqv-unmapped` —
+  consumers see exactly what was lost in translation. Also accepts
+  `?context=X` to emit the schema for a context's effective rule set.
+  New MCP tool `get_contract_jsonschema`. CRT173 / Persona B finding 12.
+
+- **`GET /api/v1/contracts/{name}` accepts `?context=X`.** Returns the
+  effective rule set with the named context's overrides resolved —
+  what `validate_record(context=X)` would actually run. Composes with
+  `?hash=` and `?version=`. The MCP `get_contract` tool gains a
+  matching `context` parameter. CRT173 / Persona B finding 13.
+
 ## [2.3.11] - 2026-04-26
 
 ### Fixed

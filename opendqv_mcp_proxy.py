@@ -59,6 +59,8 @@ TOOLS = [
             "Call this before writing any record to a database or external API. "
             "If valid is false, call explain_error for each error to get "
             "plain-English remediation guidance before attempting to fix the record. "
+            "Pass `hash` (a content_hash from list_versions) to pin validation "
+            "to a specific historical contract version — for reproducible audit. "
             "Safety: MCP validation always runs in dry-run mode — it never records "
             "results in production quality metrics. To run real validation that feeds "
             "monitoring dashboards, use the REST API, Python SDK, or CLI directly "
@@ -71,6 +73,7 @@ TOOLS = [
                 "record": {"type": "object", "description": "The data record to validate as a JSON object."},
                 "context": {"type": "string", "description": "Optional per-system context override (e.g. 'billing', 'kids_app'). Omit for default rules."},
                 "agent_id": {"type": "string", "description": "Your agent name or service identity."},
+                "hash": {"type": "string", "description": "Optional content_hash from list_versions to pin validation to a historical contract version. Returns 404 if no matching history entry."},
             },
             "required": ["contract", "record"],
         },
@@ -80,6 +83,7 @@ TOOLS = [
         "description": (
             "Validate up to 10,000 records in a single call. "
             "Returns per-record results and aggregate statistics. "
+            "Pass `hash` to pin the entire batch to a historical contract version. "
             "Safety: MCP validation always runs in dry-run mode — it never records "
             "results in production quality metrics. Use the REST API or SDK for real "
             "validation that feeds monitoring."
@@ -91,6 +95,7 @@ TOOLS = [
                 "records": {"type": "array", "items": {"type": "object"}, "description": "List of data records. Maximum 10,000 per call."},
                 "context": {"type": "string", "description": "Optional per-system context override."},
                 "agent_id": {"type": "string", "description": "Your agent name or service identity."},
+                "hash": {"type": "string", "description": "Optional content_hash from list_versions to pin all records to a historical contract version."},
             },
             "required": ["contract", "records"],
         },
@@ -108,7 +113,9 @@ TOOLS = [
         "description": (
             "Get full contract details including all field rules, valid value constraints, and owner. "
             "Pass `hash` (the contract_hash from a prior validate response) to retrieve the exact "
-            "historical version that produced that hash — for point-in-time audit retrieval."
+            "historical version that produced that hash — for point-in-time audit retrieval. "
+            "Pass `context` (e.g. 'salesforce', 'kids_app') to return the effective rule set "
+            "with that context's overrides resolved."
         ),
         "inputSchema": {
             "type": "object",
@@ -116,8 +123,61 @@ TOOLS = [
                 "name": {"type": "string", "description": "Contract name."},
                 "version": {"type": "string", "description": "Contract version or 'latest' (default).", "default": "latest"},
                 "hash": {"type": "string", "description": "Contract hash (from a prior validate response). Takes precedence over version."},
+                "context": {"type": "string", "description": "Optional context to apply (e.g. 'salesforce', 'kids_app'). Returns the effective rule set with overrides resolved."},
             },
             "required": ["name"],
+        },
+    },
+    {
+        "name": "list_versions",
+        "description": (
+            "List the version history for a contract — metadata only, no rule bodies. "
+            "Returns version, status, entry_hash, content_hash, created_at, owner. "
+            "Use this to drive a version picker, audit a lineage, or pin a "
+            "downstream call to a specific historical hash via "
+            "validate_record(hash=...). Lighter than get_contract for every version."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Contract name."},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "get_contract_jsonschema",
+        "description": (
+            "Emit a JSON Schema (draft 2020-12) document for a contract. Use to "
+            "bootstrap structural validation in a producer. Cross-field rules "
+            "appear under `x-opendqv-unmapped` — OpenDQV still enforces them at "
+            "validate time, but plain JSON Schema cannot express them."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Contract name."},
+                "context": {"type": "string", "description": "Optional context override."},
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "compare_contracts",
+        "description": (
+            "Compare two historical snapshots of the same contract identified by "
+            "entry_hash or content_hash (from list_versions). Returns rules_added, "
+            "rules_removed, rules_changed, metadata_changed. Use for audit, change "
+            "review, or drift analysis between two pinned hashes."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Contract name."},
+                "hash_a": {"type": "string", "description": "First snapshot hash."},
+                "hash_b": {"type": "string", "description": "Second snapshot hash."},
+            },
+            "required": ["name", "hash_a", "hash_b"],
         },
     },
     {
@@ -194,7 +254,7 @@ def _call_tool(name: str, arguments: dict) -> str:
     try:
         if name == "validate_record":
             payload = {"contract": arguments["contract"], "record": arguments["record"]}
-            for key in ("context", "agent_id"):
+            for key in ("context", "agent_id", "hash"):
                 if arguments.get(key):
                     payload[key] = arguments[key]
             # Safety: MCP validation is always dry-run. AI agents never write to
@@ -208,7 +268,7 @@ def _call_tool(name: str, arguments: dict) -> str:
 
         elif name == "validate_batch":
             payload = {"contract": arguments["contract"], "records": arguments["records"]}
-            for key in ("context", "agent_id"):
+            for key in ("context", "agent_id", "hash"):
                 if arguments.get(key):
                     payload[key] = arguments[key]
             # Safety: always dry-run — see validate_record handler.
@@ -225,12 +285,42 @@ def _call_tool(name: str, arguments: dict) -> str:
         elif name == "get_contract":
             version = arguments.get("version", "latest")
             contract_hash = arguments.get("hash")
+            context_arg = arguments.get("context")
             url = f"/api/v1/contracts/{arguments['name']}"
+            params = []
             if contract_hash:
-                url += f"?hash={contract_hash}"
+                params.append(f"hash={contract_hash}")
             elif version != "latest":
-                url += f"?version={version}"
+                params.append(f"version={version}")
+            if context_arg:
+                params.append(f"context={context_arg}")
+            if params:
+                url += "?" + "&".join(params)
             resp = _client.get(url)
+            resp.raise_for_status()
+            return resp.text
+
+        elif name == "list_versions":
+            resp = _client.get(f"/api/v1/contracts/{arguments['name']}/versions")
+            resp.raise_for_status()
+            return resp.text
+
+        elif name == "compare_contracts":
+            resp = _client.get(
+                f"/api/v1/contracts/{arguments['name']}/diff",
+                params={"hash_a": arguments["hash_a"], "hash_b": arguments["hash_b"]},
+            )
+            resp.raise_for_status()
+            return resp.text
+
+        elif name == "get_contract_jsonschema":
+            params = {}
+            if arguments.get("context"):
+                params["context"] = arguments["context"]
+            resp = _client.get(
+                f"/api/v1/contracts/{arguments['name']}/jsonschema",
+                params=params,
+            )
             resp.raise_for_status()
             return resp.text
 
@@ -317,7 +407,7 @@ def main() -> None:
                     "protocolVersion": params.get("protocolVersion", "2025-11-25"),
                     "serverInfo": {
                         "name": "OpenDQV",
-                        "version": "2.3.11",
+                        "version": "2.3.12",
                         "icons": [
                             {
                                 "src": "https://raw.githubusercontent.com/OpenDQV/OpenDQV/main/docs/assets/opendqv-favicon-128.png",
