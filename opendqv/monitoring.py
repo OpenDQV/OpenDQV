@@ -201,13 +201,24 @@ class ValidationStats:
             total_pass = sum(v["pass"] for v in self.totals.values())
             total_fail = sum(v["fail"] for v in self.totals.values())
             total = total_pass + total_fail
+            _err_violations = sum(v["errors"] for v in self.totals.values())
+            _warn_violations = sum(v["warnings"] for v in self.totals.values())
             return {
                 "total_validations": total,
                 "total_pass": total_pass,
                 "total_fail": total_fail,
                 "pass_rate": round(total_pass / total * 100, 1) if total > 0 else 0,
-                "total_errors": sum(v["errors"] for v in self.totals.values()),
-                "total_warnings": sum(v["warnings"] for v in self.totals.values()),
+                # *_violations are sums of per-record rule violations: a single
+                # failing record with N broken rules contributes N. total_fail is
+                # a record count. The two are equal only when each failing record
+                # breaks exactly one rule.
+                "total_error_violations": _err_violations,
+                "total_warning_violations": _warn_violations,
+                # Deprecated aliases — kept additive in v2.3.13 for wire compat,
+                # will be removed in v2.4. Names mismatch the math (they count
+                # violations, not error/warning records).
+                "total_errors": _err_violations,
+                "total_warnings": _warn_violations,
                 "uptime_seconds": int((datetime.now(timezone.utc) - self.started_at).total_seconds()),
                 "by_contract": dict(self.totals),
                 "top_failing_fields": sorted(
@@ -300,7 +311,11 @@ class ValidationStats:
                 if ts >= cutoff and contract == contract_name:
                     latencies.append(latency_ms)
         if not latencies:
-            return {"avg_ms": None, "p50_ms": None, "p95_ms": None, "p99_ms": None, "sample_size": 0}
+            return {
+                "avg_ms": None, "p50_ms": None, "p95_ms": None,
+                "p99_ms": None, "p99_9_ms": None, "max_ms": None,
+                "sample_size": 0,
+            }
         sorted_lat = sorted(latencies)
         n = len(sorted_lat)
         def _pct(p):
@@ -311,6 +326,8 @@ class ValidationStats:
             "p50_ms": _pct(50),
             "p95_ms": _pct(95),
             "p99_ms": _pct(99),
+            "p99_9_ms": _pct(99.9),
+            "max_ms": round(sorted_lat[-1], 1),
             "sample_size": n,
         }
 
@@ -410,13 +427,60 @@ class ValidationStats:
         coverage = max(uptime, oldest_age)
         return round(min(requested_window_hours * 3600, coverage), 1)
 
+    def list_agents(self, window_hours: int = 24) -> list:
+        """Return per-agent totals seen in the last window_hours from _events deque.
+
+        Each entry: {agent_id, total_validations, total_pass, total_fail,
+        pass_rate, last_seen}. Sorted by total_validations desc. Records with
+        empty agent_id are excluded.
+        """
+        cutoff = time.time() - window_hours * 3600
+        per_agent: dict = {}
+        with self._lock:
+            for ts, _contract, _ctx, valid, _latency_ms, agent_id in self._events:
+                if ts < cutoff or not agent_id:
+                    continue
+                a = per_agent.setdefault(
+                    agent_id,
+                    {"total_validations": 0, "total_pass": 0, "total_fail": 0, "last_seen_ts": 0.0},
+                )
+                a["total_validations"] += 1
+                if valid:
+                    a["total_pass"] += 1
+                else:
+                    a["total_fail"] += 1
+                if ts > a["last_seen_ts"]:
+                    a["last_seen_ts"] = ts
+        out = []
+        for aid, v in per_agent.items():
+            t = v["total_validations"]
+            out.append({
+                "agent_id": aid,
+                "total_validations": t,
+                "total_pass": v["total_pass"],
+                "total_fail": v["total_fail"],
+                "pass_rate": round(v["total_pass"] / t * 100, 1) if t > 0 else 0,
+                "last_seen": datetime.fromtimestamp(
+                    v["last_seen_ts"], tz=timezone.utc
+                ).isoformat(),
+            })
+        out.sort(key=lambda x: x["total_validations"], reverse=True)
+        return out
+
     def _latency_stats(self) -> dict:
-        """Compute avg/p50/p95/p99 from recent latency values. Called under self._lock."""
+        """Compute avg/p50/p95/p99/p99.9/max from recent latency values. Called under self._lock."""
         if not self._latencies:
-            return {"avg_ms": None, "p50_ms": None, "p95_ms": None, "p99_ms": None, "sample_size": 0}
+            return {
+                "avg_ms": None, "p50_ms": None, "p95_ms": None,
+                "p99_ms": None, "p99_9_ms": None, "max_ms": None,
+                "sample_size": 0,
+            }
         sorted_lat = sorted(self._latencies)
         n = len(sorted_lat)
         def _pct(p):
+            idx = max(0, int(n * p / 100) - 1)
+            return round(sorted_lat[idx], 1)
+        def _pct_f(p):
             idx = max(0, int(n * p / 100) - 1)
             return round(sorted_lat[idx], 1)
         return {
@@ -424,6 +488,8 @@ class ValidationStats:
             "p50_ms": _pct(50),
             "p95_ms": _pct(95),
             "p99_ms": _pct(99),
+            "p99_9_ms": _pct_f(99.9),
+            "max_ms": round(sorted_lat[-1], 1),
             "sample_size": n,
         }
 

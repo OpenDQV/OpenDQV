@@ -2,6 +2,57 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.13] - 2026-04-26
+
+### Added
+
+- **`total_error_violations` / `total_warning_violations`** in the
+  metrics surface (`get_summary`, `get_quality_metrics`). Names what
+  the math is — *rule-violation sums*, not record counts. The legacy
+  keys `total_errors` / `total_warnings` continue to ship as aliases
+  and will be removed in v2.4. Counter semantics are now documented
+  on every MCP tool description: `total_validations` / `total_pass` /
+  `total_fail` are RECORD counts; `total_error_violations` /
+  `total_warning_violations` are VIOLATION sums (a single failing
+  record with N broken rules contributes N). CRT173 / Persona B
+  finding 14.
+
+- **`p99_9_ms` and `max_ms` on every latency stats surface** — both
+  the global `_latency_stats` and per-contract `get_contract_latency`.
+  p99 alone hides outlier behaviour at high traffic; the long tail
+  is what wakes ops at 3am. CRT173 / Persona B finding 18.
+
+- **`top_failing_rules_ranked` array of `{rule, count}`** on every
+  trend surface, alongside the legacy `top_failing_rules` dict. JSON
+  dicts have no inherent ordering and cross-contract rule-name
+  collisions silently overwrite — the ranked array is the canonical
+  shape from v2.4. CRT173 / Persona B finding 19.
+
+- **`GET /api/v1/agents`** — list the source-systems that emitted
+  validation traffic in the window. Returns
+  `[{agent_id, total_validations, total_pass, total_fail, pass_rate,
+  last_seen}]`, sorted by traffic volume desc. Closes the gap where
+  operators had to filter by `agent_id` without first being able to
+  enumerate the values. New MCP tool `list_agents` mirrors it on both
+  the in-process server and the proxy. CRT173 / Persona B finding 16.
+
+- **Multi-dimensional quality trend.** `GET /contracts/{name}/quality-trend?by=date|agent|context|rule`
+  regroups the same underlying batch validation history along whichever
+  dimension the caller wants to diagnose. `by=date` (default) preserves
+  the exact legacy shape; `by=agent`, `by=context`, `by=rule` return
+  buckets keyed by `key` (rule mode adds a `violation_count` field and
+  is sorted desc). Mirrored on the MCP tool `get_quality_trend`. CRT173
+  / Persona B finding 17.
+
+### Changed
+
+- **Warning aggregation regression-pinned.** 26 bundled contracts have
+  `severity: warning` rules; the path that increments
+  `total_warning_violations` and `dimensions.by_severity.warning` is
+  now under explicit invariant test (no behavioural change — just a
+  regression net so a future refactor cannot silently zero out the
+  warning bucket). CRT173 / Persona B finding 15.
+
 ## [2.3.12] - 2026-04-26
 
 ### Added

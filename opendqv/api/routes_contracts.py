@@ -368,25 +368,33 @@ async def get_quality_trend(
     name: str,
     days: int = Query(7, ge=1, le=90, description="Number of calendar days to look back"),
     context: str | None = Query(None, description="Filter by context"),
+    by: str = Query("date", pattern="^(date|agent|context|rule)$",
+                    description="Grouping dimension: date (default) | agent | context | rule"),
 ):
     """
     Quality trend for a contract over the last N days.
 
-    Returns daily aggregated pass rates and top failing rules,
-    derived from batch validation history.
-    Single-record validations are not included — use validate/batch
-    to populate trend data.
+    Returns aggregated pass rates and top failing rules, derived from batch
+    validation history. Single-record validations are not included — use
+    validate/batch to populate trend data.
+
+    The `by` parameter selects the grouping dimension:
+      - date    daily buckets (legacy default; entries carry `date`)
+      - agent   per source-system buckets (entries carry `key`)
+      - context per context buckets (entries carry `key`)
+      - rule    per rule buckets, sorted by violation_count desc
     """
     c = _d._get_contract_or_404(name)
 
-    points = _d._quality_stats.get_trend(name, days=days, context=context)
+    points = _d._quality_stats.get_trend(name, days=days, context=context, by=by)
     # CRT170/J6: total validations underpinning this trend → confidence band.
-    total_validations = sum(int(p.get("total_records", 0)) for p in points)
+    total_validations = sum(int(p.get("total_records", 0) or 0) for p in points)
     confidence, confidence_note = quality_confidence(total_validations)
     return QualityTrendResponse(
         contract=name,
         days=days,
         context=context,
+        by=by,
         points=[QualityTrendPoint(**p) for p in points],
         asset_id=c.asset_id,
         data_confidence=confidence,

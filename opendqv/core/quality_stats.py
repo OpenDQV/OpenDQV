@@ -50,7 +50,8 @@ _DELETE_BY_CONTEXT = "DELETE FROM quality_stats WHERE context = ?"
 
 _SELECT_SINCE = """
 SELECT contract_name, contract_version, context, recorded_at,
-       total_records, passed, failed, pass_rate, rule_failure_counts
+       total_records, passed, failed, pass_rate, rule_failure_counts,
+       agent_id
 FROM   quality_stats
 WHERE  contract_name = ?
   AND  recorded_at   >= ?
@@ -191,13 +192,24 @@ class QualityStats:
         contract_name: str,
         days: int = 7,
         context: Optional[str] = None,
+        by: str = "date",
     ) -> list[dict]:
         """
-        Return daily aggregated quality statistics for the last N days.
+        Return aggregated quality statistics for the last N days.
 
-        Each dict has: date, total_records, passed, failed, pass_rate,
-        top_failing_rules (merged rule_failure_counts for that day).
+        `by` selects the grouping dimension:
+          - "date" (default): daily buckets keyed by `date` (legacy shape)
+          - "agent":   per agent_id buckets, keyed by `key`
+          - "context": per context buckets, keyed by `key`
+          - "rule":    per rule_failure_counts entry, keyed by `key`
+
+        When by != "date", entries omit `date` and use `key` instead. The
+        legacy date-shape response is preserved exactly when by="date" so
+        existing wire consumers are unaffected.
         """
+        if by not in ("date", "agent", "context", "rule"):
+            raise ValueError(f"unknown trend dimension: {by}")
+
         since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         conn = self._connect()
         try:
@@ -207,6 +219,9 @@ class QualityStats:
         finally:
             if self._db_path != ":memory:":
                 conn.close()
+
+        if by != "date":
+            return self._group_trend(rows, by)
 
         # Aggregate by calendar date (UTC)
         daily: dict[str, dict] = {}
@@ -234,13 +249,60 @@ class QualityStats:
             d = daily[date]
             total = d["total_records"]
             d["pass_rate"] = round(d["passed"] / total, 4) if total > 0 else 1.0
-            d["top_failing_rules"] = dict(
-                sorted(d["rule_failure_counts"].items(), key=lambda x: x[1], reverse=True)[:10]
-            )
+            _ranked = sorted(d["rule_failure_counts"].items(), key=lambda x: x[1], reverse=True)[:10]
+            # Legacy dict form (deprecated v2.3.13, removed v2.4) — JSON dicts have
+            # no guaranteed ordering, so consumers cannot infer the failure ranking.
+            d["top_failing_rules"] = dict(_ranked)
+            # Canonical array form: ordered, no key collisions across contracts.
+            d["top_failing_rules_ranked"] = [{"rule": r, "count": c} for r, c in _ranked]
             del d["rule_failure_counts"]
             result.append(d)
 
         return result
+
+    def _group_trend(self, rows: list, by: str) -> list[dict]:
+        """Group raw quality_stats rows by a non-date dimension."""
+        # by ∈ {"agent", "context", "rule"} — caller validated.
+        grouped: dict[str, dict] = {}
+        for row in rows:
+            if by == "agent":
+                keys: list[tuple[str, int]] = [(row["agent_id"] or "", row["passed"] + row["failed"])]
+            elif by == "context":
+                keys = [(row["context"] or "default", row["passed"] + row["failed"])]
+            else:  # by == "rule"
+                rfc = json.loads(row["rule_failure_counts"]) if row["rule_failure_counts"] else {}
+                keys = [(rule, count) for rule, count in rfc.items()]
+
+            for key, _hint in keys:
+                bucket = grouped.setdefault(key, {
+                    "key": key,
+                    "total_records": 0,
+                    "passed": 0,
+                    "failed": 0,
+                })
+                if by == "rule":
+                    # For by=rule, we sum rule-violation counts. passed/failed
+                    # are not meaningful per rule, so we surface only the count.
+                    bucket["failed"] += _hint
+                else:
+                    bucket["total_records"] += row["total_records"]
+                    bucket["passed"] += row["passed"]
+                    bucket["failed"] += row["failed"]
+
+        out = []
+        for k, b in grouped.items():
+            if by == "rule":
+                out.append({"key": k, "violation_count": b["failed"]})
+            else:
+                t = b["total_records"]
+                b["pass_rate"] = round(b["passed"] / t, 4) if t > 0 else 1.0
+                out.append(b)
+        # Sort: by=rule by violation_count desc, others by total_records desc
+        if by == "rule":
+            out.sort(key=lambda x: x["violation_count"], reverse=True)
+        else:
+            out.sort(key=lambda x: x["total_records"], reverse=True)
+        return out
 
     def get_windowed_totals(self, contract_name: str, window_hours: int) -> dict:
         """
@@ -287,15 +349,16 @@ class QualityStats:
             except (json.JSONDecodeError, TypeError):
                 pass
 
-        top_rules = dict(
-            sorted(rule_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-        )
+        _ranked = sorted(rule_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+        top_rules = dict(_ranked)
         return {
             "total": total,
             "passed": passed,
             "failed": failed,
             "pass_rate": round(passed / total, 4) if total > 0 else 1.0,
+            # Legacy dict form — see get_trend() comment.
             "top_failing_rules": top_rules,
+            "top_failing_rules_ranked": [{"rule": r, "count": c} for r, c in _ranked],
         }
 
     def get_event(self, event_id: str) -> Optional[dict]:

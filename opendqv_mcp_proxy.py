@@ -200,7 +200,12 @@ TOOLS = [
         "name": "get_quality_metrics",
         "description": (
             "Return aggregate rejection metrics for one or all contracts. "
-            "Includes pass_rate, failed count, top_failing_rules."
+            "Includes pass_rate, failed count, top_failing_rules. "
+            "Counter semantics: total_validations / total_pass / total_fail are RECORD "
+            "counts. total_error_violations / total_warning_violations are RULE-VIOLATION "
+            "sums (a single failing record with N broken rules contributes N). The legacy "
+            "keys total_errors / total_warnings are aliases for the *_violations keys and "
+            "will be removed in v2.4 — prefer the *_violations names."
         ),
         "inputSchema": {
             "type": "object",
@@ -208,6 +213,22 @@ TOOLS = [
                 "contract": {"type": "string", "description": "Contract name. Omit for all contracts."},
                 "window_hours": {"type": "integer", "default": 24, "description": "Look-back window in hours."},
                 "agent_id": {"type": "string", "description": "Optional: filter to a specific source/agent."},
+            },
+        },
+    },
+    {
+        "name": "list_agents",
+        "description": (
+            "List the agents (source systems) that emitted validation traffic in the "
+            "window. Returns [{agent_id, total_validations, total_pass, total_fail, "
+            "pass_rate, last_seen}], sorted by traffic volume desc. Call this BEFORE "
+            "filtering get_quality_metrics or get_quality_trend by agent_id — it is "
+            "the only way to discover which agent_id values are actually present."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "window_hours": {"type": "integer", "default": 24, "description": "Look-back window in hours."},
             },
         },
     },
@@ -230,7 +251,9 @@ TOOLS = [
     {
         "name": "get_quality_trend",
         "description": (
-            "Return daily pass-rate trend for a single contract over the last N days."
+            "Return pass-rate trend for a single contract over the last N days. "
+            "The 'by' param picks the grouping dimension: date (default, daily) | "
+            "agent (per source-system) | context (per context) | rule (top failing rules)."
         ),
         "inputSchema": {
             "type": "object",
@@ -238,6 +261,12 @@ TOOLS = [
                 "contract": {"type": "string", "description": "Contract name."},
                 "days": {"type": "integer", "default": 7, "description": "Look-back window in calendar days (1-90)."},
                 "context": {"type": "string", "description": "Optional: filter to a specific context."},
+                "by": {
+                    "type": "string",
+                    "enum": ["date", "agent", "context", "rule"],
+                    "default": "date",
+                    "description": "Grouping dimension. Default: date.",
+                },
             },
             "required": ["contract"],
         },
@@ -344,6 +373,12 @@ def _call_tool(name: str, arguments: dict) -> str:
             resp.raise_for_status()
             return resp.text
 
+        elif name == "list_agents":
+            params = {"window_hours": arguments.get("window_hours", 24)}
+            resp = _client.get("/api/v1/agents", params=params)
+            resp.raise_for_status()
+            return resp.text
+
         elif name == "get_rule_velocity":
             params = {
                 "contract": arguments["contract"],
@@ -355,7 +390,7 @@ def _call_tool(name: str, arguments: dict) -> str:
             return resp.text
 
         elif name == "get_quality_trend":
-            params = {"days": arguments.get("days", 7)}
+            params = {"days": arguments.get("days", 7), "by": arguments.get("by", "date")}
             if arguments.get("context"):
                 params["context"] = arguments["context"]
             resp = _client.get(
@@ -407,7 +442,7 @@ def main() -> None:
                     "protocolVersion": params.get("protocolVersion", "2025-11-25"),
                     "serverInfo": {
                         "name": "OpenDQV",
-                        "version": "2.3.12",
+                        "version": "2.3.13",
                         "icons": [
                             {
                                 "src": "https://raw.githubusercontent.com/OpenDQV/OpenDQV/main/docs/assets/opendqv-favicon-128.png",

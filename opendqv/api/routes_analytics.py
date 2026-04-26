@@ -50,6 +50,23 @@ async def get_stats(
     return result
 
 
+@sub_router.get("/agents")
+@_d._default_limit
+async def list_agents_endpoint(
+    request: Request,
+    window_hours: int = Query(24, ge=1, le=8760, description="Look-back window in hours"),
+    user=Depends(get_current_user),
+):
+    """Return the agents (source systems) that emitted traffic in the window.
+
+    Each entry: agent_id, total_validations, total_pass, total_fail, pass_rate,
+    last_seen. Sorted by total_validations desc. Closes the v2.3.x gap where
+    operators had to filter by agent_id without first being able to enumerate
+    them.
+    """
+    return {"window_hours": window_hours, "agents": stats.list_agents(window_hours)}
+
+
 @sub_router.get("/rejection-summary")
 @_d._default_limit
 async def get_rejection_summary(

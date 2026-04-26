@@ -205,15 +205,35 @@ class ContractDetail(BaseModel):
 # ── Quality trend models ──────────────────────────────────────────────
 
 class QualityTrendPoint(BaseModel):
-    """Aggregated quality statistics for one calendar day."""
-    date: str = Field(..., description="Calendar date (UTC), YYYY-MM-DD")
-    total_records: int = Field(..., description="Total records validated on this day")
-    passed: int
-    failed: int
-    pass_rate: float = Field(..., description="Fraction of records that passed (0.0–1.0)")
+    """Aggregated quality statistics for one bucket of the trend window.
+
+    The bucket dimension is governed by the parent response's `by` field:
+      - by="date":    bucket carries `date` (YYYY-MM-DD)
+      - by=agent|context|rule: bucket carries `key` (the dimension value)
+    Both date and key are optional for forward compatibility.
+    """
+    date: Optional[str] = Field(None, description="Calendar date (UTC), YYYY-MM-DD; populated when by=date")
+    key: Optional[str] = Field(None, description="Dimension value when by=agent|context|rule")
+    total_records: int = Field(0, description="Total records in this bucket")
+    passed: int = 0
+    failed: int = 0
+    pass_rate: float = Field(1.0, description="Fraction of records that passed (0.0–1.0)")
+    violation_count: Optional[int] = Field(
+        None,
+        description="Rule violation count — populated only when by=rule.",
+    )
     top_failing_rules: dict = Field(
         default_factory=dict,
-        description="Top failing rules for this day: {rule_name: fail_count}",
+        description=(
+            "DEPRECATED v2.3.13, removed v2.4. Top failing rules as a dict "
+            "{rule_name: fail_count} — JSON dicts have no guaranteed ordering "
+            "so consumers cannot read this as a ranking. Use "
+            "top_failing_rules_ranked instead."
+        ),
+    )
+    top_failing_rules_ranked: list = Field(
+        default_factory=list,
+        description="Top failing rules for this day, sorted desc: [{rule, count}].",
     )
 
 
@@ -222,6 +242,7 @@ class QualityTrendResponse(BaseModel):
     contract: str
     days: int
     context: Optional[str] = None
+    by: str = Field("date", description="Grouping dimension: date | agent | context | rule")
     points: list[QualityTrendPoint]
     asset_id: Optional[str] = None  # catalog asset identifier — enables quality signal self-discovery
     # CRT170/J6: data_confidence band parity with get_quality_metrics

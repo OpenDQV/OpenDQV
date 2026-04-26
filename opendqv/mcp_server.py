@@ -455,6 +455,11 @@ async def list_tools() -> list[types.Tool]:
                 "Return aggregate rejection metrics for one or all contracts. "
                 "Includes pass_rate, failed count, top_failing_rules, and a catalog_hint field "
                 "for chaining to Marmot or other catalog MCP servers. "
+                "Counter semantics: total_validations / total_pass / total_fail are RECORD "
+                "counts. total_error_violations / total_warning_violations are RULE-VIOLATION "
+                "sums (a single failing record with N broken rules contributes N). The legacy "
+                "keys total_errors / total_warnings are aliases for the *_violations keys and "
+                "will be removed in v2.4 — prefer the *_violations names. "
                 "Call this to assess data quality health before deciding whether to route a "
                 "pipeline or alert an owner."
             ),
@@ -473,6 +478,27 @@ async def list_tools() -> list[types.Tool]:
                     "agent_id": {
                         "type": "string",
                         "description": "Optional: filter metrics to a specific source/agent (e.g. 'broadsign-prod'). Omit to see all sources combined.",
+                    },
+                },
+            },
+        ),
+        types.Tool(
+            name="list_agents",
+            description=(
+                "List the agents (source systems) that emitted validation traffic in the "
+                "window. Returns [{agent_id, total_validations, total_pass, total_fail, "
+                "pass_rate, last_seen}], sorted by traffic volume desc. Call this BEFORE "
+                "filtering get_quality_metrics or get_quality_trend by agent_id — it is "
+                "the only way to discover which agent_id values are actually present, "
+                "without guessing."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "window_hours": {
+                        "type": "integer",
+                        "default": 24,
+                        "description": "Look-back window in hours (1–8760). Default 24.",
                     },
                 },
             },
@@ -532,6 +558,18 @@ async def list_tools() -> list[types.Tool]:
                     "context": {
                         "type": "string",
                         "description": "Optional: filter to a specific context (e.g. 'billing').",
+                    },
+                    "by": {
+                        "type": "string",
+                        "enum": ["date", "agent", "context", "rule"],
+                        "default": "date",
+                        "description": (
+                            "Grouping dimension. 'date' (default) returns one bucket per "
+                            "calendar day. 'agent' / 'context' / 'rule' regroup the same "
+                            "underlying data by source-system, context, or failing rule "
+                            "respectively — useful for diagnosing whether a degradation is "
+                            "from a single feed, a single configuration, or a single rule."
+                        ),
                     },
                 },
                 "required": ["contract"],
@@ -615,6 +653,8 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             return await _tool_create_contract_draft(arguments)
         elif name == "get_quality_metrics":
             return await _tool_get_quality_metrics(arguments)
+        elif name == "list_agents":
+            return await _tool_list_agents(arguments)
         elif name == "get_rule_velocity":
             return await _tool_get_rule_velocity(arguments)
         elif name == "get_quality_trend":
@@ -1210,28 +1250,33 @@ async def _tool_get_quality_trend(args: dict) -> list[types.TextContent]:
         return [types.TextContent(type="text", text=json.dumps({"error": "contract is required"}))]
     days = max(1, min(90, int(args.get("days", 7))))
     context = args.get("context") or None
+    by = args.get("by", "date")
+    if by not in ("date", "agent", "context", "rule"):
+        return [types.TextContent(type="text", text=json.dumps({"error": f"invalid by={by}"}))]
 
     if _remote_client:
-        params: dict = {"days": days}
+        params: dict = {"days": days, "by": by}
         if context:
             params["context"] = context
         resp = _remote_client.get(f"/api/v1/contracts/{contract_name}/quality-trend", params=params)
         resp.raise_for_status()
         return [types.TextContent(type="text", text=json.dumps(resp.json(), default=str))]
 
-    points = _quality_stats.get_trend(contract_name, days=days, context=context)
-    # CRT170/J6: total validations underpinning this trend → confidence band.
-    total_validations = sum(int(p.get("total_records", 0)) for p in points)
+    points = _quality_stats.get_trend(contract_name, days=days, context=context, by=by)
+    total_validations = sum(int(p.get("total_records", 0) or 0) for p in points)
     confidence, confidence_note = _quality_confidence(total_validations)
     result = {
         "contract": contract_name,
         "days": days,
         "context": context,
+        "by": by,
         "points": points,
         "data_confidence": confidence,
         "confidence_note": confidence_note,
         "total_validations": total_validations,
-        "summary": {
+    }
+    if by == "date":
+        result["summary"] = {
             "total_days_with_data": len(points),
             "latest_pass_rate": points[-1]["pass_rate"] if points else None,
             "earliest_pass_rate": points[0]["pass_rate"] if points else None,
@@ -1240,9 +1285,17 @@ async def _tool_get_quality_trend(args: dict) -> list[types.TextContent]:
                 else "declining" if len(points) >= 2 and points[-1]["pass_rate"] < points[0]["pass_rate"]
                 else "stable"
             ),
-        },
-    }
+        }
     return [types.TextContent(type="text", text=json.dumps(result, default=str))]
+
+
+async def _tool_list_agents(args: dict) -> list[types.TextContent]:
+    window_hours = max(1, min(8760, int(args.get("window_hours", 24))))
+    if _remote_client:
+        resp = _remote_client.get("/api/v1/agents", params={"window_hours": window_hours})
+        return [types.TextContent(type="text", text=resp.text)]
+    out = {"window_hours": window_hours, "agents": _stats.list_agents(window_hours)}
+    return [types.TextContent(type="text", text=json.dumps(out, default=str))]
 
 
 async def _tool_get_rule_velocity(args: dict) -> list[types.TextContent]:
