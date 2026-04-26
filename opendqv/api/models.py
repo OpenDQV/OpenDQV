@@ -409,3 +409,45 @@ class ObservationFieldFailure(BaseModel):
     rule: str = Field(..., description="Rule name")
     field: str = Field(..., description="Field name (derived from rule)")
     count: int = Field(..., description="Total failures for this rule in the window")
+
+
+# ── CRT172/K1+K2 audit event models ───────────────────────────────────
+
+
+class AuditEventListItem(BaseModel):
+    """One row in the cursor-paginated audit event list (CRT172 / K2)."""
+    event_id: str = Field(..., description="UUID v7 returned on the original /validate response")
+    contract: str = Field(..., description="Contract evaluated")
+    contract_version: str = Field(..., description="Contract version evaluated")
+    recorded_at: str = Field(..., description="ISO 8601 UTC timestamp of the validation call")
+    total_records: int = Field(..., description="Records in this call (1 for /validate, N for /validate/batch)")
+    passed: int = Field(..., description="Records that passed")
+    failed: int = Field(..., description="Records that failed")
+    agent_id: str = Field("", description="Caller-asserted identity — NOT authenticated. Use caller_principal for trustable attribution.")
+    caller_principal: str = Field("", description="Server-derived from the authenticated token (JWT sub, or 'anonymous' in open mode). Cannot be spoofed.")
+    mode: str = Field("enforcement", description="'enforcement' or 'observation_only'")
+
+
+class AuditEventDetail(AuditEventListItem):
+    """Single audit event with full detail (CRT172 / K1)."""
+    context: Optional[str] = Field(None, description="Context override active for this call (None = default)")
+    pass_rate: float = Field(..., description="passed / total_records")
+    rule_failure_counts: dict = Field(
+        default_factory=dict,
+        description="Per-rule failure counts for this call: {rule_name: count}",
+    )
+
+
+class AuditEventListResponse(BaseModel):
+    """Cursor-paginated audit event listing (CRT172 / K2)."""
+    events: list[AuditEventListItem] = Field(..., description="Audit events ordered by recorded_at DESC, id DESC")
+    has_more: bool = Field(..., description="True if more events exist beyond this page — pass next_cursor to retrieve them")
+    next_cursor: Optional[str] = Field(
+        None,
+        description="Opaque cursor token to retrieve the next page. Pass as ?cursor=<token> on the next call. Null when has_more=false.",
+    )
+    effective_since: str = Field(
+        ...,
+        description="The `since` value actually applied to this query (ISO 8601 UTC). Echoed so callers can detect silent default-window truncation when `since` is omitted.",
+    )
+    limit: int = Field(..., description="Max events returned per page")

@@ -298,6 +298,148 @@ class QualityStats:
             "top_failing_rules": top_rules,
         }
 
+    def get_event(self, event_id: str) -> Optional[dict]:
+        """
+        CRT172 / K1. Return the audit row for a single event_id, or None.
+
+        Returns the full row including JSON-decoded `rule_failure_counts`.
+        """
+        conn = self._connect()
+        try:
+            row = conn.execute(
+                "SELECT id, event_id, contract_name, contract_version, context, "
+                "       recorded_at, total_records, passed, failed, pass_rate, "
+                "       rule_failure_counts, agent_id, mode, caller_principal "
+                "FROM   quality_stats WHERE event_id = ? LIMIT 1",
+                (event_id,),
+            ).fetchone()
+        finally:
+            if self._db_path != ":memory:":
+                conn.close()
+        if row is None:
+            return None
+        try:
+            rfc = json.loads(row["rule_failure_counts"]) if row["rule_failure_counts"] else {}
+        except (json.JSONDecodeError, TypeError):
+            rfc = {}
+        return {
+            "id": int(row["id"]),
+            "event_id": row["event_id"],
+            "contract": row["contract_name"],
+            "contract_version": row["contract_version"],
+            "context": row["context"],
+            "recorded_at": row["recorded_at"],
+            "total_records": int(row["total_records"]),
+            "passed": int(row["passed"]),
+            "failed": int(row["failed"]),
+            "pass_rate": float(row["pass_rate"]),
+            "rule_failure_counts": rfc,
+            "agent_id": row["agent_id"] or "",
+            "mode": row["mode"] or "enforcement",
+            "caller_principal": row["caller_principal"] or "",
+        }
+
+    def list_events(
+        self,
+        *,
+        contract: Optional[str] = None,
+        contract_version: Optional[str] = None,
+        context: Optional[str] = None,
+        since: Optional[str] = None,
+        until: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        caller_principal: Optional[str] = None,
+        valid: Optional[bool] = None,
+        mode: Optional[str] = None,
+        cursor_recorded_at: Optional[str] = None,
+        cursor_id: Optional[int] = None,
+        limit: int = 100,
+    ) -> tuple[list[dict], bool]:
+        """
+        CRT172 / K2. Cursor-paginated row-level audit listing over quality_stats.
+
+        Cursor pair is (recorded_at, id) where id is the integer auto-increment
+        primary key — strict tiebreaker for events landing in the same instant.
+
+        `valid=True` requires `failed = 0 AND total_records > 0` so vacuous
+        zero-record rows do not silently match the filter (CRT170 working
+        principle: a field's value must mean what its name claims).
+
+        Returns (events, has_more). has_more is computed via limit+1 lookahead
+        so callers can detect truncation.
+        """
+        clauses: list[str] = []
+        params: list = []
+        if contract is not None:
+            clauses.append("contract_name = ?")
+            params.append(contract)
+        if contract_version is not None:
+            clauses.append("contract_version = ?")
+            params.append(contract_version)
+        if context is not None:
+            clauses.append("context = ?")
+            params.append(context)
+        if since is not None:
+            clauses.append("recorded_at >= ?")
+            params.append(since)
+        if until is not None:
+            clauses.append("recorded_at < ?")
+            params.append(until)
+        if agent_id is not None:
+            clauses.append("agent_id = ?")
+            params.append(agent_id)
+        if caller_principal is not None:
+            clauses.append("caller_principal = ?")
+            params.append(caller_principal)
+        if valid is True:
+            clauses.append("failed = 0 AND total_records > 0")
+        elif valid is False:
+            clauses.append("failed > 0")
+        if mode is not None:
+            clauses.append("mode = ?")
+            params.append(mode)
+        # Cursor: descending order by (recorded_at, id) — caller passes the last
+        # (recorded_at, id) seen and we return strictly older rows.
+        if cursor_recorded_at is not None and cursor_id is not None:
+            clauses.append("(recorded_at < ? OR (recorded_at = ? AND id < ?))")
+            params.extend([cursor_recorded_at, cursor_recorded_at, cursor_id])
+
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        sql = (
+            "SELECT id, event_id, contract_name, contract_version, recorded_at, "
+            "       total_records, passed, failed, agent_id, caller_principal, mode "
+            "FROM   quality_stats" + where +
+            " ORDER BY recorded_at DESC, id DESC LIMIT ?"
+        )
+        params.append(limit + 1)  # +1 lookahead for has_more
+
+        conn = self._connect()
+        try:
+            rows = conn.execute(sql, tuple(params)).fetchall()
+        finally:
+            if self._db_path != ":memory:":
+                conn.close()
+
+        has_more = len(rows) > limit
+        rows = rows[:limit]
+        events = [
+            {
+                "id": int(r["id"]),
+                "event_id": r["event_id"],
+                "contract": r["contract_name"],
+                "contract_version": r["contract_version"],
+                "recorded_at": r["recorded_at"],
+                "total_records": int(r["total_records"]),
+                "passed": int(r["passed"]),
+                "failed": int(r["failed"]),
+                "agent_id": r["agent_id"] or "",
+                "caller_principal": r["caller_principal"] or "",
+                "mode": r["mode"] or "enforcement",
+            }
+            for r in rows
+        ]
+        return events, has_more
+
     def get_agent_breakdown(self, contract_name: str, window_hours: int = 24) -> list[dict]:
         """
         Return per-agent_id totals for a contract within the last window_hours.

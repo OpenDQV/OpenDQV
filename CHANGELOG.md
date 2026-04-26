@@ -2,6 +2,54 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.9] - 2026-04-26
+
+### Added
+
+- **`GET /audit/events` and `GET /audit/events/{event_id}` — auditor-readable
+  surface over the `quality_stats` audit table.** Previously, every
+  `/validate` and `/validate/batch` call wrote a row to `quality_stats`
+  recording the contract, version, agent_id, server-derived
+  `caller_principal`, mode, and pass/fail counts — but the only way to
+  read those rows back was to open the SQLite file directly. There was
+  no API surface for an auditor to ask "what did caller X submit
+  against contract Y last week, and was any of it rejected?"
+  - `GET /audit/events/{event_id}` (K1) returns one row by the
+    `event_id` UUID emitted on the original validation response,
+    including JSON-decoded `rule_failure_counts`. 404 if not found.
+  - `GET /audit/events` (K2) lists rows in `recorded_at DESC, id DESC`
+    order with cursor pagination. Filters: `contract`, `contract_version`,
+    `context`, `since` (default: 24 hours ago), `until`, `agent_id`,
+    `caller_principal`, `valid` (true ⇒ `failed=0 AND total_records>0`,
+    false ⇒ `failed>0`), `mode`, `cursor`, `limit` (1–1000, default
+    100). The list response echoes `effective_since` so a client can
+    detect that the default 24h window was applied. `has_more` is
+    computed via a `limit+1` lookahead so the boundary case where the
+    last page is exactly `limit` rows is correct.
+  - Per-record validation errors are not stored on the audit row —
+    they live in the optional TRACE_LOG (`AUDIT_MODE=signed`).
+
+  Both endpoints are auth-gated to **admin or auditor**, matching
+  `/trace/verify` and `/config`.
+
+  **v2.4 caveat — per-contract auditor scoping.** Today the auditor
+  role is global. An auditor can pass any `contract` filter and read
+  `caller_principal` values across all contracts. For multi-tenant SaaS
+  deployments, per-contract auditor scoping must be added in
+  `security/auth.py` before this endpoint can be safely exposed across
+  tenants. Until then, this surface assumes a single-tenant trust
+  boundary. The caveat is documented inline in
+  `opendqv/api/routes_audit_events.py`.
+
+  Found via CRT172 / K1 + K2 audit. Working principle (extends
+  CRT170/J1, /J3, /J4, /J6, /J2): a response field's value must reflect
+  what its name claims. Each filter is mapped 1:1 to a column on
+  `quality_stats`; cursor pagination uses the `(recorded_at, id)`
+  integer-PK tiebreaker so ordering is total even when rows share a
+  millisecond.
+
+  No client migration required — additive endpoints.
+
 ## [2.3.8] - 2026-04-26
 
 ### Added

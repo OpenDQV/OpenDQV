@@ -14,6 +14,7 @@ from opendqv.api.routes_profiler import sub_router as _profiler_router
 from opendqv.api.routes_tokens import sub_router as _tokens_router
 from opendqv.api.routes_webhooks import sub_router as _webhooks_router
 from opendqv.api.routes_analytics import sub_router as _analytics_router
+from opendqv.api.routes_audit_events import sub_router as _audit_events_router
 from opendqv.api.routes_federation import sub_router as _federation_router
 
 router.include_router(_validation_router)
@@ -23,6 +24,7 @@ router.include_router(_profiler_router)
 router.include_router(_tokens_router)
 router.include_router(_webhooks_router)
 router.include_router(_analytics_router)
+router.include_router(_audit_events_router)
 router.include_router(_federation_router)
 
 
