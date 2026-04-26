@@ -206,11 +206,15 @@ def _mask_errors(errors: list, mask_mode: str = None) -> list:
 
 
 def _add_suggested_fixes(errors: list, rules: list) -> list:
-    rule_type_map = {r.name: r.type for r in rules}
+    rule_meta = {r.name: (r.type, getattr(r, "compare_to", "") or "") for r in rules}
     result = []
     for e in errors:
-        rule_type = rule_type_map.get(e.get("rule", ""), "")
-        fix = quick_fix(rule_type, e.get("message", "")) if rule_type else None
+        rule_type, compare_to = rule_meta.get(e.get("rule", ""), ("", ""))
+        fix = (
+            quick_fix(rule_type, e.get("message", ""), compare_to=compare_to)
+            if rule_type
+            else None
+        )
         result.append({**e, "suggested_fix": fix})
     return result
 

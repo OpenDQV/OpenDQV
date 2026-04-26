@@ -227,6 +227,12 @@ async def validate_batch_endpoint(
     """
     start = time.monotonic()
 
+    if len(body.records) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="records must not be empty",
+        )
+
     if len(body.records) > config.MAX_BATCH_ROWS:
         raise HTTPException(
             status_code=400,

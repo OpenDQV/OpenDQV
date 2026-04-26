@@ -426,12 +426,28 @@ def _conditional_value(field: str, must_equal) -> dict:
     }
 
 
-def quick_fix(rule_type: str, error_message: str = "") -> str:
+def quick_fix(rule_type: str, error_message: str = "", compare_to: str = "") -> str:
     """Return a concise one-line fix hint for a rule type.
 
     Used to populate suggested_fix on FieldErrorResponse — lets agents
     self-correct without a separate explain_error round trip.
+
+    `compare_to` is consulted only for the `compare` rule type so the
+    fix template can branch between cross-field and cross-time
+    (compare_to in {"today", "now"}) sub-cases.
     """
+    if rule_type == "compare":
+        if compare_to in ("today", "now"):
+            return (
+                "Adjust the date/time so it satisfies the comparison "
+                f"to {compare_to} (e.g. ensure it is in the past, present, or future as required by the error message)."
+            )
+        if compare_to:
+            return (
+                f"Adjust this field's value relative to the '{compare_to}' field "
+                "so the comparison in the error message holds."
+            )
+        return "Adjust the value so it satisfies the comparison in the error message."
     _fixes = {
         "not_empty": "Provide a non-empty value.",
         "email": "Use a valid email address, e.g. user@example.com",
@@ -449,7 +465,6 @@ def quick_fix(rule_type: str, error_message: str = "") -> str:
         "forbidden_if": "Remove or null out this field given the current state of the record.",
         "checksum": "Check the identifier for transcription errors — the check digit is invalid.",
         "unique": "Remove duplicate values — this field must be unique across all records in the batch.",
-        "compare": "Adjust the value so it satisfies the cross-field comparison in the error message.",
         "cross_field_range": "Set a value that falls between the referenced min and max fields.",
         "field_sum": "Ensure the fields sum to the required total.",
         "min_age": "Use a date of birth far enough in the past to meet the minimum age requirement.",

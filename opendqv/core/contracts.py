@@ -1241,31 +1241,42 @@ class ContractRegistry:
         overrides = contract.contexts[context]
         rules = list(contract.rules)
 
-        # Apply overrides: match by field name and merge into ALL matching rules.
-        # Applying the override to every rule on the field ensures that context-level
-        # changes (e.g. severity: warning in internal_review) affect the entire set of
-        # constraints for that field, not just the first one encountered. This is the
-        # correct behaviour when a context intends to relax or tighten all checks on a
-        # field — e.g. downgrading all date_of_birth failures to warnings for monitoring.
-        for field_name, override in overrides.items():
-            found = False
-            for i, rule in enumerate(rules):
-                if rule.field == field_name:
-                    rule_dict = rule.model_dump(by_alias=True)
+        # Override resolution order (CRT173):
+        #   1. Rule-name match — most specific. Modifies a single named rule
+        #      so its error envelope (field, error_code, suggested_fix) stays
+        #      bound to the original rule's field and type. This is the path
+        #      contracts like proof_of_play.yaml use, where `revenue_ceiling`
+        #      and `dwell_seconds_max` are rule names, not column names.
+        #   2. Field-name match — broad. Modifies every rule on that field,
+        #      e.g. customer.yaml's `kids_app` retargets both age_minimum
+        #      and age_reasonable in one stroke.
+        #   3. Fallback — mint a synthetic constraint. Reserved for genuinely
+        #      new constraints; previously this branch silently swallowed
+        #      mis-keyed overrides and produced phantom rules whose `field`
+        #      was the rule name (poisoning top_failing_fields[]).
+        for key, override in overrides.items():
+            rule_match_idx = next((i for i, r in enumerate(rules) if r.name == key), None)
+            if rule_match_idx is not None:
+                rule_dict = rules[rule_match_idx].model_dump(by_alias=True)
+                rule_dict.update(override)
+                rules[rule_match_idx] = Rule(**rule_dict)
+                continue
+
+            field_match_indices = [i for i, r in enumerate(rules) if r.field == key]
+            if field_match_indices:
+                for i in field_match_indices:
+                    rule_dict = rules[i].model_dump(by_alias=True)
                     rule_dict.update(override)
                     rules[i] = Rule(**rule_dict)
-                    found = True
-                    # Do NOT break — apply override to all rules for this field.
+                continue
 
-            if not found:
-                # No existing rule for this field — add a new one from context.
-                override_rule = {
-                    "name": f"ctx_{context}_{field_name}",
-                    "field": field_name,
-                    "type": override.get("type", "not_empty"),
-                    "error_message": override.get("error_message", f"Context {context}: invalid {field_name}"),
-                    **{k: v for k, v in override.items() if k not in ("type", "error_message")},
-                }
-                rules.append(Rule(**override_rule))
+            override_rule = {
+                "name": f"ctx_{context}_{key}",
+                "field": key,
+                "type": override.get("type", "not_empty"),
+                "error_message": override.get("error_message", f"Context {context}: invalid {key}"),
+                **{k: v for k, v in override.items() if k not in ("type", "error_message")},
+            }
+            rules.append(Rule(**override_rule))
 
         return rules

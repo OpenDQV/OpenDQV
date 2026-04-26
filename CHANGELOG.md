@@ -2,6 +2,79 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.11] - 2026-04-26
+
+### Fixed
+
+- **`date_format` rule honours the contract's declared format strictly.**
+  Previously a rule like `format: YYYY-MM-DD` would silently accept
+  `"26/04/2026"` because the implementation fell through to a permissive
+  default. The validator now translates human-readable patterns
+  (`YYYY-MM-DD`, `DD/MM/YYYY`, `YYYY-MM-DD HH:MM:SS`) to strftime codes,
+  so the rule enforces what its `error_message` claims. When no `format`
+  is declared the default is ISO 8601 (date or datetime) — locale-ambiguous
+  formats are never silently accepted. Both the Python single-record path
+  and the DuckDB batch path (now using `TRY_STRPTIME` instead of
+  `TRY_CAST AS DATE`) share the translator. CRT173 / Persona B finding 6.
+
+- **Context overrides keyed by rule name no longer mint phantom rules.**
+  Previously, a context override keyed by a rule name (e.g.
+  `proof_of_play.yaml`'s `revenue_ceiling: { severity: error, ... }`)
+  would not match any rule's `field` and would fall through to a
+  fallback that synthesised a `not_empty` rule whose `field` was set
+  to the rule name. The synthetic rule fired against a column that
+  did not exist, producing error envelopes with `field` set to the
+  rule name (e.g. `"revenue_ceiling"` instead of `"revenue_gbp"`),
+  the wrong `error_code` prefix (`OPENDQV_NOT_EMPTY_*`), the wrong
+  `suggested_fix` template, and poisoning `top_failing_fields[]`
+  aggregation. Resolution order is now: rule-name match (specific,
+  modifies one rule) → field-name match (broad, modifies all rules
+  on that field, e.g. `customer.kids_app.age` → both `age_minimum`
+  and `age_reasonable`) → mint a synthetic rule for genuinely new
+  constraints. Both syntaxes are supported; the resolved error
+  envelope always carries the original rule's `field`, `type`, and
+  `error_code`. CRT173 / Persona B finding 7.
+
+## [2.3.10] - bundled into 2.3.11 (no separate tag)
+
+### Fixed
+
+- **`/validate/batch` with empty records now returns HTTP 400.**
+  Previously a request with `records: []` returned a silent
+  `{summary: {total: 0, passed: 0, failed: 0}, results: []}` —
+  CI assertions like "passed > 0 and failed == 0" passed on
+  empty batches, masking upstream filter bugs. Matches Cloud's
+  behaviour. Detail: `"records must not be empty"`.
+
+- **`compare` rule's `suggested_fix` now branches on cross-time
+  vs cross-field sub-cases.** Previously a rule like
+  `created_date_not_future` (which compares a field to `now`)
+  returned the cross-field template ("satisfies the cross-field
+  comparison in the error message"), which was nonsensical for
+  temporal comparisons. The template now consults the rule's
+  `compare_to`: temporal sentinels (`today`, `now`) get a
+  date/time-aware hint; named fields get a hint that names the
+  other field; absent `compare_to` falls back to a generic line.
+
+- **`uptime_seconds` is now returned as an integer.** Previously
+  rendered with microsecond precision (`39710.428693`) which is
+  meaningless on a process-uptime field.
+
+### Changed
+
+- **`validate_batch` MCP tool description** now documents the
+  ~70ms fixed setup cost and the empty-batch rejection. For
+  batches under ~70 records, individual `validate_record` calls
+  are faster.
+
+- **`validate_record` MCP tool description** now clarifies the
+  trust distinction between `caller_principal` (server-derived
+  from JWT `sub`, trustable) and `agent_id` (caller-asserted,
+  not trustable).
+
+Found via CRT173 / Persona B cross-engine evaluation. All five
+items are 🟡 polish severity — no client migration required.
+
 ## [2.3.9] - 2026-04-26
 
 ### Added

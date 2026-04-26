@@ -317,7 +317,7 @@ def main() -> None:
                     "protocolVersion": params.get("protocolVersion", "2025-11-25"),
                     "serverInfo": {
                         "name": "OpenDQV",
-                        "version": "2.3.9",
+                        "version": "2.3.11",
                         "icons": [
                             {
                                 "src": "https://raw.githubusercontent.com/OpenDQV/OpenDQV/main/docs/assets/opendqv-favicon-128.png",

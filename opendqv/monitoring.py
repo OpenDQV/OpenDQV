@@ -208,7 +208,7 @@ class ValidationStats:
                 "pass_rate": round(total_pass / total * 100, 1) if total > 0 else 0,
                 "total_errors": sum(v["errors"] for v in self.totals.values()),
                 "total_warnings": sum(v["warnings"] for v in self.totals.values()),
-                "uptime_seconds": (datetime.now(timezone.utc) - self.started_at).total_seconds(),
+                "uptime_seconds": int((datetime.now(timezone.utc) - self.started_at).total_seconds()),
                 "by_contract": dict(self.totals),
                 "top_failing_fields": sorted(
                     [{"contract": k[0], "field": k[1], "rule": k[2], "count": v}

@@ -461,14 +461,57 @@ def _check_max_length(value, rule: Rule, record: Optional[dict] = None) -> Optio
     return None
 
 
+def _human_to_strptime(fmt: str) -> str:
+    # Accept either Java/human-readable patterns (YYYY-MM-DD) or strftime
+    # codes (%Y-%m-%d). MM is month before any HH; minute after.
+    if "%" in fmt:
+        return fmt
+    out = []
+    i = 0
+    seen_h = False
+    while i < len(fmt):
+        chunk2 = fmt[i:i + 2]
+        chunk4 = fmt[i:i + 4]
+        if chunk4 == "YYYY":
+            out.append("%Y")
+            i += 4
+        elif chunk2 == "YY":
+            out.append("%y")
+            i += 2
+        elif chunk2 == "DD":
+            out.append("%d")
+            i += 2
+        elif chunk2 == "HH":
+            out.append("%H")
+            i += 2
+            seen_h = True
+        elif chunk2 == "MM":
+            out.append("%M" if seen_h else "%m")
+            i += 2
+        elif chunk2 == "SS":
+            out.append("%S")
+            i += 2
+        else:
+            out.append(fmt[i])
+            i += 1
+    return "".join(out)
+
+
 def _check_date_format(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if _is_field_absent(value):
         return None
     str_val = str(value)
-    formats_to_try = []
+    # Honour the contract's declared format strictly. When no format is
+    # declared, default to ISO 8601 (date or datetime) — never accept
+    # locale-ambiguous formats like DD/MM/YYYY or MM/DD/YYYY by default.
+    # The persona-driven CRT173 finding: prior behaviour silently accepted
+    # "26/04/2026" against rules whose error_message claimed "YYYY-MM-DD",
+    # which is the worst kind of false-pass — the rule lied about what it
+    # enforces.
     if rule.format:
-        formats_to_try.append(rule.format)
-    formats_to_try += ["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%d/%m/%Y", "%m/%d/%Y"]
+        formats_to_try = [_human_to_strptime(rule.format)]
+    else:
+        formats_to_try = ["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S"]
     for fmt in formats_to_try:
         try:
             datetime.strptime(str_val, fmt)
@@ -1155,7 +1198,24 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
             failing.add(r[0])
 
     elif rule.type == "date_format":
-        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != '' AND TRY_CAST("{field}" AS DATE) IS NULL"""
+        # Parity with the single-record path: honour the contract's
+        # declared format strictly; default to ISO 8601 (date or datetime)
+        # when no format is declared. Do NOT use TRY_CAST AS DATE — it
+        # accepts locale-ambiguous formats like DD/MM/YYYY.
+        if rule.format:
+            strptime_fmt = _human_to_strptime(rule.format)
+            fmt_clause = f"TRY_STRPTIME(CAST(\"{field}\" AS VARCHAR), '{strptime_fmt}') IS NULL"
+        else:
+            fmt_clause = (
+                f"TRY_STRPTIME(CAST(\"{field}\" AS VARCHAR), '%Y-%m-%d') IS NULL "
+                f"AND TRY_STRPTIME(CAST(\"{field}\" AS VARCHAR), '%Y-%m-%dT%H:%M:%S') IS NULL"
+            )
+        query = f"""
+            SELECT __idx__ FROM data
+            WHERE "{field}" IS NOT NULL
+              AND TRIM(CAST("{field}" AS VARCHAR)) != ''
+              AND ({fmt_clause})
+        """
         for r in con.execute(query).fetchall():
             failing.add(r[0])
 

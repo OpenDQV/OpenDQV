@@ -227,7 +227,10 @@ async def list_tools() -> list[types.Tool]:
                 "Call this before writing any record to a database or external API. "
                 "If valid is false, call explain_error for each error in the errors list to get "
                 "plain-English remediation guidance and valid/invalid examples before attempting "
-                "to fix the record. Do not write the record until valid is true."
+                "to fix the record. Do not write the record until valid is true. "
+                "Note: the response field caller_principal is server-derived from the "
+                "authenticated token (or 'anonymous' when AUTH_MODE=open). It is "
+                "trustable; agent_id is caller-asserted and not."
             ),
             inputSchema={
                 "type": "object",
@@ -262,7 +265,10 @@ async def list_tools() -> list[types.Tool]:
             description=(
                 "Validate up to 10,000 records in a single call. "
                 "Returns per-record results and aggregate statistics. "
-                "Use for bulk data imports or pipeline validation."
+                "Use for bulk data imports or pipeline validation. "
+                "Has a fixed setup cost (~70ms) — for batches under "
+                "~70 records, individual validate_record calls are faster. "
+                "Empty batches are rejected with a 400 error."
             ),
             inputSchema={
                 "type": "object",
