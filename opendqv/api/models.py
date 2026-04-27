@@ -463,7 +463,7 @@ class AnalyticsSummaryItem(BaseModel):
     total_records: int = Field(..., description="Total records validated in the window")
     passed: int = Field(..., description="Records that passed")
     failed: int = Field(..., description="Records that failed")
-    pass_rate_pct: float = Field(..., description="Pass rate as a percentage (0.0–100.0). v2.3.18 Q3: single canonical name; the duplicate `pass_rate` (ratio) field is removed in this release.")
+    pass_rate_pct: Optional[float] = Field(None, description="Pass rate as a percentage (0.0–100.0). v2.3.22 Cluster F: returns null when total_records == 0 (signal of no data, not 100% perfection).")
 
 
 class AnalyticsSummaryResponse(BaseModel):
@@ -572,7 +572,7 @@ class AuditEventListItem(BaseModel):
 class AuditEventDetail(AuditEventListItem):
     """Single audit event with full detail (CRT172 / K1)."""
     context: Optional[str] = Field(None, description="Context override active for this call (None = default)")
-    pass_rate_pct: float = Field(..., description="passed / total_records as a percentage (0.0–100.0). v2.3.18 Q3.")
+    pass_rate_pct: Optional[float] = Field(None, description="passed / total_records as a percentage (0.0–100.0). v2.3.22 Cluster F: null when total_records == 0.")
     rule_failure_counts: dict = Field(
         default_factory=dict,
         description="Per-rule failure counts for this call: {rule_name: count}",

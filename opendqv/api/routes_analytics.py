@@ -90,7 +90,10 @@ def _scope_summary_to_contract(summary: dict, contract_name: str) -> dict:
     scoped["total_fail"] = scoped_fail
     scoped["total_validations"] = scoped_total
     # v2.3.18 Q3: single canonical pass_rate_pct.
-    scoped["pass_rate_pct"] = round(scoped_pass / scoped_total * 100, 1) if scoped_total > 0 else 100.0
+    # v2.3.22 Cluster F (Persona B 2026-04-27 P2): empty-state returns
+    # null, not 100.0. Reviewer's framing: "pass_rate_pct: 100.0 from
+    # 0/0 is mathematically misleading. Blank dashboards look perfect."
+    scoped["pass_rate_pct"] = round(scoped_pass / scoped_total * 100, 1) if scoped_total > 0 else None
 
     scoped["top_failing_fields"] = [
         f for f in summary.get("top_failing_fields", []) or []

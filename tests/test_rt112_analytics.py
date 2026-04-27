@@ -108,8 +108,9 @@ class TestGetWindowedTotals:
         qs = self._qs()
         result = qs.get_windowed_totals("missing_contract", window_hours=24)
         assert result["total"] == 0
-        # v2.3.18 Q3: empty-window vacuously-perfect → 100.0.
-        assert result["pass_rate_pct"] == 100.0
+        # v2.3.22 Cluster F: empty window → null (no-data signal, not 100.0
+        # "perfect"). Reviewer's framing on Persona B round-2 P2.
+        assert result["pass_rate_pct"] is None
 
     def test_top_failing_rules_aggregated(self):
         qs = self._qs()

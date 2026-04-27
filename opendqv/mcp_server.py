@@ -1467,7 +1467,8 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
         total_val = total_pass + total_fail
         # v2.3.18 Q3: pass_rate_pct (percent 0–100, 1dp). Single canonical
         # field name across every surface; no companion `pass_rate` field.
-        pass_rate_pct = round(total_pass / total_val * 100, 1) if total_val > 0 else 100.0
+        # v2.3.22 Cluster F: empty-state returns null (was 100.0).
+        pass_rate_pct = round(total_pass / total_val * 100, 1) if total_val > 0 else None
         top_rules = [
             {"rule": f["rule"], "field": f["field"], "failures": f["count"]}
             for f in top_fields if f["contract"] == cname
@@ -1541,7 +1542,9 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
             "contract": contract_name,
             "window_hours": window_hours,
             "total_validations": 0,
-            "pass_rate_pct": 100.0,
+            # v2.3.22 Cluster F: explicit no-data fallback returns null,
+            # not 100.0. Empty dashboard = "no data" signal, not "perfect."
+            "pass_rate_pct": None,
             "failed": 0,
             "data_confidence": "no_data",
             "confidence_note": "No validation data recorded yet for this contract.",

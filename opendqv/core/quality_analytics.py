@@ -65,7 +65,9 @@ class QualityAnalytics:
         result = []
         for contract_name, total, passed, failed in rows:
             # v2.3.18 Q3: single canonical pass_rate_pct (percent 0–100, 1dp).
-            pass_rate_pct = round(passed / total * 100, 1) if total else 0.0
+            # v2.3.22 Cluster F: empty contract → null (signal of no data,
+            # not 0% / not 100%).
+            pass_rate_pct = round(passed / total * 100, 1) if total else None
             result.append(
                 {
                     "contract": contract_name,

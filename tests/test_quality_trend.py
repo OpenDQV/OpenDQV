@@ -78,8 +78,10 @@ class TestQualityStats:
         qs = QualityStats(":memory:")
         qs.record_batch("customer", "1.0", None, 0, 0, 0, {})
         trend = qs.get_trend("customer", days=1)
-        # v2.3.18 Q3: empty-batch case returns 100.0 (vacuously perfect).
-        assert trend[0]["pass_rate_pct"] == 100.0
+        # v2.3.18 Q3: empty-batch case stored as 0.0 in REAL NOT NULL column.
+        # v2.3.22 Cluster F: read paths translate empty bucket to null on
+        # the wire (no-data signal, not "perfect"). Reviewer's framing.
+        assert trend[0]["pass_rate_pct"] is None
 
     def test_top_failing_rules_sorted(self):
         from opendqv.core.quality_stats import QualityStats

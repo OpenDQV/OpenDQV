@@ -251,7 +251,7 @@ class ValidationStats:
                 # canonical wire field across every surface (REST + MCP +
                 # storage + audit). Empty-history case returns 100.0
                 # (vacuously perfect).
-                "pass_rate_pct": round(total_pass / total * 100, 1) if total > 0 else 100.0,
+                "pass_rate_pct": round(total_pass / total * 100, 1) if total > 0 else None,
                 # *_violations are sums of per-record rule violations: a single
                 # failing record with N broken rules contributes N. total_fail is
                 # a record count. The two are equal only when each failing record
@@ -334,7 +334,7 @@ class ValidationStats:
         summary["total_pass"] = total_pass
         summary["total_fail"] = total_fail
         # v2.3.18 Q3: single canonical pass_rate_pct everywhere.
-        summary["pass_rate_pct"] = round(total_pass / total * 100, 1) if total > 0 else 100.0
+        summary["pass_rate_pct"] = round(total_pass / total * 100, 1) if total > 0 else None
         # Window field semantics (CRT173 finding 22):
         #   window_hours              = caller's requested window, in hours.
         #   effective_window_seconds  = min(requested, actual data coverage),
@@ -359,7 +359,7 @@ class ValidationStats:
                     "pass": v["pass"],
                     "fail": v["fail"],
                     "total": v["pass"] + v["fail"],
-                    "pass_rate_pct": round(v["pass"] / (v["pass"] + v["fail"]) * 100, 1) if (v["pass"] + v["fail"]) > 0 else 100.0,
+                    "pass_rate_pct": round(v["pass"] / (v["pass"] + v["fail"]) * 100, 1) if (v["pass"] + v["fail"]) > 0 else None,
                 }
                 for aid, v in sorted(by_agent.items(), key=lambda x: x[1]["pass"] + x[1]["fail"], reverse=True)
             }
@@ -425,7 +425,7 @@ class ValidationStats:
         summary["total_pass"] = total_pass
         summary["total_fail"] = total_fail
         # v2.3.18 Q3: single canonical pass_rate_pct everywhere.
-        summary["pass_rate_pct"] = round(total_pass / total * 100, 1) if total > 0 else 100.0
+        summary["pass_rate_pct"] = round(total_pass / total * 100, 1) if total > 0 else None
         summary["agent_id_filter"] = agent_id
         # Scope top_failing_fields to this agent
         summary["top_failing_fields"] = sorted(
@@ -527,7 +527,11 @@ class ValidationStats:
                 "total_pass": v["total_pass"],
                 "total_fail": v["total_fail"],
                 # v2.3.18 Q3: pass_rate_pct (percent 0–100, 1dp).
-                "pass_rate_pct": round(v["total_pass"] / t * 100, 1) if t > 0 else 100.0,
+                # v2.3.22 Cluster F: empty-state returns null (was 100.0).
+                # Reviewer's framing: "pass_rate_pct: 100.0 from 0/0 is
+                # mathematically misleading." Empty dashboards should
+                # signal "no data" not "perfect record."
+                "pass_rate_pct": round(v["total_pass"] / t * 100, 1) if t > 0 else None,
                 "last_seen": datetime.fromtimestamp(
                     v["last_seen_ts"], tz=timezone.utc
                 ).isoformat(),

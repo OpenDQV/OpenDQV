@@ -173,11 +173,13 @@ class QualityStats:
         caller_principal: str = "",
     ) -> None:
         """Persist one batch validation result."""
-        # v2.3.18 Q3: storage column is pass_rate_pct (percent 0–100). Compute
-        # as passed/total*100 directly so storage and wire forms agree on
-        # range. Empty-batch case returns 100.0 (vacuously perfect — no rows
-        # to fail).
-        pass_rate_pct = round(passed / total * 100, 1) if total > 0 else 100.0
+        # v2.3.18 Q3: storage column is pass_rate_pct (percent 0–100).
+        # v2.3.22 Cluster F: empty-batch case stores 0.0 in storage (no
+        # NULL since the column is REAL NOT NULL); read paths translate
+        # storage 0.0 with total_records=0 into wire null at the response
+        # boundary. The "vacuously perfect" framing was wrong — empty
+        # batches are signal-of-no-data, not signal-of-perfection.
+        pass_rate_pct = round(passed / total * 100, 1) if total > 0 else 0.0
         now = datetime.now(timezone.utc).isoformat()
         ctx = context or "default"
         conn = self._connect()
@@ -273,7 +275,8 @@ class QualityStats:
         for date in sorted(daily):
             d = daily[date]
             total = d["total_records"]
-            d["pass_rate_pct"] = round(d["passed"] / total * 100, 1) if total > 0 else 100.0
+            # v2.3.22 Cluster F: empty bucket → null on wire, not 100.0.
+            d["pass_rate_pct"] = round(d["passed"] / total * 100, 1) if total > 0 else None
             _ranked = sorted(d["rule_failure_counts"].items(), key=lambda x: x[1], reverse=True)[:10]
             # Legacy dict form (deprecated v2.3.13, removed v2.4) — JSON dicts have
             # no guaranteed ordering, so consumers cannot infer the failure ranking.
@@ -321,7 +324,8 @@ class QualityStats:
             else:
                 t = b["total_records"]
                 # v2.3.18 Q3: pass_rate_pct (percent 0–100, 1dp).
-                b["pass_rate_pct"] = round(b["passed"] / t * 100, 1) if t > 0 else 100.0
+                # v2.3.22 Cluster F: empty bucket → null.
+                b["pass_rate_pct"] = round(b["passed"] / t * 100, 1) if t > 0 else None
                 out.append(b)
         # Sort: by=rule by violation_count desc, others by total_records desc
         if by == "rule":
@@ -382,7 +386,8 @@ class QualityStats:
             "passed": passed,
             "failed": failed,
             # v2.3.18 Q3: pass_rate_pct (percent 0–100).
-            "pass_rate_pct": round(passed / total * 100, 1) if total > 0 else 100.0,
+            # v2.3.22 Cluster F: empty window → null (no-data signal).
+            "pass_rate_pct": round(passed / total * 100, 1) if total > 0 else None,
             # Legacy dict form — see get_trend() comment.
             "top_failing_rules": top_rules,
             "top_failing_rules_ranked": [{"rule": r, "count": c} for r, c in _ranked],
@@ -557,7 +562,8 @@ class QualityStats:
                 "passed": passed,
                 "failed": failed,
                 # v2.3.18 Q3: pass_rate_pct (percent 0–100).
-                "pass_rate_pct": round(passed / total * 100, 1) if total > 0 else 100.0,
+                # v2.3.22 Cluster F: empty agent → null.
+                "pass_rate_pct": round(passed / total * 100, 1) if total > 0 else None,
             })
         return result
 
