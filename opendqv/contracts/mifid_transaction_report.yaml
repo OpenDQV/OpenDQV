@@ -39,11 +39,47 @@ contract:
       severity: error
       error_message: "execution_timestamp is required — MiFIR Article 26(3)(b) requires the date and time of the transaction to microsecond granularity"
 
+    # v2.3.17 Q13 (Pilot decision: option (a) RTS 25 µs UTC).
+    # Closes Persona B's N-1 finding on the four-way contradiction
+    # between the rule-required claim, the format rule, the
+    # explain_error text, and the JSON Schema export. RTS 25 requires
+    # timestamps reportable to microsecond granularity in UTC.
+    # Pattern: YYYY-MM-DDTHH:MM:SS.ffffffZ (6-digit microseconds, Z for UTC).
     - name: execution_timestamp_format
       field: execution_timestamp
-      type: date_format
+      type: regex
+      pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$"
       severity: error
-      error_message: "execution_timestamp must be a valid datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS) — RTS 25 requires timestamp accuracy"
+      error_message: "execution_timestamp must be RTS 25 microsecond UTC: YYYY-MM-DDTHH:MM:SS.ffffffZ (e.g. 2026-04-27T14:30:15.123456Z)"
+
+    # v2.3.17 Q14 (Pilot decision: hard path — three rules).
+    # Closes Persona B's N-4 finding (mifid passes a four-year-future
+    # trade_date). Sonnet/Grok right-of-reply round confirmed T+0 only
+    # is the regulatory norm per RTS 22 Annex Table 2 + ESMA Q&A
+    # TR 9.1/TR 10.2 + FCA Market Watch 57+62. Three rules ship as
+    # described in v2_3_17_plan_draft_2026_04_27.md OQ#14.
+    - name: trade_date_matches_execution_date
+      field: trade_date
+      type: regex
+      pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+      severity: error
+      error_message: "trade_date must be ISO date YYYY-MM-DD; per RTS 22 Annex Table 2 + ESMA Q&A TR 9.1, trade_date must equal the date portion of execution_timestamp (T+0 only — no regulatory tolerance band)"
+
+    - name: trade_date_not_in_future
+      field: trade_date
+      type: compare
+      compare_to: today
+      compare_op: lte
+      severity: error
+      error_message: "trade_date cannot be later than today — FCA Market Watch 57 criticises future-dating; under RTS 22 the trade_date is the date the transaction was executed"
+
+    - name: execution_timestamp_not_in_future
+      field: execution_timestamp
+      type: compare
+      compare_to: now
+      compare_op: lte
+      severity: error
+      error_message: "execution_timestamp cannot be later than now — under RTS 22 the timestamp reflects when the transaction was actually executed (or economically agreed for OTC), not a future booking time"
 
     # ── REPORTING FIRM LEI ───────────────────────────────────────────────────
     - name: reporting_firm_lei_required
@@ -57,7 +93,7 @@ contract:
       type: regex
       pattern: "^[A-Z0-9]{18}[0-9]{2}$"
       severity: error
-      error_message: "reporting_firm_lei must be a valid 20-character LEI per ISO 17442 — 18 alphanumeric characters followed by 2 check digits"
+      error_message: "reporting_firm_lei must match ISO 17442 LEI shape — 20 characters, 18 alphanumeric followed by 2 digits. Note: this rule enforces the SHAPE only; full ISO 17442 mod-97 check-digit verification is a v2.4 capability (sentinel/typo LEIs that match the shape will pass shape-only validation but fail at the GLEIF look-up)"
 
     # ── EXECUTING ENTITY LEI ─────────────────────────────────────────────────
     - name: executing_entity_lei_required
@@ -71,7 +107,7 @@ contract:
       type: regex
       pattern: "^[A-Z0-9]{18}[0-9]{2}$"
       severity: error
-      error_message: "executing_entity_lei must be a valid 20-character LEI per ISO 17442 — 18 alphanumeric characters followed by 2 check digits"
+      error_message: "executing_entity_lei must match ISO 17442 LEI shape — 20 characters, 18 alphanumeric followed by 2 digits. Note: this rule enforces the SHAPE only; full ISO 17442 mod-97 check-digit verification is a v2.4 capability"
 
     # ── VENUE MIC ────────────────────────────────────────────────────────────
     - name: venue_mic_required
