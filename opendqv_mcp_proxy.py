@@ -235,7 +235,7 @@ TOOLS = [
         "name": "get_quality_metrics",
         "description": (
             "Return aggregate rejection metrics for one or all contracts. "
-            "Includes pass_rate, failed count, top_failing_rules. "
+            "Includes pass_rate_pct, failed count, top_failing_rules. "
             "Counter semantics: total_validations / total_pass / total_fail are RECORD "
             "counts. total_error_violations / total_warning_violations are RULE-VIOLATION "
             "sums (a single failing record with N broken rules contributes N). The legacy "
@@ -263,7 +263,7 @@ TOOLS = [
         "description": (
             "List the agents (source systems) that emitted validation traffic in the "
             "window. Returns [{agent_id, total_validations, total_pass, total_fail, "
-            "pass_rate, last_seen, is_system_agent}], sorted by traffic volume desc. "
+            "pass_rate_pct, last_seen, is_system_agent}], sorted by traffic volume desc. "
             "Call this BEFORE filtering get_quality_metrics or get_quality_trend by "
             "agent_id — it is the only way to discover which agent_id values are "
             "actually present. OpenDQV system agents (agent_ids prefixed 'OpenDQV_SA_') "

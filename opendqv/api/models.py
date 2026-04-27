@@ -293,12 +293,14 @@ class QualityTrendPoint(BaseModel):
     total_records: int = Field(0, description="Total records in this bucket")
     passed: int = 0
     failed: int = 0
-    pass_rate: Optional[float] = Field(
+    pass_rate_pct: Optional[float] = Field(
         None,
         description=(
-            "Fraction of records that passed (0.0–1.0). NULL when by=rule because "
+            "Pass rate as a percentage (0.0–100.0). NULL when by=rule because "
             "pass-rate is not meaningful per-rule (a rule has violations, not "
-            "'records that passed it' — passes are not tracked per-rule)."
+            "'records that passed it' — passes are not tracked per-rule). "
+            "v2.3.18 Q3: single canonical name; the bare `pass_rate` and "
+            "`pass_rate_ratio` fields are removed in this release."
         ),
     )
     violation_count: Optional[int] = Field(
@@ -470,15 +472,14 @@ class AnalyticsSummaryItem(BaseModel):
     total_records: int = Field(..., description="Total records validated in the window")
     passed: int = Field(..., description="Records that passed")
     failed: int = Field(..., description="Records that failed")
-    pass_rate: float = Field(..., description="Pass rate as a fraction (0.0–1.0)")
-    pass_rate_pct: float = Field(..., description="Pass rate as a percentage (0.0–100.0)")
+    pass_rate_pct: float = Field(..., description="Pass rate as a percentage (0.0–100.0). v2.3.18 Q3: single canonical name; the duplicate `pass_rate` (ratio) field is removed in this release.")
 
 
 class AnalyticsSummaryResponse(BaseModel):
     """Cross-contract pass rate summary backed by DuckDB OLAP over SQLite quality data."""
     days: int = Field(..., description="Analytics window in days")
     contracts: list[AnalyticsSummaryItem] = Field(
-        ..., description="Per-contract summary, sorted by pass_rate ascending (worst first)"
+        ..., description="Per-contract summary, sorted by pass_rate_pct ascending (worst first)"
     )
     total_contracts: int = Field(..., description="Number of contracts with data in the window")
 
@@ -580,7 +581,7 @@ class AuditEventListItem(BaseModel):
 class AuditEventDetail(AuditEventListItem):
     """Single audit event with full detail (CRT172 / K1)."""
     context: Optional[str] = Field(None, description="Context override active for this call (None = default)")
-    pass_rate: float = Field(..., description="passed / total_records")
+    pass_rate_pct: float = Field(..., description="passed / total_records as a percentage (0.0–100.0). v2.3.18 Q3.")
     rule_failure_counts: dict = Field(
         default_factory=dict,
         description="Per-rule failure counts for this call: {rule_name: count}",

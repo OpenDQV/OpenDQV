@@ -101,13 +101,15 @@ class TestGetWindowedTotals:
         assert result["total"] == 15
         assert result["passed"] == 12
         assert result["failed"] == 3
-        assert result["pass_rate"] == pytest.approx(12 / 15, abs=0.001)
+        # v2.3.18 Q3: pass_rate_pct (percent 0–100, 1dp). 12/15 → 80.0.
+        assert result["pass_rate_pct"] == pytest.approx(12 / 15 * 100, abs=0.1)
 
     def test_returns_zeros_when_no_data(self):
         qs = self._qs()
         result = qs.get_windowed_totals("missing_contract", window_hours=24)
         assert result["total"] == 0
-        assert result["pass_rate"] == 1.0
+        # v2.3.18 Q3: empty-window vacuously-perfect → 100.0.
+        assert result["pass_rate_pct"] == 100.0
 
     def test_top_failing_rules_aggregated(self):
         qs = self._qs()
@@ -181,14 +183,15 @@ class TestValidationStatsAgentId:
         summary = vs.get_windowed_summary(window_hours=1)
         assert "by_agent" not in summary
 
-    def test_by_agent_pass_rate_correct(self):
+    def test_by_agent_pass_rate_pct_correct(self):
         vs = ValidationStats()
         vs.record("c1", "ctx", True, 0, 0, 1.0, agent_id="a")
         vs.record("c1", "ctx", True, 0, 0, 1.0, agent_id="a")
         vs.record("c1", "ctx", False, 1, 0, 1.0, agent_id="b")
         summary = vs.get_windowed_summary(window_hours=1)
-        assert summary["by_agent"]["a"]["pass_rate"] == 1.0
-        assert summary["by_agent"]["b"]["pass_rate"] == 0.0
+        # v2.3.18 Q3: pass_rate_pct (percent 0–100).
+        assert summary["by_agent"]["a"]["pass_rate_pct"] == 100.0
+        assert summary["by_agent"]["b"]["pass_rate_pct"] == 0.0
 
 
 # ── rule_failure_velocity ──────────────────────────────────────────────
@@ -251,9 +254,9 @@ class TestRuleFailureVelocity:
         conn.execute(
             "INSERT INTO quality_stats "
             "(contract_name, contract_version, context, recorded_at, total_records, "
-            "passed, failed, pass_rate, rule_failure_counts, agent_id) "
+            "passed, failed, pass_rate_pct, rule_failure_counts, agent_id) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            ("old_c", "v1", "default", old_ts, 10, 5, 5, 0.5, json.dumps({"old_rule": 5}), ""),
+            ("old_c", "v1", "default", old_ts, 10, 5, 5, 50.0, json.dumps({"old_rule": 5}), ""),
         )
         conn.commit()
         qa = QualityAnalytics(db)

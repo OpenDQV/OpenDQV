@@ -245,11 +245,13 @@ class ValidationStats:
                 "total_validations": total,
                 "total_pass": total_pass,
                 "total_fail": total_fail,
-                # pass_rate is a percent (0–100, 1dp) for legacy wire compat;
-                # pass_rate_ratio is the canonical 0–1 4dp form, matching the
-                # trend / windowed-totals surfaces. v2.4 collapses to ratio.
-                "pass_rate": round(total_pass / total * 100, 1) if total > 0 else 0,
-                "pass_rate_ratio": round(total_pass / total, 4) if total > 0 else 1.0,
+                # v2.3.18 Q3: pass_rate_pct (percent 0–100, 1dp). The bare
+                # `pass_rate` field and the `pass_rate_ratio` companion are
+                # both removed in this release — pass_rate_pct is the single
+                # canonical wire field across every surface (REST + MCP +
+                # storage + audit). Empty-history case returns 100.0
+                # (vacuously perfect).
+                "pass_rate_pct": round(total_pass / total * 100, 1) if total > 0 else 100.0,
                 # *_violations are sums of per-record rule violations: a single
                 # failing record with N broken rules contributes N. total_fail is
                 # a record count. The two are equal only when each failing record
@@ -331,8 +333,8 @@ class ValidationStats:
         summary["total_validations"] = total
         summary["total_pass"] = total_pass
         summary["total_fail"] = total_fail
-        summary["pass_rate"] = round(total_pass / total * 100, 1) if total > 0 else 0
-        summary["pass_rate_ratio"] = round(total_pass / total, 4) if total > 0 else 1.0
+        # v2.3.18 Q3: single canonical pass_rate_pct everywhere.
+        summary["pass_rate_pct"] = round(total_pass / total * 100, 1) if total > 0 else 100.0
         # Window field semantics (CRT173 finding 22):
         #   window_hours              = caller's requested window, in hours.
         #   effective_window_seconds  = min(requested, actual data coverage),
@@ -357,7 +359,7 @@ class ValidationStats:
                     "pass": v["pass"],
                     "fail": v["fail"],
                     "total": v["pass"] + v["fail"],
-                    "pass_rate": round(v["pass"] / (v["pass"] + v["fail"]), 4) if (v["pass"] + v["fail"]) > 0 else 1.0,
+                    "pass_rate_pct": round(v["pass"] / (v["pass"] + v["fail"]) * 100, 1) if (v["pass"] + v["fail"]) > 0 else 100.0,
                 }
                 for aid, v in sorted(by_agent.items(), key=lambda x: x[1]["pass"] + x[1]["fail"], reverse=True)
             }
@@ -422,8 +424,8 @@ class ValidationStats:
         summary["total_validations"] = total
         summary["total_pass"] = total_pass
         summary["total_fail"] = total_fail
-        summary["pass_rate"] = round(total_pass / total * 100, 1) if total > 0 else 0
-        summary["pass_rate_ratio"] = round(total_pass / total, 4) if total > 0 else 1.0
+        # v2.3.18 Q3: single canonical pass_rate_pct everywhere.
+        summary["pass_rate_pct"] = round(total_pass / total * 100, 1) if total > 0 else 100.0
         summary["agent_id_filter"] = agent_id
         # Scope top_failing_fields to this agent
         summary["top_failing_fields"] = sorted(
@@ -493,7 +495,7 @@ class ValidationStats:
         """Return per-agent totals seen in the last window_hours from _events deque.
 
         Each entry: {agent_id, total_validations, total_pass, total_fail,
-        pass_rate, last_seen, is_system_agent}. Sorted by total_validations desc.
+        pass_rate_pct, last_seen, is_system_agent}. Sorted by total_validations desc.
         Records with empty agent_id are excluded. System agents (OpenDQV_SA_*)
         are suppressed unless include_system=True.
         """
@@ -524,8 +526,8 @@ class ValidationStats:
                 "total_validations": t,
                 "total_pass": v["total_pass"],
                 "total_fail": v["total_fail"],
-                "pass_rate": round(v["total_pass"] / t * 100, 1) if t > 0 else 0,
-                "pass_rate_ratio": round(v["total_pass"] / t, 4) if t > 0 else 1.0,
+                # v2.3.18 Q3: pass_rate_pct (percent 0–100, 1dp).
+                "pass_rate_pct": round(v["total_pass"] / t * 100, 1) if t > 0 else 100.0,
                 "last_seen": datetime.fromtimestamp(
                     v["last_seen_ts"], tz=timezone.utc
                 ).isoformat(),

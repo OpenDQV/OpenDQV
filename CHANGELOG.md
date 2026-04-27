@@ -2,6 +2,73 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.18] - 2026-04-27
+
+Focused single-concern release: the Q3 `pass_rate_pct` rename. Closes
+the v2.3.17 deferred item — wire field unification across every
+surface that exposes a pass-rate value, plus the storage column
+migration. Single canonical name, single canonical scale (percent
+0–100, 1dp).
+
+### Changed
+
+- **`pass_rate_pct` is now the single canonical wire field on every
+  surface that exposes a pass-rate value.** REST `/api/v1/stats`,
+  `/api/v1/agents`, `/api/v1/contracts/{name}/quality-trend`,
+  `/api/v1/rejection-summary`, `/api/v1/analytics/summary`,
+  `/api/v1/audit/events/{event_id}` (and the in-memory equivalents on
+  the MCP in-process server: `get_quality_metrics`, `list_agents`,
+  `get_quality_trend`). Single name, single scale; no surface returns
+  the bare `pass_rate` or the redundant `pass_rate_ratio`.
+- **DuckDB `quality_stats.pass_rate` column renamed to
+  `pass_rate_pct`** with a one-time migration that multiplies existing
+  ratio values × 100. Idempotent — re-running the migration on an
+  already-migrated DB is a no-op (SQLite `OperationalError` on
+  `RENAME COLUMN` is caught and skipped). After migration, no bare
+  `pass_rate` column remains anywhere in the stored schema.
+- **Audit-event payload (`get_audit_event(event_id)` and
+  `AuditEventDetail`)** emits `pass_rate_pct`. Same source of truth as
+  the wire surfaces; auditors who replay an event get the same field
+  name they saw at write time.
+
+### Removed
+
+- **`pass_rate_ratio` companion field** removed from every surface that
+  emitted it (was added in v2.3.14 as a transitional dual-shape
+  alongside `pass_rate`). Single canonical name closes the dual-shape
+  debt.
+- **Bare `pass_rate` field** removed from every wire response and
+  every model field. Was previously emitted as percent on some surfaces
+  (`monitoring.py`) and as ratio on others (`mcp_server.py`,
+  `routes_analytics.py`, `quality_stats.py`) — exactly the
+  inconsistency Persona B's Q3 finding named.
+
+### Recurrence test
+
+- **`tests/test_v2_3_18_q3_pass_rate_pct_rename.py`** (8 tests):
+  - DuckDB column is `pass_rate_pct` on a fresh DB.
+  - Legacy DB with `pass_rate` column is migrated: column renamed AND
+    existing ratio values multiplied × 100 (proves migration ran).
+  - `get_summary`, `get_windowed_summary`, `list_agents` all return
+    `pass_rate_pct` and absent of `pass_rate` / `pass_rate_ratio`.
+  - REST `/api/v1/stats` and `/api/v1/agents` enforce the same.
+  - Audit-event payload from `get_event(event_id)` returns
+    `pass_rate_pct`.
+  PR/release blocks if any wire surface re-introduces the legacy names.
+
+### Queen's Standard four-answer block
+
+1. **Easy:** ship `pass_rate_pct` only on new surfaces, leave existing
+   `pass_rate` / `pass_rate_ratio` everywhere for back-compat. Two
+   names, two scales, the dual-shape debt persists indefinitely.
+2. **Hard:** rename storage column, rename wire field on every existing
+   surface, drop `pass_rate_ratio`, ship the recurrence test that
+   blocks future re-introduction.
+3. **Take:** hard. There are no real users — back-compat for an
+   internal-only field is theatre.
+4. **Recurrence:** 8-test contract assertion in same release. Blocks
+   regression at PR time.
+
 ## [2.3.17] - 2026-04-27
 
 The Persona B re-evaluation round produced a 19-finding outside report

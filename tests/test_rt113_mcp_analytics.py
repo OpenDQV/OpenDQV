@@ -141,11 +141,11 @@ class TestGetWindowedSummaryForAgent:
         conn = sqlite3.connect(db)
         conn.execute(
             "INSERT INTO quality_stats (contract_name, contract_version, context, "
-            "recorded_at, total_records, passed, failed, pass_rate, "
+            "recorded_at, total_records, passed, failed, pass_rate_pct, "
             "rule_failure_counts, agent_id, mode) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             ("c1", "v1", "default", three_days_ago, 10, 8, 2,
-             0.8, '{"rule_a": 2}', "agent-x", "enforcement"),
+             80.0, '{"rule_a": 2}', "agent-x", "enforcement"),
         )
         conn.commit()
         conn.close()
@@ -390,7 +390,8 @@ class TestGetQualityTrendTool:
         qs, _ = self._qs_with_data(tmp_path)
         points = qs.get_trend("c1", days=7)
         assert len(points) >= 1
-        assert "pass_rate" in points[0]
+        # v2.3.18 Q3: pass_rate_pct (percent 0–100, 1dp).
+        assert "pass_rate_pct" in points[0]
         assert "total_records" in points[0]
         assert "top_failing_rules" in points[0]
 
@@ -404,21 +405,21 @@ class TestGetQualityTrendTool:
         today = datetime.now(timezone.utc).isoformat()
         conn.execute(
             "INSERT INTO quality_stats (contract_name, contract_version, context, recorded_at, "
-            "total_records, passed, failed, pass_rate, rule_failure_counts, agent_id) "
+            "total_records, passed, failed, pass_rate_pct, rule_failure_counts, agent_id) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            ("improving_c", "v1", "default", yesterday, 10, 3, 7, 0.3, "{}", ""),
+            ("improving_c", "v1", "default", yesterday, 10, 3, 7, 30.0, "{}", ""),
         )
         conn.execute(
             "INSERT INTO quality_stats (contract_name, contract_version, context, recorded_at, "
-            "total_records, passed, failed, pass_rate, rule_failure_counts, agent_id) "
+            "total_records, passed, failed, pass_rate_pct, rule_failure_counts, agent_id) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            ("improving_c", "v1", "default", today, 10, 9, 1, 0.9, "{}", ""),
+            ("improving_c", "v1", "default", today, 10, 9, 1, 90.0, "{}", ""),
         )
         conn.commit()
         points = qs.get_trend("improving_c", days=7)
         assert len(points) == 2
-        # Latest pass_rate > earliest pass_rate
-        assert points[-1]["pass_rate"] > points[0]["pass_rate"]
+        # Latest pass_rate_pct > earliest pass_rate_pct
+        assert points[-1]["pass_rate_pct"] > points[0]["pass_rate_pct"]
 
     def test_trend_empty_for_unknown_contract(self, tmp_path):
         qs = QualityStats(str(tmp_path / "empty.db"))
@@ -615,11 +616,12 @@ class TestCluster5AggregatorInvariants:
             assert body["data_confidence"] != "no_data", \
                 f"by=rule data_confidence should not be 'no_data' when violations exist; got {body['data_confidence']}"
 
-            # Per-rule points: pass_rate is None (not 1.0) because pass-rate is not
-            # meaningful per rule — a rule has violations, not passes.
+            # Per-rule points: pass_rate_pct is None (not 100.0) because
+            # pass-rate is not meaningful per rule — a rule has violations,
+            # not passes. v2.3.18 Q3 renamed the field to pass_rate_pct.
             for p in body["points"]:
-                assert p.get("pass_rate") is None, \
-                    f"by=rule point.pass_rate should be null, got {p.get('pass_rate')} on {p}"
+                assert p.get("pass_rate_pct") is None, \
+                    f"by=rule point.pass_rate_pct should be null, got {p.get('pass_rate_pct')} on {p}"
                 assert p.get("violation_count", 0) > 0, \
                     f"by=rule point should carry violation_count, got {p}"
 

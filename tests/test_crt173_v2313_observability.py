@@ -143,7 +143,7 @@ class TestListAgentsEndpoint:
         assert agents[1]["total_fail"] == 2
         for a in agents:
             assert "last_seen" in a
-            assert "pass_rate" in a
+            assert "pass_rate_pct" in a
 
     def test_list_agents_excludes_empty_agent_id(self):
         s = ValidationStats()
@@ -186,7 +186,8 @@ class TestMultiDimensionalTrend:
         assert keys == {"alpha", "beta"}
         beta = next(p for p in result if p["key"] == "beta")
         assert beta["total_records"] == 20
-        assert beta["pass_rate"] == 0.75
+        # v2.3.18 Q3: pass_rate_pct (percent 0–100, 1dp). 15/20 → 75.0
+        assert beta["pass_rate_pct"] == 75.0
 
     def test_by_context_groups_by_context(self, tmp_path):
         qs = self._seed(tmp_path)

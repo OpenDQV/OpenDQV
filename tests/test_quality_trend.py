@@ -40,7 +40,8 @@ class TestQualityStats:
         assert trend[0]["total_records"] == 100
         assert trend[0]["passed"] == 90
         assert trend[0]["failed"] == 10
-        assert trend[0]["pass_rate"] == 0.9
+        # v2.3.18 Q3: pass_rate_pct (percent 0–100, 1dp). 90/100 → 90.0.
+        assert trend[0]["pass_rate_pct"] == 90.0
         assert trend[0]["top_failing_rules"]["valid_email"] == 7
 
     def test_empty_trend(self):
@@ -77,7 +78,8 @@ class TestQualityStats:
         qs = QualityStats(":memory:")
         qs.record_batch("customer", "1.0", None, 0, 0, 0, {})
         trend = qs.get_trend("customer", days=1)
-        assert trend[0]["pass_rate"] == 1.0
+        # v2.3.18 Q3: empty-batch case returns 100.0 (vacuously perfect).
+        assert trend[0]["pass_rate_pct"] == 100.0
 
     def test_top_failing_rules_sorted(self):
         from opendqv.core.quality_stats import QualityStats

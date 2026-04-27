@@ -56,9 +56,9 @@ def seeded_db(tmp_path):
     raw_conn = sqlite3.connect(db_path)
     raw_conn.execute(
         "INSERT INTO quality_stats "
-        "(contract_name, contract_version, context, recorded_at, total_records, passed, failed, pass_rate, rule_failure_counts) "
+        "(contract_name, contract_version, context, recorded_at, total_records, passed, failed, pass_rate_pct, rule_failure_counts) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ("old_contract", "1.0", "default", old_ts, 200, 100, 100, 0.5, json.dumps({"old_rule": 100})),
+        ("old_contract", "1.0", "default", old_ts, 200, 100, 100, 50.0, json.dumps({"old_rule": 100})),
     )
     raw_conn.commit()
     raw_conn.close()
@@ -83,11 +83,11 @@ class TestCrossContractSummary:
         names = [r["contract"] for r in result]
         assert "old_contract" not in names
 
-    def test_sorted_by_pass_rate_ascending(self, seeded_db):
+    def test_sorted_by_pass_rate_pct_ascending(self, seeded_db):
         _, qa = seeded_db
         result = qa.cross_contract_summary(days=7)
-        rates = [r["pass_rate"] for r in result]
-        assert rates == sorted(rates), "Should be sorted worst-first (ascending pass_rate)"
+        rates = [r["pass_rate_pct"] for r in result]
+        assert rates == sorted(rates), "Should be sorted worst-first (ascending pass_rate_pct)"
 
     def test_manufacturing_iot_is_worst(self, seeded_db):
         _, qa = seeded_db
@@ -203,8 +203,9 @@ class TestAnalyticsSummaryEndpoint:
             assert "total_records" in item
             assert "passed" in item
             assert "failed" in item
-            assert "pass_rate" in item
             assert "pass_rate_pct" in item
+            # v2.3.18 Q3: bare `pass_rate` removed.
+            assert "pass_rate" not in item
 
     def test_requires_auth(self, client):
         resp = client.get("/api/v1/analytics/summary")
@@ -379,7 +380,7 @@ class TestRejectionSummaryEndpoint:
             assert "contract" in item
             assert "total_validations" in item
             assert "failed" in item
-            assert "pass_rate" in item
+            assert "pass_rate_pct" in item
             assert "top_failing_rules" in item
 
 
@@ -472,12 +473,12 @@ class TestQualityAnalyticsInvalidJson:
         raw_conn.execute(
             "INSERT INTO quality_stats "
             "(contract_name, contract_version, context, recorded_at, "
-            "total_records, passed, failed, pass_rate, rule_failure_counts, agent_id, mode) "
+            "total_records, passed, failed, pass_rate_pct, rule_failure_counts, agent_id, mode) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 "qa_badj_ctr", "1.0", "default",
                 datetime.now(timezone.utc).isoformat(),
-                5, 3, 2, 0.6, "NOT_VALID_JSON", "", mode,
+                5, 3, 2, 60.0, "NOT_VALID_JSON", "", mode,
             ),
         )
         raw_conn.commit()

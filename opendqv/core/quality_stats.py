@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS quality_stats (
     total_records    INTEGER NOT NULL,
     passed           INTEGER NOT NULL,
     failed           INTEGER NOT NULL,
-    pass_rate        REAL    NOT NULL,
+    pass_rate_pct    REAL    NOT NULL,
     rule_failure_counts TEXT NOT NULL DEFAULT '{}',
     agent_id         TEXT    NOT NULL DEFAULT '',
     mode             TEXT    NOT NULL DEFAULT 'enforcement',
@@ -36,12 +36,22 @@ _MIGRATE_AGENT_ID = "ALTER TABLE quality_stats ADD COLUMN agent_id TEXT NOT NULL
 _MIGRATE_MODE = "ALTER TABLE quality_stats ADD COLUMN mode TEXT NOT NULL DEFAULT 'enforcement'"
 _MIGRATE_EVENT_ID = "ALTER TABLE quality_stats ADD COLUMN event_id TEXT NOT NULL DEFAULT ''"
 _MIGRATE_CALLER_PRINCIPAL = "ALTER TABLE quality_stats ADD COLUMN caller_principal TEXT NOT NULL DEFAULT ''"
+# v2.3.18 Q3 Phase 1 (storage): rename pass_rate (ratio 0–1) to
+# pass_rate_pct (percent 0–100). One-time migration on existing
+# installs: rename column AND multiply existing values × 100. SQLite
+# RENAME COLUMN is supported since 3.25 (2018). The dual UPDATE-
+# multiplication step is done before any read path uses the new column
+# name, so the value range is consistent across stored and freshly
+# inserted rows. No bare `pass_rate` column remains anywhere in the
+# stored schema after this migration.
+_MIGRATE_PASS_RATE_PCT_RENAME = "ALTER TABLE quality_stats RENAME COLUMN pass_rate TO pass_rate_pct"
+_MIGRATE_PASS_RATE_PCT_VALUE = "UPDATE quality_stats SET pass_rate_pct = pass_rate_pct * 100 WHERE pass_rate_pct <= 1.0"
 _CREATE_EVENT_ID_INDEX = "CREATE INDEX IF NOT EXISTS idx_quality_stats_event_id ON quality_stats(event_id)"
 
 _INSERT = """
 INSERT INTO quality_stats
     (event_id, contract_name, contract_version, context, recorded_at,
-     total_records, passed, failed, pass_rate, rule_failure_counts, agent_id, mode,
+     total_records, passed, failed, pass_rate_pct, rule_failure_counts, agent_id, mode,
      caller_principal)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
@@ -50,7 +60,7 @@ _DELETE_BY_CONTEXT = "DELETE FROM quality_stats WHERE context = ?"
 
 _SELECT_SINCE = """
 SELECT contract_name, contract_version, context, recorded_at,
-       total_records, passed, failed, pass_rate, rule_failure_counts,
+       total_records, passed, failed, pass_rate_pct, rule_failure_counts,
        agent_id
 FROM   quality_stats
 WHERE  contract_name = ?
@@ -128,6 +138,17 @@ class QualityStats:
                 conn.commit()
             except sqlite3.OperationalError:
                 pass  # column already exists
+            # v2.3.18 Q3 Phase 1: rename pass_rate (ratio) → pass_rate_pct
+            # (percent), and multiply existing ratio values × 100. Idempotent —
+            # OperationalError on the rename means the migration already ran
+            # (column already named pass_rate_pct), so the value-conversion is
+            # also skipped to avoid double-multiplying.
+            try:
+                conn.execute(_MIGRATE_PASS_RATE_PCT_RENAME)
+                conn.execute(_MIGRATE_PASS_RATE_PCT_VALUE)
+                conn.commit()
+            except sqlite3.OperationalError:
+                pass  # already renamed
             try:
                 conn.execute(_CREATE_EVENT_ID_INDEX)
                 conn.commit()
@@ -152,7 +173,11 @@ class QualityStats:
         caller_principal: str = "",
     ) -> None:
         """Persist one batch validation result."""
-        pass_rate = passed / total if total > 0 else 1.0
+        # v2.3.18 Q3: storage column is pass_rate_pct (percent 0–100). Compute
+        # as passed/total*100 directly so storage and wire forms agree on
+        # range. Empty-batch case returns 100.0 (vacuously perfect — no rows
+        # to fail).
+        pass_rate_pct = round(passed / total * 100, 1) if total > 0 else 100.0
         now = datetime.now(timezone.utc).isoformat()
         ctx = context or "default"
         conn = self._connect()
@@ -160,7 +185,7 @@ class QualityStats:
             conn.execute(_INSERT, (
                 event_id or "",
                 contract_name, contract_version, ctx, now,
-                total, passed, failed, pass_rate,
+                total, passed, failed, pass_rate_pct,
                 json.dumps(rule_failure_counts),
                 agent_id or "",
                 mode or "enforcement",
@@ -243,12 +268,12 @@ class QualityStats:
             for rule, count in json.loads(row["rule_failure_counts"]).items():
                 d["rule_failure_counts"][rule] = d["rule_failure_counts"].get(rule, 0) + count
 
-        # Compute pass_rate and sort top_failing_rules
+        # Compute pass_rate_pct (v2.3.18 Q3) and sort top_failing_rules
         result = []
         for date in sorted(daily):
             d = daily[date]
             total = d["total_records"]
-            d["pass_rate"] = round(d["passed"] / total, 4) if total > 0 else 1.0
+            d["pass_rate_pct"] = round(d["passed"] / total * 100, 1) if total > 0 else 100.0
             _ranked = sorted(d["rule_failure_counts"].items(), key=lambda x: x[1], reverse=True)[:10]
             # Legacy dict form (deprecated v2.3.13, removed v2.4) — JSON dicts have
             # no guaranteed ordering, so consumers cannot infer the failure ranking.
@@ -295,7 +320,8 @@ class QualityStats:
                 out.append({"key": k, "violation_count": b["failed"]})
             else:
                 t = b["total_records"]
-                b["pass_rate"] = round(b["passed"] / t, 4) if t > 0 else 1.0
+                # v2.3.18 Q3: pass_rate_pct (percent 0–100, 1dp).
+                b["pass_rate_pct"] = round(b["passed"] / t * 100, 1) if t > 0 else 100.0
                 out.append(b)
         # Sort: by=rule by violation_count desc, others by total_records desc
         if by == "rule":
@@ -309,7 +335,7 @@ class QualityStats:
         Return aggregated totals for a contract within the last window_hours.
 
         Used as a SQLite fallback when in-memory stats are empty (e.g. after restart).
-        Returns dict with: total, passed, failed, pass_rate, top_failing_rules.
+        Returns dict with: total, passed, failed, pass_rate_pct, top_failing_rules.
         """
         since = (datetime.now(timezone.utc) - timedelta(hours=window_hours)).isoformat()
         conn = self._connect()
@@ -355,7 +381,8 @@ class QualityStats:
             "total": total,
             "passed": passed,
             "failed": failed,
-            "pass_rate": round(passed / total, 4) if total > 0 else 1.0,
+            # v2.3.18 Q3: pass_rate_pct (percent 0–100).
+            "pass_rate_pct": round(passed / total * 100, 1) if total > 0 else 100.0,
             # Legacy dict form — see get_trend() comment.
             "top_failing_rules": top_rules,
             "top_failing_rules_ranked": [{"rule": r, "count": c} for r, c in _ranked],
@@ -371,7 +398,7 @@ class QualityStats:
         try:
             row = conn.execute(
                 "SELECT id, event_id, contract_name, contract_version, context, "
-                "       recorded_at, total_records, passed, failed, pass_rate, "
+                "       recorded_at, total_records, passed, failed, pass_rate_pct, "
                 "       rule_failure_counts, agent_id, mode, caller_principal "
                 "FROM   quality_stats WHERE event_id = ? LIMIT 1",
                 (event_id,),
@@ -395,7 +422,7 @@ class QualityStats:
             "total_records": int(row["total_records"]),
             "passed": int(row["passed"]),
             "failed": int(row["failed"]),
-            "pass_rate": float(row["pass_rate"]),
+            "pass_rate_pct": float(row["pass_rate_pct"]),
             "rule_failure_counts": rfc,
             "agent_id": row["agent_id"] or "",
             "mode": row["mode"] or "enforcement",
@@ -508,7 +535,7 @@ class QualityStats:
         Return per-agent_id totals for a contract within the last window_hours.
 
         Only includes rows where agent_id is non-empty. Returns list of dicts:
-          {agent_id, total, passed, failed, pass_rate}
+          {agent_id, total, passed, failed, pass_rate_pct}
         sorted by total descending.
         """
         since = (datetime.now(timezone.utc) - timedelta(hours=window_hours)).isoformat()
@@ -529,7 +556,8 @@ class QualityStats:
                 "total": total,
                 "passed": passed,
                 "failed": failed,
-                "pass_rate": round(passed / total, 4) if total > 0 else 1.0,
+                # v2.3.18 Q3: pass_rate_pct (percent 0–100).
+                "pass_rate_pct": round(passed / total * 100, 1) if total > 0 else 100.0,
             })
         return result
 

@@ -486,7 +486,7 @@ async def list_tools() -> list[types.Tool]:
             name="get_quality_metrics",
             description=(
                 "Return aggregate rejection metrics for one or all contracts. "
-                "Includes pass_rate, failed count, top_failing_rules, and a catalog_hint field "
+                "Includes pass_rate_pct, failed count, top_failing_rules, and a catalog_hint field "
                 "for chaining to Marmot or other catalog MCP servers. "
                 "Counter semantics: total_validations / total_pass / total_fail are RECORD "
                 "counts. total_error_violations / total_warning_violations are RULE-VIOLATION "
@@ -525,7 +525,7 @@ async def list_tools() -> list[types.Tool]:
             description=(
                 "List the agents (source systems) that emitted validation traffic in the "
                 "window. Returns [{agent_id, total_validations, total_pass, total_fail, "
-                "pass_rate, last_seen, is_system_agent}], sorted by traffic volume desc. "
+                "pass_rate_pct, last_seen, is_system_agent}], sorted by traffic volume desc. "
                 "Call this BEFORE filtering get_quality_metrics or get_quality_trend by "
                 "agent_id — it is the only way to discover which agent_id values are "
                 "actually present, without guessing. OpenDQV system agents (OpenDQV_SA_*) "
@@ -551,7 +551,7 @@ async def list_tools() -> list[types.Tool]:
             name="get_rule_velocity",
             description=(
                 "Return time-series failure counts per rule for a single contract — shows whether "
-                "failures are accelerating or decelerating. Use this when pass_rate is degrading "
+                "failures are accelerating or decelerating. Use this when pass_rate_pct is degrading "
                 "to diagnose whether it's a sudden spike (fix the upstream source now) or a slow "
                 "drip (investigate root cause). Returns the top 5 rules by total failures, bucketed "
                 "by bucket_minutes intervals."
@@ -581,9 +581,9 @@ async def list_tools() -> list[types.Tool]:
             name="get_quality_trend",
             description=(
                 "Return daily pass-rate trend for a single contract over the last N days. "
-                "Use this when pass_rate in get_quality_metrics is degrading — it shows whether "
+                "Use this when pass_rate_pct in get_quality_metrics is degrading — it shows whether "
                 "quality is declining, recovering, or stable, and which rules are driving the change. "
-                "Returns one data point per calendar day with total_records, passed, failed, pass_rate, "
+                "Returns one data point per calendar day with total_records, passed, failed, pass_rate_pct, "
                 "and top_failing_rules for that day. Also returns a summary.trend field: "
                 "'improving', 'declining', or 'stable'."
             ),
@@ -1448,7 +1448,9 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
         total_pass = sum(by_contract[k]["pass"] for k in contract_keys)
         total_fail = sum(by_contract[k]["fail"] for k in contract_keys)
         total_val = total_pass + total_fail
-        pass_rate = round(total_pass / total_val, 4) if total_val > 0 else 1.0
+        # v2.3.18 Q3: pass_rate_pct (percent 0–100, 1dp). Single canonical
+        # field name across every surface; no companion `pass_rate` field.
+        pass_rate_pct = round(total_pass / total_val * 100, 1) if total_val > 0 else 100.0
         top_rules = [
             {"rule": f["rule"], "field": f["field"], "failures": f["count"]}
             for f in top_fields if f["contract"] == cname
@@ -1472,7 +1474,7 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
             "contract": cname,
             "window_hours": window_hours,
             "total_validations": total_val,
-            "pass_rate": pass_rate,
+            "pass_rate_pct": pass_rate_pct,
             "passed": total_pass,
             "failed": total_fail,
             "data_confidence": confidence,
@@ -1495,7 +1497,7 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
                             "total": a["total"],
                             "passed": a["passed"],
                             "failed": a["failed"],
-                            "pass_rate": a["pass_rate"],
+                            "pass_rate_pct": a["pass_rate_pct"],
                         }
                         for a in agent_breakdown
                     }
@@ -1511,7 +1513,7 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
             "contract": contract_name,
             "window_hours": window_hours,
             "total_validations": 0,
-            "pass_rate": 1.0,
+            "pass_rate_pct": 100.0,
             "failed": 0,
             "data_confidence": "no_data",
             "confidence_note": "No validation data recorded yet for this contract.",
@@ -1568,13 +1570,14 @@ async def _tool_get_quality_trend(args: dict) -> list[types.TextContent]:
         "total_validations": total_validations,
     }
     if by == "date":
+        # v2.3.18 Q3: pass_rate_pct on every per-bucket point.
         result["summary"] = {
             "total_days_with_data": len(points),
-            "latest_pass_rate": points[-1]["pass_rate"] if points else None,
-            "earliest_pass_rate": points[0]["pass_rate"] if points else None,
+            "latest_pass_rate_pct": points[-1]["pass_rate_pct"] if points else None,
+            "earliest_pass_rate_pct": points[0]["pass_rate_pct"] if points else None,
             "trend": (
-                "improving" if len(points) >= 2 and points[-1]["pass_rate"] > points[0]["pass_rate"]
-                else "declining" if len(points) >= 2 and points[-1]["pass_rate"] < points[0]["pass_rate"]
+                "improving" if len(points) >= 2 and points[-1]["pass_rate_pct"] > points[0]["pass_rate_pct"]
+                else "declining" if len(points) >= 2 and points[-1]["pass_rate_pct"] < points[0]["pass_rate_pct"]
                 else "stable"
             ),
         }

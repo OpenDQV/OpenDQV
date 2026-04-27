@@ -39,8 +39,8 @@ class QualityAnalytics:
         """
         Pass rate and failure count for every contract in the last N days.
 
-        Returns a list of dicts sorted by pass_rate ascending (worst first):
-          {contract, total_records, passed, failed, pass_rate, pass_rate_pct}
+        Returns a list of dicts sorted by pass_rate_pct ascending (worst first):
+          {contract, total_records, passed, failed, pass_rate_pct}
         """
         since = self._since(days)
         conn = self._conn()
@@ -64,15 +64,15 @@ class QualityAnalytics:
 
         result = []
         for contract_name, total, passed, failed in rows:
-            pass_rate = round(passed / total, 4) if total else 0.0
+            # v2.3.18 Q3: single canonical pass_rate_pct (percent 0–100, 1dp).
+            pass_rate_pct = round(passed / total * 100, 1) if total else 0.0
             result.append(
                 {
                     "contract": contract_name,
                     "total_records": int(total),
                     "passed": int(passed),
                     "failed": int(failed),
-                    "pass_rate": pass_rate,
-                    "pass_rate_pct": round(pass_rate * 100, 1),
+                    "pass_rate_pct": pass_rate_pct,
                 }
             )
         return result

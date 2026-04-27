@@ -32,31 +32,40 @@ from pathlib import Path
 import pytest
 
 
-# ── Item 20: pass_rate_ratio dual-shape ───────────────────────────────
+# ── Item 20: pass_rate field unification (v2.3.18 Q3) ─────────────────
+#
+# Original v2.3.14 shipped pass_rate (percent) AND pass_rate_ratio (0-1)
+# side-by-side as a transitional dual-shape. v2.3.18 Q3 closes that
+# transition: single canonical pass_rate_pct. The legacy `pass_rate` and
+# `pass_rate_ratio` fields are removed entirely. These tests assert the
+# new shape; the original TestPassRateRatio class is deleted.
 
 
-class TestPassRateRatio:
-    """pass_rate_ratio (0-1) appears alongside legacy pass_rate (percent)."""
+class TestPassRatePctOnly:
+    """v2.3.18 Q3: get_summary emits pass_rate_pct only — no `pass_rate`,
+    no `pass_rate_ratio`."""
 
-    def test_get_summary_emits_pass_rate_ratio(self):
+    def test_get_summary_emits_pass_rate_pct_only(self):
         from opendqv.monitoring import ValidationStats
         s = ValidationStats()
         s.record(contract="demo", context="x", valid=True, error_count=0, warning_count=0, latency_ms=1.0)
         s.record(contract="demo", context="x", valid=False, error_count=1, warning_count=0, latency_ms=1.0)
         summary = s.get_summary()
-        assert "pass_rate" in summary
-        assert "pass_rate_ratio" in summary
-        # 1 of 2 valid → 0.5 ratio, 50.0 percent
-        assert summary["pass_rate_ratio"] == pytest.approx(0.5, abs=0.0001)
-        assert summary["pass_rate"] == pytest.approx(50.0, abs=0.1)
+        assert "pass_rate_pct" in summary
+        assert "pass_rate" not in summary, \
+            "v2.3.18 Q3: bare `pass_rate` field is removed everywhere"
+        assert "pass_rate_ratio" not in summary, \
+            "v2.3.18 Q3: `pass_rate_ratio` companion is removed everywhere"
+        # 1 of 2 valid → 50.0 percent
+        assert summary["pass_rate_pct"] == pytest.approx(50.0, abs=0.1)
 
-    def test_pass_rate_ratio_is_zero_to_one_range(self):
+    def test_pass_rate_pct_is_zero_to_one_hundred_range(self):
         from opendqv.monitoring import ValidationStats
         s = ValidationStats()
         for _ in range(10):
             s.record(contract="demo", context="x", valid=True, error_count=0, warning_count=0, latency_ms=1.0)
         summary = s.get_summary()
-        assert 0.0 <= summary["pass_rate_ratio"] <= 1.0
+        assert 0.0 <= summary["pass_rate_pct"] <= 100.0
 
 
 # ── Item 23: confidence_note always populated ─────────────────────────

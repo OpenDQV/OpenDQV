@@ -34,10 +34,10 @@ async def get_stats(
 
     If contract is provided, the response is scoped to that contract: by_contract,
     top_failing_fields, dimensions.by_severity, recent_history, and totals
-    (total_validations, total_pass, total_fail, pass_rate) reflect only that
-    contract's events. Closes v2.3.17 N-7 / F-H — the dual-path drift where the
-    proxy passed `contract` as a query param but the REST endpoint silently
-    dropped it.
+    (total_validations, total_pass, total_fail, pass_rate_pct) reflect only
+    that contract's events. Closes v2.3.17 N-7 / F-H — the dual-path drift
+    where the proxy passed `contract` as a query param but the REST endpoint
+    silently dropped it.
     """
     if agent_id:
         # Explicit agent filter — caller asked for that exact agent_id, suppression
@@ -69,8 +69,8 @@ def _scope_summary_to_contract(summary: dict, contract_name: str) -> dict:
 
     Filters by_contract, top_failing_fields, top_failing_fields_by_agent,
     recent_history, dimensions.by_severity, and recomputes totals
-    (total_validations, total_pass, total_fail, pass_rate, pass_rate_ratio)
-    from the scoped by_contract slice.
+    (total_validations, total_pass, total_fail, pass_rate_pct) from the
+    scoped by_contract slice.
 
     Governance, latency (engine-wide), uptime, and window metadata are
     preserved unchanged. agent_id_filter is preserved (this can compose with
@@ -89,8 +89,8 @@ def _scope_summary_to_contract(summary: dict, contract_name: str) -> dict:
     scoped["total_pass"] = scoped_pass
     scoped["total_fail"] = scoped_fail
     scoped["total_validations"] = scoped_total
-    scoped["pass_rate"] = round(scoped_pass / scoped_total * 100, 1) if scoped_total > 0 else 0
-    scoped["pass_rate_ratio"] = round(scoped_pass / scoped_total, 4) if scoped_total > 0 else 1.0
+    # v2.3.18 Q3: single canonical pass_rate_pct.
+    scoped["pass_rate_pct"] = round(scoped_pass / scoped_total * 100, 1) if scoped_total > 0 else 100.0
 
     scoped["top_failing_fields"] = [
         f for f in summary.get("top_failing_fields", []) or []
@@ -140,7 +140,7 @@ async def list_agents_endpoint(
 ):
     """Return the agents (source systems) that emitted traffic in the window.
 
-    Each entry: agent_id, total_validations, total_pass, total_fail, pass_rate,
+    Each entry: agent_id, total_validations, total_pass, total_fail, pass_rate_pct,
     last_seen, is_system_agent. Sorted by total_validations desc. OpenDQV system
     agents (agent_ids prefixed 'OpenDQV_SA_') are suppressed by default;
     pass include_system=true for diagnostic views. Closes the v2.3.x gap where
@@ -183,7 +183,8 @@ async def get_rejection_summary(
         total = _cdata["pass"] + _cdata["fail"]
         if total == 0:
             continue
-        pass_rate = round(_cdata["pass"] / total, 4)
+        # v2.3.18 Q3: pass_rate_pct (percent 0–100, 1dp).
+        pass_rate_pct = round(_cdata["pass"] / total * 100, 1)
         top_rules = [
             {
                 "rule": f["rule"],
@@ -197,11 +198,11 @@ async def get_rejection_summary(
             "contract": contract_name,
             "total_validations": total,
             "failed": _cdata["fail"],
-            "pass_rate": pass_rate,
+            "pass_rate_pct": pass_rate_pct,
             "top_failing_rules": top_rules,
         })
 
-    result.sort(key=lambda x: x["pass_rate"])
+    result.sort(key=lambda x: x["pass_rate_pct"])
     return result[:limit]
 
 
@@ -216,7 +217,7 @@ async def get_analytics_summary(
     Cross-contract pass rate summary — DuckDB OLAP over SQLite quality data.
 
     Returns every contract that has validation records in the last N days,
-    sorted by pass_rate ascending (worst-performing contracts first).
+    sorted by pass_rate_pct ascending (worst-performing contracts first).
 
     Backed by DuckDB reading the SQLite quality_stats table directly — no data
     duplication from the OLTP write path.
@@ -269,7 +270,7 @@ async def get_analytics_rule_velocity(
     between a slow drip and a sudden spike. Returns the top 5 rules by total
     failures within the window, bucketed by bucket_minutes intervals.
 
-    Use this when pass_rate is degrading to diagnose whether it's a sudden
+    Use this when pass_rate_pct is degrading to diagnose whether it's a sudden
     spike (fix the upstream source now) or a slow drip (investigate root cause).
 
     Requires reader role or above.
