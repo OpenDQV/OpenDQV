@@ -1588,7 +1588,18 @@ async def _tool_get_quality_trend(args: dict) -> list[types.TextContent]:
         return [types.TextContent(type="text", text=json.dumps(resp.json(), default=str))]
 
     points = _quality_stats.get_trend(contract_name, days=days, context=context, by=by)
-    total_validations = sum(int(p.get("total_records", 0) or 0) for p in points)
+    # v2.3.22 N-2 (P0): by=rule rows carry violation_count not total_records
+    # (a rule has violations, not records — see quality_stats.py:300-323).
+    # Summing total_records from those rows yields 0, which routes through
+    # _quality_confidence(0) to data_confidence: "no_data" — the SRE blind
+    # spot the round-2 reviewer hit. Mirror the REST path's v2.3.17 fix
+    # (routes_contracts.py:395-397) and re-query by=date for the underlying
+    # record volume when by=rule.
+    if by == "rule":
+        date_points = _quality_stats.get_trend(contract_name, days=days, context=context, by="date")
+        total_validations = sum(int(p.get("total_records", 0) or 0) for p in date_points)
+    else:
+        total_validations = sum(int(p.get("total_records", 0) or 0) for p in points)
     confidence, confidence_note = _quality_confidence(total_validations)
     result = {
         "contract": contract_name,
