@@ -169,4 +169,7 @@ async def get_audit_event(event_id: str, role: str = Depends(get_current_role)):
         agent_id=row["agent_id"],
         caller_principal=row["caller_principal"],
         mode=row["mode"],
+        effective_rule_hash=row.get("effective_rule_hash", ""),
+        entry_hash=row.get("entry_hash", ""),
+        content_hash=row.get("content_hash", ""),
     )

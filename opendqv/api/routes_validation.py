@@ -138,6 +138,20 @@ async def validate_single(
         contract.name, contract.version, body.context or "default",
         result["valid"], len(result["errors"]), len(result["warnings"]), elapsed_ms,
     )
+    # v2.3.22 Cluster C: compute the hash triplet BEFORE persisting so
+    # the audit row carries the same values the response will. Live-head
+    # fallback is correct for non-pinned validates; pinned validates
+    # carry their snapshot's own hashes via _snap_entry_hash /
+    # _snap_content_hash. Computed once and reused for both response
+    # and persistence — single source of truth per request.
+    _snap_entry_hash = getattr(contract, "_snap_entry_hash", None)
+    _snap_content_hash = getattr(contract, "_snap_content_hash", None)
+    if _snap_entry_hash is not None and _snap_content_hash is not None:
+        _entry_hash, _content_hash = _snap_entry_hash, _snap_content_hash
+    else:
+        _entry_hash, _content_hash = _d._get_contract_hash(contract.name)
+    _effective_rule_hash = _compute_effective_rule_hash(rules)
+
     if not body.dry_run:
         stats.record(
             contract=contract.name, context=body.context, valid=result["valid"],
@@ -163,6 +177,9 @@ async def validate_single(
             mode="observation_only" if getattr(body, "observe_only", False) else "enforcement",
             event_id=event_id,
             caller_principal=user or "",
+            effective_rule_hash=_effective_rule_hash,
+            entry_hash=_entry_hash or "",
+            content_hash=_content_hash or "",
         )
 
     if not result["valid"] and not body.dry_run:
@@ -190,19 +207,10 @@ async def validate_single(
             "violations": result["warnings"],
         })
 
-    # v2.3.20 P1.3 (Persona B 2026-04-27): when validate(hash=X) selected
-    # a historical contract via contract_by_hash, the response must echo
-    # the PINNED snapshot's hashes — not the live head's. The contract
-    # object built by _contract_from_snapshot now carries the snapshot's
-    # own _snap_entry_hash / _snap_content_hash attributes (private). The
-    # _get_contract_hash fallback only fires for non-pinned validates,
-    # where the live head IS the right answer.
-    _snap_entry_hash = getattr(contract, "_snap_entry_hash", None)
-    _snap_content_hash = getattr(contract, "_snap_content_hash", None)
-    if _snap_entry_hash is not None and _snap_content_hash is not None:
-        _entry_hash, _content_hash = _snap_entry_hash, _snap_content_hash
-    else:
-        _entry_hash, _content_hash = _d._get_contract_hash(contract.name)
+    # v2.3.20 P1.3: pinned-snapshot hash echo. Computed above (Cluster C
+    # rolled the computation up to before record_batch so persistence
+    # uses the same source). _entry_hash / _content_hash are in scope
+    # from the same logical block.
 
     _observe = getattr(body, "observe_only", False)
     # CRT170/J1 + CRT173/25: `valid` reflects the actual validation outcome
@@ -228,7 +236,7 @@ async def validate_single(
         contract_hash=_entry_hash,
         entry_hash=_entry_hash,
         content_hash=_content_hash,
-        effective_rule_hash=_compute_effective_rule_hash(rules),
+        effective_rule_hash=_effective_rule_hash,
         owner_team=contract.owner_team,
         validated_at=datetime.now(timezone.utc).isoformat(),
         latency_ms=round(elapsed_ms, 1),
@@ -314,6 +322,15 @@ async def validate_batch_endpoint(
         result["summary"]["total"], result["summary"]["passed"],
         result["summary"]["failed"], elapsed_ms,
     )
+    # v2.3.22 Cluster C: same hash-triplet rollup as single-record path.
+    _snap_entry_hash = getattr(contract, "_snap_entry_hash", None)
+    _snap_content_hash = getattr(contract, "_snap_content_hash", None)
+    if _snap_entry_hash is not None and _snap_content_hash is not None:
+        _entry_hash, _content_hash = _snap_entry_hash, _snap_content_hash
+    else:
+        _entry_hash, _content_hash = _d._get_contract_hash(contract.name)
+    _effective_rule_hash = _compute_effective_rule_hash(rules)
+
     if not body.dry_run:
         for r in result["results"]:
             stats.record(
@@ -337,6 +354,9 @@ async def validate_batch_endpoint(
             mode="observation_only" if getattr(body, "observe_only", False) else "enforcement",
             event_id=batch_event_id,
             caller_principal=user or "",
+            effective_rule_hash=_effective_rule_hash,
+            entry_hash=_entry_hash or "",
+            content_hash=_content_hash or "",
         )
 
         if result["summary"]["failed"] > 0:
@@ -355,14 +375,6 @@ async def validate_batch_endpoint(
                 "error_count": len(failed_errors),
                 "violations": failed_errors[:50],
             })
-
-    # v2.3.20 P1.3: same pinned-hash echo as the single-record route.
-    _snap_entry_hash = getattr(contract, "_snap_entry_hash", None)
-    _snap_content_hash = getattr(contract, "_snap_content_hash", None)
-    if _snap_entry_hash is not None and _snap_content_hash is not None:
-        _entry_hash, _content_hash = _snap_entry_hash, _snap_content_hash
-    else:
-        _entry_hash, _content_hash = _d._get_contract_hash(contract.name)
 
     _observe = getattr(body, "observe_only", False)
     # CRT173/25: always populate mode and would_have_failed so callers never
@@ -391,7 +403,7 @@ async def validate_batch_endpoint(
         contract_hash=_entry_hash,
         entry_hash=_entry_hash,
         content_hash=_content_hash,
-        effective_rule_hash=_compute_effective_rule_hash(rules),
+        effective_rule_hash=_effective_rule_hash,
         validated_at=datetime.now(timezone.utc).isoformat(),
         latency_ms=round(elapsed_ms, 1),
         agent_id=body.agent_id,

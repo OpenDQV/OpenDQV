@@ -30,7 +30,10 @@ CREATE TABLE IF NOT EXISTS quality_stats (
     rule_failure_counts TEXT NOT NULL DEFAULT '{}',
     agent_id         TEXT    NOT NULL DEFAULT '',
     mode             TEXT    NOT NULL DEFAULT 'enforcement',
-    caller_principal TEXT    NOT NULL DEFAULT ''
+    caller_principal TEXT    NOT NULL DEFAULT '',
+    effective_rule_hash TEXT NOT NULL DEFAULT '',
+    entry_hash       TEXT    NOT NULL DEFAULT '',
+    content_hash     TEXT    NOT NULL DEFAULT ''
 )
 """
 
@@ -38,6 +41,12 @@ _MIGRATE_AGENT_ID = "ALTER TABLE quality_stats ADD COLUMN agent_id TEXT NOT NULL
 _MIGRATE_MODE = "ALTER TABLE quality_stats ADD COLUMN mode TEXT NOT NULL DEFAULT 'enforcement'"
 _MIGRATE_EVENT_ID = "ALTER TABLE quality_stats ADD COLUMN event_id TEXT NOT NULL DEFAULT ''"
 _MIGRATE_CALLER_PRINCIPAL = "ALTER TABLE quality_stats ADD COLUMN caller_principal TEXT NOT NULL DEFAULT ''"
+# v2.3.22 Cluster C: F-J persistence — hash triplet on the audit row.
+# Existing rows get empty-string sentinel; consumers must treat empty as
+# "pre-Cluster-C, not available" (no false history via head-recompute).
+_MIGRATE_EFFECTIVE_RULE_HASH = "ALTER TABLE quality_stats ADD COLUMN effective_rule_hash TEXT NOT NULL DEFAULT ''"
+_MIGRATE_ENTRY_HASH = "ALTER TABLE quality_stats ADD COLUMN entry_hash TEXT NOT NULL DEFAULT ''"
+_MIGRATE_CONTENT_HASH = "ALTER TABLE quality_stats ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''"
 # v2.3.18 Q3 Phase 1 (storage): rename pass_rate (ratio 0–1) to
 # pass_rate_pct (percent 0–100). One-time migration on existing
 # installs: rename column AND multiply existing values × 100. SQLite
@@ -54,8 +63,8 @@ _INSERT = """
 INSERT INTO quality_stats
     (event_id, contract_name, contract_version, context, recorded_at,
      total_records, passed, failed, pass_rate_pct, rule_failure_counts, agent_id, mode,
-     caller_principal)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     caller_principal, effective_rule_hash, entry_hash, content_hash)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 _DELETE_BY_CONTEXT = "DELETE FROM quality_stats WHERE context = ?"
@@ -140,6 +149,14 @@ class QualityStats:
                 conn.commit()
             except sqlite3.OperationalError:
                 pass  # column already exists
+            # v2.3.22 Cluster C: F-J persistence — hash triplet on the audit
+            # row. Each migration is independently idempotent.
+            for stmt in (_MIGRATE_EFFECTIVE_RULE_HASH, _MIGRATE_ENTRY_HASH, _MIGRATE_CONTENT_HASH):
+                try:
+                    conn.execute(stmt)
+                    conn.commit()
+                except sqlite3.OperationalError:
+                    pass  # column already exists
             # v2.3.18 Q3 Phase 1: rename pass_rate (ratio) → pass_rate_pct
             # (percent), and multiply existing ratio values × 100. Idempotent —
             # OperationalError on the rename means the migration already ran
@@ -173,8 +190,19 @@ class QualityStats:
         mode: str = "enforcement",
         event_id: str = "",
         caller_principal: str = "",
+        effective_rule_hash: str = "",
+        entry_hash: str = "",
+        content_hash: str = "",
     ) -> None:
-        """Persist one batch validation result."""
+        """Persist one batch validation result.
+
+        v2.3.22 Cluster C: hash triplet (effective_rule_hash, entry_hash,
+        content_hash) is now persisted alongside contract_name/version/
+        context, so get_audit_event(event_id) can answer the regulator's
+        "which exact rule set was applied" question. Empty string is the
+        sentinel for "caller did not supply" — never recompute from
+        current head (false history).
+        """
         # v2.3.18 Q3: storage column is pass_rate_pct (percent 0–100).
         # v2.3.22 Cluster F: empty-batch case stores 0.0 in storage (no
         # NULL since the column is REAL NOT NULL); read paths translate
@@ -194,6 +222,9 @@ class QualityStats:
                 agent_id or "",
                 mode or "enforcement",
                 caller_principal or "",
+                effective_rule_hash or "",
+                entry_hash or "",
+                content_hash or "",
             ))
             conn.commit()
         except (sqlite3.Error, OSError, ValueError) as exc:
@@ -414,7 +445,8 @@ class QualityStats:
             row = conn.execute(
                 "SELECT id, event_id, contract_name, contract_version, context, "
                 "       recorded_at, total_records, passed, failed, pass_rate_pct, "
-                "       rule_failure_counts, agent_id, mode, caller_principal "
+                "       rule_failure_counts, agent_id, mode, caller_principal, "
+                "       effective_rule_hash, entry_hash, content_hash "
                 "FROM   quality_stats WHERE event_id = ? LIMIT 1",
                 (event_id,),
             ).fetchone()
@@ -442,6 +474,9 @@ class QualityStats:
             "agent_id": row["agent_id"] or "",
             "mode": row["mode"] or "enforcement",
             "caller_principal": row["caller_principal"] or "",
+            "effective_rule_hash": row["effective_rule_hash"] or "",
+            "entry_hash": row["entry_hash"] or "",
+            "content_hash": row["content_hash"] or "",
         }
 
     def list_events(

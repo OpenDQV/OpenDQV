@@ -577,6 +577,32 @@ class AuditEventDetail(AuditEventListItem):
         default_factory=dict,
         description="Per-rule failure counts for this call: {rule_name: count}",
     )
+    # v2.3.22 Cluster C: F-J persistence — hash triplet on the audit row.
+    # Empty string is the sentinel for rows recorded before this release.
+    # Callers must check truthiness rather than relying on null/None.
+    effective_rule_hash: str = Field(
+        "",
+        description=(
+            "SHA-256 over the rules actually applied to this call (after "
+            "context overrides). Same value the original /validate response "
+            "emitted. Empty string when the row was recorded before "
+            "v2.3.22 Cluster C added persistence."
+        ),
+    )
+    entry_hash: str = Field(
+        "",
+        description=(
+            "SHA-256 over the contract version's full history entry. "
+            "Empty when the row predates v2.3.22 Cluster C."
+        ),
+    )
+    content_hash: str = Field(
+        "",
+        description=(
+            "SHA-256 over content fields only — stable across re-recordings. "
+            "Empty when the row predates v2.3.22 Cluster C."
+        ),
+    )
 
 
 class AuditEventListResponse(BaseModel):

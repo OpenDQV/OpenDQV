@@ -111,6 +111,9 @@ async def _async_record_quality_stats(
     mode: str = "enforcement",
     event_id: str = "",
     caller_principal: str = "",
+    effective_rule_hash: str = "",
+    entry_hash: str = "",
+    content_hash: str = "",
 ) -> None:
     try:
         await asyncio.to_thread(
@@ -126,6 +129,9 @@ async def _async_record_quality_stats(
             mode=mode,
             event_id=event_id,
             caller_principal=caller_principal,
+            effective_rule_hash=effective_rule_hash,
+            entry_hash=entry_hash,
+            content_hash=content_hash,
         )
     except Exception:
         logger.exception("async quality_stats.record_batch failed — stats may be incomplete")
