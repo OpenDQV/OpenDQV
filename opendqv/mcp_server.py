@@ -722,6 +722,30 @@ async def _tool_validate_record(args: dict) -> list[types.TextContent]:
     record = args["record"]
     context = args.get("context")
 
+    # v2.3.17 F-B (Cluster 2): reject reserved-prefix agent_id at the write
+    # boundary on the MCP in-process surface. Same guard as the Pydantic
+    # validator on the REST validate models (api/models.py). Without this
+    # guard, the in-process MCP path would accept and persist a spoofed
+    # OpenDQV_SA_* identity that the output-side suppression then hides
+    # from every dashboard — completing the attack in software.
+    _agent_id = args.get("agent_id")
+    if _agent_id and _agent_id.startswith("OpenDQV_SA_"):
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="INVALID_AGENT_ID",
+            kind="bad_request",
+            status=422,
+            detail=(
+                f"agent_id '{_agent_id}' uses the reserved prefix 'OpenDQV_SA_'. "
+                f"This prefix is reserved for OpenDQV-owned system traffic "
+                f"(smoke probes, demos, MCP self-tests)."
+            ),
+            remediation=(
+                "Choose an agent_id that identifies your service, AI agent, or "
+                "team — e.g. 'salesforce-prod', 'claude-desktop-alice', "
+                "'data-platform-team'."
+            ),
+        ))]
+
     if _remote_client:
         payload = {"contract": contract_name, "record": record}
         if context:
@@ -787,6 +811,25 @@ async def _tool_validate_record(args: dict) -> list[types.TextContent]:
 async def _tool_validate_batch(args: dict) -> list[types.TextContent]:
     contract_name = args["contract"]
     records = args["records"]
+
+    # v2.3.17 F-B (Cluster 2): reserved-prefix guard — see _tool_validate_record.
+    _agent_id = args.get("agent_id")
+    if _agent_id and _agent_id.startswith("OpenDQV_SA_"):
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="INVALID_AGENT_ID",
+            kind="bad_request",
+            status=422,
+            detail=(
+                f"agent_id '{_agent_id}' uses the reserved prefix 'OpenDQV_SA_'. "
+                f"This prefix is reserved for OpenDQV-owned system traffic "
+                f"(smoke probes, demos, MCP self-tests)."
+            ),
+            remediation=(
+                "Choose an agent_id that identifies your service, AI agent, or "
+                "team — e.g. 'salesforce-prod', 'claude-desktop-alice', "
+                "'data-platform-team'."
+            ),
+        ))]
 
     if _remote_client:
         payload = {"contract": contract_name, "records": records}

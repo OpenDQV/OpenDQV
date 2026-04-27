@@ -4,8 +4,31 @@ Request/Response models for the OpenDQV API.
 These are the integration contract — source systems depend on this shape.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
+
+
+# v2.3.17 F-B (Cluster 2): reserved-prefix input guard.
+# Caller-asserted agent_ids that begin with this prefix are rejected at the
+# write boundary — REST validate, REST validate/batch, MCP validate_record,
+# MCP validate_batch — so a spoofed identity never reaches the audit store
+# in the first place. The complementary output-side suppression (v2.3.15)
+# alone left a write-side gap: a caller could persist OpenDQV_SA_* events
+# that the dashboards then *hide by design*, making the pollution invisible.
+_RESERVED_AGENT_PREFIX = "OpenDQV_SA_"
+
+
+def _reject_reserved_agent_id(v: Optional[str]) -> Optional[str]:
+    """Reject agent_id values that claim the reserved OpenDQV_SA_* prefix."""
+    if v and v.startswith(_RESERVED_AGENT_PREFIX):
+        raise ValueError(
+            f"agent_id '{v}' uses the reserved prefix '{_RESERVED_AGENT_PREFIX}'. "
+            f"This prefix is reserved for OpenDQV-owned system traffic "
+            f"(smoke probes, demos, MCP self-tests). Choose an agent_id that "
+            f"identifies your service, AI agent, or team — e.g. "
+            f"'salesforce-prod', 'claude-desktop-alice', 'data-platform-team'."
+        )
+    return v
 
 
 # ── Validation request/response ──────────────────────────────────────
@@ -18,9 +41,14 @@ class ValidateRequest(BaseModel):
     hash: Optional[str] = Field(None, description="Pin validation to a specific historical contract version by SHA-256 hash (entry_hash or content_hash from a prior response, or from list_versions). Takes precedence over `version` and `as_of`. Returns 404 if the hash is not in the contract's history.")
     context: Optional[str] = Field(None, description="Context override (e.g. 'kids_app', 'salesforce')")
     record_id: Optional[str] = Field(None, description="Caller's correlation ID for tracking")
-    agent_id: Optional[str] = Field(None, description="Caller-asserted identity (AI agent name, service name, or team) — NOT authenticated. Use for self-labelling and session correlation. For trustable attribution, read `caller_principal` from the response — that is server-derived from the authenticated token and cannot be spoofed. Reserved prefix: agent_ids starting with 'OpenDQV_SA_' are reserved for OpenDQV-owned system traffic (smoke probes, demos, MCP self-tests) and are suppressed from customer-facing metrics by default. Pass include_system=true on metrics endpoints to surface them.")
+    agent_id: Optional[str] = Field(None, description="Caller-asserted identity (AI agent name, service name, or team) — NOT authenticated. Use for self-labelling and session correlation. For trustable attribution, read `caller_principal` from the response — that is server-derived from the authenticated token and cannot be spoofed. Reserved prefix: agent_ids starting with 'OpenDQV_SA_' are reserved for OpenDQV-owned system traffic (smoke probes, demos, MCP self-tests) and are REJECTED at the write boundary with HTTP 422 INVALID_AGENT_ID.")
     dry_run: bool = Field(False, description="If true, validate without recording results in quality metrics. Use for testing and demos.")
     observe_only: bool = Field(False, description="If true, run in observation-only mode: log violations but do not block. Always returns HTTP 200.")
+
+    @field_validator("agent_id")
+    @classmethod
+    def _no_reserved_prefix(cls, v: Optional[str]) -> Optional[str]:
+        return _reject_reserved_agent_id(v)
 
     model_config = {
         "json_schema_extra": {
@@ -98,9 +126,14 @@ class BatchValidateRequest(BaseModel):
     version: str = Field("latest", description="Contract version or 'latest'")
     hash: Optional[str] = Field(None, description="Pin batch to a specific historical contract version by SHA-256 hash. Takes precedence over `version` and `as_of`. Returns 404 if the hash is not in the contract's history.")
     context: Optional[str] = Field(None, description="Context override")
-    agent_id: Optional[str] = Field(None, description="Caller-asserted identity (AI agent name, service name, or team) — NOT authenticated. Use for self-labelling and session correlation. For trustable attribution, read `caller_principal` from the response — that is server-derived from the authenticated token and cannot be spoofed. Reserved prefix: agent_ids starting with 'OpenDQV_SA_' are reserved for OpenDQV-owned system traffic (smoke probes, demos, MCP self-tests) and are suppressed from customer-facing metrics by default. Pass include_system=true on metrics endpoints to surface them.")
+    agent_id: Optional[str] = Field(None, description="Caller-asserted identity (AI agent name, service name, or team) — NOT authenticated. Use for self-labelling and session correlation. For trustable attribution, read `caller_principal` from the response — that is server-derived from the authenticated token and cannot be spoofed. Reserved prefix: agent_ids starting with 'OpenDQV_SA_' are reserved for OpenDQV-owned system traffic (smoke probes, demos, MCP self-tests) and are REJECTED at the write boundary with HTTP 422 INVALID_AGENT_ID.")
     dry_run: bool = Field(False, description="If true, validate without recording results in quality metrics. Use for testing and demos.")
     observe_only: bool = Field(False, description="If true, run in observation-only mode: log violations but do not block. Always returns HTTP 200.")
+
+    @field_validator("agent_id")
+    @classmethod
+    def _no_reserved_prefix(cls, v: Optional[str]) -> Optional[str]:
+        return _reject_reserved_agent_id(v)
 
     model_config = {
         "json_schema_extra": {
