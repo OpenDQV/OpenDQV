@@ -121,7 +121,7 @@ contract:
       type: regex
       pattern: "^[A-Z]{4}$"
       severity: error
-      error_message: "venue_mic must be a valid 4-character Market Identifier Code per ISO 10383"
+      error_message: "venue_mic must match ISO 10383 MIC shape — 4 uppercase letters. Note: this rule enforces the SHAPE only; full ISO 10383 list lookup against iso20022.org is a v2.4 capability (sentinel/typo MICs that match the shape will pass shape-only validation but fail at the ARM submission)"
 
     # ── INSTRUMENT ISIN ──────────────────────────────────────────────────────
     - name: instrument_isin_required

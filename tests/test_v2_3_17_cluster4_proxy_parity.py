@@ -145,3 +145,53 @@ class TestProxyInprocessParity:
                 diffs.append((name, proxy_required, inproc_required))
         assert not diffs, \
             f"Required-field drift between proxy and in-process for tools: {diffs}"
+
+    def test_initialize_serverinfo_version_does_not_drift(self):
+        """v2.3.18+ Sonnet belt-and-suspenders: the existing parity test
+        snapshots tool inventories, NOT initialize.serverInfo. The proxy
+        version-hardcode bug that slipped through v2.3.17 + v2.3.18 lived
+        in that gap. This test asserts that the proxy's version-resolution
+        function exists and refuses to return a hardcoded SemVer when the
+        engine is unreachable. Cheaper than the cluster-6 subprocess test
+        — runs in unit-test time.
+
+        The cluster-6 ``test_proxy_initialize_reports_real_engine_version_
+        when_connected`` is the full positive-path test against a live
+        engine. This here is the unit-level guard that the proxy's
+        resolution code path is wired correctly (not bypassed by a
+        future "easy fix" that re-introduces a hardcode).
+        """
+        import importlib.util
+        import sys
+        import os
+
+        os.environ.setdefault("OPENDQV_API_URL", "http://localhost:0")
+        os.environ.setdefault("OPENDQV_API_TOKEN", "")
+        spec = importlib.util.spec_from_file_location(
+            "opendqv_mcp_proxy",
+            "/home/sunny-sharma/OpenDQV/opendqv_mcp_proxy.py",
+        )
+        proxy = importlib.util.module_from_spec(spec)
+        sys.modules["opendqv_mcp_proxy"] = proxy
+        spec.loader.exec_module(proxy)
+
+        # The resolved engine version constant must exist and must NOT
+        # be a SemVer-shaped string when the engine is unreachable. A
+        # SemVer-shaped value here means a future regression hardcoded
+        # the version back. The acceptable values are "unknown" or the
+        # version of an actually-running engine on http://localhost:0
+        # (which can't be running because port 0 is the OS sentinel for
+        # "unreachable").
+        assert hasattr(proxy, "_ENGINE_VERSION"), \
+            "proxy must expose _ENGINE_VERSION resolved at module-import time"
+        # When _client points at localhost:0, resolution must fail and
+        # return 'unknown'. A v.x.y string here means the proxy has a
+        # hardcoded fallback (the bug class this test guards against).
+        import re
+        assert proxy._ENGINE_VERSION == "unknown" or not re.match(
+            r"^\d+\.\d+\.\d+", proxy._ENGINE_VERSION
+        ), (
+            f"proxy._ENGINE_VERSION resolved to {proxy._ENGINE_VERSION!r} when engine "
+            f"unreachable — looks like a SemVer hardcode regression. The 'unknown' "
+            f"sentinel is the only acceptable value when /openapi.json cannot be reached."
+        )

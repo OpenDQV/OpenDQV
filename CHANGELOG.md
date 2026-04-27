@@ -2,6 +2,93 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.19] - 2026-04-27
+
+Single-concern release closing a three-release regression: the MCP
+proxy hardcoded `serverInfo.version: "2.3.16"` and reported the wrong
+version on every client's `initialize` call through v2.3.16, v2.3.17,
+and v2.3.18. Found during a Pilot-requested inside-view probe pass
+that ran AFTER v2.3.18 tagged but BEFORE the outside reviewer was
+sent the lean prompt. Closes the surface-honesty regression and the
+process gap that let it ship through three releases.
+
+### Fixed
+
+- **`opendqv_mcp_proxy.py` — proxy now resolves engine version
+  dynamically.** The previous hardcode at line 599 made the proxy
+  report `2.3.16` on every `initialize` handshake regardless of the
+  running engine. The new `_resolve_engine_version()` queries the
+  engine's `/openapi.json info.version` (the canonical version surface
+  per v2.3.17 Q11) at module-import time. When the engine is
+  unreachable, falls back to the `"unknown"` sentinel rather than
+  reporting a confidently-wrong stale value.
+  Startup-race caveat documented inline: `_ENGINE_VERSION` resolves
+  ONCE at import; a long-lived proxy launched before the engine binds
+  its port will report `"unknown"` for its lifetime. v2.4 proxy
+  unification (CRT-N) is the structural fix; in the interim, restart
+  the proxy when restarting the engine.
+
+- **`mifid_transaction_report.venue_mic_format` error message now
+  states SHAPE-only (I-3, same N-5 LEI treatment).** Previous text
+  claimed "valid 4-character Market Identifier Code per ISO 10383"
+  which implied list lookup the rule does not perform. New text:
+  `"venue_mic must match ISO 10383 MIC shape — 4 uppercase letters.
+  Note: this rule enforces the SHAPE only; full ISO 10383 list lookup
+  against iso20022.org is a v2.4 capability"`. Closes a regulator-
+  fidelity description over-claim that v2.3.17 Cluster 7 fixed for
+  LEI rules but missed for MIC.
+
+### Added
+
+- **Three new recurrence tests** (Queen's Standard pairing):
+  - `tests/test_v2_3_17_cluster6_surface_hygiene.py::TestVersionSourceConsistency::test_proxy_initialize_reports_unknown_when_engine_unreachable`
+    — subprocess-spawned proxy with unreachable engine asserts
+    `serverInfo.version == "unknown"`. Guards against regression to
+    a SemVer-shaped hardcode.
+  - `tests/test_v2_3_17_cluster6_surface_hygiene.py::TestVersionSourceConsistency::test_proxy_initialize_reports_real_engine_version_when_connected`
+    — positive-path test: spawns a real uvicorn on a random free
+    port, runs the proxy against it, asserts proxy's reported version
+    equals `importlib.metadata.version("opendqv")`. Closes the F-S
+    invariant ring for the proxy surface.
+  - `tests/test_v2_3_17_cluster4_proxy_parity.py::TestProxyInprocessParity::test_initialize_serverinfo_version_does_not_drift`
+    — unit-time belt-and-suspenders. Asserts the proxy module exposes
+    `_ENGINE_VERSION` and refuses to return a SemVer-shaped string
+    when the engine is unreachable.
+
+- **`tests/test_v2_3_17_cluster7_contract_content.py::TestMicDescriptionHonesty`** — recurrence test for I-3.
+
+### Process
+
+- **Inside-view probe pass is now a release-blocking gate**, alongside
+  the existing Q10 cold-client smoke. Documented in
+  `feedback_inside_before_outside_eval.md` Amendment 2026-04-27 and
+  `feedback_cold_client_mcp_smoke.md` v2.3.19 amendment. The Q10
+  cold-client smoke checklist now requires `initialize.serverInfo`
+  agreement as a fourth check (was: tools/list + routing + response
+  shape). Both gates bind; either failing blocks the tag.
+
+- **Tagged probe agent_id convention** for inside-view scripts:
+  `agent_id="bt7274-inside-probe-<timestamp>"` so audit-store cleanup
+  of probe writes is selectable rather than wholesale or none.
+
+### Why this regression escaped three releases
+
+- v2.3.16's proxy hardcode happened to match the v2.3.16 engine — the
+  drift was invisible until the next release.
+- v2.3.17's Q10 cold-client smoke release-blocking gate
+  (`tests/test_v2_3_17_cluster4_proxy_parity.py`) snapshotted
+  `tools/list` and error envelope shape, NOT `initialize.serverInfo`.
+- v2.3.18's pass_rate_pct rename did not touch the proxy's version
+  surface and so didn't trip any test.
+- The v2.3.17 plan's Q15 inside-first protocol was scoped to external
+  eval rounds, not release tags. The protocol gap is closed in this
+  release.
+
+The Pilot's call-out caught the process gap inside the same session
+that shipped v2.3.17 + v2.3.18, before the outside reviewer was sent
+the lean prompt. Inside-first sequencing did its job — when actually
+applied.
+
 ## [2.3.18] - 2026-04-27
 
 Focused single-concern release: the Q3 `pass_rate_pct` rename. Closes

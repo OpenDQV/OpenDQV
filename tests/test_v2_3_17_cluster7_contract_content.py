@@ -161,3 +161,25 @@ class TestLeiDescriptionHonesty:
                 f"that implies mod-97 verification which is a v2.4 capability. "
                 f"Got: {msg!r}"
             )
+
+
+class TestMicDescriptionHonesty:
+    """v2.3.19 I-3 (inside-view, Sonnet-pushed): same N-5 treatment for the
+    MIC rule. The pattern ``^[A-Z]{4}$`` enforces shape only — a sentinel
+    code like ``XYZA`` matches the shape but is not a real ISO 10383 MIC.
+    The error message must be honest about this; full list lookup is v2.4.
+    """
+
+    def test_mic_error_message_states_shape_only(self, client, auth_headers):
+        r = client.get("/api/v1/contracts/mifid_transaction_report", headers=auth_headers)
+        assert r.status_code == 200
+        rules = r.json().get("rules", [])
+        mic_rule = next(
+            (rr for rr in rules if rr["name"] == "venue_mic_format"), None,
+        )
+        assert mic_rule is not None, "venue_mic_format rule must exist"
+        msg = mic_rule.get("error_message", "")
+        assert "shape" in msg.lower() or "v2.4" in msg.lower(), (
+            f"venue_mic_format error_message must state SHAPE-only honesty "
+            f"(same N-5 treatment as LEI rules); got: {msg!r}"
+        )

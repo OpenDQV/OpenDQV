@@ -49,6 +49,38 @@ _client = httpx.Client(
 )
 
 
+def _resolve_engine_version() -> str:
+    """Resolve the running engine's version dynamically.
+
+    The proxy is a standalone stdio script with zero internal imports —
+    it cannot read opendqv.config or pyproject.toml. Hardcoding the
+    version drifts every release (the v2.3.16 → v2.3.17 → v2.3.18
+    sequence shipped with proxy still reporting 2.3.16). Instead, ask
+    the engine itself: ``/openapi.json info.version`` is REQUIRED by the
+    OpenAPI 3.x spec and is the canonical version surface (v2.3.17 Q11
+    decision). If the engine is unreachable, fall back to the
+    well-known sentinel "unknown" so callers can see the proxy is up
+    but couldn't reach the engine — better than reporting a confidently-
+    wrong stale version.
+
+    Startup-race caveat (Sonnet flag, 2026-04-27): _ENGINE_VERSION is
+    resolved ONCE at module import. A long-lived proxy launched before
+    the engine binds its port will report "unknown" for its entire
+    lifetime even after the engine comes up. v2.4 proxy unification
+    (CRT-N) is the structural fix; in the interim, restart the proxy
+    when restarting the engine.
+    """
+    try:
+        resp = _client.get("/openapi.json", timeout=5.0)
+        resp.raise_for_status()
+        return resp.json().get("info", {}).get("version", "unknown")
+    except Exception:
+        return "unknown"
+
+
+_ENGINE_VERSION = _resolve_engine_version()
+
+
 def _error_envelope(
     error_code: str,
     kind: str,
@@ -596,7 +628,11 @@ def main() -> None:
                     "protocolVersion": params.get("protocolVersion", "2025-11-25"),
                     "serverInfo": {
                         "name": "OpenDQV",
-                        "version": "2.3.16",
+                        # v2.3.18+ resolved dynamically from the engine's
+                        # /openapi.json info.version on proxy startup. Closes
+                        # the version-source drift where the proxy hardcoded
+                        # an older version every release.
+                        "version": _ENGINE_VERSION,
                         "icons": [
                             {
                                 "src": "https://raw.githubusercontent.com/OpenDQV/OpenDQV/main/docs/assets/opendqv-favicon-128.png",

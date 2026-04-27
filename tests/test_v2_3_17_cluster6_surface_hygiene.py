@@ -19,6 +19,8 @@ Resolved open questions integrated here:
 import importlib.metadata
 from pathlib import Path
 
+import pytest
+
 
 try:
     import tomllib as _tomllib  # py311+
@@ -55,6 +57,124 @@ class TestVersionSourceConsistency:
             f"/openapi.json info.version ({info_version}) disagrees with "
             f"pyproject.toml ({_pyproject_version()})."
         )
+
+    def test_proxy_initialize_reports_unknown_when_engine_unreachable(self):
+        """v2.3.18+ negative-path recurrence test: when the engine is
+        unreachable, the proxy must NOT report a stale hardcoded version
+        — it reports the "unknown" sentinel instead. Guards against
+        regression to the v2.3.16-era hardcode pattern."""
+        import os
+        import subprocess
+        import json
+
+        env = {
+            **os.environ,
+            "OPENDQV_API_URL": "http://localhost:0",  # Unreachable
+            "OPENDQV_API_TOKEN": "",
+        }
+        init_frame = (
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":'
+            '{"protocolVersion":"2024-11-05","capabilities":{},'
+            '"clientInfo":{"name":"v","version":"v"}}}\n'
+        )
+        result = subprocess.run(
+            ["python3", "/home/sunny-sharma/OpenDQV/opendqv_mcp_proxy.py"],
+            input=init_frame, capture_output=True, text=True, timeout=15, env=env,
+        )
+        version_seen = None
+        for line in result.stdout.splitlines():
+            try:
+                m = json.loads(line)
+                if m.get("id") == 1:
+                    version_seen = m.get("result", {}).get("serverInfo", {}).get("version")
+                    break
+            except Exception:
+                pass
+        assert version_seen == "unknown", (
+            f"proxy must report 'unknown' when engine is unreachable; got {version_seen!r}. "
+            "If you see a hardcoded version here, the proxy has regressed to the v2.3.16-style "
+            "static hardcode that drifted every release."
+        )
+
+    def test_proxy_initialize_reports_real_engine_version_when_connected(self):
+        """v2.3.18+ positive-path recurrence test (Sonnet's catch): when
+        the engine IS reachable, the proxy must report the SAME version
+        as importlib.metadata. Closes the F-S invariant ring for the
+        proxy surface — the unreachable-engine test alone only guards
+        against regression to a hardcode; this guards against regression
+        to a wrong-but-plausible source (e.g. the proxy reading a
+        different version field from the wrong endpoint).
+
+        Spawns the proxy as a subprocess pointing at a TestClient-style
+        in-process app. Because TestClient does not bind a real port,
+        we boot a real uvicorn on a random free port for this test only.
+        """
+        import importlib.metadata
+        import json
+        import os
+        import socket
+        import subprocess
+        import time
+
+        # Find a free port
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+
+        # Boot a real uvicorn for this test
+        engine_proc = subprocess.Popen(
+            ["python", "-m", "uvicorn", "opendqv.main:app",
+             "--host", "127.0.0.1", "--port", str(port), "--log-level", "warning"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        try:
+            # Wait for the engine to bind the port
+            import urllib.request
+            deadline = time.time() + 15
+            while time.time() < deadline:
+                try:
+                    with urllib.request.urlopen(
+                        f"http://127.0.0.1:{port}/openapi.json", timeout=1
+                    ):
+                        break
+                except Exception:
+                    time.sleep(0.2)
+            else:
+                pytest.skip("test engine did not start in time")
+
+            # Now run the proxy against the live engine
+            env = {
+                **os.environ,
+                "OPENDQV_API_URL": f"http://127.0.0.1:{port}",
+                "OPENDQV_API_TOKEN": "",
+            }
+            init_frame = (
+                '{"jsonrpc":"2.0","id":1,"method":"initialize","params":'
+                '{"protocolVersion":"2024-11-05","capabilities":{},'
+                '"clientInfo":{"name":"v","version":"v"}}}\n'
+            )
+            result = subprocess.run(
+                ["python3", "/home/sunny-sharma/OpenDQV/opendqv_mcp_proxy.py"],
+                input=init_frame, capture_output=True, text=True, timeout=15, env=env,
+            )
+            version_seen = None
+            for line in result.stdout.splitlines():
+                try:
+                    m = json.loads(line)
+                    if m.get("id") == 1:
+                        version_seen = m.get("result", {}).get("serverInfo", {}).get("version")
+                        break
+                except Exception:
+                    pass
+
+            expected = importlib.metadata.version("opendqv")
+            assert version_seen == expected, (
+                f"proxy must report the running engine version; got {version_seen!r}, "
+                f"expected {expected!r}. F-S invariant violation."
+            )
+        finally:
+            engine_proc.terminate()
+            engine_proc.wait(timeout=5)
 
     def test_config_does_not_expose_engine_version(self, client, admin_token):
         """Q11 (Sonnet option iv): engine_version is dropped from /config —
