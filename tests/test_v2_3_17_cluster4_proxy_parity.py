@@ -46,7 +46,7 @@ def _proxy_tool_names() -> set:
     os.environ.setdefault("OPENDQV_API_URL", "http://localhost:0")
     spec = importlib.util.spec_from_file_location(
         "opendqv_mcp_proxy",
-        "/home/sunny-sharma/OpenDQV/opendqv_mcp_proxy.py",
+        str(__import__("pathlib").Path(__file__).resolve().parent.parent / "opendqv_mcp_proxy.py"),
     )
     proxy = importlib.util.module_from_spec(spec)
     sys.modules["opendqv_mcp_proxy"] = proxy
@@ -169,7 +169,7 @@ class TestProxyInprocessParity:
         os.environ.setdefault("OPENDQV_API_TOKEN", "")
         spec = importlib.util.spec_from_file_location(
             "opendqv_mcp_proxy",
-            "/home/sunny-sharma/OpenDQV/opendqv_mcp_proxy.py",
+            str(__import__("pathlib").Path(__file__).resolve().parent.parent / "opendqv_mcp_proxy.py"),
         )
         proxy = importlib.util.module_from_spec(spec)
         sys.modules["opendqv_mcp_proxy"] = proxy

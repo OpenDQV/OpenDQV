@@ -33,7 +33,7 @@ def _load_proxy_module():
     import os
     os.environ.setdefault("OPENDQV_API_URL", "http://127.0.0.1:1")
     os.environ.setdefault("OPENDQV_API_TOKEN", "")
-    proxy_path = Path("/home/sunny-sharma/OpenDQV/opendqv_mcp_proxy.py")
+    proxy_path = Path(__file__).resolve().parent.parent / "opendqv_mcp_proxy.py"
     spec = importlib.util.spec_from_file_location("opendqv_mcp_proxy", proxy_path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules["opendqv_mcp_proxy"] = mod

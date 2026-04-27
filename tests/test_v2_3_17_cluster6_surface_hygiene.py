@@ -78,7 +78,7 @@ class TestVersionSourceConsistency:
             '"clientInfo":{"name":"v","version":"v"}}}\n'
         )
         result = subprocess.run(
-            ["python3", "/home/sunny-sharma/OpenDQV/opendqv_mcp_proxy.py"],
+            ["python3", str(__import__("pathlib").Path(__file__).resolve().parent.parent / "opendqv_mcp_proxy.py")],
             input=init_frame, capture_output=True, text=True, timeout=15, env=env,
         )
         version_seen = None
@@ -154,7 +154,7 @@ class TestVersionSourceConsistency:
                 '"clientInfo":{"name":"v","version":"v"}}}\n'
             )
             result = subprocess.run(
-                ["python3", "/home/sunny-sharma/OpenDQV/opendqv_mcp_proxy.py"],
+                ["python3", str(__import__("pathlib").Path(__file__).resolve().parent.parent / "opendqv_mcp_proxy.py")],
                 input=init_frame, capture_output=True, text=True, timeout=15, env=env,
             )
             version_seen = None
@@ -258,7 +258,7 @@ class TestMcpValidateRecordHasRecordId:
         os.environ.setdefault("OPENDQV_API_URL", "http://localhost:0")
         spec = importlib.util.spec_from_file_location(
             "opendqv_mcp_proxy",
-            "/home/sunny-sharma/OpenDQV/opendqv_mcp_proxy.py",
+            str(__import__("pathlib").Path(__file__).resolve().parent.parent / "opendqv_mcp_proxy.py"),
         )
         proxy = importlib.util.module_from_spec(spec)
         sys.modules["opendqv_mcp_proxy"] = proxy
