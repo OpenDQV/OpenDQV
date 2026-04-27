@@ -1258,6 +1258,12 @@ class ContractRegistry:
         Get rules from a contract, applying context overrides if specified.
 
         Context overrides can modify existing rules or add new field constraints.
+
+        When the caller wants to know whether the context was actually declared on
+        the contract (e.g. to surface a transparent warning to API consumers
+        without changing the fail-open behaviour), use
+        ``get_rules_with_context_status`` instead — this method preserves the
+        legacy single-return-value shape for existing callers.
         """
         if not context:
             return contract.rules
@@ -1311,3 +1317,30 @@ class ContractRegistry:
             rules.append(Rule(**override_rule))
 
         return rules
+
+    def get_rules_with_context_status(
+        self, contract: DataContract, context: Optional[str] = None,
+    ) -> tuple[list[Rule], str]:
+        """Same as get_rules_with_context, plus a status string.
+
+        Status values:
+          - ``"none"``      — no context was provided
+          - ``"declared"``  — context was provided AND declared on the contract
+          - ``"undeclared"`` — context was provided but NOT declared on the contract
+                              (engine still returns base rules per fail-open
+                              design — see ``get_rules_with_context`` — but the
+                              caller can surface a transparent warning to API
+                              consumers).
+
+        Closes v2.3.17 F-D: contexts double as both override lookups and
+        stats-tagging metadata, so undeclared contexts are not errors. But the
+        engine should not silently accept a typo (`prodd` for `prod`) without
+        making the divergence visible. This method gives REST and MCP routes
+        the signal they need to populate a ``context_warning`` field on the
+        validate response without changing fail-open behaviour.
+        """
+        if not context:
+            return contract.rules, "none"
+        if context not in (contract.contexts or {}):
+            return self.get_rules_with_context(contract, context), "undeclared"
+        return self.get_rules_with_context(contract, context), "declared"

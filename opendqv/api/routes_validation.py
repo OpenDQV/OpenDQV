@@ -112,9 +112,16 @@ async def validate_single(
         _d._check_validate_in_states(contract, body.contract, allow_draft)
 
     try:
-        rules = _d.registry.get_rules_with_context(contract, body.context)
+        rules, _ctx_status = _d.registry.get_rules_with_context_status(contract, body.context)
     except UnknownContextError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    _context_warning = (
+        f"Context '{body.context}' is not declared on contract '{contract.name}'. "
+        f"Validation proceeded with base rules (no context overrides applied). "
+        f"If you intended a metadata tag (e.g. 'demo', 'ci', 'test') this is fine; "
+        f"if you intended an override context, declare it on the contract."
+        if _ctx_status == "undeclared" else None
+    )
     result = validate_record(
         body.record,
         rules,
@@ -212,6 +219,7 @@ async def validate_single(
         caller_principal=user or "anonymous",
         mode=_mode,
         would_have_failed=_would_have_failed,
+        context_warning=_context_warning,
     )
 
 

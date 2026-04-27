@@ -77,6 +77,16 @@ class ValidateResponse(BaseModel):
     caller_principal: Optional[str] = Field(None, description="Server-derived from the authenticated token (JWT sub claim, or 'anonymous' in AUTH_MODE=open). Unlike `agent_id`, this cannot be spoofed by the caller — use as the trustable attribution key for audit and per-tenant SLA accounting.")
     mode: Optional[str] = Field("enforcement", description="Validation mode: 'enforcement' (default) or 'observation_only'. Always populated since v2.3.14.")
     would_have_failed: Optional[bool] = Field(False, description="True if the record would have been rejected under enforcement (equivalent to `not valid`). Always populated since v2.3.14 — was previously null in enforcement mode.")
+    context_warning: Optional[str] = Field(
+        None,
+        description=(
+            "Populated only when the request supplied a context that is NOT declared on this contract. "
+            "The engine continues to use base rules (fail-open by design — contexts double as stats-tagging "
+            "metadata, e.g. 'demo', 'ci', 'test'), but this field surfaces the divergence so a caller "
+            "who intended an override context can see the typo. v2.3.17 F-D fix: makes the silent "
+            "fail-open visible without breaking intentional metadata-tag use."
+        ),
+    )
 
 
 # ── Batch validation request/response ────────────────────────────────

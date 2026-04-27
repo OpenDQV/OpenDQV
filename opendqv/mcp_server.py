@@ -758,16 +758,28 @@ async def _tool_validate_record(args: dict) -> list[types.TextContent]:
             remediation="Call list_contracts to see available contract names.",
         ))]
 
-    rules = contract.rules
-    if context and hasattr(contract, "contexts") and context in contract.contexts:
-        context_rules = contract.contexts[context]
-        rules = context_rules if context_rules else rules
+    # v2.3.17 F-A (MCP in-process context path) fix: route through the
+    # registry's get_rules_with_context_status so context overrides on a
+    # historical contract apply correctly (the previous code replaced
+    # `rules` with the raw `contract.contexts[context]` dict — Rule
+    # objects vs raw dicts — which silently broke override application).
+    # Same call as REST so both paths converge on identical rule resolution.
+    rules, _ctx_status = _registry.get_rules_with_context_status(contract, context)
+    _context_warning = (
+        f"Context '{context}' is not declared on contract '{contract_name}'. "
+        f"Validation proceeded with base rules (no context overrides applied). "
+        f"If you intended a metadata tag (e.g. 'demo', 'ci', 'test') this is fine; "
+        f"if you intended an override context, declare it on the contract."
+        if _ctx_status == "undeclared" else None
+    )
 
     result = _validate_record(record, rules, contract_name)
     result["contract"] = contract_name
     result["version"] = contract.version
     if contract.status == ContractStatus.DRAFT:
         result["draft_notice"] = _DRAFT_NOTICE
+    if _context_warning:
+        result["context_warning"] = _context_warning
     result["governance_tip"] = _pick_governance_tip(rules, result.get("errors", []))
     return [types.TextContent(type="text", text=json.dumps(result, default=str))]
 
@@ -822,13 +834,30 @@ async def _tool_validate_batch(args: dict) -> list[types.TextContent]:
             remediation="Call list_contracts to see available contract names.",
         ))]
 
-    result = _validate_batch(records, contract.rules, contract_name)
+    # v2.3.17: route through get_rules_with_context_status so batch validation
+    # also applies context overrides on the in-process path (was silently
+    # ignored — used contract.rules unconditionally — same family as F-A on
+    # validate_record). Surfaces context_warning consistently with
+    # validate_record for callers who supply an undeclared context.
+    context = args.get("context")
+    rules, _ctx_status = _registry.get_rules_with_context_status(contract, context)
+    _context_warning = (
+        f"Context '{context}' is not declared on contract '{contract_name}'. "
+        f"Validation proceeded with base rules (no context overrides applied). "
+        f"If you intended a metadata tag (e.g. 'demo', 'ci', 'test') this is fine; "
+        f"if you intended an override context, declare it on the contract."
+        if _ctx_status == "undeclared" else None
+    )
+
+    result = _validate_batch(records, rules, contract_name)
     result["contract"] = contract_name
     result["version"] = contract.version
     if contract.status == ContractStatus.DRAFT:
         result["draft_notice"] = _DRAFT_NOTICE
+    if _context_warning:
+        result["context_warning"] = _context_warning
     result["governance_tip"] = _pick_governance_tip(
-        contract.rules,
+        rules,
         result.get("results", [{}])[0].get("errors", []) if result.get("results") else [],
     )
     return [types.TextContent(type="text", text=json.dumps(result, default=str))]
