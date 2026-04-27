@@ -48,6 +48,13 @@ def _apply_rule(prop: dict, rule, field: str, required: list, unmapped: list) ->
     if rt == "not_empty":
         if field not in required:
             required.append(field)
+        # v2.3.22 Cluster K (N-9): emit minLength: 1 so downstream
+        # JSON-Schema validators reject the empty string. Without it,
+        # `required` alone allows "" to pass — weaker structural
+        # validation than the OpenDQV runtime enforces.
+        prop["type"] = "string"
+        if "minLength" not in prop or prop.get("minLength", 0) < 1:
+            prop["minLength"] = 1
         return
 
     if rt == "regex" and rule.pattern:
@@ -98,12 +105,26 @@ def _apply_rule(prop: dict, rule, field: str, required: list, unmapped: list) ->
             prop["x-opendqv-date-format"] = rule.format
         return
 
+    # v2.3.22 Cluster K (N-9 honesty): give the unmapped reason enough
+    # detail that a JSON Schema consumer knows whether the rule could
+    # be expressed if values were inlined (lookup against a ref file)
+    # vs. structurally inexpressible (compare, unique, required_if).
+    if rt == "lookup":
+        reason = (
+            "lookup rule references an external reference file "
+            f"({rule.lookup_file or 'unspecified'}); values are not "
+            "inlined as `enum` at export time. OpenDQV runtime "
+            "enforces the lookup. v2.4 may inline the reference list "
+            "when accessible at export time."
+        )
+    else:
+        reason = (
+            "rule type cannot be expressed in plain JSON Schema; "
+            "OpenDQV runtime enforces it"
+        )
     unmapped.append({
         "rule": rule.name,
         "field": field,
         "type": rt,
-        "reason": (
-            "rule type cannot be expressed in plain JSON Schema; "
-            "OpenDQV runtime enforces it"
-        ),
+        "reason": reason,
     })
