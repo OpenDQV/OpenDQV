@@ -162,6 +162,40 @@ def _content_payload_parts(
     ]
 
 
+def _compute_effective_rule_hash(rules) -> str:
+    """SHA-256 over the canonical-JSON serialisation of the resolved Rule set.
+
+    The 3-hash triplet (entry_hash, content_hash, contract_hash) is computed
+    over the static contract definition. Two validate calls with different
+    contexts (e.g. context=billing vs context=operations) produce the same
+    triplet even though they ran different rule sets — a CRT170-J violation
+    that breaks audit-replay for contextualised validations.
+
+    effective_rule_hash closes that gap: it hashes the Rule objects AS USED
+    by the validator on this call, after context overrides have been
+    resolved. Two calls that produced different rule sets — different
+    thresholds, different severity, different error messages, different
+    fields, different rule names — get different effective_rule_hash
+    values, so the audit trail can prove which rule set actually ran.
+
+    Hash design choice (v2.3.17 F-J): full canonical serialisation of each
+    Rule via model_dump(), not rule-names-only. Rule names alone would miss
+    the case where a context override changes a threshold or severity but
+    not a name — which is exactly the failure mode Persona B reported. Full
+    serialisation catches every override that materially changes
+    enforcement behaviour. Trade-off: cosmetic-only changes to a rule
+    (description rewrite with no enforcement impact) also bump the hash.
+    That is the correct trade-off for an audit field: false positives are
+    cheaper than false negatives.
+
+    The hash is order-sensitive on the rule list — caller passes rules in
+    the same order the validator iterates them, which is the natural order
+    after override resolution.
+    """
+    serialised = [r.model_dump(by_alias=True, mode="json") for r in (rules or [])]
+    return hashlib.sha256(_canonical_json(serialised).encode("utf-8")).hexdigest()
+
+
 def _compute_content_hash(
     contract_name: str, version: str, status: str,
     owner: str, owner_email: Optional[str], owner_team: Optional[str],
@@ -462,6 +496,23 @@ class ContractHistory(ContractHistoryBackend):
                 contract.asset_id, contract.description, downstream_consumers,
                 rules, contexts,
             )
+
+            # v2.3.17 F-C: at-most-one-active invariant. Before inserting an
+            # ACTIVE row for (contract_name, version), demote any prior ACTIVE
+            # rows for the same (name, version) to ARCHIVED. The history table
+            # is append-only for chain integrity, but the *status field* on
+            # historical rows is a state attribute and SHOULD be updated when
+            # the truth about that row changes (it is no longer the active one).
+            # Without this, list_versions returns multiple status:active rows
+            # for the same version — Persona B's F-C finding. The ContractStatus
+            # state machine permits ACTIVE → ARCHIVED.
+            if contract.status == ContractStatus.ACTIVE:
+                conn.execute(
+                    "UPDATE contract_history SET status = ? "
+                    "WHERE contract_name = ? AND version = ? AND status = ?",
+                    (ContractStatus.ARCHIVED.value, contract.name,
+                     contract.version, ContractStatus.ACTIVE.value),
+                )
 
             conn.execute(
                 "INSERT INTO contract_history "

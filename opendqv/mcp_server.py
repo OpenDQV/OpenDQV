@@ -797,9 +797,11 @@ async def _tool_validate_record(args: dict) -> list[types.TextContent]:
         if _ctx_status == "undeclared" else None
     )
 
+    from opendqv.core.contracts import _compute_effective_rule_hash
     result = _validate_record(record, rules, contract_name)
     result["contract"] = contract_name
     result["version"] = contract.version
+    result["effective_rule_hash"] = _compute_effective_rule_hash(rules)
     if contract.status == ContractStatus.DRAFT:
         result["draft_notice"] = _DRAFT_NOTICE
     if _context_warning:
@@ -892,9 +894,11 @@ async def _tool_validate_batch(args: dict) -> list[types.TextContent]:
         if _ctx_status == "undeclared" else None
     )
 
+    from opendqv.core.contracts import _compute_effective_rule_hash
     result = _validate_batch(records, rules, contract_name)
     result["contract"] = contract_name
     result["version"] = contract.version
+    result["effective_rule_hash"] = _compute_effective_rule_hash(rules)
     if contract.status == ContractStatus.DRAFT:
         result["draft_notice"] = _DRAFT_NOTICE
     if _context_warning:

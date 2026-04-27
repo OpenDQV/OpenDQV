@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 import opendqv.api.deps as _d
 import opendqv.config as config
 from opendqv.core._uuid7 import uuid7
-from opendqv.core.contracts import UnknownContextError
+from opendqv.core.contracts import UnknownContextError, _compute_effective_rule_hash
 from opendqv.core.rule_parser import ContractStatus, Rule
 from opendqv.core.validator import validate_record, validate_batch
 from opendqv.security.auth import get_current_user, get_current_role
@@ -212,6 +212,7 @@ async def validate_single(
         contract_hash=_entry_hash,
         entry_hash=_entry_hash,
         content_hash=_content_hash,
+        effective_rule_hash=_compute_effective_rule_hash(rules),
         owner_team=contract.owner_team,
         validated_at=datetime.now(timezone.utc).isoformat(),
         latency_ms=round(elapsed_ms, 1),
@@ -368,6 +369,7 @@ async def validate_batch_endpoint(
         contract_hash=_entry_hash,
         entry_hash=_entry_hash,
         content_hash=_content_hash,
+        effective_rule_hash=_compute_effective_rule_hash(rules),
         validated_at=datetime.now(timezone.utc).isoformat(),
         latency_ms=round(elapsed_ms, 1),
         agent_id=body.agent_id,

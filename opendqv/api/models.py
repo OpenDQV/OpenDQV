@@ -98,6 +98,19 @@ class ValidateResponse(BaseModel):
         None,
         description="SHA-256 over the contract content fields only (excludes prev_hash, opendqv_node_id, updated_at). Two semantically identical contracts share content_hash even if recorded at different times or nodes.",
     )
+    effective_rule_hash: Optional[str] = Field(
+        None,
+        description=(
+            "SHA-256 over the resolved Rule set actually used by the validator "
+            "on this call, after context overrides are applied. The other three "
+            "hashes (entry_hash, content_hash, contract_hash) describe the static "
+            "contract definition and are invariant to context — two calls with "
+            "different contexts produce the same triplet even though they ran "
+            "different rule sets. effective_rule_hash distinguishes those calls "
+            "for audit replay. v2.3.17 F-J fix; named per Q4 because the field "
+            "hashes resolved-effective-rules, not the context string."
+        ),
+    )
     owner_team: Optional[str] = None
     validated_at: Optional[str] = Field(None, description="ISO 8601 UTC timestamp of validation — use for time-series correlation with quality metrics")
     latency_ms: Optional[float] = Field(None, description="Server-side validation latency in milliseconds")
@@ -183,6 +196,10 @@ class BatchValidateResponse(BaseModel):
     contract_hash: Optional[str] = Field(None, description="DEPRECATED v2.3.14, removed v2.4. Alias of entry_hash. Prefer entry_hash on new integrations — see entry_hash and content_hash for the canonical pair.")
     entry_hash: Optional[str] = Field(None, description="SHA-256 over the full hash domain — uniquely identifies the audit chain entry for this batch's contract version.")
     content_hash: Optional[str] = Field(None, description="SHA-256 over content fields only — stable across re-recordings of the same contract.")
+    effective_rule_hash: Optional[str] = Field(
+        None,
+        description="SHA-256 over the resolved Rule set actually used by the validator on this batch, after context overrides. v2.3.17 F-J — see ValidateResponse.effective_rule_hash for full rationale.",
+    )
     validated_at: Optional[str] = Field(None, description="ISO 8601 UTC timestamp of batch validation — use for time-series correlation with quality metrics")
     latency_ms: Optional[float] = Field(None, description="Server-side batch validation latency in milliseconds (total wall-clock time for the batch)")
     agent_id: Optional[str] = Field(None, description="Echo of caller's agent_id — for session and caller attribution")
