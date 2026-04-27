@@ -81,6 +81,120 @@ def _resolve_engine_version() -> str:
 _ENGINE_VERSION = _resolve_engine_version()
 
 
+def _confidence_band(total: int) -> tuple[str, str]:
+    """Match opendqv.core.quality_stats.quality_confidence semantics.
+
+    Single source of truth lives in the engine; this is a wire-shape mirror
+    so the proxy can produce the same data_confidence / confidence_note
+    pair the in-process MCP emits, even though the proxy can't import the
+    engine module across the stdio boundary. Thresholds and text MUST stay
+    in lockstep — the parity test pins this.
+    """
+    if total <= 0:
+        return "no_data", "No validation data recorded yet for this contract."
+    if total < 10:
+        s = "s" if total != 1 else ""
+        return "low", f"Based on {total} validation{s} — treat with caution"
+    if total < 100:
+        return "medium", ""
+    return "high", ""
+
+
+def _reshape_quality_metrics(
+    summary: dict, contract_name: str, window_hours: int
+) -> dict | list:
+    """v2.3.22: build the per-contract entry shape that mirrors
+    opendqv/mcp_server.py:_tool_get_quality_metrics so the proxy and
+    in-process MCP return the same wire shape.
+
+    Pre-fix: proxy forwarded /api/v1/stats raw — keys like total_pass /
+    total_fail / by_contract that don't exist on the in-process per-contract
+    entry shape. AI agents reading metrics["passed"] got a number on
+    in-process and null on proxy — CRT170-J family drift the surface-coherence
+    audit was supposed to prevent. Pre-existing since v2.3.13.
+
+    Post-fix: identical key set across both paths. Where proxy can't reach
+    a data source the in-process MCP has (per-contract latency via
+    _stats.get_contract_latency, SQLite trend augmentation via
+    _quality_stats.get_trend), the field is included with the engine-wide
+    or thinner value rather than absent — keys agree even when fidelity
+    differs. Keeps the consumer code simple (no path-dependent branches).
+    """
+    by_contract = summary.get("by_contract", {}) or {}
+    top_fields = summary.get("top_failing_fields", []) or []
+    summary_by_agent = summary.get("by_agent")
+    governance_tip = (
+        "Pass this contract's asset_id to your catalog MCP server to retrieve "
+        "lineage and ownership context."
+    )
+
+    contracts_to_process = (
+        {contract_name} if contract_name
+        else {k.split(":")[0] for k in by_contract.keys()}
+    )
+
+    result = []
+    for cname in sorted(contracts_to_process):
+        contract_keys = [k for k in by_contract.keys() if k.startswith(f"{cname}:")]
+        total_pass = sum(int(by_contract[k].get("pass", 0)) for k in contract_keys)
+        total_fail = sum(int(by_contract[k].get("fail", 0)) for k in contract_keys)
+        total_val = total_pass + total_fail
+        pass_rate_pct = round(total_pass / total_val * 100, 1) if total_val > 0 else None
+        top_rules = [
+            {"rule": f.get("rule"), "field": f.get("field"), "failures": f.get("count", 0)}
+            for f in top_fields if f.get("contract") == cname
+        ][:5]
+        confidence, confidence_note = _confidence_band(total_val)
+        entry = {
+            "contract": cname,
+            "window_hours": window_hours,
+            "total_validations": total_val,
+            "pass_rate_pct": pass_rate_pct,
+            "passed": total_pass,
+            "failed": total_fail,
+            "data_confidence": confidence,
+            "confidence_note": confidence_note,
+            "top_failing_rules": top_rules,
+            "latency": summary.get("latency", {}) or {},
+            "catalog_hint": f"marmot:assets/{cname}",
+            "governance_tip": governance_tip if total_val > 0 else (
+                "No validation data recorded yet for this contract."
+            ),
+        }
+        # by_agent: include the unscoped summary["by_agent"] when no contract
+        # filter is set (matches in-process behaviour). When a contract filter
+        # IS set, the proxy doesn't have a contract-scoped agent breakdown
+        # source — in-process MCP uses _quality_stats.get_agent_breakdown for
+        # that. Omit rather than leak unscoped data; consumers that need
+        # per-contract agent breakdown should call the in-process MCP or
+        # extend the REST surface (v2.4 follow-on).
+        if summary_by_agent and len(summary_by_agent) > 1 and not contract_name:
+            entry["by_agent"] = summary_by_agent
+        if total_val > 0 or contract_name:
+            result.append(entry)
+
+    if contract_name and not result:
+        # Empty-state fallback — same shape as the in-process no-data
+        # branch at mcp_server.py:1540-1554. Cluster F: pass_rate_pct null,
+        # not 100.0; data_confidence "no_data" not "high".
+        result.append({
+            "contract": contract_name,
+            "window_hours": window_hours,
+            "total_validations": 0,
+            "pass_rate_pct": None,
+            "passed": 0,
+            "failed": 0,
+            "data_confidence": "no_data",
+            "confidence_note": "No validation data recorded yet for this contract.",
+            "top_failing_rules": [],
+            "latency": summary.get("latency", {}) or {},
+            "catalog_hint": f"marmot:assets/{contract_name}",
+            "governance_tip": "No validation data recorded yet for this contract.",
+        })
+
+    return result[0] if (contract_name and result) else result
+
+
 def _error_envelope(
     error_code: str,
     kind: str,
@@ -490,9 +604,11 @@ def _call_tool(name: str, arguments: dict) -> str:
 
         elif name == "get_quality_metrics":
             params = {}
-            if arguments.get("contract"):
-                params["contract"] = arguments["contract"]
-            if arguments.get("window_hours"):
+            contract_name = arguments.get("contract", "")
+            window_hours = arguments.get("window_hours", 24) or 24
+            if contract_name:
+                params["contract"] = contract_name
+            if arguments.get("window_hours") is not None:
                 params["window_hours"] = arguments["window_hours"]
             if arguments.get("agent_id"):
                 params["agent_id"] = arguments["agent_id"]
@@ -500,7 +616,15 @@ def _call_tool(name: str, arguments: dict) -> str:
                 params["include_system"] = "true"
             resp = _client.get("/api/v1/stats", params=params)
             resp.raise_for_status()
-            return resp.text
+            # v2.3.22: reshape /api/v1/stats into the per-contract entry
+            # shape that opendqv/mcp_server.py:_tool_get_quality_metrics
+            # emits. Closes the dual-path drift Persona B surfaced in the
+            # v2.3.22 inside-view probe — same tool name, two paths, one
+            # shape. CRT170-J family.
+            return json.dumps(
+                _reshape_quality_metrics(resp.json(), contract_name, window_hours),
+                default=str,
+            )
 
         elif name == "list_agents":
             params = {"window_hours": arguments.get("window_hours", 24)}
