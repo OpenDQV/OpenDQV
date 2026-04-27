@@ -667,6 +667,48 @@ async def list_tools() -> list[types.Tool]:
                 "required": ["name", "description", "owner", "rules"],
             },
         ),
+        types.Tool(
+            name="list_audit_events",
+            description=(
+                "List validation audit events with filters and cursor pagination. "
+                "One row per /validate or /validate/batch call. Use to retrieve "
+                "a window of historical validations for replay, dispute "
+                "resolution, or regulatory evidence packs (FCA, MiFIR, EMA, "
+                "Basel). Auth-gated to admin and auditor roles. v2.3.17 F-L: "
+                "added to MCP for surface-parity with REST /audit/events."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "contract": {"type": "string", "description": "Filter by contract name."},
+                    "contract_version": {"type": "string", "description": "Filter by contract version."},
+                    "context": {"type": "string", "description": "Filter by context override."},
+                    "since": {"type": "string", "description": "ISO 8601 UTC start of window. Default: 24h ago."},
+                    "until": {"type": "string", "description": "ISO 8601 UTC end of window."},
+                    "agent_id": {"type": "string", "description": "Filter by caller-asserted agent_id."},
+                    "caller_principal": {"type": "string", "description": "Filter by trustable caller_principal."},
+                    "valid": {"type": "boolean", "description": "True returns only successful events."},
+                    "mode": {"type": "string", "enum": ["enforcement", "observation_only"]},
+                    "cursor": {"type": "string", "description": "Opaque cursor from prior next_cursor."},
+                    "limit": {"type": "integer", "default": 100, "description": "Max events per page (1-1000)."},
+                },
+            },
+        ),
+        types.Tool(
+            name="get_audit_event",
+            description=(
+                "Retrieve a single validation audit event by event_id. "
+                "event_id is the UUID v7 returned in the original validate "
+                "response. Auth-gated to admin and auditor roles. v2.3.17 F-L."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "event_id": {"type": "string", "description": "UUID v7 from a validate response."},
+                },
+                "required": ["event_id"],
+            },
+        ),
     ]
 
 
@@ -699,6 +741,10 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             return await _tool_get_rule_velocity(arguments)
         elif name == "get_quality_trend":
             return await _tool_get_quality_trend(arguments)
+        elif name == "list_audit_events":
+            return await _tool_list_audit_events(arguments)
+        elif name == "get_audit_event":
+            return await _tool_get_audit_event(arguments)
         else:
             return [types.TextContent(type="text", text=_error_envelope(
                 error_code="UNKNOWN_TOOL",
@@ -1597,6 +1643,61 @@ async def _tool_get_rule_velocity(args: dict) -> list[types.TextContent]:
         data["total_validations"] = total_validations
 
     return [types.TextContent(type="text", text=json.dumps(data, default=str))]
+
+
+async def _tool_list_audit_events(args: dict) -> list[types.TextContent]:
+    """v2.3.17 F-L: MCP wrapper over GET /api/v1/audit/events.
+
+    Mirrors the proxy's list_audit_events. When configured with a remote
+    REST client (the in-process server's standard configuration), forwards
+    to the REST surface. The REST endpoint enforces the auth gate
+    (admin/auditor); this wrapper trusts the engine's check.
+    """
+    if _remote_client:
+        params = {}
+        for key in ("contract", "contract_version", "context", "since", "until",
+                    "agent_id", "caller_principal", "mode", "cursor"):
+            if args.get(key):
+                params[key] = args[key]
+        if "valid" in args:
+            params["valid"] = "true" if args["valid"] else "false"
+        if "limit" in args:
+            params["limit"] = args["limit"]
+        resp = _remote_client.get("/api/v1/audit/events", params=params)
+        resp.raise_for_status()
+        return [types.TextContent(type="text", text=resp.text)]
+    return [types.TextContent(type="text", text=_error_envelope(
+        error_code="REMOTE_CLIENT_REQUIRED",
+        kind="bad_request",
+        status=400,
+        detail="list_audit_events requires the in-process MCP server to be configured with a remote REST client.",
+        remediation="Set OPENDQV_API_URL and OPENDQV_API_TOKEN environment variables.",
+    ))]
+
+
+async def _tool_get_audit_event(args: dict) -> list[types.TextContent]:
+    """v2.3.17 F-L: MCP wrapper over GET /api/v1/audit/events/{event_id}."""
+    if _remote_client:
+        try:
+            event_id = args["event_id"]
+        except KeyError:
+            return [types.TextContent(type="text", text=_error_envelope(
+                error_code="INVALID_REQUEST",
+                kind="bad_request",
+                status=400,
+                detail="Missing required argument: event_id",
+                remediation="Provide event_id (UUID v7) from a prior validate response.",
+            ))]
+        resp = _remote_client.get(f"/api/v1/audit/events/{event_id}")
+        resp.raise_for_status()
+        return [types.TextContent(type="text", text=resp.text)]
+    return [types.TextContent(type="text", text=_error_envelope(
+        error_code="REMOTE_CLIENT_REQUIRED",
+        kind="bad_request",
+        status=400,
+        detail="get_audit_event requires the in-process MCP server to be configured with a remote REST client.",
+        remediation="Set OPENDQV_API_URL and OPENDQV_API_TOKEN environment variables.",
+    ))]
 
 
 # ── Entry point ───────────────────────────────────────────────────────

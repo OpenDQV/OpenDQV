@@ -48,6 +48,40 @@ _client = httpx.Client(
     headers={"Authorization": f"Bearer {API_TOKEN}"} if API_TOKEN else {},
 )
 
+
+def _error_envelope(
+    error_code: str,
+    kind: str,
+    detail: str,
+    status: int = 400,
+    remediation: str = "",
+) -> str:
+    """Structured MCP error envelope — identical shape to mcp_server.py.
+
+    v2.3.17 F-I fix: replaces the proxy's historical loose {"error": "..."}
+    dict shape with the same envelope the in-process MCP server uses, so
+    callers can branch on a single error shape regardless of which MCP
+    transport they are using. The dual-path discipline asserts both
+    surfaces emit byte-identical error shapes.
+
+      error_code   — stable machine-readable identifier (UPPER_SNAKE)
+      kind         — coarse category: validation | not_found | bad_request
+                     | rate_limited | internal | invalid_request
+      status       — HTTP-equivalent status code (parity with REST surface)
+      detail       — human-readable specific message
+      remediation  — actionable hint, "" when none applies
+    """
+    return json.dumps({
+        "error": {
+            "error_code": error_code,
+            "kind": kind,
+            "status": status,
+            "detail": detail,
+            "remediation": remediation,
+        },
+    })
+
+
 # ── Tool definitions ─────────────────────────────────────────────────
 
 TOOLS = [
@@ -287,6 +321,51 @@ TOOLS = [
     },
     # create_contract_draft — removed from proxy (no REST endpoint yet).
     # Good first issue for contributors: wrap _registry.create_draft() as POST /api/v1/contracts.
+    # v2.3.17: deferred to v2.4 CRT (proxy unification work). The parity test
+    # in tests/test_v2_3_17_cluster4_proxy_parity.py acknowledges this as the
+    # one known asymmetry between proxy and in-process tools/list.
+    {
+        "name": "list_audit_events",
+        "description": (
+            "List validation audit events with filters and cursor pagination. "
+            "One row per /validate or /validate/batch call. Use to retrieve a "
+            "window of historical validations for replay, dispute resolution, "
+            "or regulatory evidence packs (FCA, MiFIR, EMA, Basel). Auth-gated "
+            "to admin and auditor roles."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "contract": {"type": "string", "description": "Filter by contract name."},
+                "contract_version": {"type": "string", "description": "Filter by contract version."},
+                "context": {"type": "string", "description": "Filter by context override (e.g. 'salesforce')."},
+                "since": {"type": "string", "description": "ISO 8601 UTC start of window (inclusive). Defaults to 24h ago."},
+                "until": {"type": "string", "description": "ISO 8601 UTC end of window (exclusive)."},
+                "agent_id": {"type": "string", "description": "Filter by caller-asserted agent_id."},
+                "caller_principal": {"type": "string", "description": "Filter by server-derived caller_principal (cannot be spoofed)."},
+                "valid": {"type": "boolean", "description": "True returns only successful events; false returns only failed."},
+                "mode": {"type": "string", "enum": ["enforcement", "observation_only"]},
+                "cursor": {"type": "string", "description": "Opaque cursor from a prior response's next_cursor."},
+                "limit": {"type": "integer", "default": 100, "description": "Max events per page (1-1000)."},
+            },
+        },
+    },
+    {
+        "name": "get_audit_event",
+        "description": (
+            "Retrieve a single validation audit event by event_id. event_id is "
+            "the UUID v7 returned in the original validate response and is the "
+            "primary key for audit replay and dispute resolution. Auth-gated "
+            "to admin and auditor roles."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "event_id": {"type": "string", "description": "UUID v7 from the original validate response."},
+            },
+            "required": ["event_id"],
+        },
+    },
 ]
 
 # ── Tool dispatch ────────────────────────────────────────────────────
@@ -418,15 +497,71 @@ def _call_tool(name: str, arguments: dict) -> str:
             resp.raise_for_status()
             return resp.text
 
-        else:
-            return json.dumps({"error": f"Unknown tool: {name}"})
+        elif name == "list_audit_events":
+            params = {}
+            for key in ("contract", "contract_version", "context", "since", "until",
+                        "agent_id", "caller_principal", "mode", "cursor"):
+                if arguments.get(key):
+                    params[key] = arguments[key]
+            if "valid" in arguments:
+                params["valid"] = "true" if arguments["valid"] else "false"
+            if "limit" in arguments:
+                params["limit"] = arguments["limit"]
+            resp = _client.get("/api/v1/audit/events", params=params)
+            resp.raise_for_status()
+            return resp.text
 
+        elif name == "get_audit_event":
+            event_id = arguments["event_id"]
+            resp = _client.get(f"/api/v1/audit/events/{event_id}")
+            resp.raise_for_status()
+            return resp.text
+
+        else:
+            return _error_envelope(
+                error_code="UNKNOWN_TOOL", kind="bad_request", status=404,
+                detail=f"Unknown tool: {name}",
+                remediation="Call list_tools to enumerate available tools.",
+            )
+
+    except KeyError as exc:
+        # Missing required argument — would have raised raw KeyError to the
+        # client before v2.3.17 (V-1 finding on get_rule_velocity, but applied
+        # to all tools that do arguments[...] without .get()).
+        return _error_envelope(
+            error_code="INVALID_REQUEST", kind="bad_request", status=400,
+            detail=f"Missing required argument: {exc}",
+            remediation=f"Call list_tools to see required fields for {name!r}.",
+        )
     except httpx.HTTPStatusError as exc:
-        return json.dumps({"error": f"API returned {exc.response.status_code}: {exc.response.text}"})
+        # Map REST status to MCP envelope. Surface the REST detail body so
+        # the client can read structured error information from the engine.
+        try:
+            body = exc.response.json()
+            rest_detail = body.get("detail") if isinstance(body, dict) else None
+        except Exception:
+            rest_detail = None
+        return _error_envelope(
+            error_code="API_ERROR",
+            kind="not_found" if exc.response.status_code == 404
+                 else "bad_request" if 400 <= exc.response.status_code < 500
+                 else "internal",
+            status=exc.response.status_code,
+            detail=rest_detail or f"API returned {exc.response.status_code}: {exc.response.text[:300]}",
+            remediation="Check the engine logs and the offending request payload.",
+        )
     except httpx.ConnectError:
-        return json.dumps({"error": f"Cannot connect to OpenDQV API at {API_URL}. Is the server running?"})
+        return _error_envelope(
+            error_code="API_UNREACHABLE", kind="internal", status=503,
+            detail=f"Cannot connect to OpenDQV API at {API_URL}.",
+            remediation="Verify OPENDQV_API_URL and that the engine is running.",
+        )
     except Exception as exc:
-        return json.dumps({"error": str(exc)})
+        return _error_envelope(
+            error_code="INTERNAL_ERROR", kind="internal", status=500,
+            detail=str(exc),
+            remediation="If reproducible, file an issue with the tool name and arguments.",
+        )
 
 
 # ── MCP JSON-RPC stdio loop ─────────────────────────────────────────
