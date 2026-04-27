@@ -2,6 +2,171 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.17] - 2026-04-27
+
+The Persona B re-evaluation round produced a 19-finding outside report
+plus inherited Persona A items. Rather than chase each finding locally
+(the v2.3.10–v2.3.16 sprint pattern that produced the 28-item punch
+list this release was triggered by), v2.3.17 ships seven structural
+clusters paired with their recurrence tests in the same release —
+Queen's Standard / Protocol 32 mechanic 1.
+
+Sonnet pre-implementation review is now the default working pattern.
+On Cluster 1, Cluster 3, and Cluster 4, Sonnet's read of the actual
+code reframed the cluster substantially before any production code was
+written — reducing the four originally-claimed F-A/F-D/F-F bugs to one
+real bug + one transparency fix; redirecting F-C from a wrong-shape
+"history rewrite" to the correct at-row-insert demotion; and locking
+in the parity test with an explicit `KNOWN_ASYMMETRIES` allowlist that
+v2.4 must drain to empty.
+
+### Added
+
+- **`effective_rule_hash` on every validate response (REST + MCP, F-J
+  / Q4).** A 4th hash field alongside `entry_hash`, `content_hash`,
+  `contract_hash`. The existing triplet is invariant to context;
+  `effective_rule_hash` hashes the resolved Rule set actually used by
+  the validator after override application. Two validate calls with
+  the same record but different contexts that produce different rule
+  sets now produce different `effective_rule_hash` values, closing
+  the audit-replay gap Persona B named in F-J.
+
+- **`context_warning` field on validate response (F-D, Pilot decision
+  c).** When a context is supplied but not declared on the contract,
+  the engine continues to use base rules (fail-open by design —
+  contexts double as stats-tagging metadata for "demo", "ci", "test"),
+  but the response now carries a `context_warning` string identifying
+  the divergence. Authors who typo a real context name (`prodd` for
+  `prod`) can now see the typo without breaking metadata-tag use.
+
+- **`include_metadata: bool = false` request flag on validate (Q12).**
+  When true, `engine_version` is included on the wire response. Default-
+  off matches MCP reference-server minimalism. Durable per-call engine
+  version is preserved on the audit-event payload retrievable via
+  `get_audit_event(event_id)`.
+
+- **`record_id` on MCP `validate_record` schema (F-Q).** Both proxy
+  and in-process MCP surfaces declare `record_id` in
+  `inputSchema.properties`. Caller code using `record_id` against REST
+  works identically via MCP.
+
+- **`list_audit_events` and `get_audit_event` MCP tools on both
+  surfaces (F-L).** Closes the v2.3.x gap where REST had K1+K2 audit-
+  event surfaces but MCP had none.
+
+- **Three temporal rules on `mifid_transaction_report` exemplar
+  (Q14, hard path, severity:error):**
+  `trade_date_matches_execution_date` (regex on shape),
+  `trade_date_not_in_future` (`compare_to: today, lte`),
+  `execution_timestamp_not_in_future` (`compare_to: now, lte`).
+  Closes Persona B's N-4 — `trade_date: 2030-01-01` previously
+  passed; the third rule catches the self-consistent future-trade
+  case (2030 trade + 2030 timestamp). Sonnet/Grok right-of-reply
+  round confirmed T+0 only is the regulatory norm per RTS 22 Annex
+  Table 2 + ESMA Q&A TR 9.1/TR 10.2 + FCA Market Watch 57+62.
+
+- **44 new recurrence tests across 7 cluster test files.**
+
+### Changed
+
+- **`mifid_transaction_report.execution_timestamp_format` is now RTS
+  25 microsecond UTC (Q13, option a).** Format regex:
+  `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$`. Closes Persona B's
+  N-1 four-way contradiction — rule-required claim, format rule,
+  `explain_error` text, and JSON Schema export now align.
+
+- **`/api/v1/stats?contract=X` actually scopes the response (F-H /
+  N-7).** The proxy passed `contract` as a query param but
+  `/api/v1/stats` did not declare it; FastAPI silently dropped the
+  parameter and returned the unfiltered summary. The endpoint now
+  accepts and applies the filter, scoping `by_contract`,
+  `top_failing_fields`, `top_failing_fields_by_agent`, `recent_history`,
+  `dimensions.by_severity`, and totals.
+
+- **`top_failing_fields_by_agent` no longer leaks `"?"` as a field
+  name (F-K / N-8).** The SQLite hydration path emits `"?"` because
+  the aggregate persists rule_failure_counts but not field names.
+  Aggregator output now transforms `"?"` to `field: null` plus
+  `field_provenance: "unavailable"`.
+
+- **`get_quality_trend(by=rule)` reports honest `data_confidence`
+  (N-2).** Previously returned `data_confidence: "no_data"` and
+  `pass_rate: 1.0` even when violations were present. Route now
+  fetches `by=date` aggregation to compute `total_validations` when
+  `by=rule` was asked; `pass_rate` is `null` per-rule.
+
+- **`approve_contract` invariant: at most one ACTIVE history row per
+  (contract, version) (F-C).** Before INSERTing a new ACTIVE row,
+  the history backend demotes prior ACTIVE rows for the same
+  (contract_name, version) to ARCHIVED. History remains append-only
+  for chain integrity; the `status` column is correctly updated when
+  truth changes. Canonical terminal status: `archived`.
+
+- **MCP-only `validate_record` historical-hash + context path applies
+  Rule objects, not raw dicts (F-A on MCP in-process).** Both MCP
+  `_tool_validate_record` and `_tool_validate_batch` route through
+  the new `Registry.get_rules_with_context_status` method so REST
+  and MCP converge on identical rule resolution.
+
+- **Proxy returns the same structured error envelope as the in-process
+  server (F-I, V-1).** The proxy's loose `{"error": "..."}` dict shape
+  is replaced with `{error: {error_code, kind, status, detail,
+  remediation}}`. Subsumes V-1: tools that use `arguments[required_key]`
+  without `.get()` now produce `INVALID_REQUEST` envelopes instead of
+  leaking `KeyError` strings.
+
+- **Three-way version-source consistency invariant (F-S).**
+  `pyproject.toml == importlib.metadata.version("opendqv") ==
+  /openapi.json info.version`. Was four-way; `/config` no longer
+  exposes the field per Q11.
+
+- **`reporting_firm_lei_format` and `executing_entity_lei_format`
+  error messages state SHAPE-only (N-5).** No longer claim ISO 17442
+  check-digit verification (which the rule does not perform). Full
+  mod-97 verification deferred to v2.4 capability.
+
+### Removed
+
+- **`engine_version` dropped from `GET /config` (Q11, Sonnet option
+  iv).** `/openapi.json info.version` is REQUIRED by the OpenAPI 3.x
+  spec — that's the canonical surface. `/config` remains the operator-
+  diagnostic endpoint for non-version fields. Closes a duplicate-
+  exposure CRT170-J violation.
+
+### Security / Hardening
+
+- **Reserved `OpenDQV_SA_*` agent_id prefix is now rejected at the
+  write boundary on all four validate surfaces (F-B / Cluster 2).**
+  REST `POST /api/v1/validate` and `POST /api/v1/validate/batch` use
+  Pydantic field validators; MCP `validate_record` and `validate_batch`
+  on the in-process server use explicit guards returning
+  `INVALID_AGENT_ID` envelopes. Combined with the v2.3.15 output-side
+  suppression, a spoofed `OpenDQV_SA_*` identity can no longer be
+  accepted, persisted, then hidden by design.
+
+- **Cold-client MCP smoke is now a release-blocking gate (Q10 /
+  Protocol 32 mechanic 3).** Both proxy and in-process probes against
+  the actual built artifact, before `git tag` or `gh release create`.
+
+### Deferred to v2.3.18 / v2.4
+
+- **`pass_rate_pct` rename (Q3) — v2.3.18.** Wire rename + DuckDB
+  column migration deserves its own focused release rather than landing
+  alongside seven other clusters.
+- **F-M (`create_contract_draft` on proxy)** — requires a new REST
+  endpoint that does not exist today. Tracked in `KNOWN_ASYMMETRIES`.
+- **F-E (`get_contract_jsonschema` 4-min hang in Claude Desktop
+  transport)** — engine returns in 0.4s; wrapper-transport problem,
+  not engine. Investigation task only.
+- **N-3 negative price_min vs price_type yield/spread/basis_points**
+  — separate domain contract (not mifid).
+- **N-9 JSON Schema export improvements** (lookup→enum,
+  not_empty→minLength:1).
+- **Bundle-as-draft architectural change** — v2.4 CRT.
+- **CRT-N proxy unification** — v2.4; parity test is the load-bearing
+  protection until then.
+- **ISO 17442 mod-97 check-digit capability** for LEI/ISIN — v2.4.
+
 ## [2.3.16] - 2026-04-26
 
 ### Changed
