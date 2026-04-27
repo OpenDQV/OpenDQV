@@ -1228,13 +1228,34 @@ async def _tool_explain_error(args: dict) -> list[types.TextContent]:
                 remediation="Call get_contract for this contract to see its rules.",
             ))]
         r = matching[0]
-        # Reconstruct a minimal Rule object — constraint fields will be None
-        # but explain_rule handles None gracefully via per-type fallbacks.
+        # v2.3.22 Cluster D / O-19: reconstruct Rule with the FULL
+        # constraint set returned by GET /contracts/{name} (RuleInfo
+        # at api/models.py). Prior versions passed only name/type/
+        # field/error_message — every constraint surfaced as None,
+        # so explain_rule emitted "matching None" / "(reference list)"
+        # placeholders for regex and lookup rules. Reviewer (Persona B
+        # round-1 O-19) flagged this as templated content. Rule has
+        # populate_by_name=True with `min` / `max` aliases for
+        # min_value / max_value — the REST RuleInfo uses the alias
+        # form, which Pydantic accepts directly via the alias.
         rule_obj = _Rule(
             name=r["name"],
             type=r["type"],
             field=r["field"],
             error_message=r.get("error_message", ""),
+            pattern=r.get("pattern"),
+            min=r.get("min"),
+            max=r.get("max"),
+            min_length=r.get("min_length"),
+            max_length=r.get("max_length"),
+            min_age=r.get("min_age"),
+            max_age=r.get("max_age"),
+            format=r.get("format"),
+            compare_to=r.get("compare_to"),
+            compare_op=r.get("compare_op"),
+            allowed_values=r.get("allowed_values"),
+            lookup_file=r.get("lookup_file"),
+            checksum_algorithm=r.get("checksum_algorithm"),
         )
         info = explain_rule(rule_obj)
         payload = {
