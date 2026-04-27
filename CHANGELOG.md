@@ -2,6 +2,136 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.20] - 2026-04-27
+
+The Persona B 2026-04-27 outside reviewer (senior Data Platform Engineer
+at a regulated FS firm) returned a "conditional yes for pilot, no for
+production reg-reporting until P1.1–P1.6 fixed" verdict. v2.3.20 closes
+**all six P1s** plus the inside-view findings I-1/I-2/I-4 plus reverses
+v2.3.17 Q12 (engine_version opt-in default-off) on reviewer feedback.
+
+Sonnet pre-implementation review reframed multiple clusters before code
+was written — the working pattern this session established held through
+the entire release.
+
+### Fixed (P1)
+
+- **P1.1 currency_valid lookup** — `mifid_transaction_report.currency`
+  rule advertised "ISO 4217" but `ref/universal_currency.txt` only
+  contained 12 codes. HKD/SGD/ZAR/NZD/AED rejected. **Fix:** expanded
+  the lookup file to the full ISO 4217 active list (~170 codes). No
+  engine change needed — Sonnet's pre-impl review reframed BT-7274's
+  proposed "engine architectural change" as a content fix.
+
+- **P1.2 trade_date_matches_execution_date** — rule name and error
+  message claimed cross-field equality enforcement; v2.3.17 Q14
+  shipped it as a regex on trade_date alone. Reviewer's repro:
+  `trade_date=2024-01-15` with `execution_timestamp=2026-04-25` PASSED.
+  **Fix:** new `compare_op: same_date` extracts the YYYY-MM-DD portion
+  from each side before comparing. Rule now uses `compare` type with
+  `compare_to: execution_timestamp, compare_op: same_date`. Linter
+  allowlist updated.
+
+- **P1.3 hash-pin metadata** — `validate(hash=X)` correctly applied
+  historical rules (verified by `effective_rule_hash`) but the response
+  echoed the LATEST contract identity in `contract_hash`/`entry_hash`/
+  `content_hash`. **Fix:** `_contract_from_snapshot` now attaches
+  `_snap_entry_hash` and `_snap_content_hash` to the rebuilt contract
+  object; validate routes prefer those when present. Audit-replay
+  metadata now matches what actually ran.
+
+- **P1.4 approval workflow** — bundled exemplar `proposed_by` /
+  `approved_by` were null on every history row. Pilot's framing:
+  "they are templates" — the OpenDQV core team genuinely did propose
+  and review these template versions; that IS honest attestation. **Fix:**
+  YAML loader now reads `approved_by` + `approved_at` (was only reading
+  `proposed_by`); `record_version` writes proposed/approved fields from
+  the contract object when no explicit override is passed; new
+  `approved_at` column migrated onto contract_history; all 41 bundled
+  YAMLs declare template-level attestation
+  (`proposed_by: opendqv-core-team`, `approved_by: opendqv-core-team`).
+  Customer forks add THEIR organization's attestation when they go
+  through their own approve workflow.
+
+- **P1.5 by_agent filter scoping** — `get_quality_metrics(contract=X)`
+  scoped totals + by_contract correctly (v2.3.17 Cluster 5) but the
+  by_agent block ignored the filter and returned cross-contract per-agent
+  totals. **Fix:** Sonnet's pre-impl review pinpointed `mcp_server.py:1504`
+  fallback that passed the unscoped blob; one-line fix to suppress the
+  fallback when a contract filter is active.
+
+- **P1.6 caller_principal "anonymous"** — reviewer asked in writing
+  whether the SDK/REST production path captures an authenticated
+  principal. **Verified, NOT a blocker:** `auth.py:163-198` confirms
+  AUTH_MODE=token captures JWT `sub` into `caller_principal`. Local
+  AUTH_MODE=open without Bearer is the design-correct "anonymous"
+  fallback the reviewer observed. Smoke test ships proving JWT-sub
+  capture; no engine change needed.
+
+### Changed
+
+- **Q12 reversal — `engine_version` always emitted on validate
+  response.** v2.3.17 Q12 (Sonnet's option iv) made `engine_version`
+  opt-in via `include_metadata: true`, default-off. The reviewer's
+  P2 finding "engine_version is empty string in every response" reframed
+  the regulatory context: SoX/DORA/MiFIR audit-trail attribution
+  requires it ON. Sonnet (this round) flipped position. **Fix:**
+  `include_metadata` field removed from `ValidateRequest` and
+  `BatchValidateRequest`; `engine_version` is always populated.
+  Less code, less concept, less drift surface.
+
+- **Mifid template-level honesty (I-1, I-2, I-4)** — N-5 description-
+  honesty pattern extended to the inside-view findings the outside
+  reviewer didn't surface but that were structurally similar to the LEI
+  shape-only honesty fix:
+  - `transaction_type_valid` error_message admits "starter taxonomy"
+    and points at the proper RTS 22 `buy_sell_indicator` field.
+  - `buyer_id_type_valid` / `seller_id_type_valid` admit the lookup
+    values are starter taxonomy, not RTS 22 Annex Field 4 codes.
+  - `reviewed_by_required` / `review_date_required` admit they are
+    TEMPLATE-LEVEL (not MiFIR/RTS 22 mandated) so customers without
+    internal-review workflow know they can remove the rules.
+
+### Test suite
+
+- 3799 passed, 21 skipped (+64 over v2.3.19's 3735).
+- New test files (each cluster paired with its recurrence test):
+  - `test_v2_3_20_a_by_agent_filter_scoping.py` (2 tests)
+  - `test_v2_3_20_b_hash_pin_metadata.py` (1 test, real two-history-row
+    smoke)
+  - `test_v2_3_20_c_same_date_compare_op.py` (7 tests including the
+    reviewer's exact repro and unit-level edge cases)
+  - `test_v2_3_20_d_currency_iso4217_completeness.py` (45 tests, every
+    reviewer-named currency + G10 + Asia + EMEA + LATAM + Africa)
+  - `test_v2_3_20_f_mifid_template_honesty.py` (5 tests)
+  - `test_v2_3_20_g_caller_principal_auth_mode_smoke.py` (2 tests)
+  - `test_v2_3_20_h_template_attestation.py` (3 tests including a
+    file-level invariant that every bundled YAML must carry attestation)
+- Updated existing tests: `test_v2_3_17_cluster6_surface_hygiene.py`
+  (Q12 reversal — `TestEngineVersionAlwaysPopulated`) and
+  `test_p1_features.py::TestEngineVersionInResponse` (drop opt-in shape).
+
+### Process
+
+The protocol amendments shipped in v2.3.19 worked as intended on this
+release: Sonnet pre-implementation review on every cluster reframed
+BT-7274's plan substantially before code was written —
+- Cluster D was reframed from architecture change to content fix.
+- Cluster A was reframed to pinpoint the right file:line.
+- Cluster G was reframed from "code change needed" to "verified safe."
+- Cluster C had its highest-risk dep (`same_date` implementation)
+  flagged before BT wrote the wrong shape.
+
+Three of these reframings would have been wasted work if shipped
+without Sonnet review.
+
+### Deferred to v2.4
+
+- All previously-deferred items remain v2.4 candidates: ISO 17442
+  mod-97 LEI/ISIN check-digit capability; ISO 10383 MIC list lookup;
+  CRT-N proxy unification; bundle-as-draft architectural change;
+  Dependabot vulnerabilities audit.
+
 ## [2.3.19] - 2026-04-27
 
 Single-concern release closing a three-release regression: the MCP

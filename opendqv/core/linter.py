@@ -91,6 +91,11 @@ _KNOWN_CHECKSUM_ALGORITHMS = frozenset({
 _KNOWN_COMPARE_OPS = frozenset({
     "gt", "lt", "gte", "lte", "eq", "neq",
     ">", "<", ">=", "<=", "=", "!=",
+    # v2.3.20 P1.2: same_date extracts the YYYY-MM-DD portion from each
+    # side before comparing — used by mifid_transaction_report's
+    # trade_date_matches_execution_date rule (RTS 22 Annex Table 2 +
+    # ESMA Q&A TR 9.1 T+0 invariant).
+    "same_date",
 })
 
 

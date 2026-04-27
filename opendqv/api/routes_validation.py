@@ -190,7 +190,19 @@ async def validate_single(
             "violations": result["warnings"],
         })
 
-    _entry_hash, _content_hash = _d._get_contract_hash(contract.name)
+    # v2.3.20 P1.3 (Persona B 2026-04-27): when validate(hash=X) selected
+    # a historical contract via contract_by_hash, the response must echo
+    # the PINNED snapshot's hashes — not the live head's. The contract
+    # object built by _contract_from_snapshot now carries the snapshot's
+    # own _snap_entry_hash / _snap_content_hash attributes (private). The
+    # _get_contract_hash fallback only fires for non-pinned validates,
+    # where the live head IS the right answer.
+    _snap_entry_hash = getattr(contract, "_snap_entry_hash", None)
+    _snap_content_hash = getattr(contract, "_snap_content_hash", None)
+    if _snap_entry_hash is not None and _snap_content_hash is not None:
+        _entry_hash, _content_hash = _snap_entry_hash, _snap_content_hash
+    else:
+        _entry_hash, _content_hash = _d._get_contract_hash(contract.name)
 
     _observe = getattr(body, "observe_only", False)
     # CRT170/J1 + CRT173/25: `valid` reflects the actual validation outcome
@@ -199,11 +211,10 @@ async def validate_single(
     _mode = "observation_only" if _observe else "enforcement"
     _would_have_failed = not result["valid"]
 
-    # v2.3.17 Q12: engine_version is opt-in via include_metadata=true.
-    # Default-off matches MCP reference-server minimalism; the audit-event
-    # payload retrievable via get_audit_event(event_id) preserves the
-    # durable per-call engine version for replay use cases.
-    _engine_version = config.ENGINE_VERSION if getattr(body, "include_metadata", False) else ""
+    # v2.3.20 reverses v2.3.17 Q12 (the opt-in default-off). Reviewer's
+    # SoX/DORA/MiFIR audit-trail framing outranks MCP reference-server
+    # minimalism for regulated context. engine_version is now always
+    # emitted on the validate response.
     return ValidateResponse(
         valid=result["valid"],
         event_id=event_id,
@@ -213,7 +224,7 @@ async def validate_single(
         contract=contract.name,
         version=contract.version,
         owner=contract.owner or "",
-        engine_version=_engine_version,
+        engine_version=config.ENGINE_VERSION,
         contract_hash=_entry_hash,
         entry_hash=_entry_hash,
         content_hash=_content_hash,
@@ -345,7 +356,13 @@ async def validate_batch_endpoint(
                 "violations": failed_errors[:50],
             })
 
-    _entry_hash, _content_hash = _d._get_contract_hash(contract.name)
+    # v2.3.20 P1.3: same pinned-hash echo as the single-record route.
+    _snap_entry_hash = getattr(contract, "_snap_entry_hash", None)
+    _snap_content_hash = getattr(contract, "_snap_content_hash", None)
+    if _snap_entry_hash is not None and _snap_content_hash is not None:
+        _entry_hash, _content_hash = _snap_entry_hash, _snap_content_hash
+    else:
+        _entry_hash, _content_hash = _d._get_contract_hash(contract.name)
 
     _observe = getattr(body, "observe_only", False)
     # CRT173/25: always populate mode and would_have_failed so callers never
@@ -370,7 +387,7 @@ async def validate_batch_endpoint(
         contract=contract.name,
         version=contract.version,
         owner=contract.owner or "",
-        engine_version=config.ENGINE_VERSION if getattr(body, "include_metadata", False) else "",
+        engine_version=config.ENGINE_VERSION,
         contract_hash=_entry_hash,
         entry_hash=_entry_hash,
         content_hash=_content_hash,

@@ -198,57 +198,49 @@ class TestVersionSourceConsistency:
             f"/config should retain operator-diagnostic fields, got: {body}"
 
 
-# ── Q12: engine_version on validate response is opt-in ────────────────
+# ── v2.3.20: engine_version always populated (Q12 reversal) ────────────
 
-class TestEngineVersionOptIn:
-    """v2.3.17 Q12: validate response strips engine_version by default;
-    include_metadata=true opts in. Audit-event payload preserves the
-    durable per-call version regardless."""
+class TestEngineVersionAlwaysPopulated:
+    """v2.3.20 reverses v2.3.17 Q12 (Sonnet's option iv). The opt-in
+    default-off backfired in regulated-FS context — Persona B's outside
+    review flagged ``engine_version: ""`` as a P2 observability gap.
+    Their SoX/DORA/MiFIR audit-trail framing outranks the MCP reference-
+    server minimalism that drove the original choice. The
+    ``include_metadata`` flag is removed entirely; engine_version is
+    always emitted on validate responses."""
 
-    def test_default_validate_omits_engine_version(self, client, auth_headers):
+    def test_validate_always_returns_engine_version(self, client, auth_headers):
         body = {
             "contract": "customer",
             "record": {"name": "Alice", "age": 30, "email": "a@b.co"},
-        }
-        r = client.post("/api/v1/validate?allow_draft=true", json=body, headers=auth_headers)
-        assert r.status_code == 200
-        # engine_version is either absent or empty string — Pydantic default ""
-        assert not r.json().get("engine_version"), \
-            f"engine_version should be empty by default, got: {r.json().get('engine_version')!r}"
-
-    def test_include_metadata_opt_in_returns_engine_version(self, client, auth_headers):
-        body = {
-            "contract": "customer",
-            "record": {"name": "Alice", "age": 30, "email": "a@b.co"},
-            "include_metadata": True,
         }
         r = client.post("/api/v1/validate?allow_draft=true", json=body, headers=auth_headers)
         assert r.status_code == 200
         ev = r.json().get("engine_version")
-        assert ev, "include_metadata=true must return engine_version"
+        assert ev, "engine_version must always be populated post-v2.3.20"
         assert ev == _pyproject_version(), \
-            f"engine_version on opt-in response must match pyproject.toml, got {ev}"
+            f"engine_version must match pyproject.toml, got {ev}"
 
-    def test_batch_default_omits_engine_version(self, client, auth_headers):
+    def test_batch_validate_always_returns_engine_version(self, client, auth_headers):
         body = {
             "contract": "customer",
             "records": [{"name": "Alice", "age": 30, "email": "a@b.co"}],
-        }
-        r = client.post("/api/v1/validate/batch?allow_draft=true", json=body, headers=auth_headers)
-        assert r.status_code == 200
-        assert not r.json().get("engine_version"), \
-            f"batch engine_version should be empty by default, got: {r.json().get('engine_version')!r}"
-
-    def test_batch_include_metadata_returns_engine_version(self, client, auth_headers):
-        body = {
-            "contract": "customer",
-            "records": [{"name": "Alice", "age": 30, "email": "a@b.co"}],
-            "include_metadata": True,
         }
         r = client.post("/api/v1/validate/batch?allow_draft=true", json=body, headers=auth_headers)
         assert r.status_code == 200
         ev = r.json().get("engine_version")
         assert ev == _pyproject_version()
+
+    def test_include_metadata_field_removed_from_request_models(self):
+        """v2.3.20: the include_metadata field is removed from
+        ValidateRequest and BatchValidateRequest. Sending it in a request
+        body is now ignored (Pydantic default behaviour for unknown
+        fields) — confirm the field is no longer declared."""
+        from opendqv.api.models import ValidateRequest, BatchValidateRequest
+        assert "include_metadata" not in ValidateRequest.model_fields, \
+            "v2.3.20: include_metadata must be removed from ValidateRequest"
+        assert "include_metadata" not in BatchValidateRequest.model_fields, \
+            "v2.3.20: include_metadata must be removed from BatchValidateRequest"
 
 
 # ── F-Q: record_id on MCP validate_record schema ──────────────────────

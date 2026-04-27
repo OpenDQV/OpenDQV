@@ -1501,7 +1501,18 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
                         }
                         for a in agent_breakdown
                     }
-                elif summary.get("by_agent"):
+                # v2.3.20 P1.5 (Persona B 2026-04-27 finding): when a
+                # contract filter is active, the by_agent fallback must NOT
+                # surface the unscoped summary["by_agent"] (which is the
+                # cross-contract per-agent rollup). The reviewer's exact
+                # finding: contract=mifid_transaction_report returned
+                # total_validations:0 in the headline but by_agent showed
+                # cross-contract per-agent totals — a confidence-breaking
+                # inconsistency. Scoped path (get_agent_breakdown above)
+                # already filters by contract; if it returns ≤1 agent, the
+                # correct answer is to omit by_agent entirely rather than
+                # leaking the unscoped blob.
+                elif summary.get("by_agent") and not contract_name:
                     entry["by_agent"] = summary["by_agent"]
             except Exception:
                 pass

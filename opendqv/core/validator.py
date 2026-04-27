@@ -541,6 +541,29 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
         other = (record or {}).get(rule.compare_to)
         if other is None:
             return rule.error_message
+
+    # v2.3.20 Cluster C (P1.2): same_date compare_op extracts the
+    # YYYY-MM-DD portion from each side before comparing. Catches the
+    # MiFIR Article 26 / RTS 22 invariant that trade_date must equal the
+    # date portion of execution_timestamp — a check the v2.3.17 Q14 rule
+    # claimed to enforce but actually only validated as a regex on
+    # trade_date alone. Reviewer's exact repro: trade_date=2024-01-15
+    # with execution_timestamp=2026-04-25T... PASSED a "matches" rule.
+    # Slice [:10] works for "YYYY-MM-DD" and "YYYY-MM-DDTHH:MM:SS..." —
+    # both yield the same date portion. Bare-string compare without a
+    # datetime parse keeps the implementation honest and small.
+    if rule.compare_op == "same_date":
+        a_str = str(value)[:10]
+        b_str = str(other)[:10]
+        # Sanity: only proceed if both look like YYYY-MM-DD shape, else
+        # the rule isn't applicable and we return None (the dedicated
+        # format rule on the field is responsible for shape).
+        import re as _re
+        date_re = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
+        if not (date_re.match(a_str) and date_re.match(b_str)):
+            return None
+        return None if a_str == b_str else rule.error_message
+
     try:
         a, b = float(value), float(other)
     except (TypeError, ValueError):

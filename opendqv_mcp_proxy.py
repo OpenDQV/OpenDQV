@@ -409,7 +409,8 @@ def _call_tool(name: str, arguments: dict) -> str:
     try:
         if name == "validate_record":
             payload = {"contract": arguments["contract"], "record": arguments["record"]}
-            for key in ("context", "agent_id", "hash", "record_id", "include_metadata"):
+            # v2.3.20: include_metadata removed (Q12 reversal — engine_version always emitted).
+            for key in ("context", "agent_id", "hash", "record_id"):
                 if arguments.get(key):
                     payload[key] = arguments[key]
             # Safety: MCP validation is always dry-run. AI agents never write to

@@ -44,18 +44,12 @@ class ValidateRequest(BaseModel):
     agent_id: Optional[str] = Field(None, description="Caller-asserted identity (AI agent name, service name, or team) — NOT authenticated. Use for self-labelling and session correlation. For trustable attribution, read `caller_principal` from the response — that is server-derived from the authenticated token and cannot be spoofed. Reserved prefix: agent_ids starting with 'OpenDQV_SA_' are reserved for OpenDQV-owned system traffic (smoke probes, demos, MCP self-tests) and are REJECTED at the write boundary with HTTP 422 INVALID_AGENT_ID.")
     dry_run: bool = Field(False, description="If true, validate without recording results in quality metrics. Use for testing and demos.")
     observe_only: bool = Field(False, description="If true, run in observation-only mode: log violations but do not block. Always returns HTTP 200.")
-    include_metadata: bool = Field(
-        False,
-        description=(
-            "v2.3.17 Q12 opt-in. When true, the validate response includes "
-            "engine_version on the wire. When false (default), engine_version "
-            "is omitted from the live response — durable per-call engine "
-            "version is preserved in the audit-event payload retrievable via "
-            "get_audit_event(event_id). Default-off matches MCP reference-server "
-            "minimalism; opt-in supports CI smoke tests and lightweight "
-            "consumers that want a zero-hop version assertion."
-        ),
-    )
+    # v2.3.20 reverses v2.3.17 Q12 (Sonnet's option iv). The opt-in flag
+    # backfired in regulated-FS context: Persona B's outside review flagged
+    # `engine_version: ""` as a P2 observability gap. Their framing
+    # (SoX/DORA/MiFIR audit-trail attribution) outranks the MCP reference-
+    # server minimalism argument that drove the default-off choice. Flag
+    # removed; engine_version is now always emitted.
 
     @field_validator("agent_id")
     @classmethod
@@ -154,10 +148,7 @@ class BatchValidateRequest(BaseModel):
     agent_id: Optional[str] = Field(None, description="Caller-asserted identity (AI agent name, service name, or team) — NOT authenticated. Use for self-labelling and session correlation. For trustable attribution, read `caller_principal` from the response — that is server-derived from the authenticated token and cannot be spoofed. Reserved prefix: agent_ids starting with 'OpenDQV_SA_' are reserved for OpenDQV-owned system traffic (smoke probes, demos, MCP self-tests) and are REJECTED at the write boundary with HTTP 422 INVALID_AGENT_ID.")
     dry_run: bool = Field(False, description="If true, validate without recording results in quality metrics. Use for testing and demos.")
     observe_only: bool = Field(False, description="If true, run in observation-only mode: log violations but do not block. Always returns HTTP 200.")
-    include_metadata: bool = Field(
-        False,
-        description="v2.3.17 Q12 opt-in. When true, engine_version is included on the wire response. Default-off; durable version preserved via get_audit_event.",
-    )
+    # v2.3.20 reverses v2.3.17 Q12 — see ValidateRequest above.
 
     @field_validator("agent_id")
     @classmethod

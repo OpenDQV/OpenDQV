@@ -1,5 +1,14 @@
 contract:
   name: dora_ict_incident
+  # v2.3.20 P1.4: template-level attestation. The OpenDQV core
+  # team proposed and reviewed this template; customers forking
+  # this contract overwrite these fields with their own
+  # organizational attestation when they go through their
+  # regulated approve workflow.
+  proposed_by: opendqv-core-team
+  proposed_at: "2026-04-27T00:00:00+00:00"
+  approved_by: opendqv-core-team
+  approved_at: "2026-04-27T00:00:00+00:00"
   version: "1.0"
   description: >
     Digital Operational Resilience Act (DORA) — Regulation (EU) 2022/2554, Article 17–19.

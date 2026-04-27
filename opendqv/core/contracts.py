@@ -296,9 +296,19 @@ def _contract_from_snapshot(name: str, snap: dict) -> "DataContract":
     that produced the hash. CRT169 root cause: pre-v2.3.0 reconstruction
     only restored name/version/description/owner/status/rules/contexts —
     so even after the hash domain is fixed, reconstruction had to be too.
+
+    v2.3.20 P1.3 (Persona B 2026-04-27): also attaches the snapshot's
+    own entry_hash and content_hash to the rebuilt contract object via
+    private attributes ``_snap_entry_hash`` and ``_snap_content_hash``.
+    Routes that received this contract via ``contract_by_hash`` can then
+    echo the PINNED hash on the validate response instead of looking up
+    the latest hash via ``_get_contract_hash`` (which returns the live
+    head, not the pinned version). Closes the audit-replay misleading-
+    metadata bug the reviewer named: pinned validation reported latest
+    hashes, only ``effective_rule_hash`` reflected what actually ran.
     """
     rules = [Rule(**r) for r in snap["rules"]]
-    return DataContract(
+    contract = DataContract(
         name=name,
         version=snap["version"],
         description=snap.get("description") or "",
@@ -311,6 +321,10 @@ def _contract_from_snapshot(name: str, snap: dict) -> "DataContract":
         rules=rules,
         contexts=snap.get("contexts") or {},
     )
+    # Attach the snapshot's own hashes for the validate-response echo.
+    object.__setattr__(contract, "_snap_entry_hash", snap.get("entry_hash"))
+    object.__setattr__(contract, "_snap_content_hash", snap.get("content_hash"))
+    return contract
 
 
 class ContractHistory(ContractHistoryBackend):
@@ -380,6 +394,10 @@ class ContractHistory(ContractHistoryBackend):
             "rejected_at TEXT",
             "rejection_reason TEXT",
             "sensitive_fields TEXT",
+            # v2.3.20 P1.4: approved_at parallel to approved_by, so
+            # bundled-template attestation and live-workflow attestation
+            # both have a timestamp on the history row.
+            "approved_at TEXT",
         ):
             try:
                 conn.execute(f"ALTER TABLE contract_history ADD COLUMN {col_def}")
@@ -514,20 +532,35 @@ class ContractHistory(ContractHistoryBackend):
                      contract.version, ContractStatus.ACTIVE.value),
                 )
 
+            # v2.3.20 P1.4: when no explicit approved_by is passed (e.g.
+            # YAML-loaded bundled exemplars), fall back to the contract
+            # object's own approved_by attribute. Same fallback for
+            # proposed_by + proposed_at. Lets bundled YAMLs declare
+            # template-level attestation that flows through to history
+            # (and therefore to list_versions). Customer-forked workflow
+            # callers continue to override via the explicit approved_by
+            # param on registry.approve_contract.
+            _eff_approved_by = approved_by if approved_by is not None else contract.approved_by
+            _eff_approved_at = contract.approved_at
+            _eff_proposed_by = contract.proposed_by
+            _eff_proposed_at = contract.proposed_at
+
             conn.execute(
                 "INSERT INTO contract_history "
                 "(contract_name, version, status, description, owner, "
                 " owner_email, owner_team, asset_id, downstream_consumers, "
                 " rules, contexts, opendqv_node_id, updated_at, "
-                " prev_hash, entry_hash, content_hash, domain_version, approved_by) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " prev_hash, entry_hash, content_hash, domain_version, "
+                " approved_by, approved_at, proposed_by, proposed_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (contract.name, contract.version, contract.status.value,
                  contract.description, contract.owner,
                  contract.owner_email, contract.owner_team, contract.asset_id,
                  downstream_json, rules_json, contexts_json,
                  config.OPENDQV_NODE_ID, updated_at,
                  prev_hash, entry_hash, content_hash, _HASH_DOMAIN_VERSION,
-                 approved_by),
+                 _eff_approved_by, _eff_approved_at,
+                 _eff_proposed_by, _eff_proposed_at),
             )
             conn.commit()
         finally:
@@ -591,6 +624,7 @@ class ContractHistory(ContractHistoryBackend):
                 "owner_email, owner_team, asset_id, downstream_consumers, "
                 "rules, contexts, opendqv_node_id, updated_at, "
                 "prev_hash, entry_hash, content_hash, domain_version, approved_by, "
+                "approved_at, "
                 "proposed_by, proposed_at, rejected_by, rejected_at, rejection_reason "
                 "FROM contract_history WHERE contract_name = ? ORDER BY id",
                 (contract_name,),
@@ -603,7 +637,7 @@ class ContractHistory(ContractHistoryBackend):
         for (version, status, description, owner, owner_email, owner_team,
              asset_id, downstream_json, rules_json, contexts_json,
              opendqv_node_id, updated_at, prev_hash, entry_hash, content_hash,
-             domain_version, approved_by, proposed_by, proposed_at,
+             domain_version, approved_by, approved_at, proposed_by, proposed_at,
              rejected_by, rejected_at, rejection_reason) in rows:
             history.append({
                 "version": version,
@@ -623,6 +657,7 @@ class ContractHistory(ContractHistoryBackend):
                 "content_hash": content_hash,
                 "domain_version": domain_version,
                 "approved_by": approved_by,
+                "approved_at": approved_at,
                 "proposed_by": proposed_by,
                 "proposed_at": proposed_at,
                 "rejected_by": rejected_by,
@@ -828,6 +863,16 @@ class ContractRegistry:
             source=c.get("source"),
             proposed_by=c.get("proposed_by"),
             proposed_at=c.get("proposed_at"),
+            # v2.3.20 P1.4: also read template-level approved_by / approved_at
+            # from the YAML so bundled exemplar contracts can carry their
+            # OpenDQV-core-team attestation through to list_versions.
+            # Pilot's "they are templates" framing: the OpenDQV core team
+            # genuinely did propose + review these template versions; that
+            # IS honest attestation, not synthetic. Customer forks add
+            # THEIR organization's attestation when they go through their
+            # own approve workflow.
+            approved_by=c.get("approved_by"),
+            approved_at=c.get("approved_at"),
         )
 
     def _parse_legacy_format(self, raw: dict, path: Path) -> DataContract:
