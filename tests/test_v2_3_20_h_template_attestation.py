@@ -84,3 +84,62 @@ class TestBundledContractAttestation:
             f"template-level attestation: {unattested}. Every bundled "
             f"YAML must declare proposed_by + approved_by."
         )
+
+    def test_record_version_dedupe_treats_attestation_change_as_material(self, tmp_path):
+        """v2.3.20-fix (inside-view regression): dedupe in record_version
+        previously compared rules/contexts/description/owner/etc but NOT
+        proposed_by/approved_by. So when a YAML edit added attestation
+        with everything else unchanged, dedupe skipped the row write
+        and list_versions stayed on the prior null-attestation row.
+
+        This test asserts dedupe now treats attestation as material —
+        an attestation-only change WRITES a new history row."""
+        from opendqv.core.contracts import (
+            ContractHistory, ContractRegistry,
+        )
+
+        contracts_dir = tmp_path / "contracts"
+        contracts_dir.mkdir()
+        # Initial contract WITHOUT attestation
+        (contracts_dir / "tc.yaml").write_text("""
+name: tc
+status: active
+version: "1.0"
+rules:
+  - name: x_required
+    field: x
+    type: not_empty
+""", encoding="utf-8")
+        db_path = str(tmp_path / "h.db")
+        reg = ContractRegistry(contracts_dir)
+        reg.history = ContractHistory(db_path)
+        contract = reg.get("tc")
+        # First record_version: writes initial row (null attestation)
+        reg.history.record_version(contract)
+
+        # Now mutate ONLY the attestation — everything else unchanged
+        contract.proposed_by = "opendqv-core-team"
+        contract.approved_by = "opendqv-core-team"
+        reg.history.record_version(contract)
+
+        # Pre-fix: dedupe would have skipped, leaving 1 row null.
+        # Post-fix: dedupe sees the attestation change as material → new row.
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        try:
+            rows = conn.execute(
+                "SELECT proposed_by, approved_by FROM contract_history "
+                "WHERE contract_name = ? ORDER BY id",
+                ("tc",),
+            ).fetchall()
+        finally:
+            conn.close()
+        assert len(rows) == 2, (
+            f"v2.3.20 dedupe must treat attestation change as material; "
+            f"got {len(rows)} rows: {rows}. Pre-fix dedupe skipped the "
+            f"second record_version (this is the regression the inside-"
+            f"view caught after v2.3.20 tagged)."
+        )
+        # Latest row carries the new attestation; older row stays null.
+        assert rows[1] == ("opendqv-core-team", "opendqv-core-team")
+        assert rows[0] == (None, None)

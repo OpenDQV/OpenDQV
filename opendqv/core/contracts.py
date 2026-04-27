@@ -488,6 +488,23 @@ class ContractHistory(ContractHistoryBackend):
                  last_owner_email, last_owner_team, last_asset_id,
                  last_downstream, last_rules, last_contexts,
                  last_entry_hash) = row
+
+                # v2.3.20-fix (inside-view caught regression): also
+                # compare attestation fields. Without this, after a
+                # bundled YAML adds proposed_by/approved_by, dedupe sees
+                # no material change in the hash domain and skips the
+                # row — leaving list_versions stuck on the prior
+                # null-attestation row. The attestation IS material to
+                # change-control regimes; treat it as a comparison
+                # field. Read the current row's attestation to compare.
+                cur_attestation_row = conn.execute(
+                    "SELECT proposed_by, approved_by FROM contract_history "
+                    "WHERE contract_name = ? ORDER BY id DESC LIMIT 1",
+                    (contract.name,),
+                ).fetchone()
+                last_proposed_by = cur_attestation_row[0] if cur_attestation_row else None
+                last_approved_by = cur_attestation_row[1] if cur_attestation_row else None
+
                 if (last_version == contract.version
                         and last_status == contract.status.value
                         and last_rules == rules_json
@@ -497,7 +514,12 @@ class ContractHistory(ContractHistoryBackend):
                         and last_owner_email == contract.owner_email
                         and last_owner_team == contract.owner_team
                         and last_asset_id == contract.asset_id
-                        and (last_downstream or "[]") == downstream_json):
+                        and (last_downstream or "[]") == downstream_json
+                        and last_proposed_by == contract.proposed_by
+                        and last_approved_by == (
+                            approved_by if approved_by is not None
+                            else contract.approved_by
+                        )):
                     return
                 prev_hash = last_entry_hash or _GENESIS_HASH
 

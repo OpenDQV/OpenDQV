@@ -2,6 +2,67 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.21] - 2026-04-27
+
+Single-concern follow-up to v2.3.20. Inside-view probe caught a
+regression that pytest didn't.
+
+### Why this release exists
+
+v2.3.20's Cluster H added template-level attestation
+(`proposed_by`/`approved_by`) to all 41 bundled YAML files plus engine
+plumbing to flow those fields into history rows. Cluster H's pytest
+suite passed because tests run in fresh tempdirs.
+
+After v2.3.20 tagged, the inside-view probe pass (per the
+release-blocking gate amended in v2.3.19's
+`feedback_inside_before_outside_eval.md`) ran against the live engine's
+persistent DB. Result: `list_versions` for `mifid_transaction_report`
+showed all 4 history rows with `approved_by: null, proposed_by: null`.
+Cluster H attestation didn't land in production state.
+
+### Root cause
+
+`record_version` dedupe (`opendqv/core/contracts.py`) compared
+version, status, rules, contexts, description, owner, owner_email,
+owner_team, asset_id, downstream_consumers — but NOT `proposed_by` or
+`approved_by`. So when a YAML edit added attestation with everything
+else unchanged, dedupe saw "no material change" and skipped the row
+write. Live `list_versions` stayed stuck on the prior null-attestation
+row.
+
+### Fixed
+
+- **`record_version` dedupe now compares `proposed_by` and `approved_by`.**
+  Attestation IS material to change-control regimes (SoX, DORA); treat
+  it as a comparison field. After this fix, the next `record_version`
+  call after a YAML attestation edit writes a new row with populated
+  fields. Older null-attestation rows stay null (historical truth — they
+  were null at write time).
+
+### Recurrence test
+
+`tests/test_v2_3_20_h_template_attestation.py::test_record_version_dedupe_treats_attestation_change_as_material`
+— write a contract without attestation, then add attestation only
+(everything else unchanged), assert two history rows result. Pre-fix
+dedupe would have skipped the second; this test catches that.
+
+### Process — fourth-time-in-a-row protocol failure
+
+The v2.3.19 amendment made inside-view probe pass a release-blocking
+gate before any MCP-touching tag. v2.3.20 was MCP-touching (Cluster A
+edited mcp_server.py; Cluster E removed include_metadata from MCP
+proxy schema). BT-7274 shipped v2.3.20 without running the probe.
+Same failure as v2.3.17 + v2.3.18 + (had to fix proxy version v2.3.19).
+
+The probe pass that ran AFTER v2.3.20 tagged caught this regression
+within seconds. The four-way alignment standard works when the gate
+is actually pulled. v2.3.21 is what happens when the gate runs.
+
+### Test suite
+
+3800 passed, 21 skipped (+1 over v2.3.20's 3799).
+
 ## [2.3.20] - 2026-04-27
 
 The Persona B 2026-04-27 outside reviewer (senior Data Platform Engineer
