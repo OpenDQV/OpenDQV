@@ -199,6 +199,11 @@ async def validate_single(
     _mode = "observation_only" if _observe else "enforcement"
     _would_have_failed = not result["valid"]
 
+    # v2.3.17 Q12: engine_version is opt-in via include_metadata=true.
+    # Default-off matches MCP reference-server minimalism; the audit-event
+    # payload retrievable via get_audit_event(event_id) preserves the
+    # durable per-call engine version for replay use cases.
+    _engine_version = config.ENGINE_VERSION if getattr(body, "include_metadata", False) else ""
     return ValidateResponse(
         valid=result["valid"],
         event_id=event_id,
@@ -208,7 +213,7 @@ async def validate_single(
         contract=contract.name,
         version=contract.version,
         owner=contract.owner or "",
-        engine_version=config.ENGINE_VERSION,
+        engine_version=_engine_version,
         contract_hash=_entry_hash,
         entry_hash=_entry_hash,
         content_hash=_content_hash,
@@ -365,7 +370,7 @@ async def validate_batch_endpoint(
         contract=contract.name,
         version=contract.version,
         owner=contract.owner or "",
-        engine_version=config.ENGINE_VERSION,
+        engine_version=config.ENGINE_VERSION if getattr(body, "include_metadata", False) else "",
         contract_hash=_entry_hash,
         entry_hash=_entry_hash,
         content_hash=_content_hash,

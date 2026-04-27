@@ -49,12 +49,17 @@ class TestConfigEndpointShape:
         self, client: TestClient, admin_headers
     ):
         body = client.get("/config", headers=admin_headers).json()
+        # v2.3.17 Q11: engine_version dropped from /config (now exposed
+        # only on /openapi.json info.version which is REQUIRED by the
+        # OpenAPI 3.x spec). De-duplication.
         required = {
-            "engine_version", "node_id",
+            "node_id",
             "auth", "audit", "storage", "limits",
             "rate_limits", "federation", "mcp", "policy",
         }
         assert required.issubset(set(body.keys()))
+        assert "engine_version" not in body, \
+            "v2.3.17 Q11 dropped engine_version from /config"
 
 
 class TestConfigSecretsNeverLeak:
@@ -131,9 +136,13 @@ class TestConfigSectionContents:
         assert "default" in rl and "validate" in rl and "tokens" in rl
         assert isinstance(rl["validate_active"], bool)
 
-    def test_engine_version_matches_running_engine(
+    def test_openapi_info_version_matches_running_engine(
         self, client: TestClient, admin_headers
     ):
-        body = client.get("/config", headers=admin_headers).json()
+        # v2.3.17 Q11: engine_version moved from /config to /openapi.json
+        # info.version (the OpenAPI 3.x spec REQUIRES info.version, so it
+        # is the canonical surface). The four-way consistency invariant
+        # remains — see tests/test_v2_3_17_cluster6_surface_hygiene.py.
+        info_version = client.get("/openapi.json").json()["info"]["version"]
         from opendqv.config import ENGINE_VERSION
-        assert body["engine_version"] == ENGINE_VERSION
+        assert info_version == ENGINE_VERSION

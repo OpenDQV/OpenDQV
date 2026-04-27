@@ -289,6 +289,10 @@ async def list_tools() -> list[types.Tool]:
                         "type": "string",
                         "description": "Optional content_hash from list_versions to pin validation to a specific historical contract version. Returns 404 if no matching history entry.",
                     },
+                    "record_id": {
+                        "type": "string",
+                        "description": "v2.3.17 F-Q: optional caller correlation ID echoed in the response and recorded in the audit trail. Use to correlate this validate call with your upstream system's record identifier.",
+                    },
                 },
                 "required": ["contract", "record"],
             },

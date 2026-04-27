@@ -249,8 +249,12 @@ async def get_config(role: str = Depends(get_current_role)):
             detail=f"Role '{role}' cannot read tenant config. Required: admin or auditor.",
         )
     rl_off = {"off", "0", "disabled"}
+    # v2.3.17 Q11: engine_version dropped from /config — it was redundant
+    # with /openapi.json info.version, which is REQUIRED by the OpenAPI 3.x
+    # spec. /config remains the operator-diagnostic surface; engine version
+    # is now exposed only on the canonical OpenAPI document. Sonnet's
+    # option (iv): de-duplicate by dropping from /config.
     return {
-        "engine_version": config.ENGINE_VERSION,
         "node_id": config.OPENDQV_NODE_ID,
         "auth": {
             "mode": config.AUTH_MODE,

@@ -544,22 +544,35 @@ class TestREVIEWLifecycle:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestEngineVersionInResponse:
-    """Conference F25 — engine_version present in both single and batch validate responses."""
+    """Conference F25 — engine_version on validate response.
 
-    def test_single_validate_has_engine_version(self, client, auth_headers):
+    v2.3.17 Q12: engine_version is now opt-in via include_metadata=true.
+    Default-off matches MCP reference-server minimalism; durable per-call
+    version is preserved in the audit-event payload retrievable via
+    get_audit_event(event_id). These tests assert the opt-in path
+    works — see tests/test_v2_3_17_cluster6_surface_hygiene.py for the
+    paired default-off assertion.
+    """
+
+    def test_single_validate_with_include_metadata_has_engine_version(self, client, auth_headers):
         import opendqv.config as config
-        body = {"record": {"email": "a@example.com", "age": 25, "name": "Alice"}, "contract": "customer"}
+        body = {
+            "record": {"email": "a@example.com", "age": 25, "name": "Alice"},
+            "contract": "customer",
+            "include_metadata": True,
+        }
         r = client.post("/api/v1/validate", json=body, headers=auth_headers)
         assert r.status_code == 200
         data = r.json()
         assert "engine_version" in data
         assert data["engine_version"] == config.ENGINE_VERSION
 
-    def test_batch_validate_has_engine_version(self, client, auth_headers):
+    def test_batch_validate_with_include_metadata_has_engine_version(self, client, auth_headers):
         import opendqv.config as config
         body = {
             "records": [{"email": "a@example.com", "age": 25, "name": "Alice"}],
             "contract": "customer",
+            "include_metadata": True,
         }
         r = client.post("/api/v1/validate/batch", json=body, headers=auth_headers)
         assert r.status_code == 200
@@ -567,8 +580,12 @@ class TestEngineVersionInResponse:
         assert "engine_version" in data
         assert data["engine_version"] == config.ENGINE_VERSION
 
-    def test_engine_version_is_nonempty_string(self, client, auth_headers):
-        body = {"record": {"email": "a@example.com"}, "contract": "customer"}
+    def test_engine_version_is_nonempty_string_when_opted_in(self, client, auth_headers):
+        body = {
+            "record": {"email": "a@example.com"},
+            "contract": "customer",
+            "include_metadata": True,
+        }
         r = client.post("/api/v1/validate", json=body, headers=auth_headers)
         assert r.status_code == 200
         ev = r.json()["engine_version"]

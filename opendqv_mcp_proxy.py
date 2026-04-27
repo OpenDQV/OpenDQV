@@ -108,6 +108,7 @@ TOOLS = [
                 "context": {"type": "string", "description": "Optional per-system context override (e.g. 'billing', 'kids_app'). Omit for default rules."},
                 "agent_id": {"type": "string", "description": "Your agent name or service identity."},
                 "hash": {"type": "string", "description": "Optional content_hash from list_versions to pin validation to a historical contract version. Returns 404 if no matching history entry."},
+                "record_id": {"type": "string", "description": "v2.3.17 F-Q: optional caller correlation ID echoed in the response."},
             },
             "required": ["contract", "record"],
         },
@@ -376,7 +377,7 @@ def _call_tool(name: str, arguments: dict) -> str:
     try:
         if name == "validate_record":
             payload = {"contract": arguments["contract"], "record": arguments["record"]}
-            for key in ("context", "agent_id", "hash"):
+            for key in ("context", "agent_id", "hash", "record_id", "include_metadata"):
                 if arguments.get(key):
                     payload[key] = arguments[key]
             # Safety: MCP validation is always dry-run. AI agents never write to
