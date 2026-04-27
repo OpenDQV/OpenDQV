@@ -11,6 +11,8 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
+from opendqv.monitoring import _is_system_agent
+
 logger = logging.getLogger(__name__)
 
 _CREATE_TABLE = """
@@ -220,6 +222,7 @@ class QualityStats:
         days: int = 7,
         context: Optional[str] = None,
         by: str = "date",
+        include_system: bool = False,
     ) -> list[dict]:
         """
         Return aggregated quality statistics for the last N days.
@@ -248,7 +251,7 @@ class QualityStats:
                 conn.close()
 
         if by != "date":
-            return self._group_trend(rows, by)
+            return self._group_trend(rows, by, include_system=include_system)
 
         # Aggregate by calendar date (UTC)
         daily: dict[str, dict] = {}
@@ -288,13 +291,20 @@ class QualityStats:
 
         return result
 
-    def _group_trend(self, rows: list, by: str) -> list[dict]:
+    def _group_trend(self, rows: list, by: str, include_system: bool = False) -> list[dict]:
         """Group raw quality_stats rows by a non-date dimension."""
         # by ∈ {"agent", "context", "rule"} — caller validated.
         grouped: dict[str, dict] = {}
         for row in rows:
             if by == "agent":
-                keys: list[tuple[str, int]] = [(row["agent_id"] or "", row["passed"] + row["failed"])]
+                aid = row["agent_id"] or ""
+                # v2.3.22 Cluster E: suppression contract ("system traffic
+                # does not appear in customer-visible read surfaces unless
+                # include_system=true") extends to the trend by=agent
+                # surface. Round-1 inside-view 2.2 caught the leak.
+                if not include_system and _is_system_agent(aid):
+                    continue
+                keys: list[tuple[str, int]] = [(aid, row["passed"] + row["failed"])]
             elif by == "context":
                 keys = [(row["context"] or "default", row["passed"] + row["failed"])]
             else:  # by == "rule"
@@ -535,13 +545,24 @@ class QualityStats:
         ]
         return events, has_more
 
-    def get_agent_breakdown(self, contract_name: str, window_hours: int = 24) -> list[dict]:
+    def get_agent_breakdown(
+        self,
+        contract_name: str,
+        window_hours: int = 24,
+        include_system: bool = False,
+    ) -> list[dict]:
         """
         Return per-agent_id totals for a contract within the last window_hours.
 
         Only includes rows where agent_id is non-empty. Returns list of dicts:
           {agent_id, total, passed, failed, pass_rate_pct}
         sorted by total descending.
+
+        v2.3.22 Cluster E: OpenDQV_SA_* system agents are suppressed by
+        default — the same suppression contract that governs list_agents
+        and get_quality_metrics. This feeds the by_agent rollup on
+        get_quality_metrics, so leaving it unfiltered surfaces system
+        traffic on every metrics call.
         """
         since = (datetime.now(timezone.utc) - timedelta(hours=window_hours)).isoformat()
         conn = self._connect()
@@ -553,11 +574,14 @@ class QualityStats:
 
         result = []
         for row in rows:
+            agent_id = row[0]
+            if not include_system and _is_system_agent(agent_id):
+                continue
             total = int(row[1] or 0)
             passed = int(row[2] or 0)
             failed = int(row[3] or 0)
             result.append({
-                "agent_id": row[0],
+                "agent_id": agent_id,
                 "total": total,
                 "passed": passed,
                 "failed": failed,

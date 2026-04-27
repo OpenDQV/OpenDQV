@@ -370,6 +370,15 @@ async def get_quality_trend(
     context: str | None = Query(None, description="Filter by context"),
     by: str = Query("date", pattern="^(date|agent|context|rule)$",
                     description="Grouping dimension: date (default) | agent | context | rule"),
+    include_system: bool = Query(
+        False,
+        description=(
+            "Include OpenDQV system agents (OpenDQV_SA_* — smoke probes, "
+            "demos, MCP self-tests) when by=agent. Default false honors the "
+            "suppression contract: customer-visible read surfaces stay clean "
+            "of dev/test traffic. Other by= dimensions are unaffected."
+        ),
+    ),
 ):
     """
     Quality trend for a contract over the last N days.
@@ -386,7 +395,9 @@ async def get_quality_trend(
     """
     c = _d._get_contract_or_404(name)
 
-    points = _d._quality_stats.get_trend(name, days=days, context=context, by=by)
+    points = _d._quality_stats.get_trend(
+        name, days=days, context=context, by=by, include_system=include_system,
+    )
     # CRT170/J6 + v2.3.17 N-2: total validations underpinning this trend.
     # When by=rule, the per-bucket rows carry violation_count not total_records
     # (a rule has violations, not records — sums would be 0). Compute from the

@@ -615,6 +615,17 @@ async def list_tools() -> list[types.Tool]:
                             "from a single feed, a single configuration, or a single rule."
                         ),
                     },
+                    "include_system": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": (
+                            "When by=agent, include OpenDQV system agents (OpenDQV_SA_* — "
+                            "smoke probes, demos, MCP self-tests). Default false honors the "
+                            "suppression contract that governs list_agents and get_quality_metrics: "
+                            "system traffic stays absent from customer-visible read surfaces. "
+                            "Other by= dimensions are unaffected."
+                        ),
+                    },
                 },
                 "required": ["contract"],
             },
@@ -1508,7 +1519,9 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
         # Include per-agent breakdown when >1 distinct agent seen in the window
         if not _remote_client:
             try:
-                agent_breakdown = _quality_stats.get_agent_breakdown(cname, window_hours or 24)
+                agent_breakdown = _quality_stats.get_agent_breakdown(
+                    cname, window_hours or 24, include_system=include_system,
+                )
                 if len(agent_breakdown) > 1:
                     entry["by_agent"] = {
                         a["agent_id"]: {
@@ -1570,6 +1583,7 @@ async def _tool_get_quality_trend(args: dict) -> list[types.TextContent]:
     days = max(1, min(90, int(args.get("days", 7))))
     context = args.get("context") or None
     by = args.get("by", "date")
+    include_system = bool(args.get("include_system", False))
     if by not in ("date", "agent", "context", "rule"):
         return [types.TextContent(type="text", text=_error_envelope(
             error_code="INVALID_PARAMETER",
@@ -1583,11 +1597,15 @@ async def _tool_get_quality_trend(args: dict) -> list[types.TextContent]:
         params: dict = {"days": days, "by": by}
         if context:
             params["context"] = context
+        if include_system:
+            params["include_system"] = "true"
         resp = _remote_client.get(f"/api/v1/contracts/{contract_name}/quality-trend", params=params)
         resp.raise_for_status()
         return [types.TextContent(type="text", text=json.dumps(resp.json(), default=str))]
 
-    points = _quality_stats.get_trend(contract_name, days=days, context=context, by=by)
+    points = _quality_stats.get_trend(
+        contract_name, days=days, context=context, by=by, include_system=include_system,
+    )
     # v2.3.22 N-2 (P0): by=rule rows carry violation_count not total_records
     # (a rule has violations, not records — see quality_stats.py:300-323).
     # Summing total_records from those rows yields 0, which routes through
