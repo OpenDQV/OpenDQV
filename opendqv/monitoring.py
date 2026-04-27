@@ -191,9 +191,21 @@ class ValidationStats:
                             include_system: bool = False) -> dict:
         """Aggregate error events by agent_id → list of top failing (contract, field, rule).
 
-        Returns {agent_id: [{contract, field, rule, count}, ...top 10]} sorted by count.
-        Rows with empty agent_id are grouped under "unattributed" so the story still shows.
-        System agents (OpenDQV_SA_*) are suppressed unless include_system=True.
+        Returns {agent_id: [{contract, field, rule, count, [field_provenance]}, ...top 10]}
+        sorted by count.
+
+        Field-name honesty (v2.3.17 N-8 / F-K fix): when an error event carries
+        the sentinel field "?" — most often because it was synthesised from the
+        SQLite quality_stats aggregate during in-memory hydration, where only
+        rule_failure_counts are persisted and field names are not — the aggregate
+        output emits ``{"field": null, "field_provenance": "unavailable"}`` rather
+        than the literal "?" string. This signals to consumers that the field
+        could not be recovered from persistence, rather than implying the
+        validator emitted "?" as the field name.
+
+        Rows with empty agent_id are grouped under "unattributed" so the story
+        still shows. System agents (OpenDQV_SA_*) are suppressed unless
+        include_system=True.
         """
         from collections import defaultdict as _dd
         per_agent = _dd(lambda: _dd(int))
@@ -206,11 +218,17 @@ class ValidationStats:
             per_agent[aid][(contract, field, rule)] += 1
         out = {}
         for aid, rule_map in per_agent.items():
-            out[aid] = sorted(
-                [{"contract": c, "field": f, "rule": r, "count": v}
-                 for (c, f, r), v in rule_map.items()],
-                key=lambda x: x["count"], reverse=True,
-            )[:10]
+            entries = []
+            for (c, f, r), v in rule_map.items():
+                if f == "?":
+                    entries.append({
+                        "contract": c, "field": None, "rule": r, "count": v,
+                        "field_provenance": "unavailable",
+                    })
+                else:
+                    entries.append({"contract": c, "field": f, "rule": r, "count": v})
+            entries.sort(key=lambda x: x["count"], reverse=True)
+            out[aid] = entries[:10]
         return out
 
     def get_summary(self, include_system: bool = False) -> dict:

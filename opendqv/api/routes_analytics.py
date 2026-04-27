@@ -23,6 +23,7 @@ async def get_stats(
     request: Request,
     window_hours: Optional[int] = Query(None, ge=1, le=8760, description="If set, return stats for only the last N hours"),
     agent_id: Optional[str] = Query(None, description="Filter to a specific agent / source system identity"),
+    contract: Optional[str] = Query(None, description="Filter to a specific contract. Scopes by_contract, top_failing_fields, dimensions.by_severity, recent_history, and totals to that contract only."),
     include_system: bool = Query(False, description="If true, include OpenDQV system agents (agent_ids prefixed 'OpenDQV_SA_' — smoke probes, demos, MCP self-tests). Default false hides them from tenant-facing metrics."),
     user=Depends(get_current_user),
 ):
@@ -30,6 +31,13 @@ async def get_stats(
 
     If agent_id is provided, results are scoped to that agent's traffic only —
     useful for per-source-system drill-down in monitoring dashboards.
+
+    If contract is provided, the response is scoped to that contract: by_contract,
+    top_failing_fields, dimensions.by_severity, recent_history, and totals
+    (total_validations, total_pass, total_fail, pass_rate) reflect only that
+    contract's events. Closes v2.3.17 N-7 / F-H — the dual-path drift where the
+    proxy passed `contract` as a query param but the REST endpoint silently
+    dropped it.
     """
     if agent_id:
         # Explicit agent filter — caller asked for that exact agent_id, suppression
@@ -49,7 +57,77 @@ async def get_stats(
         "review_count": review_count,
     }
     update_contract_counts(draft=draft_count, active=active_count, review=review_count)
+
+    if contract:
+        result = _scope_summary_to_contract(result, contract)
+
     return result
+
+
+def _scope_summary_to_contract(summary: dict, contract_name: str) -> dict:
+    """Scope an unfiltered stats summary to a single contract.
+
+    Filters by_contract, top_failing_fields, top_failing_fields_by_agent,
+    recent_history, dimensions.by_severity, and recomputes totals
+    (total_validations, total_pass, total_fail, pass_rate, pass_rate_ratio)
+    from the scoped by_contract slice.
+
+    Governance, latency (engine-wide), uptime, and window metadata are
+    preserved unchanged. agent_id_filter is preserved (this can compose with
+    agent_id filtering when both are set on get_windowed_summary_for_agent).
+    """
+    scoped = dict(summary)
+    by_contract = summary.get("by_contract", {}) or {}
+    scoped_by_contract = {
+        k: v for k, v in by_contract.items() if k.startswith(f"{contract_name}:")
+    }
+    scoped["by_contract"] = scoped_by_contract
+
+    scoped_pass = sum(v.get("pass", 0) for v in scoped_by_contract.values())
+    scoped_fail = sum(v.get("fail", 0) for v in scoped_by_contract.values())
+    scoped_total = scoped_pass + scoped_fail
+    scoped["total_pass"] = scoped_pass
+    scoped["total_fail"] = scoped_fail
+    scoped["total_validations"] = scoped_total
+    scoped["pass_rate"] = round(scoped_pass / scoped_total * 100, 1) if scoped_total > 0 else 0
+    scoped["pass_rate_ratio"] = round(scoped_pass / scoped_total, 4) if scoped_total > 0 else 1.0
+
+    scoped["top_failing_fields"] = [
+        f for f in summary.get("top_failing_fields", []) or []
+        if f.get("contract") == contract_name
+    ]
+
+    by_agent_failing = summary.get("top_failing_fields_by_agent", {}) or {}
+    scoped["top_failing_fields_by_agent"] = {
+        aid: [f for f in entries if f.get("contract") == contract_name]
+        for aid, entries in by_agent_failing.items()
+    }
+    scoped["top_failing_fields_by_agent"] = {
+        aid: entries for aid, entries in scoped["top_failing_fields_by_agent"].items() if entries
+    }
+
+    scoped["recent_history"] = [
+        h for h in summary.get("recent_history", []) or []
+        if h.get("contract") == contract_name
+    ]
+
+    severity_counts_attr = getattr(stats, "severity_counts", {}) or {}
+    scoped_err = sum(
+        v for (c, sev), v in severity_counts_attr.items()
+        if c == contract_name and sev == "error"
+    )
+    scoped_warn = sum(
+        v for (c, sev), v in severity_counts_attr.items()
+        if c == contract_name and sev == "warning"
+    )
+    if "dimensions" in summary:
+        scoped["dimensions"] = {
+            **summary["dimensions"],
+            "by_severity": {"error": scoped_err, "warning": scoped_warn},
+        }
+
+    scoped["contract_filter"] = contract_name
+    return scoped
 
 
 @sub_router.get("/agents")

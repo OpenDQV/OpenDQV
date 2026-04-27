@@ -454,3 +454,179 @@ class TestAgentIdFilterIntegration:
 
         combined = vs.get_windowed_summary(window_hours=1)
         assert combined["total_validations"] == 2
+
+
+# ── v2.3.17 Cluster 5 — aggregator arithmetic invariants ───────────────
+
+class TestCluster5AggregatorInvariants:
+    """v2.3.17 Cluster 5 recurrence test (Queen's Standard pairing).
+
+    A single high-leverage test class covering the family of bugs found by
+    Persona B in the v2.3.16 outside review:
+
+    - F-H / N-7: ``get_quality_metrics(contract=X)`` filter ignored on the
+      proxy/REST path because ``/api/v1/stats`` did not accept a ``contract``
+      query parameter and FastAPI silently dropped it.
+    - F-K / N-8: ``top_failing_fields_by_agent`` collapsed field names to
+      the literal string "?" — actually the in-memory hydration sentinel
+      from the SQLite quality_stats aggregate (which does not store field
+      names alongside rule names).
+    - N-2: ``get_quality_trend(by=rule)`` returned ``data_confidence:
+      "no_data"`` and ``pass_rate: 1.0`` per rule even when violations were
+      present — caused by the per-rule rows not carrying ``total_records``
+      so the route's ``sum(total_records)`` was 0, plus the
+      ``QualityTrendPoint.pass_rate`` model defaulting to 1.0.
+
+    Composes with the Grok imbalance-guard insight from CRT167: the seed
+    fixture must intentionally imbalance per-contract / per-agent volumes
+    so ``max(scoped_vals) > min(scoped_vals)`` is meaningful and uniform-
+    average leaks cannot trivially satisfy the sum invariant.
+    """
+
+    def test_field_provenance_unavailable_for_synthesised_question_marks(self):
+        """F-K / N-8: hydrated ``field="?"`` events surface as null + provenance flag.
+
+        Synthesised error events from SQLite hydration carry "?" as the
+        field name because the aggregate does not persist field names.
+        The aggregator output must not echo "?" as if it were a real field
+        name; it must emit ``field=null, field_provenance="unavailable"``.
+        """
+        vs = ValidationStats()
+        # Simulate hydrated error events (field name lost in persistence)
+        ts = time.time()
+        vs._error_events.append((ts, "c1", "?", "rule_a", "agent-a"))
+        vs._error_events.append((ts, "c1", "?", "rule_a", "agent-a"))
+        vs._error_events.append((ts, "c1", "?", "rule_b", "agent-a"))
+        # Plus a live error event with a real field name
+        live_err = [{"field": "email", "rule": "email_format", "severity": "error"}]
+        vs.record("c1", "ctx", False, 1, 0, 1.0, errors=live_err, agent_id="agent-a")
+
+        summary = vs.get_summary()
+        agent_a_entries = summary["top_failing_fields_by_agent"]["agent-a"]
+
+        # No entry should have the literal "?" as field
+        assert all(e["field"] != "?" for e in agent_a_entries), \
+            f"top_failing_fields_by_agent leaked '?' as a field name: {agent_a_entries}"
+
+        # Synthesised entries (field was "?") must surface as None + provenance
+        unavailable_entries = [e for e in agent_a_entries if e.get("field_provenance") == "unavailable"]
+        assert len(unavailable_entries) >= 1, \
+            "synthesised ?-field events must emit field_provenance=unavailable"
+        for e in unavailable_entries:
+            assert e["field"] is None, \
+                f"field_provenance=unavailable entry must have field=null, got: {e}"
+
+        # Live entries (real field name) must NOT carry field_provenance
+        live_entries = [e for e in agent_a_entries if e["field"] == "email"]
+        assert len(live_entries) == 1
+        assert "field_provenance" not in live_entries[0], \
+            "live entries must not carry field_provenance"
+
+    def test_rest_stats_contract_filter_scopes_response(self, client, auth_headers):
+        """F-H / N-7: ``GET /api/v1/stats?contract=X`` scopes by_contract,
+        top_failing_fields, dimensions.by_severity, totals to that contract only.
+
+        Closes the proxy/REST drift where the proxy passed ``contract`` but
+        the endpoint silently dropped it and returned the unfiltered summary.
+        """
+        from opendqv.monitoring import stats as global_stats
+
+        # Inject deliberately imbalanced multi-contract traffic
+        global_stats.totals.clear()
+        global_stats._events.clear()
+        global_stats._error_events.clear()
+        global_stats.field_errors.clear()
+
+        err = [{"field": "amount", "rule": "amount_positive", "severity": "error"}]
+        # contract X: 10 events, 7 pass / 3 fail
+        for _ in range(7):
+            global_stats.record("contract_x", "default", True, 0, 0, 1.0, agent_id="src-a")
+        for _ in range(3):
+            global_stats.record("contract_x", "default", False, 1, 0, 1.0, errors=err, agent_id="src-a")
+        # contract Y: 5 events, 5 pass / 0 fail (different volume → max>min)
+        for _ in range(5):
+            global_stats.record("contract_y", "default", True, 0, 0, 1.0, agent_id="src-b")
+
+        # Unfiltered: both contracts visible
+        r_all = client.get("/api/v1/stats", headers=auth_headers)
+        assert r_all.status_code == 200
+        unfiltered = r_all.json()
+        assert any(k.startswith("contract_x:") for k in unfiltered.get("by_contract", {}))
+        assert any(k.startswith("contract_y:") for k in unfiltered.get("by_contract", {}))
+
+        # Scoped to contract_x
+        r_x = client.get("/api/v1/stats?contract=contract_x", headers=auth_headers)
+        assert r_x.status_code == 200
+        scoped = r_x.json()
+
+        # by_contract scoped
+        assert all(k.startswith("contract_x:") for k in scoped["by_contract"]), \
+            f"by_contract leaked non-X keys: {list(scoped['by_contract'].keys())}"
+
+        # top_failing_fields scoped
+        assert all(f["contract"] == "contract_x" for f in scoped.get("top_failing_fields", []))
+
+        # totals scoped to contract_x's slice (7 pass + 3 fail = 10)
+        assert scoped["total_validations"] == 10
+        assert scoped["total_pass"] == 7
+        assert scoped["total_fail"] == 3
+
+        # contract_filter echo for trace
+        assert scoped.get("contract_filter") == "contract_x"
+
+        # Imbalance guard: unfiltered total > scoped total
+        # (proves we're filtering; uniform leak would have scoped == unfiltered)
+        assert unfiltered["total_validations"] > scoped["total_validations"], \
+            "scoped total equals unfiltered total — possible filter ignored"
+
+    def test_quality_trend_by_rule_data_confidence_honest(self, client, auth_headers):
+        """N-2: by=rule must report sane data_confidence when violations exist.
+
+        Previously: ``data_confidence: "no_data"`` despite ``violation_count: 255``
+        because per-rule rows did not carry ``total_records`` and the route
+        summed zero. Fix: route fetches ``by=date`` to compute total_validations
+        when the user asked for by=rule.
+        """
+        import opendqv.api.deps as _d
+
+        # Seed quality_stats with a contract that has rule violations
+        qs = _d._quality_stats
+        # Ensure clean slate for this contract
+        try:
+            qs.delete_by_context("test_n2")
+        except Exception:
+            pass
+        # Use a real bundled contract name so /quality-trend route resolves
+        contract = "customer"
+        qs.record_batch(contract, "v1", "test_n2", 100, 80, 20, {"email_format": 15, "age_range": 5})
+        qs.record_batch(contract, "v1", "test_n2", 50, 45, 5, {"email_format": 5})
+
+        try:
+            r = client.get(
+                f"/api/v1/contracts/{contract}/quality-trend?days=7&by=rule&context=test_n2",
+                headers=auth_headers,
+            )
+            assert r.status_code == 200, r.text
+            body = r.json()
+
+            # Honest signals: violations exist, total_validations reflects underlying records
+            assert body["total_validations"] >= 100, \
+                f"by=rule total_validations should be aggregated from by=date, got {body['total_validations']}"
+            assert body["data_confidence"] != "no_data", \
+                f"by=rule data_confidence should not be 'no_data' when violations exist; got {body['data_confidence']}"
+
+            # Per-rule points: pass_rate is None (not 1.0) because pass-rate is not
+            # meaningful per rule — a rule has violations, not passes.
+            for p in body["points"]:
+                assert p.get("pass_rate") is None, \
+                    f"by=rule point.pass_rate should be null, got {p.get('pass_rate')} on {p}"
+                assert p.get("violation_count", 0) > 0, \
+                    f"by=rule point should carry violation_count, got {p}"
+
+            # Imbalance guard: rule violations are not uniform
+            counts = [p["violation_count"] for p in body["points"]]
+            if len(counts) > 1:
+                assert max(counts) > min(counts), \
+                    "all rule violation_counts identical — possible uniform-average leak"
+        finally:
+            qs.delete_by_context("test_n2")

@@ -387,8 +387,16 @@ async def get_quality_trend(
     c = _d._get_contract_or_404(name)
 
     points = _d._quality_stats.get_trend(name, days=days, context=context, by=by)
-    # CRT170/J6: total validations underpinning this trend → confidence band.
-    total_validations = sum(int(p.get("total_records", 0) or 0) for p in points)
+    # CRT170/J6 + v2.3.17 N-2: total validations underpinning this trend.
+    # When by=rule, the per-bucket rows carry violation_count not total_records
+    # (a rule has violations, not records — sums would be 0). Compute from the
+    # by=date aggregation against the same window so confidence reflects
+    # actual record volume rather than the misleading sum-of-zeros.
+    if by == "rule":
+        date_points = _d._quality_stats.get_trend(name, days=days, context=context, by="date")
+        total_validations = sum(int(p.get("total_records", 0) or 0) for p in date_points)
+    else:
+        total_validations = sum(int(p.get("total_records", 0) or 0) for p in points)
     confidence, confidence_note = quality_confidence(total_validations)
     return QualityTrendResponse(
         contract=name,

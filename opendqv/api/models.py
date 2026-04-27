@@ -217,7 +217,14 @@ class QualityTrendPoint(BaseModel):
     total_records: int = Field(0, description="Total records in this bucket")
     passed: int = 0
     failed: int = 0
-    pass_rate: float = Field(1.0, description="Fraction of records that passed (0.0–1.0)")
+    pass_rate: Optional[float] = Field(
+        None,
+        description=(
+            "Fraction of records that passed (0.0–1.0). NULL when by=rule because "
+            "pass-rate is not meaningful per-rule (a rule has violations, not "
+            "'records that passed it' — passes are not tracked per-rule)."
+        ),
+    )
     violation_count: Optional[int] = Field(
         None,
         description="Rule violation count — populated only when by=rule.",
