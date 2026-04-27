@@ -1396,9 +1396,26 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
     )
 
     if _remote_client:
-        params = {"window_hours": window_hours} if window_hours else {}
+        # v2.3.22 Cluster A (Persona B 2026-04-27 P1.5 regression): the
+        # proxy path was dropping `contract`, `agent_id`, AND `window_hours=0`
+        # on the outbound REST call. So server-side `_scope_summary_to_contract`
+        # never ran and `by_agent` came back unscoped — exactly the
+        # cross-contract per-agent leak the reviewer hit on round 2 (and
+        # round 1). The v2.3.17 Cluster 5 fix scoped the helper but the
+        # proxy never sent the param to trigger it; the v2.3.20 Cluster A
+        # guard at line 1515 only protected the in-process branch. This
+        # corrects the upstream call so all three params reach the server.
+        # No proxy-path test in the suite caught this — the v2.3.22 paired
+        # test (tests/test_v2_3_22_a_proxy_path_params.py) closes that gap.
+        params = {}
+        if window_hours is not None:
+            params["window_hours"] = window_hours
         if include_system:
             params["include_system"] = "true"
+        if contract_name:
+            params["contract"] = contract_name
+        if agent_id_filter:
+            params["agent_id"] = agent_id_filter
         resp = _remote_client.get("/api/v1/stats", params=params)
         resp.raise_for_status()
         summary = resp.json()
