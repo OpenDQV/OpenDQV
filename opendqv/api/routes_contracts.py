@@ -691,6 +691,20 @@ async def list_contract_versions(
     history = _d.registry.get_history(name)
     if not history and not _d.registry.get(name):
         raise HTTPException(status_code=404, detail=f"Contract '{name}' not found")
+
+    # v2.3.23 P1-3: pre-compute per-version-string collision groups.
+    # An entry collides when its `version` string appears on >1 entry
+    # with at least 2 distinct content_hashes. Pure label collision
+    # (same version + same content_hash, e.g. status transitions) does
+    # NOT count — that's metadata movement, not a behavioural change.
+    from collections import defaultdict
+    _version_to_content_hashes: dict[str, set] = defaultdict(set)
+    for snap in history:
+        _version_to_content_hashes[snap.get("version", "")].add(snap.get("content_hash"))
+    _colliding_versions = {
+        v for v, ch_set in _version_to_content_hashes.items() if len(ch_set) > 1
+    }
+
     versions = [
         ContractVersionSummary(
             version=snap.get("version", ""),
@@ -702,6 +716,7 @@ async def list_contract_versions(
             owner_team=snap.get("owner_team"),
             approved_by=snap.get("approved_by"),
             proposed_by=snap.get("proposed_by"),
+            is_collision=snap.get("version", "") in _colliding_versions,
         )
         for snap in history
     ]

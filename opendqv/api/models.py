@@ -379,6 +379,24 @@ class ContractVersionSummary(BaseModel):
     owner_team: Optional[str] = None
     approved_by: Optional[str] = None
     proposed_by: Optional[str] = None
+    # v2.3.23 P1-3 (Sonnet a5f385c20eba96e85): per-entry collision flag.
+    # True when the same `version` string appears on >1 entry in the
+    # history with different content_hashes — i.e. behavioural changes
+    # shipped under the same SemVer label. Surfaces F-C "decorative
+    # version field" without architectural enforcement (deferred to v2.4).
+    # Consumers iterating versions can branch on this flag rather than
+    # re-grouping the list themselves. Always present (never absent).
+    is_collision: bool = Field(
+        False,
+        description=(
+            "True when this entry's `version` string appears on multiple "
+            "entries with different content_hashes. Surfaces SemVer label "
+            "collision so audit citations can fall back to entry_hash "
+            "rather than version. v2.4 will enforce write-time "
+            "uniqueness; until then, version is a label and entry_hash / "
+            "content_hash are the load-bearing identifiers."
+        ),
+    )
 
 
 class ContractVersionsResponse(BaseModel):
