@@ -28,9 +28,28 @@ sub_router = APIRouter()
 @_d._default_limit
 async def list_contracts(
     request: Request,
-    include_all: bool = Query(False, description="Include ARCHIVED contracts"),
+    include_all: bool = Query(
+        False,
+        description=(
+            "If true, include ARCHIVED contracts in the response. Default "
+            "false — but the default still includes ACTIVE, DRAFT, and "
+            "REVIEW status entries (only ARCHIVED are excluded)."
+        ),
+    ),
 ):
-    """List available data contracts. No auth required — contracts are public metadata."""
+    """List available data contracts.
+
+    Default behaviour returns all non-archived contracts: status in
+    {active, draft, review}. Each entry carries a `status` field —
+    consumers needing an active-only count should either filter on
+    `status == 'active'` or read `governance.active_count` from
+    `/api/v1/stats` (which already breaks down draft/active/review
+    separately). v2.3.23 P1-10: docstring corrected to match
+    behaviour after Persona B reported "off-by-two" between this
+    endpoint's count and `governance.active_count`.
+
+    No auth required — contracts are public metadata.
+    """
     return [ContractInfo(**c) for c in _d.registry.list_contracts(include_all=include_all)]
 
 

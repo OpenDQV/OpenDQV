@@ -985,7 +985,21 @@ class ContractRegistry:
         return versions.get(version)
 
     def list_contracts(self, include_all: bool = False) -> list[dict]:
-        """List contracts. By default only ACTIVE contracts. Set include_all=True for all."""
+        """List contracts.
+
+        Default (`include_all=False`) returns ALL non-archived contracts:
+        status in {active, draft, review}. Set `include_all=True` to
+        also include ARCHIVED entries.
+
+        v2.3.23 P1-10: docstring previously said "By default only ACTIVE
+        contracts" — that was wrong. Behaviour was always non-archived.
+        Persona B reported the resulting "off-by-two" confusion against
+        `governance.active_count` from /api/v1/stats. Both numbers are
+        correct; the difference is the draft/review entries that
+        list_contracts surfaces but the active counter excludes.
+        Consumers needing active-only should filter on `status ==
+        'active'` or read `governance.active_count` directly.
+        """
         result = []
         for name, versions in sorted(self._contracts.items()):
             for ver, contract in sorted(versions.items()):
