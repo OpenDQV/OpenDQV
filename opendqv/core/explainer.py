@@ -47,6 +47,8 @@ def explain_rule(rule) -> dict:
         return _date_format(field, rule.format)
     elif rt == "enum":
         return _enum(field, rule.pattern)
+    elif rt == "allowed_values":
+        return _allowed_values(field, rule.allowed_values)
     elif rt == "lookup":
         return _lookup(field, rule.lookup_file)
     elif rt == "min_age":
@@ -266,15 +268,77 @@ def _logical_lookup_source(lookup_file) -> str:
     return name or "reference list"
 
 
+def _allowed_values(field: str, allowed_values) -> dict:
+    """v2.3.23 P2-12 (Sonnet a8d40b8f5784fb653): real-value synthesis
+    for allowed_values rules. Mirrors _enum's slice-3 pattern."""
+    values = list(allowed_values) if allowed_values else []
+    return {
+        "rule_type": "allowed_values",
+        "explanation": (
+            f"The '{field}' field must be one of the allowed values: {values}. "
+            "The value must match exactly — check capitalisation and spacing. "
+            "Any value not in the list will fail."
+        ),
+        "valid_examples": values[:3] if values else ["(one of the allowed values)"],
+        "invalid_examples": ["other_value", None, ""],
+        "constraint": {"allowed_values": values},
+    }
+
+
+def _read_lookup_file_examples(lookup_file: str, limit: int = 3) -> list[str]:
+    """v2.3.23 P2-12: read the first `limit` non-blank lines from a
+    lookup file. Returns [] on any read failure (path traversal,
+    missing file, IO error). HTTP URLs and empty paths short-circuit
+    to []. Caller falls back to placeholder.
+    """
+    if not lookup_file:
+        return []
+    if isinstance(lookup_file, str) and lookup_file.startswith(("http://", "https://")):
+        return []  # caller emits HTTP-explicit placeholder
+    try:
+        from opendqv.core.validator import _check_lookup_path_safe
+        path = _check_lookup_path_safe(str(lookup_file))
+        examples: list[str] = []
+        with open(path, "r", encoding="utf-8") as fh:
+            for line in fh:
+                v = line.strip()
+                if not v or v.startswith("#"):
+                    continue
+                examples.append(v)
+                if len(examples) >= limit:
+                    break
+        return examples
+    except (FileNotFoundError, OSError, ValueError, ImportError):
+        # ValueError covers _check_lookup_path_safe's traversal/null-byte
+        # rejection and any path-shape parse failure. ImportError guards
+        # against test environments that import explainer without the
+        # full validator module.
+        return []
+
+
 def _lookup(field: str, lookup_file) -> dict:
     source = _logical_lookup_source(lookup_file)
+    # v2.3.23 P2-12: try to inline real values from the file. HTTP URLs
+    # short-circuit to a placeholder with explicit note (no network
+    # call at explain time).
+    is_http = (
+        isinstance(lookup_file, str)
+        and lookup_file.startswith(("http://", "https://"))
+    )
+    if is_http:
+        valid_examples = [
+            f"(HTTP lookup — values not inlined at explain time; fetch {lookup_file} for the list)"
+        ]
+    else:
+        real = _read_lookup_file_examples(lookup_file or "")
+        valid_examples = real if real else ["(a value present in the reference list)"]
     return {
         "rule_type": "lookup",
         "explanation": (
             f"The '{field}' field must match a value from the '{source}' reference list. "
             "Check that the value exists in the list and matches exactly (case-sensitive)."
         ),
-        "valid_examples": ["(a value present in the reference list)"],
+        "valid_examples": valid_examples,
         "invalid_examples": ["(a value not in the reference list)", None, ""],
         "lookup_source": source,
         "constraint": {"lookup_file": lookup_file or "(reference list)"},
