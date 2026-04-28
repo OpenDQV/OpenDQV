@@ -321,7 +321,11 @@ TOOLS = [
             "Returns version, status, entry_hash, content_hash, created_at, owner. "
             "Use this to drive a version picker, audit a lineage, or pin a "
             "downstream call to a specific historical hash via "
-            "validate_record(hash=...). Lighter than get_contract for every version."
+            "validate_record(hash=...). Lighter than get_contract for every version. "
+            "Each entry also carries `is_collision: bool` — true when this "
+            "entry shares a `version` string with another entry that has a "
+            "different content_hash. Cite entry_hash, not version, when "
+            "is_collision: true (write-time uniqueness is a v2.4 item)."
         ),
         "inputSchema": {
             "type": "object",
@@ -402,7 +406,9 @@ TOOLS = [
             "read. Single-tenant trust boundary — operational metrics are "
             "intentionally readable by every internal user. Multi-tenant "
             "deployments needing cross-tenant isolation must wait for v2.4 "
-            "per-contract scoping. Do not expose to untrusted networks."
+            "per-contract scoping. Do not expose to untrusted networks. "
+            "data_confidence band thresholds: no_data (0), low (1-9), "
+            "medium (10-99), high (>=100) underlying validations."
         ),
         "inputSchema": {
             "type": "object",
@@ -450,7 +456,9 @@ TOOLS = [
         "name": "get_rule_velocity",
         "description": (
             "Return time-series failure counts per rule — shows whether failures are "
-            "accelerating or decelerating."
+            "accelerating or decelerating. "
+            "Response carries data_confidence with bands: no_data (0), "
+            "low (1-9), medium (10-99), high (>=100) underlying validations."
         ),
         "inputSchema": {
             "type": "object",
@@ -467,7 +475,9 @@ TOOLS = [
         "description": (
             "Return pass-rate trend for a single contract over the last N days. "
             "The 'by' param picks the grouping dimension: date (default, daily) | "
-            "agent (per source-system) | context (per context) | rule (top failing rules)."
+            "agent (per source-system) | context (per context) | rule (top failing rules). "
+            "Response carries data_confidence with bands: no_data (0), "
+            "low (1-9), medium (10-99), high (>=100) underlying validations."
         ),
         "inputSchema": {
             "type": "object",

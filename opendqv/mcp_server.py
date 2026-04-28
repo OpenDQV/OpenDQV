@@ -400,7 +400,13 @@ async def list_tools() -> list[types.Tool]:
                 "Use this when you need to drive a version picker, audit a "
                 "lineage, or pin a downstream call to a specific historical hash "
                 "via validate_record(hash=...). Lighter than get_contract for "
-                "every version when only the listing is needed."
+                "every version when only the listing is needed. "
+                "Each entry also carries `is_collision: bool` — true when "
+                "this entry shares a `version` string with at least one other "
+                "entry that has a different content_hash. Cite entry_hash, "
+                "not version, when more than one is_collision: true entry "
+                "exists for the same SemVer label (write-time uniqueness "
+                "enforcement is a v2.4 architectural item)."
             ),
             inputSchema={
                 "type": "object",
@@ -509,7 +515,9 @@ async def list_tools() -> list[types.Tool]:
                 "boundary — operational metrics are intentionally readable by "
                 "every internal user. Multi-tenant deployments requiring "
                 "cross-tenant isolation must wait for v2.4 per-contract "
-                "scoping. Do not expose this endpoint to untrusted networks."
+                "scoping. Do not expose this endpoint to untrusted networks. "
+                "data_confidence band thresholds: no_data (0), low (1-9), "
+                "medium (10-99), high (>=100) underlying validations."
             ),
             inputSchema={
                 "type": "object",
@@ -575,7 +583,9 @@ async def list_tools() -> list[types.Tool]:
                 "failures are accelerating or decelerating. Use this when pass_rate_pct is degrading "
                 "to diagnose whether it's a sudden spike (fix the upstream source now) or a slow "
                 "drip (investigate root cause). Returns the top 5 rules by total failures, bucketed "
-                "by bucket_minutes intervals."
+                "by bucket_minutes intervals. "
+                "Response carries data_confidence with bands: no_data (0), "
+                "low (1-9), medium (10-99), high (>=100) underlying validations."
             ),
             inputSchema={
                 "type": "object",
@@ -606,7 +616,9 @@ async def list_tools() -> list[types.Tool]:
                 "quality is declining, recovering, or stable, and which rules are driving the change. "
                 "Returns one data point per calendar day with total_records, passed, failed, pass_rate_pct, "
                 "and top_failing_rules for that day. Also returns a summary.trend field: "
-                "'improving', 'declining', or 'stable'."
+                "'improving', 'declining', or 'stable'. "
+                "Response carries data_confidence with bands: no_data (0), "
+                "low (1-9), medium (10-99), high (>=100) underlying validations."
             ),
             inputSchema={
                 "type": "object",
