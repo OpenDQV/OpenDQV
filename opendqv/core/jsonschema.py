@@ -17,14 +17,24 @@ def contract_to_jsonschema(contract) -> dict:
     properties: dict[str, dict[str, Any]] = {}
     required: list[str] = []
     unmapped: list[dict[str, Any]] = []
+    # v2.3.23 P1-4 (Sonnet aa97290c8fc2e575f): conditional rules emit
+    # if/then[/else] blocks at root. Unconditional rules stay in
+    # `properties` exactly as before — the response shape only grows
+    # `allOf` when conditional rules exist.
+    all_of: list[dict[str, Any]] = []
 
     for rule in contract.rules:
         field = rule.field
         if not field:
             unmapped.append({"rule": rule.name, "reason": "no field bound"})
             continue
-        prop = properties.setdefault(field, {})
-        _apply_rule(prop, rule, field, required, unmapped)
+        if rule.condition:
+            block = _build_conditional_block(rule, field, unmapped)
+            if block is not None:
+                all_of.append(block)
+        else:
+            prop = properties.setdefault(field, {})
+            _apply_rule(prop, rule, field, required, unmapped)
 
     schema = {
         "$schema": JSON_SCHEMA_DIALECT,
@@ -37,9 +47,92 @@ def contract_to_jsonschema(contract) -> dict:
         schema["description"] = contract.description
     if required:
         schema["required"] = sorted(set(required))
+    if all_of:
+        schema["allOf"] = all_of
     if unmapped:
         schema["x-opendqv-unmapped"] = unmapped
     return schema
+
+
+def _build_conditional_block(rule, field: str, unmapped: list) -> dict | None:
+    """Emit a JSON Schema if/then[/else] block for a rule with
+    `condition`. Returns None for unsupported condition shapes (caller
+    falls back to unconditional path or unmapped).
+
+    Supported condition shapes (mirror what validator._check_condition
+    actually applies):
+      - {field, value}      → if {F == V} then constraint
+      - {field, not_value}  → if {F == V} then nothing else constraint
+
+    The "not_value" case uses if/then-empty/else-with-constraint to
+    avoid the "field absent" trap of using `not` on an `if` schema —
+    matches the runtime behaviour where the constraint applies when
+    the field's value is NOT the not_value (including absent).
+    """
+    cond = rule.condition or {}
+    cond_field = cond.get("field")
+    if not cond_field:
+        unmapped.append({
+            "rule": rule.name, "field": field, "type": rule.type,
+            "reason": "condition missing 'field' key — cannot express in JSON Schema",
+        })
+        return None
+
+    # Build the inner constraint subschema by reusing _apply_rule
+    # against a temporary prop dict.
+    inner_prop: dict[str, Any] = {}
+    inner_required: list[str] = []
+    inner_unmapped: list[dict[str, Any]] = []
+    _apply_rule(inner_prop, rule, field, inner_required, inner_unmapped)
+    # If the rule's constraint can't be expressed (inner_unmapped),
+    # bubble up to top-level unmapped and skip the conditional block.
+    if inner_unmapped and not inner_prop:
+        for u in inner_unmapped:
+            u["reason"] = (
+                "rule has condition but the constraint itself is not "
+                "expressible in JSON Schema; OpenDQV runtime enforces it"
+            )
+            unmapped.append(u)
+        return None
+
+    constraint_subschema = {"properties": {field: inner_prop}}
+    # required from the conditional inner rule (e.g. not_empty inside
+    # a conditional) attaches inside the then/else branch, not at
+    # contract root — the rule only requires the field when condition
+    # matches.
+    if inner_required:
+        constraint_subschema["required"] = inner_required
+
+    if "value" in cond:
+        return {
+            "if": {
+                "properties": {cond_field: {"const": cond["value"]}},
+                "required": [cond_field],
+            },
+            "then": constraint_subschema,
+        }
+    if "not_value" in cond:
+        return {
+            "if": {
+                "properties": {cond_field: {"const": cond["not_value"]}},
+                "required": [cond_field],
+            },
+            "then": {},
+            "else": constraint_subschema,
+        }
+
+    # Unknown condition shape — surface in unmapped, don't emit the
+    # rule at all (matches validator's fall-through to True for
+    # unrecognised conditions, which means "rule applies always").
+    unmapped.append({
+        "rule": rule.name, "field": field, "type": rule.type,
+        "reason": (
+            f"condition shape {sorted(cond.keys())!r} not expressible in "
+            "JSON Schema (supported: {field, value} or {field, not_value}). "
+            "OpenDQV runtime enforces."
+        ),
+    })
+    return None
 
 
 def _apply_rule(prop: dict, rule, field: str, required: list, unmapped: list) -> None:
