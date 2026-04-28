@@ -355,6 +355,14 @@ class ValidationStats:
         # scoped but total_error_violations is lifetime. Same CRT170-J
         # family the team has caught repeatedly.
         _windowed_err_violations = 0
+        # v2.3.23 round-4 P1-C (Sonnet afa6d1f8581846bfe): scope
+        # top_failing_fields to the window. Pre-fix the call inherited
+        # the unscoped lifetime aggregate from get_summary(), so
+        # `_tool_get_quality_metrics` saw lifetime field-error counts
+        # even when window_hours was set — that's why metrics for
+        # `revenue_ceiling` reported 450 while trend (per-window)
+        # reported 199. Reviewer caught the dual-source asymmetry.
+        windowed_field_errors: dict = defaultdict(int)
         with self._lock:
             for ts, ec, ef, er, eaid in self._error_events:
                 if ts < cutoff:
@@ -362,8 +370,16 @@ class ValidationStats:
                 if not include_system and _is_system_agent(eaid):
                     continue
                 _windowed_err_violations += 1
+                windowed_field_errors[(ec, ef, er)] += 1
         summary["total_error_violations"] = _windowed_err_violations
         summary["total_errors"] = _windowed_err_violations
+        summary["top_failing_fields"] = sorted(
+            [
+                {"contract": c, "field": f, "rule": r, "count": v}
+                for (c, f, r), v in windowed_field_errors.items()
+            ],
+            key=lambda x: x["count"], reverse=True,
+        )[:20]
         # severity_counts: quality_stats has no per-failure severity, so
         # hydrated violations all attribute to "error". Window-scope it
         # from the same _error_events walk above.

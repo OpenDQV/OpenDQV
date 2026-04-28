@@ -1616,26 +1616,16 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
             _coalesced.values(),
             key=lambda x: x["failures"], reverse=True,
         )[:5]
-        if not _remote_client:
-            try:
-                trend = _quality_stats.get_trend(cname, days=1)
-                if trend and trend[0].get("top_failing_rules"):
-                    for rule, count in trend[0]["top_failing_rules"].items():
-                        rule = _normalize_rule(rule)
-                        existing = next((tr for tr in top_rules if tr["rule"] == rule), None)
-                        if existing:
-                            existing["failures"] = max(existing["failures"], count)
-                        else:
-                            top_rules.append({
-                                "rule": rule,
-                                "field": "",
-                                "failures": count,
-                                "severity": sev_map.get(rule, "unknown"),
-                            })
-                    top_rules.sort(key=lambda x: x["failures"], reverse=True)
-                    top_rules = top_rules[:5]
-            except Exception:
-                pass
+        # v2.3.23 round-4 P1-C (Sonnet afa6d1f8581846bfe): the prior
+        # `_quality_stats.get_trend(cname, days=1)` augmentation block
+        # is removed. It was a hydration-era crutch that mixed lifetime
+        # `top_failing_fields` with windowed days=1 trend counts via
+        # max() — explaining the metrics-vs-trend reconciliation gap
+        # the reviewer flagged (revenue_ceiling 450 vs 199). Now that
+        # `get_windowed_summary` builds `top_failing_fields` windowed,
+        # the augmentation has nothing to add and was actively wrong:
+        # max() of a lifetime count and a windowed count returned the
+        # lifetime count.
         confidence, confidence_note = _quality_confidence(total_val)
         entry = {
             "contract": cname,
