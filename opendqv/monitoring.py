@@ -801,7 +801,7 @@ def hydrate_stats_from_persistent_store(
         rows = conn.execute(
             """
             SELECT contract_name, context, recorded_at, total_records, passed,
-                   failed, rule_failure_counts, agent_id, mode
+                   failed, rule_failure_counts, agent_id, mode, latency_ms_avg
             FROM quality_stats
             WHERE recorded_at > ?
             ORDER BY recorded_at ASC
@@ -809,14 +809,31 @@ def hydrate_stats_from_persistent_store(
             (cutoff,),
         ).fetchall()
     except sqlite3.OperationalError:
-        conn.close()
-        return {"events": 0, "errors": 0, "rows_read": 0, "skipped": True}
+        # v2.3.23 round-3 #8: latency_ms_avg column may not exist on
+        # legacy DBs that haven't run the v2.3.23 migration. Fall back
+        # to the pre-v2.3.23 query shape so hydration still runs (just
+        # without per-event latency).
+        try:
+            rows = conn.execute(
+                """
+                SELECT contract_name, context, recorded_at, total_records, passed,
+                       failed, rule_failure_counts, agent_id, mode
+                FROM quality_stats
+                WHERE recorded_at > ?
+                ORDER BY recorded_at ASC
+                """,
+                (cutoff,),
+            ).fetchall()
+            rows = [(*r, 0.0) for r in rows]  # synthesise latency_ms_avg=0
+        except sqlite3.OperationalError:
+            conn.close()
+            return {"events": 0, "errors": 0, "rows_read": 0, "skipped": True}
     conn.close()
 
     events_added = 0
     errors_added = 0
 
-    for contract, context, recorded_at, total, passed, failed, rule_failures_json, agent_id, mode in rows:
+    for contract, context, recorded_at, total, passed, failed, rule_failures_json, agent_id, mode, latency_ms_avg in rows:
         try:
             ts_dt = datetime.fromisoformat(recorded_at)
             ts = ts_dt.timestamp()
@@ -824,12 +841,18 @@ def hydrate_stats_from_persistent_store(
             continue
         ctx = context or "none"
         aid = agent_id or ""
+        # v2.3.23 round-3 #8 (Sonnet a2180d103efcbb82c): use the
+        # persisted batch-average latency for synthesised events when
+        # available (>0); fall back to a plausible 0.3ms placeholder
+        # for legacy rows where latency wasn't recorded. Hydrated
+        # history entries also surface the same value for symmetry.
+        synth_latency = float(latency_ms_avg) if (latency_ms_avg or 0) > 0 else 0.3
         # Synthesize per-record events with tiny micro-offsets
         for i in range(passed or 0):
-            stats_instance._events.append((ts + i * 0.0001, contract, ctx, True, 0.3, aid))
+            stats_instance._events.append((ts + i * 0.0001, contract, ctx, True, synth_latency, aid))
             events_added += 1
         for i in range(failed or 0):
-            stats_instance._events.append((ts + ((passed or 0) + i) * 0.0001, contract, ctx, False, 0.3, aid))
+            stats_instance._events.append((ts + ((passed or 0) + i) * 0.0001, contract, ctx, False, synth_latency, aid))
             events_added += 1
         # Synthesize error_events from rule_failure_counts
         try:
@@ -901,7 +924,14 @@ def hydrate_stats_from_persistent_store(
             "valid": (failed or 0) == 0,
             "errors": int(failed or 0),
             "warnings": 0,
-            "latency_ms": None,  # not persisted in quality_stats
+            # v2.3.23 round-3 #8 (Sonnet a2180d103efcbb82c): hydrated
+            # rows surface the persisted batch-average latency. Legacy
+            # rows where latency_ms_avg=0 (pre-v2.3.23 inserts) emit
+            # null — honest "not available", not misleading 0.0.
+            "latency_ms": (
+                round(float(latency_ms_avg), 1)
+                if (latency_ms_avg or 0) > 0 else None
+            ),
             "mode": mode or "enforcement",
             "agent_id": aid,
             "hydrated": True,

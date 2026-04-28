@@ -180,6 +180,11 @@ async def validate_single(
             effective_rule_hash=_effective_rule_hash,
             entry_hash=_entry_hash or "",
             content_hash=_content_hash or "",
+            # v2.3.23 round-3 #8: persist single-record latency so
+            # post-restart hydration emits a real per-event latency
+            # proxy instead of null on hydrated rows. For single-record
+            # validates the avg = the elapsed_ms.
+            latency_ms_avg=elapsed_ms,
         )
 
     if not result["valid"] and not body.dry_run:
@@ -361,6 +366,12 @@ async def validate_batch_endpoint(
             effective_rule_hash=_effective_rule_hash,
             entry_hash=_entry_hash or "",
             content_hash=_content_hash or "",
+            # v2.3.23 round-3 #8: persist batch-average latency so
+            # post-restart hydration emits a real per-event proxy
+            # instead of null. avg = total elapsed / batch size.
+            latency_ms_avg=(
+                elapsed_ms / max(len(result["results"]), 1)
+            ),
         )
 
         if result["summary"]["failed"] > 0:

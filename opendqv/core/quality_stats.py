@@ -47,6 +47,12 @@ _MIGRATE_CALLER_PRINCIPAL = "ALTER TABLE quality_stats ADD COLUMN caller_princip
 _MIGRATE_EFFECTIVE_RULE_HASH = "ALTER TABLE quality_stats ADD COLUMN effective_rule_hash TEXT NOT NULL DEFAULT ''"
 _MIGRATE_ENTRY_HASH = "ALTER TABLE quality_stats ADD COLUMN entry_hash TEXT NOT NULL DEFAULT ''"
 _MIGRATE_CONTENT_HASH = "ALTER TABLE quality_stats ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''"
+# v2.3.23 round-3 #8 (Sonnet a2180d103efcbb82c): persist batch-average
+# latency so hydration emits a real per-event latency proxy instead of
+# null on hydrated rows. Default 0.0 = "not recorded" sentinel —
+# read boundary translates 0.0 to wire null (honest "we don't know"
+# rather than misleading "really fast").
+_MIGRATE_LATENCY_MS_AVG = "ALTER TABLE quality_stats ADD COLUMN latency_ms_avg REAL NOT NULL DEFAULT 0.0"
 # v2.3.18 Q3 Phase 1 (storage): rename pass_rate (ratio 0–1) to
 # pass_rate_pct (percent 0–100). One-time migration on existing
 # installs: rename column AND multiply existing values × 100. SQLite
@@ -63,8 +69,8 @@ _INSERT = """
 INSERT INTO quality_stats
     (event_id, contract_name, contract_version, context, recorded_at,
      total_records, passed, failed, pass_rate_pct, rule_failure_counts, agent_id, mode,
-     caller_principal, effective_rule_hash, entry_hash, content_hash)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     caller_principal, effective_rule_hash, entry_hash, content_hash, latency_ms_avg)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 _DELETE_BY_CONTEXT = "DELETE FROM quality_stats WHERE context = ?"
@@ -157,6 +163,12 @@ class QualityStats:
                     conn.commit()
                 except sqlite3.OperationalError:
                     pass  # column already exists
+            # v2.3.23 round-3 #8: persist batch-average latency_ms.
+            try:
+                conn.execute(_MIGRATE_LATENCY_MS_AVG)
+                conn.commit()
+            except sqlite3.OperationalError:
+                pass  # column already exists
             # v2.3.18 Q3 Phase 1: rename pass_rate (ratio) → pass_rate_pct
             # (percent), and multiply existing ratio values × 100. Idempotent —
             # OperationalError on the rename means the migration already ran
@@ -193,6 +205,7 @@ class QualityStats:
         effective_rule_hash: str = "",
         entry_hash: str = "",
         content_hash: str = "",
+        latency_ms_avg: float = 0.0,
     ) -> None:
         """Persist one batch validation result.
 
@@ -225,6 +238,7 @@ class QualityStats:
                 effective_rule_hash or "",
                 entry_hash or "",
                 content_hash or "",
+                float(latency_ms_avg or 0.0),
             ))
             conn.commit()
         except (sqlite3.Error, OSError, ValueError) as exc:
