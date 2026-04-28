@@ -697,7 +697,18 @@ class AuditEventListResponse(BaseModel):
     )
     effective_since: str = Field(
         ...,
-        description="The `since` value actually applied to this query (ISO 8601 UTC). Echoed so callers can detect silent default-window truncation when `since` is omitted.",
+        description=(
+            "The lower-bound timestamp this query actually applied "
+            "(ISO 8601 UTC). When `since` was supplied, this echoes it. "
+            "When `since` was omitted, this is `now − 24h` — the engine's "
+            "default-window truncation. Echoed so consumers can detect a "
+            "silent truncation that would otherwise look like 'no events'. "
+            "NOT a retention boundary — events older than effective_since "
+            "may still exist in storage; they were filtered out of this "
+            "response. To retrieve older events, pass an explicit `since`. "
+            "v2.3.23 round-3 review: clarified to disambiguate "
+            "default-window truncation from retention semantics."
+        ),
     )
     limit: int = Field(..., description="Max events returned per page")
     # v2.3.23 P0-1 (Sonnet's pre-impl directive a348734a7798db94b):

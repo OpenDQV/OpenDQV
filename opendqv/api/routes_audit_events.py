@@ -68,7 +68,14 @@ async def list_audit_events(
     context: Optional[str] = Query(None, description="Filter by context override (e.g. 'salesforce')"),
     since: Optional[str] = Query(
         None,
-        description="ISO 8601 UTC start of window (inclusive). Defaults to 24h ago when omitted — see effective_since on the response to detect default-window truncation.",
+        description=(
+            "ISO 8601 UTC lower bound (inclusive). When omitted, the engine "
+            "applies a 24-hour default window (`now − 24h`). The response "
+            "echoes the value actually applied as `effective_since` so "
+            "consumers can detect silent default-window truncation. "
+            "effective_since is NOT a retention boundary — older events "
+            "may still exist; pass an explicit `since` to retrieve them."
+        ),
     ),
     until: Optional[str] = Query(None, description="ISO 8601 UTC end of window (exclusive)"),
     agent_id: Optional[str] = Query(None, description="Filter by caller-asserted agent_id"),
