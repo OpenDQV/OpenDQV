@@ -215,12 +215,28 @@ def _add_suggested_fixes(errors: list, rules: list) -> list:
     rule_meta = {r.name: (r.type, getattr(r, "compare_to", "") or "") for r in rules}
     result = []
     for e in errors:
-        rule_type, compare_to = rule_meta.get(e.get("rule", ""), ("", ""))
-        fix = (
-            quick_fix(rule_type, e.get("message", ""), compare_to=compare_to)
-            if rule_type
-            else None
-        )
+        # v2.3.23 outside-review follow-on (Sonnet ae22a28117b2d4f7b):
+        # OPENDQV_TYPE_MISMATCH errors must NOT inherit the rule's
+        # generic min/max suggested_fix ("Increase the value...") —
+        # the engineer needs a coercion hint, not a value-adjustment
+        # hint. Inside-view agent caught this immediately after the
+        # error_code+message swap shipped: code/message correct,
+        # suggested_fix stale. Override here at the augmentation
+        # layer so the validator stays pure.
+        if e.get("error_code") == "OPENDQV_TYPE_MISMATCH":
+            msg = e.get("message", "")
+            type_name = msg.split("got ")[-1].strip() if "got " in msg else "unknown type"
+            fix = (
+                f"Check that the value is a numeric type (int or float). "
+                f"Received {type_name} — coerce to a number before validating."
+            )
+        else:
+            rule_type, compare_to = rule_meta.get(e.get("rule", ""), ("", ""))
+            fix = (
+                quick_fix(rule_type, e.get("message", ""), compare_to=compare_to)
+                if rule_type
+                else None
+            )
         result.append({**e, "suggested_fix": fix})
     return result
 

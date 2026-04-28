@@ -755,9 +755,15 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="get_audit_event",
             description=(
-                "Retrieve a single validation audit event by event_id. "
+                "Retrieve a single validation audit event by event_id, "
+                "when the event was persisted. "
                 "event_id is the UUID v7 returned in the original validate "
-                "response. "
+                "response. Returns 404 when no audit row exists for the "
+                "event_id — typically because the validate call was dry_run "
+                "(every MCP-driven validate is dry_run by design per the "
+                "CRT165 safety lock — see the validate response's "
+                "`persisted: bool` field). If `persisted: false`, the "
+                "event_id is an idempotency token only, not retrievable here. "
                 "Auth: in AUTH_MODE=token, requires admin or auditor role. In "
                 "AUTH_MODE=open (local development only, boot warning issued), "
                 "every caller is granted admin. Do not run AUTH_MODE=open in "
