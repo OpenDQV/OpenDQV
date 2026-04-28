@@ -145,6 +145,16 @@ DEMO_MODE: bool = os.environ.get("DEMO_MODE", "false").lower() == "true"
 # the long-term contract.
 CATALOG_URI_PREFIX = os.environ.get("OPENDQV_CATALOG_URI_PREFIX", "marmot:assets/")
 
+# JSON Schema strict export — when true, contract_to_jsonschema emits
+# `additionalProperties: false` so producer-side schema validators
+# reject unknown fields (typo guard). Default false preserves the
+# permissive shape that lets producers attach internal columns
+# (correlation IDs, lineage tags) without contract churn. v2.3.23
+# round-5 P2-2: reviewer wanted this flippable for FS producer/consumer
+# strictness. Per-export override is also supported via the `strict`
+# kwarg on contract_to_jsonschema.
+JSON_SCHEMA_STRICT = os.environ.get("OPENDQV_JSON_SCHEMA_STRICT", "false").lower() == "true"
+
 
 def validate_config() -> None:
     """

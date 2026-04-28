@@ -12,8 +12,26 @@ JSON_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
 _NUMERIC_TYPES = {"number", "integer"}
 
 
-def contract_to_jsonschema(contract) -> dict:
-    """Convert a DataContract into a JSON Schema (draft 2020-12) document."""
+def contract_to_jsonschema(contract, strict: bool = None) -> dict:
+    """Convert a DataContract into a JSON Schema (draft 2020-12) document.
+
+    `strict` controls the emitted `additionalProperties` value:
+      - None (default) — read from `opendqv.config.JSON_SCHEMA_STRICT`,
+        which itself reads `OPENDQV_JSON_SCHEMA_STRICT` env var. False by
+        default → `additionalProperties: true` (permissive, current
+        behaviour preserved).
+      - True  → `additionalProperties: false` so producer-side
+        validators reject unknown fields. v2.3.23 round-5 P2-2: lets
+        FS producer/consumer contracts opt in to strictness without
+        a fork.
+      - False → `additionalProperties: true` (explicit permissive).
+    """
+    if strict is None:
+        try:
+            from opendqv.config import JSON_SCHEMA_STRICT as _default_strict
+            strict = bool(_default_strict)
+        except Exception:
+            strict = False
     properties: dict[str, dict[str, Any]] = {}
     required: list[str] = []
     unmapped: list[dict[str, Any]] = []
@@ -41,7 +59,7 @@ def contract_to_jsonschema(contract) -> dict:
         "title": contract.name,
         "type": "object",
         "properties": properties,
-        "additionalProperties": True,
+        "additionalProperties": (not strict),
     }
     if (contract.description or "").strip():
         schema["description"] = contract.description

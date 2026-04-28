@@ -782,6 +782,14 @@ async def get_contract_jsonschema(
     request: Request,
     name: str,
     context: Optional[str] = Query(None, description="Optional context to apply (e.g. 'salesforce', 'kids_app')"),
+    strict: Optional[bool] = Query(
+        None,
+        description=(
+            "v2.3.23 round-5 P2-2: when true, emit additionalProperties:false "
+            "so producer-side validators reject unknown fields. Default reads "
+            "OPENDQV_JSON_SCHEMA_STRICT (false → additionalProperties:true)."
+        ),
+    ),
     user=Depends(get_current_user),
 ):
     """Emit a JSON Schema (draft 2020-12) document for the contract.
@@ -800,9 +808,9 @@ async def get_contract_jsonschema(
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         scoped = contract.model_copy(update={"rules": scoped_rules})
-        return contract_to_jsonschema(scoped)
+        return contract_to_jsonschema(scoped, strict=strict)
 
-    return contract_to_jsonschema(contract)
+    return contract_to_jsonschema(contract, strict=strict)
 
 
 @sub_router.get("/contracts/{name}/diff", response_model=ContractDiffResponse)

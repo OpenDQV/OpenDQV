@@ -499,7 +499,11 @@ async def list_tools() -> list[types.Tool]:
                 "be expressed in plain JSON Schema and appear in the response under "
                 "`x-opendqv-unmapped` — those rules are still enforced by the "
                 "OpenDQV runtime, but JSON Schema callers must rely on validate_record "
-                "for full semantic coverage."
+                "for full semantic coverage. "
+                "v2.3.23 round-5 P2-2: pass strict=true (or set "
+                "OPENDQV_JSON_SCHEMA_STRICT=true at engine boot) to emit "
+                "additionalProperties:false so producer-side validators reject "
+                "unknown fields. Default false preserves the permissive shape."
             ),
             inputSchema={
                 "type": "object",
@@ -508,6 +512,15 @@ async def list_tools() -> list[types.Tool]:
                     "context": {
                         "type": "string",
                         "description": "Optional context to apply (e.g. 'salesforce', 'kids_app').",
+                    },
+                    "strict": {
+                        "type": "boolean",
+                        "description": (
+                            "If true, emit additionalProperties:false so unknown "
+                            "fields are rejected (FS producer/consumer strictness). "
+                            "Default reads OPENDQV_JSON_SCHEMA_STRICT (false → "
+                            "additionalProperties:true)."
+                        ),
                     },
                 },
                 "required": ["name"],
@@ -1256,11 +1269,19 @@ async def _tool_list_versions(args: dict) -> list[types.TextContent]:
 async def _tool_get_contract_jsonschema(args: dict) -> list[types.TextContent]:
     name = args["name"]
     context = args.get("context")
+    # v2.3.23 round-5 P2-2: per-call strict opt-in (overrides
+    # OPENDQV_JSON_SCHEMA_STRICT default). True → additionalProperties:false
+    strict = args.get("strict")
 
     if _remote_client:
         url = f"/api/v1/contracts/{name}/jsonschema"
+        params = []
         if context:
-            url += f"?context={context}"
+            params.append(f"context={context}")
+        if strict is not None:
+            params.append(f"strict={'true' if strict else 'false'}")
+        if params:
+            url += "?" + "&".join(params)
         resp = _remote_client.get(url)
         resp.raise_for_status()
         return [types.TextContent(type="text", text=resp.text)]
@@ -1288,7 +1309,7 @@ async def _tool_get_contract_jsonschema(args: dict) -> list[types.TextContent]:
                 remediation="Check the OpenDQV server logs; if reproducible, file an issue with the contract name and context.",
             ))]
         contract = contract.model_copy(update={"rules": scoped_rules})
-    schema = contract_to_jsonschema(contract)
+    schema = contract_to_jsonschema(contract, strict=strict)
     return [types.TextContent(type="text", text=json.dumps(schema, default=str))]
 
 
