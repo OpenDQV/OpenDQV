@@ -129,6 +129,15 @@ def _scope_summary_to_contract(summary: dict, contract_name: str) -> dict:
             "by_severity": {"error": scoped_err, "warning": scoped_warn},
         }
 
+    # v2.3.22 post-release B2 (Persona B 2026-04-28): drop unscoped
+    # by_agent. The summary's by_agent is the GLOBAL per-agent rollup
+    # — agents that never touched this contract leak through under a
+    # contract filter unless we pop it. Same discipline as
+    # top_failing_fields_by_agent (already filtered above) and the
+    # in-process MCP / proxy reshape (both omit when contract is set).
+    # v2.4 may re-introduce a contract-scoped by_agent via per-contract
+    # event re-aggregation; for now, omit rather than leak.
+    scoped.pop("by_agent", None)
     scoped["contract_filter"] = contract_name
     return scoped
 
