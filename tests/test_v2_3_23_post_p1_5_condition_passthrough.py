@@ -29,15 +29,19 @@ dict, populate from rule.condition in the get_contract route.
 
 
 class TestGetContractPassesThroughCondition:
-    def test_buyer_id_lei_format_condition_visible_in_response(self, client):
-        """The mifid contract has a condition on buyer_id_lei_format.
+    def test_buyer_id_lei_valid_condition_visible_in_response(self, client):
+        """The mifid contract has a condition on buyer_id_lei_valid.
         get_contract must surface it so a regulator-side reader can
-        predict when the rule fires without running probe records."""
+        predict when the rule fires without running probe records.
+
+        Rule renamed from buyer_id_lei_format → buyer_id_lei_valid in
+        v2.3.23 round-3 when the engine upgraded from regex shape-only
+        to checksum (lei_mod97) verification."""
         r = client.get("/api/v1/contracts/mifid_transaction_report")
         assert r.status_code == 200, r.text
         rules = r.json().get("rules", [])
-        target = next((r_ for r_ in rules if r_.get("name") == "buyer_id_lei_format"), None)
-        assert target is not None, "buyer_id_lei_format rule not in response"
+        target = next((r_ for r_ in rules if r_.get("name") == "buyer_id_lei_valid"), None)
+        assert target is not None, "buyer_id_lei_valid rule not in response"
         assert "condition" in target, (
             f"v2.3.23 P1-5: get_contract response must surface "
             f"Rule.condition. Reviewer's regulator-side reader can "
@@ -46,7 +50,7 @@ class TestGetContractPassesThroughCondition:
         )
         condition = target["condition"]
         assert condition is not None, (
-            f"v2.3.23 P1-5: buyer_id_lei_format YAML has condition "
+            f"v2.3.23 P1-5: buyer_id_lei_valid YAML has condition "
             f"{{field: buyer_id_type, value: 'lei'}}. Response carries None — "
             f"serializer dropping the value. Got: {target}"
         )

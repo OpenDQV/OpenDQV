@@ -135,51 +135,70 @@ class TestMifidTemporalRules:
             f"present-day record should pass temporal rules; got: {temporal_errs}"
 
 
-# ── N-5: LEI description honesty ──────────────────────────────────────
+# ── N-5 → v2.3.23 round-3: LEI / MIC validation upgraded from shape-only ──
+# to full check-digit / registry verification.
+#
+# v2.3.17 cluster 7 introduced the SHAPE-ONLY honesty pattern: error
+# messages explicitly stated they enforced shape only and check-digit
+# verification was deferred to v2.4. v2.3.23 round-3 closes that gap —
+# the engine's existing checksum (lei_mod97 / isin_mod11) and lookup
+# (ref/iso_10383_mic_codes.txt) rule types are now wired into the
+# bundled mifid_transaction_report contract. The historical honesty
+# language is no longer applicable; the new contract MUST not carry it.
 
-class TestLeiDescriptionHonesty:
-    def test_lei_error_messages_state_shape_only(self, client, auth_headers):
-        # Get the contract via REST and assert error_messages no longer
-        # claim full ISO 17442 verification (only shape).
+class TestLeiCheckDigitVerificationShipped:
+    def test_lei_rules_use_checksum_not_shape_only_regex(self, client, auth_headers):
         r = client.get("/api/v1/contracts/mifid_transaction_report", headers=auth_headers)
         assert r.status_code == 200
         rules = r.json().get("rules", [])
         lei_rules = [
-            r for r in rules
-            if r["name"] in ("reporting_firm_lei_format", "executing_entity_lei_format")
+            rr for rr in rules
+            if rr["name"] in ("reporting_firm_lei_valid", "executing_entity_lei_valid")
         ]
-        assert lei_rules, "could not find LEI format rules"
+        assert lei_rules, (
+            "LEI validation rules must be present under their v2.3.23 names "
+            "(*_lei_valid). Old shape-only rule names (*_lei_format) were "
+            "renamed when the contract upgraded from regex shape to checksum "
+            "verification."
+        )
         for rule in lei_rules:
+            assert rule.get("type") == "checksum", (
+                f"Rule {rule['name']!r} must use type=checksum (was: regex "
+                f"shape-only). v2.3.23 round-3 closed the v2.4 deferral."
+            )
             msg = rule.get("error_message", "")
-            assert "shape" in msg.lower() or "v2.4" in msg.lower(), (
-                f"Rule {rule['name']!r} error_message must explicitly state it enforces "
-                f"SHAPE only (no checksum); got: {msg!r}"
-            )
-            # Must NOT claim "check digits" verification — that's the over-claim.
-            assert "check digits" not in msg, (
-                f"Rule {rule['name']!r} error_message still claims 'check digits' — "
-                f"that implies mod-97 verification which is a v2.4 capability. "
-                f"Got: {msg!r}"
+            assert "v2.4 capability" not in msg, (
+                f"Rule {rule['name']!r} still carries v2.4-deferral language. "
+                f"Check-digit verification ships in v2.3.23. Got: {msg!r}"
             )
 
 
-class TestMicDescriptionHonesty:
-    """v2.3.19 I-3 (inside-view, Sonnet-pushed): same N-5 treatment for the
-    MIC rule. The pattern ``^[A-Z]{4}$`` enforces shape only — a sentinel
-    code like ``XYZA`` matches the shape but is not a real ISO 10383 MIC.
-    The error message must be honest about this; full list lookup is v2.4.
-    """
+class TestMicRegistryLookupShipped:
+    """v2.3.23 round-3: shape-only regex on MIC upgraded to lookup
+    against the bundled ref/iso_10383_mic_codes.txt registry (starter
+    subset of major operating MICs). Operators with broader needs drop
+    a complete extract at $OPENDQV_CONTRACTS_DIR/ref."""
 
-    def test_mic_error_message_states_shape_only(self, client, auth_headers):
+    def test_mic_rule_uses_lookup_not_shape_only_regex(self, client, auth_headers):
         r = client.get("/api/v1/contracts/mifid_transaction_report", headers=auth_headers)
         assert r.status_code == 200
         rules = r.json().get("rules", [])
         mic_rule = next(
-            (rr for rr in rules if rr["name"] == "venue_mic_format"), None,
+            (rr for rr in rules if rr["name"] == "venue_mic_valid"), None,
         )
-        assert mic_rule is not None, "venue_mic_format rule must exist"
+        assert mic_rule is not None, (
+            "venue_mic_valid rule must exist (renamed from venue_mic_format "
+            "when the contract upgraded from regex shape to registry lookup)."
+        )
+        assert mic_rule.get("type") == "lookup", (
+            f"venue_mic_valid must use type=lookup (was: regex shape-only). "
+            f"Got: {mic_rule.get('type')!r}"
+        )
+        assert "iso_10383" in mic_rule.get("lookup_file", ""), (
+            "venue_mic_valid must point at iso_10383_mic_codes.txt"
+        )
         msg = mic_rule.get("error_message", "")
-        assert "shape" in msg.lower() or "v2.4" in msg.lower(), (
-            f"venue_mic_format error_message must state SHAPE-only honesty "
-            f"(same N-5 treatment as LEI rules); got: {msg!r}"
+        assert "v2.4 capability" not in msg, (
+            f"venue_mic_valid still carries v2.4-deferral language. "
+            f"Registry lookup ships in v2.3.23. Got: {msg!r}"
         )

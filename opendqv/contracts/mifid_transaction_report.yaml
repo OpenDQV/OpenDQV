@@ -108,12 +108,12 @@ contract:
       severity: error
       error_message: "reporting_firm_lei is required — MiFIR Article 26(1) requires identification of the investment firm executing the transaction via LEI"
 
-    - name: reporting_firm_lei_format
+    - name: reporting_firm_lei_valid
       field: reporting_firm_lei
-      type: regex
-      pattern: "^[A-Z0-9]{18}[0-9]{2}$"
+      type: checksum
+      checksum_algorithm: lei_mod97
       severity: error
-      error_message: "reporting_firm_lei must match ISO 17442 LEI shape — 20 characters, 18 alphanumeric followed by 2 digits. Note: this rule enforces the SHAPE only; full ISO 17442 mod-97 check-digit verification is a v2.4 capability (sentinel/typo LEIs that match the shape will pass shape-only validation but fail at the GLEIF look-up)"
+      error_message: "reporting_firm_lei must be a valid 20-character LEI per ISO 17442 — shape (18 alphanumeric + 2 digits) AND mod-97-10 check digit. v2.3.23 round-3: shape-only validation upgraded to full check-digit verification; sentinel/typo LEIs that previously passed will now fail. Records that fail this rule do not represent valid GLEIF-issuable identifiers and would be rejected at ARM submission."
 
     # ── EXECUTING ENTITY LEI ─────────────────────────────────────────────────
     - name: executing_entity_lei_required
@@ -122,12 +122,12 @@ contract:
       severity: error
       error_message: "executing_entity_lei is required — MiFIR Article 26(3)(a) requires the LEI of the entity executing the transaction"
 
-    - name: executing_entity_lei_format
+    - name: executing_entity_lei_valid
       field: executing_entity_lei
-      type: regex
-      pattern: "^[A-Z0-9]{18}[0-9]{2}$"
+      type: checksum
+      checksum_algorithm: lei_mod97
       severity: error
-      error_message: "executing_entity_lei must match ISO 17442 LEI shape — 20 characters, 18 alphanumeric followed by 2 digits. Note: this rule enforces the SHAPE only; full ISO 17442 mod-97 check-digit verification is a v2.4 capability"
+      error_message: "executing_entity_lei must be a valid 20-character LEI per ISO 17442 — shape AND mod-97-10 check digit. v2.3.23 round-3: full check-digit verification (was: shape-only)."
 
     # ── VENUE MIC ────────────────────────────────────────────────────────────
     - name: venue_mic_required
@@ -136,12 +136,12 @@ contract:
       severity: error
       error_message: "venue_mic is required — MiFIR Article 26(3)(e) requires the venue of execution identified by MIC code"
 
-    - name: venue_mic_format
+    - name: venue_mic_valid
       field: venue_mic
-      type: regex
-      pattern: "^[A-Z]{4}$"
+      type: lookup
+      lookup_file: ref/iso_10383_mic_codes.txt
       severity: error
-      error_message: "venue_mic must match ISO 10383 MIC shape — 4 uppercase letters. Note: this rule enforces the SHAPE only; full ISO 10383 list lookup against iso20022.org is a v2.4 capability (sentinel/typo MICs that match the shape will pass shape-only validation but fail at the ARM submission)"
+      error_message: "venue_mic must be a valid ISO 10383 MIC. v2.3.23 round-3: shape-only regex upgraded to lookup against ref/iso_10383_mic_codes.txt — bundled list is a starter subset of major operating MICs. For full RTS 22 Field 36 coverage, operators should drop a complete ISO 10383 extract at $OPENDQV_CONTRACTS_DIR/ref/iso_10383_mic_codes.txt and refresh periodically (MICs are added/retired as venues launch and consolidate)."
 
     # ── INSTRUMENT ISIN ──────────────────────────────────────────────────────
     - name: instrument_isin_required
@@ -150,12 +150,12 @@ contract:
       severity: error
       error_message: "instrument_isin is required — MiFIR Article 26(2) requires identification of the financial instrument via ISIN"
 
-    - name: instrument_isin_format
+    - name: instrument_isin_valid
       field: instrument_isin
-      type: regex
-      pattern: "^[A-Z]{2}[A-Z0-9]{9}[0-9]$"
+      type: checksum
+      checksum_algorithm: isin_mod11
       severity: error
-      error_message: "instrument_isin must be a valid 12-character ISIN per ISO 6166 — 2-letter country code, 9 alphanumeric characters, 1 check digit"
+      error_message: "instrument_isin must be a valid 12-character ISIN per ISO 6166 — 2-letter country code + 9 alphanumeric + 1 check digit (Luhn-style mod-10 over expanded numeric encoding). v2.3.23 round-3: full check-digit verification (was: shape-only regex)."
 
     # ── BUYER IDENTIFICATION ─────────────────────────────────────────────────
     - name: buyer_id_type_required
@@ -185,15 +185,15 @@ contract:
       severity: error
       error_message: "buyer_id is required — MiFIR Article 26(3)(c) requires identification of the buyer"
 
-    - name: buyer_id_lei_format
+    - name: buyer_id_lei_valid
       field: buyer_id
-      type: regex
-      pattern: "^[A-Z0-9]{18}[0-9]{2}$"
+      type: checksum
+      checksum_algorithm: lei_mod97
       condition:
         field: buyer_id_type
         value: "lei"
       severity: error
-      error_message: "buyer_id must be a valid 20-character LEI per ISO 17442 when buyer_id_type is lei"
+      error_message: "buyer_id must be a valid 20-character LEI per ISO 17442 when buyer_id_type is lei — shape AND mod-97-10 check digit. v2.3.23 round-3: full check-digit verification (was: shape-only regex)."
 
     # ── SELLER IDENTIFICATION ────────────────────────────────────────────────
     - name: seller_id_type_required
@@ -215,15 +215,15 @@ contract:
       severity: error
       error_message: "seller_id is required — MiFIR Article 26(3)(c) requires identification of the seller"
 
-    - name: seller_id_lei_format
+    - name: seller_id_lei_valid
       field: seller_id
-      type: regex
-      pattern: "^[A-Z0-9]{18}[0-9]{2}$"
+      type: checksum
+      checksum_algorithm: lei_mod97
       condition:
         field: seller_id_type
         value: "lei"
       severity: error
-      error_message: "seller_id must be a valid 20-character LEI per ISO 17442 when seller_id_type is lei"
+      error_message: "seller_id must be a valid 20-character LEI per ISO 17442 when seller_id_type is lei — shape AND mod-97-10 check digit. v2.3.23 round-3: full check-digit verification (was: shape-only regex)."
 
     # ── PRICE AND QUANTITY ───────────────────────────────────────────────────
     - name: price_min

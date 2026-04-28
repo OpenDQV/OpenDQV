@@ -1,0 +1,119 @@
+# ISO 10383 MIC (Market Identifier Code) — bundled subset of operating MICs.
+#
+# This is a STARTER LIST covering the major global venues. The full ISO 10383
+# registry has ~3,000 entries; for full RTS 22 Field 36 coverage, operators
+# should drop a complete extract at:
+#   $OPENDQV_CONTRACTS_DIR/ref/iso_10383_mic_codes.txt
+# Refresh from the official ISO 10383 source (iso20022.org) periodically —
+# MICs are added/retired as venues launch and consolidate.
+#
+# Snapshot date: 2026-04-28. v2.3.23 round-3 review.
+# One MIC per line, uppercase 4-char alphanumeric. Lines starting with #
+# are comments. Inline comments are NOT supported by the loader.
+
+# ── United States — NYSE / NASDAQ / CBOE / OTC ─────────────────────────
+XNYS
+XNAS
+XASE
+ARCX
+BATS
+BATY
+EDGA
+EDGX
+IEXG
+XCBO
+XCME
+XCBT
+XNYM
+XCEC
+XISX
+OTCM
+PINX
+OOTC
+
+# ── United Kingdom — LSE / LME / ICE / Aquis / Cboe ────────────────────
+XLON
+XLOM
+IFEU
+XLIF
+AQXE
+TRQX
+BATE
+CHIX
+
+# ── Europe (EU + EEA) — Euronext / Deutsche Börse / SIX / Nasdaq Nordic ─
+XPAR
+XAMS
+XBRU
+XLIS
+XMIL
+XETR
+XFRA
+XEUR
+XSWX
+XVTX
+XSTO
+XCSE
+XHEL
+XOSL
+XICE
+XMAD
+XWBO
+XATH
+XBUD
+XPRA
+XWAR
+XBUL
+XBSE
+XLJU
+XZAG
+XLUX
+XCYS
+XMAL
+XDUB
+
+# ── Asia Pacific — JPX / HK / China / Korea / India / SG / Asean ───────
+XJPX
+XTKS
+XOSE
+XHKG
+XSHG
+XSHE
+XSES
+XKRX
+XKOS
+XTAI
+XBOM
+XNSE
+XIDX
+XKLS
+XBKK
+XPHS
+XHNX
+XSTC
+XASX
+XNZE
+
+# ── Middle East & Africa ───────────────────────────────────────────────
+DSMD
+XTAE
+XADS
+DIFX
+XDFM
+XSAU
+XKUW
+XBAH
+XJSE
+XCAS
+XNGM
+
+# ── Americas (ex-US) ───────────────────────────────────────────────────
+XTSE
+XTSX
+XCNQ
+XMEX
+XBSP
+XBUE
+XSGO
+XLIM
+XBOG
