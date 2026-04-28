@@ -139,6 +139,7 @@ async def get_contract(
                 lookup_file=r.lookup_file,
                 checksum_algorithm=r.checksum_algorithm,
                 negate=r.negate if r.type == "regex" else None,
+                condition=r.condition,
             )
             for r in effective_rules
         ],

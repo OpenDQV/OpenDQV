@@ -244,6 +244,10 @@ async def validate_single(
         caller_principal=user or "anonymous",
         mode=_mode,
         would_have_failed=_would_have_failed,
+        # v2.3.23 P1-6: persisted reflects whether the audit row was
+        # written. dry_run skips persistence (CRT165 MCP safety lock),
+        # so the event_id returned is an idempotency token only.
+        persisted=not body.dry_run,
         context_warning=_context_warning,
     )
 
@@ -410,6 +414,8 @@ async def validate_batch_endpoint(
         caller_principal=user or "anonymous",
         mode=_mode,
         would_have_failed=_would_have_failed,
+        # v2.3.23 P1-6: see ValidateResponse.persisted for rationale.
+        persisted=not body.dry_run,
     )
 
 

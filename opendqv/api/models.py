@@ -124,6 +124,26 @@ class ValidateResponse(BaseModel):
     caller_principal: Optional[str] = Field(None, description="Server-derived from the authenticated token (JWT sub claim, or 'anonymous' in AUTH_MODE=open). Unlike `agent_id`, this cannot be spoofed by the caller — use as the trustable attribution key for audit and per-tenant SLA accounting.")
     mode: Optional[str] = Field("enforcement", description="Validation mode: 'enforcement' (default) or 'observation_only'. Always populated since v2.3.14.")
     would_have_failed: Optional[bool] = Field(False, description="True if the record would have been rejected under enforcement (equivalent to `not valid`). Always populated since v2.3.14 — was previously null in enforcement mode.")
+    # v2.3.23 P1-6 (Sonnet a5f385c20eba96e85): persisted is the OUTCOME
+    # field — describes whether this event resolves in list_audit_events
+    # / get_audit_event. False when the request set dry_run=True (e.g.
+    # MCP-driven validates which hardcode dry_run for safety per
+    # CRT165). Distinct from `mode` (enforcement vs observation_only).
+    # Distinct from `dry_run` request flag (caller-perspective). The
+    # event_id is still real (idempotency token) but won't be in the
+    # audit log. Reviewer Persona B caught teams trusting MCP event_ids
+    # for regulator evidence — surfaces too late, in inspection.
+    persisted: bool = Field(
+        True,
+        description=(
+            "True if this event was persisted to the audit log "
+            "(quality_stats row exists; list_audit_events / "
+            "get_audit_event will resolve the event_id). False when "
+            "dry_run=True — event_id is still returned as an "
+            "idempotency token but no audit row is written. Use this "
+            "as the regulator-evidence gate, not mode or event_id alone."
+        ),
+    )
     context_warning: Optional[str] = Field(
         None,
         description=(
@@ -213,6 +233,16 @@ class BatchValidateResponse(BaseModel):
     caller_principal: Optional[str] = Field(None, description="Server-derived from the authenticated token (JWT sub claim, or 'anonymous' in AUTH_MODE=open). Unlike `agent_id`, this cannot be spoofed by the caller — use as the trustable attribution key for audit and per-tenant SLA accounting.")
     mode: Optional[str] = Field("enforcement", description="Validation mode: 'enforcement' (default) or 'observation_only'. Always populated since v2.3.14.")
     would_have_failed: Optional[bool] = Field(False, description="True if any record in the batch would have been rejected under enforcement (equivalent to summary.failed > 0). Always populated since v2.3.14 — was previously null in enforcement mode.")
+    # v2.3.23 P1-6: see ValidateResponse.persisted for full rationale.
+    persisted: bool = Field(
+        True,
+        description=(
+            "True if this batch's audit row was persisted. False when "
+            "dry_run=True — batch event_id is returned as an idempotency "
+            "token but no audit row is written. Use as the regulator-"
+            "evidence gate, not mode or event_id alone."
+        ),
+    )
 
 
 # ── Contract models ──────────────────────────────────────────────────
@@ -250,6 +280,21 @@ class RuleInfo(BaseModel):
     lookup_file: Optional[str] = Field(None, description="Reference file path for lookup rule")
     checksum_algorithm: Optional[str] = Field(None, description="Algorithm name for checksum rule (e.g. mod10_gs1, iban_mod97)")
     negate: Optional[bool] = Field(None, description="True when the regex must NOT match")
+    # v2.3.23 P1-5 (Sonnet a5f385c20eba96e85): conditional logic
+    # surface honesty. Rule.condition (rule_parser.py) is applied by
+    # the runtime — but RuleInfo previously dropped it from the API
+    # response, so a regulator-side reader couldn't predict when a
+    # rule would fire without running probe records. Pass-through.
+    condition: Optional[dict] = Field(
+        None,
+        description=(
+            "Conditional gate that scopes when this rule fires. "
+            "Examples: {field: buyer_id_type, value: 'lei'} fires only "
+            "when the named field equals the value; {field: region, "
+            "not_value: 'US'} fires only when it does NOT equal. "
+            "When None, the rule fires unconditionally."
+        ),
+    )
 
 
 class ContractDetail(BaseModel):
