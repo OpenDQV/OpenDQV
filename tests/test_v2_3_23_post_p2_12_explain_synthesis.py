@@ -187,12 +187,17 @@ class TestLookupFileSynthesis:
 
 
 class TestRegexStillPlaceholder:
-    """Regression guard: regex synthesis is v2.4 (needs rstr/exrex
-    dependency). Until then, the templated example is the documented
-    behaviour. Test pins this so a future change doesn't silently
-    drift."""
+    """v2.3.23 round-3 #7: regex synthesis upgraded from a literal
+    templated placeholder to a mini regex walker that emits a real
+    sample for character-class + quantifier patterns. Falls back to
+    empty examples (with an honest "no example auto-generated"
+    explanation) for patterns the walker can't safely parse —
+    alternation, groups, lookarounds. The email regex below uses
+    `\\w` and `\\.` which the walker can't handle (escaped literal +
+    set-membership), so it falls back to empty — that IS the new
+    contract."""
 
-    def test_regex_emits_templated_pattern_example(self):
+    def test_regex_complex_pattern_falls_back_honestly(self):
         from opendqv.core.rule_parser import Rule, Severity
         from opendqv.core.explainer import explain_rule
         rule = Rule(
@@ -201,8 +206,16 @@ class TestRegexStillPlaceholder:
             severity=Severity.ERROR, error_message="t",
         )
         result = explain_rule(rule)
-        valid = result["valid_examples"]
-        # The templated form is fine; we just want non-crash + non-empty.
-        assert len(valid) > 0
         # Constraint payload still carries the pattern (Cluster D + P1-5).
         assert result["constraint"].get("pattern") == r"^[\w.+-]+@[\w.-]+\.\w+$"
+        # invalid_examples dropped per Sonnet's directive — generating
+        # a guaranteed-non-match is fragile/circular.
+        assert result["invalid_examples"] == [], (
+            "v2.3.23 round-3 #7: regex explain must drop invalid_examples"
+        )
+        # The walker should NOT emit the v2.3.22 literal placeholder.
+        for ex in result["valid_examples"]:
+            assert not ex.startswith("a value matching"), (
+                f"v2.3.23 round-3 #7: regex explain must not emit the "
+                f"v2.3.22 literal-placeholder string. Got: {ex!r}"
+            )

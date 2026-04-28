@@ -177,24 +177,159 @@ def _regex(field: str, pattern, negate: bool) -> dict:
                 f"The '{field}' field must NOT match the pattern: {pattern}. "
                 "The value will fail if it matches the forbidden pattern."
             ),
-            "valid_examples": ["value_that_doesnt_match"],
-            "invalid_examples": ["value_matching_pattern"],
+            "valid_examples": [],
+            "invalid_examples": [],
             "constraint": {"pattern": pattern, "negate": True},
         }
+    # v2.3.23 round-3 #7 (Sonnet a96411b104c1e7e18): mini regex walker
+    # synthesises a real example for character-class + quantifier
+    # patterns. Falls back to None for patterns we can't safely parse.
+    # invalid_examples dropped — generating a guaranteed-non-match is
+    # either fragile or circular; the rule's error_message conveys the
+    # constraint already.
+    sample = _synthesise_regex_example(pattern)
+    valid_examples = [sample] if sample is not None else []
     return {
         "rule_type": "regex",
         "explanation": (
             f"The '{field}' field must match the regular expression: {pattern}. "
             "Check that the value conforms to the expected format. "
-            "Common issues: missing required prefix/suffix, wrong character set, or incorrect length. "
-            "To find a passing value, test your data against the pattern. For common formats — "
-            "ISO dates match `2024-01-15`, emails match `user@example.com`, "
-            "IDs like `^[A-Z]{2}-\\d{4}$` match `AB-1234`."
+            "Common issues: missing required prefix/suffix, wrong character set, "
+            "or incorrect length."
+            + (
+                f" Example value matching this pattern: {sample!r}"
+                if sample is not None else
+                " (No example auto-generated for this pattern. Test your data "
+                "directly against the pattern.)"
+            )
         ),
-        "valid_examples": [f"a value matching {pattern}"],
-        "invalid_examples": ["(value not matching the pattern)", None, ""],
+        "valid_examples": valid_examples,
+        "invalid_examples": [],
         "constraint": {"pattern": pattern},
     }
+
+
+def _synthesise_regex_example(pattern: str, max_len: int = 64):
+    """v2.3.23 round-3 #7: walk a regex pattern and emit one valid
+    sample. Handles the patterns OpenDQV's bundled contracts use:
+    character classes (`[A-Z]`, `[0-9]`, `[A-Z0-9]`), shortcuts (`\\d`,
+    `\\w`), fixed `{n}` and ranged `{n,m}` quantifiers, anchors `^`
+    `$`, literal characters, escaped specials. Returns None for
+    anything more exotic (alternation, groups, backrefs, lookarounds)
+    so the caller can fall back to honest "no example" rather than a
+    misleading stub.
+
+    Self-validates via regex.search before returning — a walker bug
+    that emits a wrong example is caught here, not at the caller.
+    """
+    if pattern is None or not isinstance(pattern, str):
+        return None
+    try:
+        out, idx = [], 0
+        # Strip outer anchors but record their presence (purely
+        # cosmetic — the walker emits a string that the unanchored
+        # match should accept too).
+        if pattern.startswith("^"):
+            idx = 1
+        end_anchor = pattern.endswith("$") and not pattern.endswith("\\$")
+        end = len(pattern) - 1 if end_anchor else len(pattern)
+
+        while idx < end:
+            ch = pattern[idx]
+            # Character class [...]
+            if ch == "[":
+                close = pattern.find("]", idx + 1)
+                if close == -1:
+                    return None
+                cls = pattern[idx + 1:close]
+                token = _first_member_of_class(cls)
+                if token is None:
+                    return None
+                idx = close + 1
+            # Shortcut classes
+            elif ch == "\\" and idx + 1 < end:
+                nxt = pattern[idx + 1]
+                if nxt == "d":
+                    token = "0"
+                elif nxt == "w":
+                    token = "a"
+                elif nxt == "s":
+                    token = " "
+                else:
+                    # Escaped literal (\\., \\$, \\\\, etc.)
+                    token = nxt
+                idx += 2
+            # Bare ., *, +, ?, |, (, ) are too permissive / structural
+            # for our walker scope — fall back.
+            elif ch in (".", "|", "(", ")"):
+                return None
+            else:
+                token = ch
+                idx += 1
+
+            # Quantifier following the token (if any)
+            quant_count = 1
+            if idx < end and pattern[idx] in ("{", "*", "+", "?"):
+                if pattern[idx] == "{":
+                    close = pattern.find("}", idx + 1)
+                    if close == -1:
+                        return None
+                    body = pattern[idx + 1:close]
+                    if "," in body:
+                        lo, _hi = body.split(",", 1)
+                        try:
+                            quant_count = int(lo) if lo else 1
+                        except ValueError:
+                            return None
+                    else:
+                        try:
+                            quant_count = int(body)
+                        except ValueError:
+                            return None
+                    idx = close + 1
+                elif pattern[idx] == "*":
+                    quant_count = 0
+                    idx += 1
+                elif pattern[idx] == "+":
+                    quant_count = 1
+                    idx += 1
+                elif pattern[idx] == "?":
+                    quant_count = 0
+                    idx += 1
+
+            out.append(token * quant_count)
+            if sum(len(p) for p in out) > max_len:
+                return None
+
+        sample = "".join(out)
+        # Self-validate — if the walker emits something that doesn't
+        # match the original pattern, return None rather than a wrong
+        # example. Use the `regex` library to honour ReDoS timeout.
+        import regex as _re
+        if _re.fullmatch(pattern, sample, timeout=0.1):
+            return sample
+        # Some patterns lack outer anchors but still describe a full
+        # field — fall back to .search.
+        if _re.search(pattern, sample, timeout=0.1):
+            return sample
+        return None
+    except Exception:
+        return None
+
+
+def _first_member_of_class(cls: str):
+    """Pick a representative character from a character class body
+    (the part inside `[...]`). Handles ranges (`A-Z`), single chars,
+    and combined classes (`A-Z0-9`). Returns the first valid member
+    or None if the class is negated / unparseable for our scope."""
+    if not cls or cls.startswith("^"):
+        return None
+    i = 0
+    while i < len(cls):
+        if i + 2 < len(cls) and cls[i + 1] == "-":
+            return cls[i]
+        return cls[i]
+    return None
 
 
 def _email(field: str) -> dict:
