@@ -636,7 +636,17 @@ class AuditEventListItem(BaseModel):
     total_records: int = Field(..., description="Records in this call (1 for /validate, N for /validate/batch)")
     passed: int = Field(..., description="Records that passed")
     failed: int = Field(..., description="Records that failed")
-    agent_id: str = Field("", description="Caller-asserted identity — NOT authenticated. Use caller_principal for trustable attribution.")
+    agent_id: Optional[str] = Field(
+        None,
+        description=(
+            "Caller-asserted identity — NOT authenticated. Use caller_principal "
+            "for trustable attribution. Null when no agent_id was supplied "
+            "(unattributed). v2.3.23 round-3: every wire surface emits null "
+            "for unattributed agents (was: a mix of '' and null across "
+            "endpoints). The by=agent grouping label `unattributed` is the "
+            "different — bucket label vs presence signal."
+        ),
+    )
     caller_principal: str = Field("", description="Server-derived from the authenticated token (JWT sub, or 'anonymous' in open mode). Cannot be spoofed.")
     mode: str = Field("enforcement", description="'enforcement' or 'observation_only'")
 

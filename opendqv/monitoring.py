@@ -247,6 +247,12 @@ class ValidationStats:
             recent = list(self.history[-50:])
             if not include_system:
                 recent = [h for h in recent if not _is_system_agent(h.get("agent_id", ""))]
+            # v2.3.23 round-3 review (Sonnet af52284db94bba3b1): emit null
+            # for unattributed agents on the wire — internal storage stays
+            # "" (no schema migration). Single boundary translation.
+            recent = [
+                {**h, "agent_id": h.get("agent_id") or None} for h in recent
+            ]
             return {
                 "total_validations": total,
                 "total_pass": total_pass,

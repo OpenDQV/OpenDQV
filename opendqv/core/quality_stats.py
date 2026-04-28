@@ -486,7 +486,9 @@ class QualityStats:
             "failed": int(row["failed"]),
             "pass_rate_pct": float(row["pass_rate_pct"]),
             "rule_failure_counts": rfc,
-            "agent_id": row["agent_id"] or "",
+            # v2.3.23 round-3 review: emit null for unattributed events
+            # (was: ""). Wire shape consistency across all surfaces.
+            "agent_id": row["agent_id"] or None,
             "mode": row["mode"] or "enforcement",
             "caller_principal": row["caller_principal"] or "",
             "effective_rule_hash": row["effective_rule_hash"] or "",
@@ -587,7 +589,9 @@ class QualityStats:
                 "total_records": int(r["total_records"]),
                 "passed": int(r["passed"]),
                 "failed": int(r["failed"]),
-                "agent_id": r["agent_id"] or "",
+                # v2.3.23 round-3 review: emit null for unattributed
+                # events (was: ""). Wire shape consistency.
+                "agent_id": r["agent_id"] or None,
                 "caller_principal": r["caller_principal"] or "",
                 "mode": r["mode"] or "enforcement",
             }
