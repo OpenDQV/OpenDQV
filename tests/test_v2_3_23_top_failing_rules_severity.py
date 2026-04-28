@@ -143,6 +143,7 @@ class TestApiStatsEnrichesTopFailingFields:
                 _FakeRule("valid_email", "error"),
                 _FakeRule("tier_known", "warning"),
             ]
+            contexts = {}  # required for normalizer (v2.3.23 ctx_* leak fix)
 
         class _FakeRegistry:
             def get(self, name, version="latest"):
@@ -194,6 +195,7 @@ class TestApiStatsEnrichesTopFailingFields:
 
         class _FakeContract:
             rules = []
+            contexts = {}
 
         class _FakeRegistry:
             def get(self, name, version="latest"):

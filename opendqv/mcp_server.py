@@ -1588,20 +1588,40 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
         # (authoritative source); legacy data with deleted rules surfaces
         # severity="unknown" — explicit honesty over silent omission.
         sev_map = _severity_map(cname)
-        top_rules = [
-            {
-                "rule": f["rule"],
-                "field": f["field"],
-                "failures": f["count"],
-                "severity": sev_map.get(f["rule"], "unknown"),
-            }
-            for f in top_fields if f["contract"] == cname
-        ][:5]
+        # v2.3.23 round-3 review (Sonnet a154314ae2e179025): strip the
+        # synthesised `ctx_<context>_` prefix from rule names so override
+        # rules collapse to their base name on the read surface. Build
+        # the normalizer once per contract; coalesce duplicate names.
+        try:
+            _contract_obj = _registry.get(cname)
+        except Exception:
+            _contract_obj = None
+        from opendqv.monitoring import _build_rule_normalizer
+        _normalize_rule = _build_rule_normalizer(_contract_obj)
+        from collections import defaultdict as _dd
+        _coalesced: dict = _dd(lambda: {"rule": "", "field": "", "failures": 0, "severity": "unknown"})
+        for f in top_fields:
+            if f["contract"] != cname:
+                continue
+            rn = _normalize_rule(f["rule"])
+            bucket = _coalesced[rn]
+            bucket["rule"] = rn
+            # field: keep first non-? value; severity: keep first non-unknown.
+            if not bucket["field"] or bucket["field"] == "?":
+                bucket["field"] = f.get("field", "") or ""
+            bucket["failures"] += int(f.get("count", 0))
+            if bucket["severity"] in (None, "unknown"):
+                bucket["severity"] = sev_map.get(rn, "unknown")
+        top_rules = sorted(
+            _coalesced.values(),
+            key=lambda x: x["failures"], reverse=True,
+        )[:5]
         if not _remote_client:
             try:
                 trend = _quality_stats.get_trend(cname, days=1)
                 if trend and trend[0].get("top_failing_rules"):
                     for rule, count in trend[0]["top_failing_rules"].items():
+                        rule = _normalize_rule(rule)
                         existing = next((tr for tr in top_rules if tr["rule"] == rule), None)
                         if existing:
                             existing["failures"] = max(existing["failures"], count)
@@ -1726,6 +1746,18 @@ async def _tool_get_quality_trend(args: dict) -> list[types.TextContent]:
     points = _quality_stats.get_trend(
         contract_name, days=days, context=context, by=by, include_system=include_system,
     )
+    # v2.3.23 round-3 review (Sonnet a154314ae2e179025): strip the
+    # synthesised `ctx_<context>_` prefix from rule names at the emit
+    # boundary so consumers see the base rule name. Mirrors the REST
+    # path's normalize-then-severity sequence so dual surfaces emit
+    # byte-identical names.
+    try:
+        contract_obj = _registry.get(contract_name)
+    except Exception:
+        contract_obj = None
+    if contract_obj is not None:
+        from opendqv.monitoring import normalize_trend_rule_names
+        points = normalize_trend_rule_names(points, contract_obj, by)
     # v2.3.23 round-3 review: tag each ranked rule with severity so a
     # consumer can read "warning failing 100x" vs "error failing 50x"
     # without re-fetching the contract. Mirror the get_quality_metrics

@@ -75,20 +75,42 @@ def _enrich_top_failing_fields_with_severity(summary: dict) -> None:
     entry, looked up from the live registry. Cached per-contract so a
     summary with N rules across M contracts costs O(M) registry calls,
     not O(N).
+
+    v2.3.23 round-3 review (Sonnet a154314ae2e179025): also normalize
+    the `rule` field on each entry — strips the synthesised
+    `ctx_<context>_` prefix when both context+base-rule are valid on
+    the contract. Storage stays canonical to execution; the read
+    surface presents the base rule name. Coalesces collisions when the
+    same rule appears in legacy-synth and canonical forms (e.g. when a
+    context was newly declared mid-window).
     """
     fields = summary.get("top_failing_fields") or []
     if not fields:
         return
     sev_cache: dict[str, dict[str, str]] = {}
+    contract_cache: dict[str, object] = {}
+    norm_cache: dict[str, callable] = {}
+    from opendqv.monitoring import _build_rule_normalizer
     for entry in fields:
+        cname = entry.get("contract") or ""
+        if cname not in contract_cache:
+            try:
+                contract_cache[cname] = (
+                    _d.registry.get(cname) if _d.registry else None
+                )
+            except Exception:
+                contract_cache[cname] = None
+        contract = contract_cache[cname]
+        if cname not in norm_cache:
+            norm_cache[cname] = _build_rule_normalizer(contract)
+        # Normalize first so severity lookup hits the canonical name.
+        rule_name = entry.get("rule", "") or ""
+        normalized = norm_cache[cname](rule_name)
+        if normalized != rule_name:
+            entry["rule"] = normalized
         if "severity" in entry:
             continue
-        cname = entry.get("contract") or ""
         if cname not in sev_cache:
-            try:
-                contract = _d.registry.get(cname) if _d.registry else None
-            except Exception:
-                contract = None
             sev_cache[cname] = (
                 {r.name: (r.cached_severity_value or "error") for r in contract.rules}
                 if contract and getattr(contract, "rules", None) else {}

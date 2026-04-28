@@ -427,6 +427,15 @@ async def get_quality_trend(
     points = _d._quality_stats.get_trend(
         name, days=days, context=context, by=by, include_system=include_system,
     )
+    # v2.3.23 round-3 review (Sonnet a154314ae2e179025): strip the
+    # synthesised `ctx_<context>_` prefix from rule names at the emit
+    # boundary so consumers see the base rule name. Storage stays
+    # canonical (the override IS what fired); presentation collapses.
+    # Coalesces collisions when both legacy-synth and canonical names
+    # appear in the same window. Must run BEFORE severity tagging so
+    # the severity lookup hits the canonical rule name.
+    from opendqv.monitoring import normalize_trend_rule_names
+    points = normalize_trend_rule_names(points, c, by)
     # v2.3.23 round-3 review (Sonnet afac7ed4604cc1e07): tag rule entries
     # with severity from the live registry. Must mutate the raw dict
     # BEFORE QualityTrendPoint(**p) — Pydantic V2's model_fields_set is

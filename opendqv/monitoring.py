@@ -640,6 +640,107 @@ def _normalize_legacy_rule_name(
     return candidate_rule
 
 
+def _build_rule_normalizer(contract):
+    """Return a (rule_name -> normalized_name) function for a single
+    contract. Built once per request — caller walks any number of rule
+    names with O(1) lookups. v2.3.23 round-3 (Sonnet a154314ae2e179025):
+    extends the per-name `_normalize_legacy_rule_name` discipline to
+    bulk emit paths (trend, stats, MCP) without repeating the registry
+    walk for every rule.
+    """
+    if contract is None or not getattr(contract, "rules", None):
+        return lambda name: name
+    rule_names = {r.name for r in contract.rules}
+    contexts = set(contract.contexts or {})
+
+    def _normalize(name: str) -> str:
+        if not name or not name.startswith("ctx_"):
+            return name
+        rest = name[len("ctx_"):]
+        if "_" not in rest:
+            return name
+        ctx, base = rest.split("_", 1)
+        # Conservative guard: context declared AND base rule exists.
+        # Synthesised branch-3 rules (no base equivalent) stay as-is.
+        if ctx in contexts and base in rule_names:
+            return base
+        return name
+
+    return _normalize
+
+
+def normalize_trend_rule_names(points: list, contract, by: str) -> list:
+    """v2.3.23 round-3 (Sonnet a154314ae2e179025): apply rule-name
+    normalization to a trend points list at the emit boundary, with
+    coalescing.
+
+    Storage stays canonical to execution (override rules record their
+    synthesised `ctx_<context>_<rule>` name — that's what fired). The
+    presentation layer collapses to the base rule name when the override
+    is just a parameter override of the base. Counts must be summed
+    across collisions; otherwise switching the contract from no-context
+    to context-declared mid-window silently drops violations.
+
+    Returns the (possibly new) list. For by=rule the list may be shorter
+    than the input because rows merge under the normalized key.
+    """
+    if not points or contract is None:
+        return points
+    normalize = _build_rule_normalizer(contract)
+    if by == "rule":
+        merged: dict = {}
+        for p in points:
+            k = normalize(p.get("key", "") or "")
+            if k in merged:
+                merged[k]["violation_count"] = (
+                    int(merged[k].get("violation_count", 0))
+                    + int(p.get("violation_count", 0))
+                )
+                # severity: keep first non-unknown.
+                if merged[k].get("severity") in (None, "unknown"):
+                    s = p.get("severity")
+                    if s and s != "unknown":
+                        merged[k]["severity"] = s
+            else:
+                p2 = dict(p)
+                p2["key"] = k
+                merged[k] = p2
+        return sorted(
+            merged.values(),
+            key=lambda x: int(x.get("violation_count", 0)),
+            reverse=True,
+        )
+    # by=date / agent / context: normalize within each point's
+    # top_failing_rules (dict) and top_failing_rules_ranked (list).
+    from collections import defaultdict as _dd
+    for p in points:
+        old_dict = p.get("top_failing_rules")
+        if old_dict:
+            coalesced: dict = _dd(int)
+            for k, v in old_dict.items():
+                coalesced[normalize(k)] += int(v or 0)
+            p["top_failing_rules"] = dict(coalesced)
+        old_ranked = p.get("top_failing_rules_ranked")
+        if old_ranked:
+            counts: dict = _dd(int)
+            severities: dict = {}
+            for entry in old_ranked:
+                rn = normalize(entry.get("rule", "") or "")
+                counts[rn] += int(entry.get("count", 0))
+                if rn not in severities:
+                    severities[rn] = entry.get("severity", "unknown")
+                elif severities[rn] in (None, "unknown"):
+                    s = entry.get("severity")
+                    if s and s != "unknown":
+                        severities[rn] = s
+            ranked = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+            p["top_failing_rules_ranked"] = [
+                {"rule": r, "count": c, "severity": severities.get(r, "unknown")}
+                for r, c in ranked
+            ]
+    return points
+
+
 def hydrate_stats_from_persistent_store(
     stats_instance: "ValidationStats",
     db_path: str,
