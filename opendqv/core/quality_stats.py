@@ -336,7 +336,14 @@ class QualityStats:
         grouped: dict[str, dict] = {}
         for row in rows:
             if by == "agent":
-                aid = row["agent_id"] or ""
+                # v2.3.23 outside-review #2 (Sonnet a15e627a5e6a24fa3):
+                # empty agent_id surfaces as "unattributed" bucket
+                # rather than an empty-string key. Mirrors the in-memory
+                # _aggregate_by_agent helper (monitoring.py). Reviewer
+                # P0 #3: response with key="" looks like the grouping
+                # dimension is broken; "unattributed" is the honest
+                # label for legacy / pre-agent_id data.
+                aid = row["agent_id"] or "unattributed"
                 # v2.3.22 Cluster E: suppression contract ("system traffic
                 # does not appear in customer-visible read surfaces unless
                 # include_system=true") extends to the trend by=agent
