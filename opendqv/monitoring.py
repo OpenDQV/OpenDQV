@@ -103,6 +103,12 @@ class ValidationStats:
         self.totals = defaultdict(lambda: {"pass": 0, "fail": 0, "errors": 0, "warnings": 0})
         self.field_errors = defaultdict(int)  # (contract, field, rule) -> count
         self.severity_counts = defaultdict(int)  # (contract, severity) -> count
+        # v2.3.23 C1 (Sonnet's pre-impl review):
+        # Idempotency guard — hydrate_stats_from_persistent_store
+        # checks this and early-returns if already True. Prevents
+        # accidental double-counting of totals.errors from re-import,
+        # test-suite reload, or accidental double-call.
+        self._hydrated = False
         self.started_at = datetime.now(timezone.utc)
         self._latencies: list = []  # recent latency values for percentile computation
         self._events: deque = deque(maxlen=10_000)  # (timestamp, contract, context, valid, latency_ms, agent_id)
@@ -335,6 +341,33 @@ class ValidationStats:
         summary["total_fail"] = total_fail
         # v2.3.18 Q3: single canonical pass_rate_pct everywhere.
         summary["pass_rate_pct"] = round(total_pass / total * 100, 1) if total > 0 else None
+        # v2.3.23 C1 (Sonnet's pre-impl review): override unscoped
+        # violation counters from the windowed _error_events deque.
+        # Without this, total_error_violations leaks the unscoped
+        # totals.errors which is now hydrated to ALL history — a
+        # dual-source inconsistency where total_validations is window-
+        # scoped but total_error_violations is lifetime. Same CRT170-J
+        # family the team has caught repeatedly.
+        _windowed_err_violations = 0
+        with self._lock:
+            for ts, ec, ef, er, eaid in self._error_events:
+                if ts < cutoff:
+                    continue
+                if not include_system and _is_system_agent(eaid):
+                    continue
+                _windowed_err_violations += 1
+        summary["total_error_violations"] = _windowed_err_violations
+        summary["total_errors"] = _windowed_err_violations
+        # severity_counts: quality_stats has no per-failure severity, so
+        # hydrated violations all attribute to "error". Window-scope it
+        # from the same _error_events walk above.
+        summary["dimensions"] = {
+            **summary.get("dimensions", {}),
+            "by_severity": {
+                "error": _windowed_err_violations,
+                "warning": 0,  # warnings not preserved in quality_stats
+            },
+        }
         # Window field semantics (CRT173 finding 22):
         #   window_hours              = caller's requested window, in hours.
         #   effective_window_seconds  = min(requested, actual data coverage),
@@ -604,6 +637,14 @@ def hydrate_stats_from_persistent_store(
     import json
     from datetime import timedelta as _td
 
+    # v2.3.23 C1 (Sonnet's pre-impl review): idempotency guard.
+    # Re-running hydration on the same instance would double-count
+    # self.totals[key]["errors"] and self.field_errors. The deques
+    # have their own bounds and don't double-grow, but the integer
+    # counters do. Early-return on second call.
+    if getattr(stats_instance, "_hydrated", False):
+        return {"events": 0, "errors": 0, "rows_read": 0, "skipped": True, "already_hydrated": True}
+
     cutoff = (datetime.now(timezone.utc) - _td(hours=window_hours)).isoformat()
 
     try:
@@ -655,6 +696,62 @@ def hydrate_stats_from_persistent_store(
             for i in range(count or 0):
                 stats_instance._error_events.append((ts + i * 0.0001, contract, "?", rule_name, aid))
                 errors_added += 1
+
+        # v2.3.23 C1 (Persona B 2026-04-28): hydration completeness.
+        # The previous implementation populated only the events deques.
+        # That left totals.errors / field_errors / history at zero
+        # post-restart, so total_error_violations / top_failing_fields /
+        # recent_history all reported empty until live traffic refilled
+        # them. Reviewer: "After every restart, customers will see
+        # misleading 'improvement'." We now hydrate every aggregate that
+        # quality_stats has data for.
+        key = f"{contract}:{ctx}"
+        # totals: pass/fail (record counts) + errors (rule-violation
+        # sums from rule_failure_counts JSON). warnings stay zero —
+        # quality_stats does not differentiate severity per failure.
+        stats_instance.totals[key]["pass"] += int(passed or 0)
+        stats_instance.totals[key]["fail"] += int(failed or 0)
+        stats_instance.totals[key]["errors"] += sum(int(c) for c in rule_failures.values())
+        # field_errors: keyed (contract, field, rule). Field is "?"
+        # (provenance: unavailable on output) since quality_stats does
+        # not preserve field names per failure. v2.4 schema work may
+        # split this.
+        _row_violations = sum(int(c) for c in rule_failures.values())
+        for rule_name, count in rule_failures.items():
+            stats_instance.field_errors[(contract, "?", rule_name)] += int(count or 0)
+        # severity_counts: quality_stats does not differentiate severity
+        # per failure (only error counts via rule_failure_counts). All
+        # hydrated violations attribute to the "error" bucket; warning
+        # severity stays at zero post-hydration. v2.4 schema work may
+        # split this. Sonnet's pre-impl review: without this, the
+        # response shape becomes internally inconsistent — total_error
+        # _violations > 0 but dimensions.by_severity.error == 0.
+        if _row_violations:
+            stats_instance.severity_counts[(contract, "error")] += _row_violations
+        # history: synthesise one ring-buffer entry per row so
+        # recent_history surfaces real traffic post-restart. Single
+        # entry per row (the row IS the aggregate) rather than per
+        # synthesised event — keeps the ring meaningful, not flooded.
+        stats_instance.history.append({
+            "ts": recorded_at,
+            "contract": contract,
+            "context": ctx,
+            "valid": (failed or 0) == 0,
+            "errors": int(failed or 0),
+            "warnings": 0,
+            "latency_ms": None,  # not persisted in quality_stats
+            "mode": mode or "enforcement",
+            "agent_id": aid,
+            "hydrated": True,
+        })
+
+    # Cap history at the same _max_history bound the live record() path
+    # respects — prevents hydration flooding the ring above the limit.
+    if len(stats_instance.history) > stats_instance._max_history:
+        stats_instance.history = stats_instance.history[-stats_instance._max_history:]
+
+    # Mark instance as hydrated. Subsequent calls early-return.
+    stats_instance._hydrated = True
 
     return {"events": events_added, "errors": errors_added, "rows_read": len(rows), "skipped": False}
 
