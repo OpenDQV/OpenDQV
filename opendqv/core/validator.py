@@ -1281,6 +1281,38 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
         is_temporal_sentinel = rule.compare_to in ("today", "now")
         if not is_temporal_sentinel and rule.compare_to not in df.columns:
             logger.warning("compare rule '%s' references missing field '%s'", rule.name, rule.compare_to)
+        elif rule.compare_op == "same_date":
+            # v2.3.22 post-release B1: mirror single-record same_date branch
+            # (line 555) into the batch path. v2.3.20 added same_date for
+            # the T+0 invariant on trade_date_matches_execution_date but
+            # only patched the single-record path; the batch path silently
+            # skipped because `same_date` is not in `_COMPARE_OPS`. Result:
+            # any batch path through MiFIR reporting let T+0 violations
+            # through. Persona B inside-view 2026-04-28 reproduced.
+            import re as _re
+            _date_re = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
+            for idx in range(len(df)):
+                a_raw = df[field].iloc[idx]
+                if is_temporal_sentinel:
+                    if rule.compare_to == "today":
+                        b_raw = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                    else:
+                        b_raw = datetime.now(timezone.utc).isoformat()
+                else:
+                    b_raw = df[rule.compare_to].iloc[idx]
+                if a_raw is None or (isinstance(a_raw, float) and pd.isna(a_raw)):
+                    continue
+                if not is_temporal_sentinel and (b_raw is None or (isinstance(b_raw, float) and pd.isna(b_raw))):
+                    continue
+                a_str = str(a_raw)[:10]
+                b_str = str(b_raw)[:10]
+                # Both sides must look like YYYY-MM-DD; otherwise the
+                # date-format rule on the field is responsible for
+                # shape — same_date isn't applicable.
+                if not (_date_re.match(a_str) and _date_re.match(b_str)):
+                    continue
+                if a_str != b_str:
+                    failing.add(idx)
         else:
             op_fn = _COMPARE_OPS.get(rule.compare_op)
             if op_fn:
