@@ -499,8 +499,11 @@ async def list_tools() -> list[types.Tool]:
             name="get_quality_metrics",
             description=(
                 "Return aggregate rejection metrics for one or all contracts. "
-                "Includes pass_rate_pct, failed count, top_failing_rules, and a catalog_hint field "
-                "for chaining to Marmot or other catalog MCP servers. "
+                "Includes pass_rate_pct, failed count, top_failing_rules, and an optional "
+                "catalog_hint field for chaining to a data-catalog MCP server. "
+                "catalog_hint is `<prefix><contract>` where the prefix is configured via "
+                "OPENDQV_CATALOG_URI_PREFIX (default `marmot:assets/`; use e.g. "
+                "`datahub:dataset/`, `unitycatalog://`, or empty to omit). "
                 "Counter semantics: total_validations / total_pass / total_fail are RECORD "
                 "counts. total_error_violations / total_warning_violations are RULE-VIOLATION "
                 "sums (a single failing record with N broken rules contributes N). The legacy "
@@ -1589,9 +1592,10 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
                 _stats.get_contract_latency(cname, window_hours or 24)
                 if not _remote_client else summary.get("latency", {})
             ),
-            "catalog_hint": f"marmot:assets/{cname}",
             "governance_tip": governance_tip if total_val > 0 else "No validation data recorded yet for this contract.",
         }
+        if config.CATALOG_URI_PREFIX:
+            entry["catalog_hint"] = f"{config.CATALOG_URI_PREFIX}{cname}"
         # Include per-agent breakdown when >1 distinct agent seen in the window
         if not _remote_client:
             try:
@@ -1626,7 +1630,7 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
             result.append(entry)
 
     if contract_name and not result:
-        result.append({
+        empty = {
             "contract": contract_name,
             "window_hours": window_hours,
             "total_validations": 0,
@@ -1637,9 +1641,11 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
             "data_confidence": "no_data",
             "confidence_note": "No validation data recorded yet for this contract.",
             "top_failing_rules": [],
-            "catalog_hint": f"marmot:assets/{contract_name}",
             "governance_tip": "No validation data recorded yet for this contract.",
-        })
+        }
+        if config.CATALOG_URI_PREFIX:
+            empty["catalog_hint"] = f"{config.CATALOG_URI_PREFIX}{contract_name}"
+        result.append(empty)
 
     output = result[0] if (contract_name and result) else result
     return [types.TextContent(type="text", text=json.dumps(output, default=str))]

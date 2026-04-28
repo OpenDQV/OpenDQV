@@ -42,6 +42,11 @@ if not API_URL:
     )
     sys.exit(1)
 API_TOKEN = os.environ.get("OPENDQV_API_TOKEN", "")
+# Catalog URI prefix — see opendqv/config.py for full doc. Mirrors the
+# in-process default so the dual MCP paths emit byte-identical
+# catalog_hint values out of the box. Override (e.g. `datahub:dataset/`)
+# or set empty to omit the field.
+CATALOG_URI_PREFIX = os.environ.get("OPENDQV_CATALOG_URI_PREFIX", "marmot:assets/")
 _client = httpx.Client(
     base_url=API_URL,
     timeout=30.0,
@@ -155,11 +160,12 @@ def _reshape_quality_metrics(
             "confidence_note": confidence_note,
             "top_failing_rules": top_rules,
             "latency": summary.get("latency", {}) or {},
-            "catalog_hint": f"marmot:assets/{cname}",
             "governance_tip": governance_tip if total_val > 0 else (
                 "No validation data recorded yet for this contract."
             ),
         }
+        if CATALOG_URI_PREFIX:
+            entry["catalog_hint"] = f"{CATALOG_URI_PREFIX}{cname}"
         # v2.3.23 outside-review P0 (Sonnet a74a3758ab3476042): the
         # previous fallback inlined summary["by_agent"] (the GLOBAL
         # rollup) into every per-contract entry when no contract filter
@@ -179,7 +185,7 @@ def _reshape_quality_metrics(
         # Empty-state fallback — same shape as the in-process no-data
         # branch at mcp_server.py:1540-1554. Cluster F: pass_rate_pct null,
         # not 100.0; data_confidence "no_data" not "high".
-        result.append({
+        empty = {
             "contract": contract_name,
             "window_hours": window_hours,
             "total_validations": 0,
@@ -190,9 +196,11 @@ def _reshape_quality_metrics(
             "confidence_note": "No validation data recorded yet for this contract.",
             "top_failing_rules": [],
             "latency": summary.get("latency", {}) or {},
-            "catalog_hint": f"marmot:assets/{contract_name}",
             "governance_tip": "No validation data recorded yet for this contract.",
-        })
+        }
+        if CATALOG_URI_PREFIX:
+            empty["catalog_hint"] = f"{CATALOG_URI_PREFIX}{contract_name}"
+        result.append(empty)
 
     return result[0] if (contract_name and result) else result
 
@@ -392,7 +400,11 @@ TOOLS = [
         "name": "get_quality_metrics",
         "description": (
             "Return aggregate rejection metrics for one or all contracts. "
-            "Includes pass_rate_pct, failed count, top_failing_rules. "
+            "Includes pass_rate_pct, failed count, top_failing_rules, and an optional "
+            "catalog_hint field for chaining to a data-catalog MCP server. "
+            "catalog_hint is `<prefix><contract>` where the prefix is configured via "
+            "OPENDQV_CATALOG_URI_PREFIX (default `marmot:assets/`; use e.g. "
+            "`datahub:dataset/`, `unitycatalog://`, or empty to omit). "
             "Counter semantics: total_validations / total_pass / total_fail are RECORD "
             "counts. total_error_violations / total_warning_violations are RULE-VIOLATION "
             "sums (a single failing record with N broken rules contributes N). The legacy "

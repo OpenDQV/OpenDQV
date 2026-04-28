@@ -136,6 +136,15 @@ HEALTH_DETAIL = os.environ.get("OPENDQV_HEALTH_DETAIL", "false").lower() == "tru
 # the environment is intentionally pre-seeded and running with AUTH_MODE=open.
 DEMO_MODE: bool = os.environ.get("DEMO_MODE", "false").lower() == "true"
 
+# Catalog URI prefix — emitted as `catalog_hint` on get_quality_metrics
+# responses so MCP clients can chain to a catalog server. The default
+# `marmot:assets/` matches the original example integration; operators
+# pointing at DataHub, Unity Catalog, OpenMetadata, etc. should override
+# (e.g. `datahub:dataset/`, `unitycatalog://`). Set to empty string to
+# omit the field entirely. v2.4 may change the default; the env var is
+# the long-term contract.
+CATALOG_URI_PREFIX = os.environ.get("OPENDQV_CATALOG_URI_PREFIX", "marmot:assets/")
+
 
 def validate_config() -> None:
     """
