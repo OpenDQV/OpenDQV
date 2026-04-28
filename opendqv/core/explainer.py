@@ -22,59 +22,80 @@ def explain_rule(rule) -> dict:
             "valid_examples": list,
             "invalid_examples": list,
             "constraint": dict,
+            "curated_message": str,  # rule.error_message when authored
         }
+
+    v2.3.23 round-4 P2-A (Sonnet a68190bfb4ab4e4cb): if the rule
+    carries a curated `error_message`, surface it on the response as
+    `curated_message`. Contracts often pin a real example or a
+    regulator-cited remediation in the error_message that the
+    auto-generated explanation can't match — emit the full string
+    unmodified so consumers see the human-authored guidance alongside
+    the synthetic explanation.
     """
     rt = rule.type
     field = rule.field
 
     if rt == "not_empty":
-        return _not_empty(field)
+        result = _not_empty(field)
     elif rt == "min":
-        return _min(field, rule.min_value)
+        result = _min(field, rule.min_value)
     elif rt == "max":
-        return _max(field, rule.max_value)
+        result = _max(field, rule.max_value)
     elif rt == "range":
-        return _range(field, rule.min_value, rule.max_value)
+        result = _range(field, rule.min_value, rule.max_value)
     elif rt == "min_length":
-        return _min_length(field, rule.min_length)
+        result = _min_length(field, rule.min_length)
     elif rt == "max_length":
-        return _max_length(field, rule.max_length)
+        result = _max_length(field, rule.max_length)
     elif rt == "regex":
-        return _regex(field, rule.pattern, rule.negate)
+        result = _regex(field, rule.pattern, rule.negate)
     elif rt == "email":
-        return _email(field)
+        result = _email(field)
     elif rt == "date_format":
-        return _date_format(field, rule.format)
+        result = _date_format(field, rule.format)
     elif rt == "enum":
-        return _enum(field, rule.pattern)
+        result = _enum(field, rule.pattern)
     elif rt == "allowed_values":
-        return _allowed_values(field, rule.allowed_values)
+        result = _allowed_values(field, rule.allowed_values)
     elif rt == "lookup":
-        return _lookup(field, rule.lookup_file)
+        result = _lookup(field, rule.lookup_file)
     elif rt == "min_age":
-        return _min_age(field, rule.min_age)
+        result = _min_age(field, rule.min_age)
     elif rt == "max_age":
-        return _max_age(field, rule.max_age)
+        result = _max_age(field, rule.max_age)
     elif rt == "unique":
-        return _unique(field)
+        result = _unique(field)
     elif rt == "compare":
-        return _compare(field, rule.compare_to, rule.compare_op)
+        result = _compare(field, rule.compare_to, rule.compare_op)
     elif rt == "required_if":
         cond = rule.required_if or {}
-        return _required_if(field, cond.get("field", "?"), cond.get("value", "?"))
+        result = _required_if(field, cond.get("field", "?"), cond.get("value", "?"))
     elif rt == "checksum":
-        return _checksum(field, rule.checksum_algorithm)
+        result = _checksum(field, rule.checksum_algorithm)
     elif rt == "cross_field_range":
-        return _cross_field_range(field, rule.cross_min_field, rule.cross_max_field)
+        result = _cross_field_range(field, rule.cross_min_field, rule.cross_max_field)
     elif rt == "field_sum":
-        return _field_sum(field, rule.sum_fields, rule.sum_equals, rule.sum_tolerance)
+        result = _field_sum(field, rule.sum_fields, rule.sum_equals, rule.sum_tolerance)
     elif rt == "forbidden_if":
         cond = rule.forbidden_if or {}
-        return _forbidden_if(field, cond.get("field", "?"), cond.get("value", "?"))
+        result = _forbidden_if(field, cond.get("field", "?"), cond.get("value", "?"))
     elif rt == "conditional_value":
-        return _conditional_value(field, rule.must_equal)
+        result = _conditional_value(field, rule.must_equal)
     else:
-        return _generic(field, rt, rule.error_message)
+        result = _generic(field, rt, rule.error_message)
+
+    # v2.3.23 round-4 P2-A: surface the curated error_message verbatim
+    # when the contract author wrote one. Reviewer's framing: "the
+    # contract's own error_message field already carries the curated
+    # example — the dedicated remediation tool is less useful than the
+    # error envelope you already got." Now both are returned: the
+    # auto-generated explanation AND the curated message, so consumers
+    # can prefer whichever fits their UX.
+    curated = getattr(rule, "error_message", "") or ""
+    if curated and isinstance(curated, str):
+        result["curated_message"] = curated
+    return result
 
 
 # ── Per-type template functions ───────────────────────────────────────
@@ -553,17 +574,65 @@ def _required_if(field: str, cond_field: str, cond_value: str) -> dict:
     }
 
 
+# v2.3.23 round-4 P2-A (Sonnet a68190bfb4ab4e4cb): hardcoded
+# known-valid identifiers for each supported checksum algorithm. Same
+# vendor-free pattern as round-3 #7's regex walker. Sources are public:
+#   - LEI: GLEIF golden-copy permalink — https://search.gleif.org/
+#   - ISIN: ISO 6166 publicly-traded securities (Apple, BAE, BASF)
+#   - IBAN: Wikipedia ISO 13616 specimen (DE Deutsche Bank GENODEF1JEV)
+#   - GTIN: Wikipedia GS1 specimen (UPC-A 036000291452)
+# These are ultra-stable institutional / specification-bundled values;
+# freshness risk is low. If a public LEI lapses, replace inline.
+_CHECKSUM_VALID_EXAMPLES = {
+    "lei_mod97": [
+        "529900T8BM49AURSDO55",   # BNP Paribas
+        "7H6GLXDRUGQFU57RNE97",   # JPMorgan Chase Bank N.A.
+        "W22LROWP2IHZNBB6K528",   # Goldman Sachs Group
+    ],
+    "isin_mod11": [
+        "US0378331005",           # Apple Inc.
+        "GB0002634946",           # BAE Systems
+        "DE000BASF111",           # BASF SE
+    ],
+    "iban_mod97": [
+        "DE89370400440532013000",  # ISO 13616 specimen, Deutsche Bank
+        "GB29NWBK60161331926819",  # ISO 13616 specimen, NatWest
+    ],
+    "mod10_gs1": [
+        "036000291452",            # UPC-A specimen
+        "5012345678900",           # EAN-13 specimen
+    ],
+}
+
+
 def _checksum(field: str, algorithm) -> dict:
     algo = algorithm or "checksum"
+    examples = _CHECKSUM_VALID_EXAMPLES.get(algo, [])
+    if examples:
+        explanation = (
+            f"The '{field}' field must pass a {algo} check digit validation. "
+            "The value must be a correctly formatted identifier with valid "
+            "check digits. Common causes of failure: transcription errors, "
+            "missing leading zeros, or invalid characters. "
+            f"Example values that pass {algo}: {', '.join(examples)}."
+        )
+    else:
+        # Unknown algorithm — keep the explanation honest and explicit.
+        explanation = (
+            f"The '{field}' field must pass a {algo} check digit validation. "
+            "The value must be a correctly formatted identifier with valid "
+            "check digits. (No example auto-generated for this algorithm — "
+            "see the rule's error_message for the curated form.)"
+        )
     return {
         "rule_type": "checksum",
-        "explanation": (
-            f"The '{field}' field must pass a {algo} check digit validation. "
-            "The value must be a correctly formatted identifier with valid check digits. "
-            "Common causes of failure: transcription errors, missing leading zeros, or invalid characters."
-        ),
-        "valid_examples": [f"(a valid {algo} identifier)"],
-        "invalid_examples": ["(an identifier with incorrect check digits)", None, ""],
+        "explanation": explanation,
+        "valid_examples": list(examples),
+        # v2.3.23 round-4 P2-A: drop invalid_examples for checksum rules
+        # (same directive as round-3 #7 for regex). Generating a guaranteed-
+        # invalid identifier is fragile and the rule's error_message
+        # already conveys the constraint.
+        "invalid_examples": [],
         "constraint": {"checksum_algorithm": algo},
     }
 
