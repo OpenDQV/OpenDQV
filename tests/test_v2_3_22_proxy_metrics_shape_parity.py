@@ -152,7 +152,17 @@ class TestReshapeShapeMatchesInProcessKeys:
             f"NOT carry the unscoped global by_agent. Got: {entry.get('by_agent')!r}"
         )
 
-    def test_by_agent_included_when_no_contract_filter_and_multiple_agents(self, proxy_mod):
+    def test_by_agent_omitted_when_no_contract_filter_too(self, proxy_mod):
+        """v2.3.23 outside-review P0 (Sonnet a74a3758ab3476042):
+        the v2.3.22 contract here was wrong. Inlining summary["by_agent"]
+        into per-contract entries when no contract filter is set turned
+        out to surface the SAME global rollup labelled as if it were
+        each contract's per-agent breakdown — which is what the
+        Persona B reviewer caught on 2026-04-28. The fix dropped the
+        fallback in both the proxy reshape and the in-process MCP.
+        Per-contract entries no longer carry by_agent at all; consumers
+        wanting an agent rollup call list_agents (already global) or
+        pass agent_id filter on get_quality_metrics."""
         summary = {
             "by_contract": {"customer:default": {"pass": 10, "fail": 0}},
             "top_failing_fields": [],
@@ -163,11 +173,11 @@ class TestReshapeShapeMatchesInProcessKeys:
             },
         }
         out = proxy_mod._reshape_quality_metrics(summary, "", 24)
-        # Single-contract by_contract → one entry; with no contract filter
-        # AND >1 agent in summary by_agent → entry should carry by_agent.
         assert isinstance(out, list)
         assert len(out) == 1
-        assert "by_agent" in out[0]
+        # Critical: the per-contract entry must NOT inline the global
+        # by_agent rollup. That was the v2.3.23 outside-review P0.
+        assert "by_agent" not in out[0]
 
 
 # ── Confidence band parity ────────────────────────────────────────────

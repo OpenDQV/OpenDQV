@@ -122,7 +122,6 @@ def _reshape_quality_metrics(
     """
     by_contract = summary.get("by_contract", {}) or {}
     top_fields = summary.get("top_failing_fields", []) or []
-    summary_by_agent = summary.get("by_agent")
     governance_tip = (
         "Pass this contract's asset_id to your catalog MCP server to retrieve "
         "lineage and ownership context."
@@ -161,15 +160,18 @@ def _reshape_quality_metrics(
                 "No validation data recorded yet for this contract."
             ),
         }
-        # by_agent: include the unscoped summary["by_agent"] when no contract
-        # filter is set (matches in-process behaviour). When a contract filter
-        # IS set, the proxy doesn't have a contract-scoped agent breakdown
-        # source — in-process MCP uses _quality_stats.get_agent_breakdown for
-        # that. Omit rather than leak unscoped data; consumers that need
-        # per-contract agent breakdown should call the in-process MCP or
-        # extend the REST surface (v2.4 follow-on).
-        if summary_by_agent and len(summary_by_agent) > 1 and not contract_name:
-            entry["by_agent"] = summary_by_agent
+        # v2.3.23 outside-review P0 (Sonnet a74a3758ab3476042): the
+        # previous fallback inlined summary["by_agent"] (the GLOBAL
+        # rollup) into every per-contract entry when no contract filter
+        # was set. Reviewer caught it: same broadsign/salesforce totals
+        # appeared as the per-agent breakdown for banking_transaction,
+        # customer, media_content, AND proof_of_play. The data was
+        # global; the labelling was per-contract; the result was wrong.
+        # Removed: per-contract entries do not carry by_agent. Consumers
+        # who need an agent rollup call list_agents (already global)
+        # or pass an agent_id filter on get_quality_metrics. v2.4 may
+        # extend the REST surface to deliver contract-scoped per-agent
+        # breakdowns once the per-contract scoping work lands.
         if total_val > 0 or contract_name:
             result.append(entry)
 
