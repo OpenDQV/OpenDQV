@@ -271,7 +271,15 @@ class QualityStats:
         if by not in ("date", "agent", "context", "rule"):
             raise ValueError(f"unknown trend dimension: {by}")
 
-        since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        # v2.3.23 P2-14 (Sonnet a968e64aaabfd31bf): snap cutoff to start
+        # of (today - days + 1) UTC. The previous "now - timedelta(days=N)"
+        # cutoff produced N+1 calendar buckets when the trailing day was
+        # partial — Persona B reported "days=7 returned 8 buckets."
+        # Convention: "last 7 days" = today + 6 previous = 7 calendar days.
+        _today_utc = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0,
+        )
+        since = (_today_utc - timedelta(days=days - 1)).isoformat()
         conn = self._connect()
         try:
             rows = conn.execute(_SELECT_SINCE, (
