@@ -381,7 +381,16 @@ async def lint_contract(
     return payload
 
 
-@sub_router.get("/contracts/{name}/quality-trend", response_model=QualityTrendResponse)
+@sub_router.get(
+    "/contracts/{name}/quality-trend",
+    response_model=QualityTrendResponse,
+    # v2.3.23 round-3 review: drop fields that aren't applicable to the
+    # current `by` mode. by=rule rows get only {key, violation_count,
+    # severity}; by=date rows get the full daily shape; by=agent /
+    # by=context get the bucket fields without spurious date:null. Drops
+    # the `date:null + empty top_failing_rules` leak Persona B flagged.
+    response_model_exclude_unset=True,
+)
 @_d._default_limit
 async def get_quality_trend(
     request: Request,
@@ -418,6 +427,21 @@ async def get_quality_trend(
     points = _d._quality_stats.get_trend(
         name, days=days, context=context, by=by, include_system=include_system,
     )
+    # v2.3.23 round-3 review (Sonnet afac7ed4604cc1e07): tag rule entries
+    # with severity from the live registry. Must mutate the raw dict
+    # BEFORE QualityTrendPoint(**p) — Pydantic V2's model_fields_set is
+    # populated only from constructor kwargs, so a post-construction
+    # attribute set would be dropped by response_model_exclude_unset=True.
+    if c.rules:
+        sev_map = {r.name: (r.cached_severity_value or "error") for r in c.rules}
+        for p in points:
+            ranked = p.get("top_failing_rules_ranked")
+            if ranked:
+                for entry in ranked:
+                    if "severity" not in entry:
+                        entry["severity"] = sev_map.get(entry.get("rule", ""), "unknown")
+            if by == "rule" and "key" in p and "severity" not in p:
+                p["severity"] = sev_map.get(p["key"], "unknown")
     # CRT170/J6 + v2.3.17 N-2: total validations underpinning this trend.
     # When by=rule, the per-bucket rows carry violation_count not total_records
     # (a rule has violations, not records — sums would be 0). Compute from the

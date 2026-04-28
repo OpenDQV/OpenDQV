@@ -354,7 +354,16 @@ class QualityTrendPoint(BaseModel):
     )
     top_failing_rules_ranked: list = Field(
         default_factory=list,
-        description="Top failing rules for this day, sorted desc: [{rule, count}].",
+        description="Top failing rules for this day, sorted desc: [{rule, count, severity}].",
+    )
+    severity: Optional[str] = Field(
+        None,
+        description=(
+            "Rule severity (error|warning|info|unknown), populated only when "
+            "by=rule. v2.3.23 round-3 review — lets consumers rank a rule's "
+            "operational priority correctly: a warning failing 100x must not "
+            "outrank an error failing 50x."
+        ),
     )
 
 
