@@ -60,7 +60,11 @@ async def lifespan(app: FastAPI):
     if os.environ.get("OPENDQV_HYDRATE_STATS", "true").lower() != "false":
         try:
             from opendqv.monitoring import hydrate_stats_from_persistent_store, stats
-            result = hydrate_stats_from_persistent_store(stats, config.DB_PATH)
+            # v2.3.23 P2-11: pass registry so hydration can normalize
+            # legacy `ctx_{context}_{rule}` names from pre-v2.3.x runs.
+            result = hydrate_stats_from_persistent_store(
+                stats, config.DB_PATH, registry=registry,
+            )
             if not result.get("skipped"):
                 logger.info(
                     "Hydrated in-memory stats from persistent store: "

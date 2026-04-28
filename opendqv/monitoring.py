@@ -604,10 +604,47 @@ class ValidationStats:
 stats = ValidationStats()
 
 
+def _normalize_legacy_rule_name(
+    rule_name: str, contract_name: str, registry,
+) -> str:
+    """v2.3.23 P2-11 (Sonnet a3b8052e9904f4ab4): strip `ctx_{context}_`
+    prefix on legacy rule names when the suffix matches a base rule
+    and the context is declared on the contract.
+
+    Two-condition guard prevents false positives on genuinely synthetic
+    branch-3 rules (where the override didn't match any base rule and
+    the engine minted a new rule with the prefixed name).
+
+    Returns the original name unchanged when:
+      - registry is None (programmatic use without contract context)
+      - the name doesn't start with `ctx_`
+      - the suffix doesn't match a base rule on the contract
+      - the named context isn't declared on the contract
+    """
+    if registry is None or not rule_name.startswith("ctx_"):
+        return rule_name
+    rest = rule_name[len("ctx_"):]
+    # ctx_{context}_{rule_name} — context is one underscore-delimited
+    # token; rule_name may contain underscores.
+    if "_" not in rest:
+        return rule_name
+    candidate_context, candidate_rule = rest.split("_", 1)
+    contract = registry.get(contract_name)
+    if contract is None:
+        return rule_name
+    # Both guards: context declared AND base rule with that name exists.
+    if candidate_context not in (contract.contexts or {}):
+        return rule_name
+    if not any(r.name == candidate_rule for r in contract.rules):
+        return rule_name
+    return candidate_rule
+
+
 def hydrate_stats_from_persistent_store(
     stats_instance: "ValidationStats",
     db_path: str,
     window_hours: int = 336,  # 14 days
+    registry=None,
 ) -> dict:
     """Populate in-memory monitoring deques from the SQLite quality_stats table.
 
@@ -689,9 +726,27 @@ def hydrate_stats_from_persistent_store(
             events_added += 1
         # Synthesize error_events from rule_failure_counts
         try:
-            rule_failures = json.loads(rule_failures_json) if rule_failures_json else {}
+            rule_failures_raw = json.loads(rule_failures_json) if rule_failures_json else {}
         except (ValueError, TypeError):
-            rule_failures = {}
+            rule_failures_raw = {}
+        # v2.3.23 P2-11: normalize legacy `ctx_{context}_{rule}` names.
+        # Pre-v2.3.x persisted data carries the synthesised prefix when
+        # the override-matching logic was buggy. Current engine emits
+        # base rule names (e.g. `revenue_ceiling` not
+        # `ctx_billing_revenue_ceiling`). Two-condition guard preserves
+        # genuinely synthetic branch-3 rules.
+        rule_failures = {
+            _normalize_legacy_rule_name(k, contract, registry): v
+            for k, v in rule_failures_raw.items()
+        }
+        # Coalesce in case multiple legacy keys collapsed onto the same
+        # canonical name after normalization.
+        if len(rule_failures) != len(rule_failures_raw):
+            from collections import defaultdict as _dd
+            _coalesced: dict = _dd(int)
+            for k, v in rule_failures_raw.items():
+                _coalesced[_normalize_legacy_rule_name(k, contract, registry)] += int(v or 0)
+            rule_failures = dict(_coalesced)
         for rule_name, count in rule_failures.items():
             for i in range(count or 0):
                 stats_instance._error_events.append((ts + i * 0.0001, contract, "?", rule_name, aid))
