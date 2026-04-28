@@ -97,6 +97,26 @@ from opendqv.core.quality_stats import QualityStats as _QualityStats, quality_co
 from opendqv.core.quality_analytics import QualityAnalytics as _QualityAnalytics
 
 
+def _severity_map(contract_name: str) -> dict:
+    """Build {rule_name: severity_value} from the live registry.
+
+    Used to tag entries on top_failing_rules / top_failing_rules_ranked so
+    consumers can rank a rule's operational priority correctly — a warning
+    failing 100x must not outrank an error failing 50x in a dashboard.
+    Returns empty dict when the contract is missing (e.g. removed) or has
+    no rules — callers default to "unknown" in that case.
+    """
+    if not contract_name:
+        return {}
+    try:
+        contract = _registry.get(contract_name)
+    except Exception:
+        return {}
+    if not contract or not getattr(contract, "rules", None):
+        return {}
+    return {r.name: (r.cached_severity_value or "error") for r in contract.rules}
+
+
 def _error_envelope(
     error_code: str,
     kind: str,
@@ -504,6 +524,9 @@ async def list_tools() -> list[types.Tool]:
                 "catalog_hint is `<prefix><contract>` where the prefix is configured via "
                 "OPENDQV_CATALOG_URI_PREFIX (default `marmot:assets/`; use e.g. "
                 "`datahub:dataset/`, `unitycatalog://`, or empty to omit). "
+                "Each top_failing_rules entry carries `severity` (error|warning|info|unknown) "
+                "so consumers can rank operational priority correctly — a warning failing "
+                "100x must not outrank an error failing 50x. "
                 "Counter semantics: total_validations / total_pass / total_fail are RECORD "
                 "counts. total_error_violations / total_warning_violations are RULE-VIOLATION "
                 "sums (a single failing record with N broken rules contributes N). The legacy "
@@ -1559,8 +1582,19 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
         # field name across every surface; no companion `pass_rate` field.
         # v2.3.22 Cluster F: empty-state returns null (was 100.0).
         pass_rate_pct = round(total_pass / total_val * 100, 1) if total_val > 0 else None
+        # v2.3.23 round-3 review (Sonnet abab68d76a01115ec): every entry
+        # in top_failing_rules carries a `severity` field so consumers can
+        # rank by error vs warning correctly. Read from the live registry
+        # (authoritative source); legacy data with deleted rules surfaces
+        # severity="unknown" — explicit honesty over silent omission.
+        sev_map = _severity_map(cname)
         top_rules = [
-            {"rule": f["rule"], "field": f["field"], "failures": f["count"]}
+            {
+                "rule": f["rule"],
+                "field": f["field"],
+                "failures": f["count"],
+                "severity": sev_map.get(f["rule"], "unknown"),
+            }
             for f in top_fields if f["contract"] == cname
         ][:5]
         if not _remote_client:
@@ -1572,7 +1606,12 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
                         if existing:
                             existing["failures"] = max(existing["failures"], count)
                         else:
-                            top_rules.append({"rule": rule, "field": "", "failures": count})
+                            top_rules.append({
+                                "rule": rule,
+                                "field": "",
+                                "failures": count,
+                                "severity": sev_map.get(rule, "unknown"),
+                            })
                     top_rules.sort(key=lambda x: x["failures"], reverse=True)
                     top_rules = top_rules[:5]
             except Exception:
@@ -1687,6 +1726,22 @@ async def _tool_get_quality_trend(args: dict) -> list[types.TextContent]:
     points = _quality_stats.get_trend(
         contract_name, days=days, context=context, by=by, include_system=include_system,
     )
+    # v2.3.23 round-3 review: tag each ranked rule with severity so a
+    # consumer can read "warning failing 100x" vs "error failing 50x"
+    # without re-fetching the contract. Mirror the get_quality_metrics
+    # treatment. by=date emits per-day points each with their own
+    # top_failing_rules_ranked; by=rule rows are themselves rule entries.
+    sev_map = _severity_map(contract_name)
+    if sev_map and points:
+        for p in points:
+            ranked = p.get("top_failing_rules_ranked")
+            if ranked:
+                for entry in ranked:
+                    if "severity" not in entry:
+                        entry["severity"] = sev_map.get(entry.get("rule", ""), "unknown")
+            if by == "rule" and "key" in p and "severity" not in p:
+                # by=rule rows have shape {key: rule_name, violation_count: N}
+                p["severity"] = sev_map.get(p["key"], "unknown")
     # v2.3.22 N-2 (P0): by=rule rows carry violation_count not total_records
     # (a rule has violations, not records — see quality_stats.py:300-323).
     # Summing total_records from those rows yields 0, which routes through

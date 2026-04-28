@@ -144,8 +144,16 @@ def _reshape_quality_metrics(
         total_fail = sum(int(by_contract[k].get("fail", 0)) for k in contract_keys)
         total_val = total_pass + total_fail
         pass_rate_pct = round(total_pass / total_val * 100, 1) if total_val > 0 else None
+        # v2.3.23 round-3 review: severity comes from the API
+        # (routes_analytics.py:_enrich_top_failing_fields_with_severity).
+        # Pass it through so proxy and in-process MCP emit the same shape.
         top_rules = [
-            {"rule": f.get("rule"), "field": f.get("field"), "failures": f.get("count", 0)}
+            {
+                "rule": f.get("rule"),
+                "field": f.get("field"),
+                "failures": f.get("count", 0),
+                "severity": f.get("severity", "unknown"),
+            }
             for f in top_fields if f.get("contract") == cname
         ][:5]
         confidence, confidence_note = _confidence_band(total_val)
@@ -405,6 +413,9 @@ TOOLS = [
             "catalog_hint is `<prefix><contract>` where the prefix is configured via "
             "OPENDQV_CATALOG_URI_PREFIX (default `marmot:assets/`; use e.g. "
             "`datahub:dataset/`, `unitycatalog://`, or empty to omit). "
+            "Each top_failing_rules entry carries `severity` (error|warning|info|unknown) "
+            "so consumers can rank operational priority correctly — a warning failing "
+            "100x must not outrank an error failing 50x. "
             "Counter semantics: total_validations / total_pass / total_fail are RECORD "
             "counts. total_error_violations / total_warning_violations are RULE-VIOLATION "
             "sums (a single failing record with N broken rules contributes N). The legacy "

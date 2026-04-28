@@ -114,14 +114,19 @@ class TestReshapeShapeMatchesInProcessKeys:
         assert entry["data_confidence"] == "no_data"
 
     def test_top_failing_rules_shape(self, proxy_mod):
-        """top_failing_rules is a list of {rule, field, failures} —
+        """top_failing_rules is a list of {rule, field, failures, severity} —
         not the raw {contract, field, rule, count} from
-        top_failing_fields."""
+        top_failing_fields. v2.3.23 round-3 review added `severity` so
+        consumers can rank a warning vs error correctly without a
+        registry round-trip."""
         summary = {
             "by_contract": {"customer:default": {"pass": 10, "fail": 5}},
             "top_failing_fields": [
-                {"contract": "customer", "field": "email", "rule": "valid_email", "count": 3},
-                {"contract": "customer", "field": "name", "rule": "name_required", "count": 2},
+                # API enriches each entry with severity in
+                # routes_analytics._enrich_top_failing_fields_with_severity.
+                # Pre-enriched here to mirror the live wire payload.
+                {"contract": "customer", "field": "email", "rule": "valid_email", "count": 3, "severity": "error"},
+                {"contract": "customer", "field": "name", "rule": "name_required", "count": 2, "severity": "warning"},
             ],
             "latency": {},
         }
@@ -129,7 +134,10 @@ class TestReshapeShapeMatchesInProcessKeys:
         rules = entry["top_failing_rules"]
         assert len(rules) == 2
         for r in rules:
-            assert set(r.keys()) == {"rule", "field", "failures"}, r
+            assert set(r.keys()) == {"rule", "field", "failures", "severity"}, r
+        # Severity is preserved end-to-end.
+        sev_by_rule = {r["rule"]: r["severity"] for r in rules}
+        assert sev_by_rule == {"valid_email": "error", "name_required": "warning"}
 
     def test_by_agent_omitted_when_contract_filter_set(self, proxy_mod):
         """When a contract filter is set, the unscoped by_agent from

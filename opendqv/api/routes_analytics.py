@@ -61,7 +61,39 @@ async def get_stats(
     if contract:
         result = _scope_summary_to_contract(result, contract)
 
+    # v2.3.23 round-3 review (Sonnet abab68d76a01115ec): tag each entry
+    # in top_failing_fields with severity so consumers (proxy, REST,
+    # dashboard) can rank a warning vs an error correctly. Read from the
+    # live registry; missing or deleted rules surface "unknown".
+    _enrich_top_failing_fields_with_severity(result)
+
     return result
+
+
+def _enrich_top_failing_fields_with_severity(summary: dict) -> None:
+    """Mutate summary in place: add `severity` to every top_failing_fields
+    entry, looked up from the live registry. Cached per-contract so a
+    summary with N rules across M contracts costs O(M) registry calls,
+    not O(N).
+    """
+    fields = summary.get("top_failing_fields") or []
+    if not fields:
+        return
+    sev_cache: dict[str, dict[str, str]] = {}
+    for entry in fields:
+        if "severity" in entry:
+            continue
+        cname = entry.get("contract") or ""
+        if cname not in sev_cache:
+            try:
+                contract = _d.registry.get(cname) if _d.registry else None
+            except Exception:
+                contract = None
+            sev_cache[cname] = (
+                {r.name: (r.cached_severity_value or "error") for r in contract.rules}
+                if contract and getattr(contract, "rules", None) else {}
+            )
+        entry["severity"] = sev_cache[cname].get(entry.get("rule", ""), "unknown")
 
 
 def _scope_summary_to_contract(summary: dict, contract_name: str) -> dict:
