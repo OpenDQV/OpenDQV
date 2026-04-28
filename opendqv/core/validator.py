@@ -150,12 +150,23 @@ def validate_record(
             failure = _check_age(value, rule)
 
         if failure:
+            # v2.3.23 outside-review #3: detect type-mismatch sentinel.
+            # Numeric checkers prefix the message when the value is
+            # non-numeric. Strip the prefix and override error_code so
+            # consumers can branch on a real type-error vs a real
+            # value-violation.
+            if failure.startswith(_TYPE_MISMATCH_PREFIX):
+                entry_message = failure[len(_TYPE_MISMATCH_PREFIX):]
+                entry_error_code = "OPENDQV_TYPE_MISMATCH"
+            else:
+                entry_message = failure
+                entry_error_code = rule.cached_error_code
             entry = FieldError(
                 field=rule.field,
                 rule=rule.name,
-                message=failure,
+                message=entry_message,
                 severity=rule.cached_severity_value,
-                error_code=rule.cached_error_code,
+                error_code=entry_error_code,
             ).to_dict()
 
             if rule.severity == Severity.ERROR:
@@ -407,31 +418,85 @@ def _check_regex(value, rule: Rule, record: Optional[dict] = None) -> Optional[s
     return None
 
 
+# v2.3.23 outside-review #3 (Sonnet aec401d0381905d97):
+# Type-mismatch sentinel for numeric-coercing rules. Persona B
+# 2026-04-28 caught: `price: "not a number"` (str) fired
+# `price_min "must be >= 0"` because the previous handler caught
+# the float() ValueError and returned the rule's value-violation
+# error_message. Producer fixes the wrong thing — looks at numeric
+# values that already pass instead of fixing the type contract.
+#
+# Fix: checkers return _TYPE_MISMATCH_PREFIX + generated_message
+# when the value can't be coerced to numeric. Caller in
+# validate_record / validate_batch detects the prefix, swaps the
+# error_code to OPENDQV_TYPE_MISMATCH, strips the prefix.
+#
+# Generated message includes field name and Python type but NEVER
+# the value itself (PII risk on free-text fields).
+_TYPE_MISMATCH_PREFIX = "__OPENDQV_TYPE_MISMATCH__::"
+
+
+def _type_mismatch_msg(rule: Rule, value) -> str:
+    return (
+        f"{_TYPE_MISMATCH_PREFIX}"
+        f"{rule.type} rule on field '{rule.field}' expected numeric "
+        f"value, got {type(value).__name__}"
+    )
+
+
+def _is_numeric_value(value) -> bool:
+    """True if value is int/float (and not bool, which subclasses int).
+
+    bool is excluded: True/False as a numeric is almost always a type
+    contract violation, not a 0/1 the producer intended.
+    """
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 def _check_min(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if _is_field_absent(value):
         return None
+    if not _is_numeric_value(value):
+        # Strings that happen to parse as numeric ("28.50") still go
+        # through float() — preserves CSV-pipeline ergonomics. Only
+        # genuinely non-numeric types (dict, list, non-parseable str)
+        # surface as type mismatch.
+        try:
+            float(value)
+        except (TypeError, ValueError):
+            return _type_mismatch_msg(rule, value)
     try:
         if float(value) < rule.min_value:
             return rule.error_message
     except (TypeError, ValueError):
-        return rule.error_message
+        return _type_mismatch_msg(rule, value)
     return None
 
 
 def _check_max(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if _is_field_absent(value):
         return None
+    if not _is_numeric_value(value):
+        try:
+            float(value)
+        except (TypeError, ValueError):
+            return _type_mismatch_msg(rule, value)
     try:
         if float(value) > rule.max_value:
             return rule.error_message
     except (TypeError, ValueError):
-        return rule.error_message
+        return _type_mismatch_msg(rule, value)
     return None
 
 
 def _check_range(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if _is_field_absent(value):
         return None
+    if not _is_numeric_value(value):
+        try:
+            float(value)
+        except (TypeError, ValueError):
+            return _type_mismatch_msg(rule, value)
     try:
         v = float(value)
         if rule.min_value is not None and v < rule.min_value:
@@ -439,7 +504,7 @@ def _check_range(value, rule: Rule, record: Optional[dict] = None) -> Optional[s
         if rule.max_value is not None and v > rule.max_value:
             return rule.error_message
     except (TypeError, ValueError):
-        return rule.error_message
+        return _type_mismatch_msg(rule, value)
     return None
 
 
@@ -1070,8 +1135,13 @@ def validate_batch(
                 logger.info("Skipping rule '%s' — field '%s' not in data", rule.name, rule.field)
                 continue
 
+            # v2.3.23 outside-review #3: type-mismatch indices populated
+            # by min/max/range branches of _batch_check_rule.
+            failing_type_mismatches: dict[int, str] = {}
             try:
-                failing_indices = _batch_check_rule(con, df, rule)
+                failing_indices = _batch_check_rule(
+                    con, df, rule, failing_type_mismatches=failing_type_mismatches,
+                )
             except Exception as e:
                 # Log only rule metadata — never include record field values.
                 logger.error("Error evaluating rule '%s' (field='%s'): %s", rule.name, rule.field, e)
@@ -1102,10 +1172,30 @@ def validate_batch(
             }
 
             for idx in failing_indices:
-                if rule.severity == Severity.ERROR:
-                    row_results[idx]["errors"].append(entry_template)
+                # v2.3.23 outside-review #3: per-row type-mismatch override.
+                # If this index was flagged as a type mismatch by the min/
+                # max/range branch, swap the error_code + message to the
+                # type-mismatch shape. Other rows on the same rule (real
+                # value violations) keep the rule's own code.
+                if idx in failing_type_mismatches:
+                    raw_msg = failing_type_mismatches[idx]
+                    if raw_msg.startswith(_TYPE_MISMATCH_PREFIX):
+                        type_msg = raw_msg[len(_TYPE_MISMATCH_PREFIX):]
+                    else:
+                        type_msg = raw_msg
+                    row_entry = {
+                        "field": rule.field,
+                        "rule": rule.name,
+                        "message": type_msg,
+                        "severity": rule.severity.value,
+                        "error_code": "OPENDQV_TYPE_MISMATCH",
+                    }
                 else:
-                    row_results[idx]["warnings"].append(entry_template)
+                    row_entry = entry_template
+                if rule.severity == Severity.ERROR:
+                    row_results[idx]["errors"].append(row_entry)
+                else:
+                    row_results[idx]["warnings"].append(row_entry)
     finally:
         con.close()
 
@@ -1161,10 +1251,19 @@ def validate_batch(
     }
 
 
-def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
-    """Run a single rule against the batch via DuckDB. Returns set of failing row indices."""
+def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches: Optional[dict] = None) -> set[int]:
+    """Run a single rule against the batch via DuckDB. Returns set of failing row indices.
+
+    v2.3.23 outside-review #3 (Sonnet aec401d0381905d97): for numeric
+    rules (min/max/range), the optional `failing_type_mismatches` dict
+    is populated as `{idx: type_mismatch_message}` so the caller can
+    swap the error_code to OPENDQV_TYPE_MISMATCH on those rows. Other
+    rule types are unaffected.
+    """
     field = rule.field
     failing = set()
+    if failing_type_mismatches is None:
+        failing_type_mismatches = {}
 
     if rule.type == "regex" and rule.pattern:
         # DuckDB doesn't support \w, \s, \d shorthand classes — fall back to Python.
@@ -1190,20 +1289,36 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule) -> set[int]:
                     failing.add(idx)
 
     elif rule.type == "min" and rule.min_value is not None:
-        # CRT170/J3: skip absent fields (not_empty is the catcher).
-        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != '' AND CAST("{field}" AS DOUBLE) < {rule.min_value}"""
-        for r in con.execute(query).fetchall():
-            failing.add(r[0])
+        # v2.3.23 outside-review #3 (Sonnet aec401d0381905d97):
+        # Python iteration so the type-mismatch sentinel from
+        # _check_min flows to validate_batch's caller. The previous
+        # DuckDB CAST-AS-DOUBLE either raised on the first non-numeric
+        # row (failing the whole batch) or silently coerced — either
+        # way, customers couldn't distinguish type mismatch from value
+        # violation. Per-row check is slower (~10x) but correct;
+        # v2.4 may reintroduce a hybrid TRY_CAST + per-row fallback.
+        for idx in range(len(df)):
+            failure = _check_min(df[field].iloc[idx], rule)
+            if failure is not None:
+                failing.add(idx)
+                if failure.startswith(_TYPE_MISMATCH_PREFIX):
+                    failing_type_mismatches[idx] = failure
 
     elif rule.type == "max" and rule.max_value is not None:
-        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != '' AND CAST("{field}" AS DOUBLE) > {rule.max_value}"""
-        for r in con.execute(query).fetchall():
-            failing.add(r[0])
+        for idx in range(len(df)):
+            failure = _check_max(df[field].iloc[idx], rule)
+            if failure is not None:
+                failing.add(idx)
+                if failure.startswith(_TYPE_MISMATCH_PREFIX):
+                    failing_type_mismatches[idx] = failure
 
     elif rule.type == "range" and rule.min_value is not None and rule.max_value is not None:
-        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != '' AND NOT (CAST("{field}" AS DOUBLE) BETWEEN {rule.min_value} AND {rule.max_value})"""
-        for r in con.execute(query).fetchall():
-            failing.add(r[0])
+        for idx in range(len(df)):
+            failure = _check_range(df[field].iloc[idx], rule)
+            if failure is not None:
+                failing.add(idx)
+                if failure.startswith(_TYPE_MISMATCH_PREFIX):
+                    failing_type_mismatches[idx] = failure
 
     elif rule.type == "not_empty":
         query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NULL OR TRIM(CAST("{field}" AS VARCHAR)) = ''"""
