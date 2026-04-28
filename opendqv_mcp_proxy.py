@@ -388,7 +388,14 @@ TOOLS = [
             "keys total_errors / total_warnings are aliases for the *_violations keys and "
             "will be removed in v2.4 — prefer the *_violations names. OpenDQV system "
             "agents (agent_ids prefixed 'OpenDQV_SA_') are suppressed from aggregates by "
-            "default; pass include_system=true for diagnostic views."
+            "default; pass include_system=true for diagnostic views. "
+            "Auth/trust: in AUTH_MODE=token, any authenticated caller "
+            "(validator/reader minimum) can read. In AUTH_MODE=open (local "
+            "development only, boot warning issued), anonymous callers can "
+            "read. Single-tenant trust boundary — operational metrics are "
+            "intentionally readable by every internal user. Multi-tenant "
+            "deployments needing cross-tenant isolation must wait for v2.4 "
+            "per-contract scoping. Do not expose to untrusted networks."
         ),
         "inputSchema": {
             "type": "object",
@@ -413,7 +420,12 @@ TOOLS = [
             "Call this BEFORE filtering get_quality_metrics or get_quality_trend by "
             "agent_id — it is the only way to discover which agent_id values are "
             "actually present. OpenDQV system agents (agent_ids prefixed 'OpenDQV_SA_') "
-            "are suppressed by default; pass include_system=true for diagnostic views."
+            "are suppressed by default; pass include_system=true for diagnostic views. "
+            "Auth/trust: same as get_quality_metrics. AUTH_MODE=token any "
+            "authenticated caller; AUTH_MODE=open anonymous (dev-only). "
+            "Single-tenant trust boundary — agent_id values are integration "
+            "topology and should not be exposed to untrusted networks. "
+            "Multi-tenant per-contract scoping is v2.4."
         ),
         "inputSchema": {
             "type": "object",
@@ -477,8 +489,14 @@ TOOLS = [
             "List validation audit events with filters and cursor pagination. "
             "One row per /validate or /validate/batch call. Use to retrieve a "
             "window of historical validations for replay, dispute resolution, "
-            "or regulatory evidence packs (FCA, MiFIR, EMA, Basel). Auth-gated "
-            "to admin and auditor roles."
+            "or regulatory evidence packs (FCA, MiFIR, EMA, Basel). "
+            "Auth: in AUTH_MODE=token, requires admin or auditor role. In "
+            "AUTH_MODE=open (local development only, boot warning issued), "
+            "every caller is granted admin. Do not run AUTH_MODE=open in "
+            "shared or regulated environments. "
+            "Trust boundary: single-tenant assumption. Per-contract auditor "
+            "scoping for multi-tenant isolation is a v2.4 architectural item. "
+            "Response carries auth_mode field for machine-readable evidence."
         ),
         "inputSchema": {
             "type": "object",
@@ -502,8 +520,12 @@ TOOLS = [
         "description": (
             "Retrieve a single validation audit event by event_id. event_id is "
             "the UUID v7 returned in the original validate response and is the "
-            "primary key for audit replay and dispute resolution. Auth-gated "
-            "to admin and auditor roles."
+            "primary key for audit replay and dispute resolution. "
+            "Auth: in AUTH_MODE=token, requires admin or auditor role. In "
+            "AUTH_MODE=open (local development only, boot warning issued), "
+            "every caller is granted admin. Do not run AUTH_MODE=open in "
+            "shared or regulated environments. "
+            "Trust boundary: single-tenant assumption per list_audit_events."
         ),
         "inputSchema": {
             "type": "object",

@@ -618,3 +618,20 @@ class AuditEventListResponse(BaseModel):
         description="The `since` value actually applied to this query (ISO 8601 UTC). Echoed so callers can detect silent default-window truncation when `since` is omitted.",
     )
     limit: int = Field(..., description="Max events returned per page")
+    # v2.3.23 P0-1 (Sonnet's pre-impl directive a348734a7798db94b):
+    # additive auth_mode field gives a consuming system machine-readable
+    # evidence of the trust model in effect at retrieval time. Always
+    # present; values are "token" or "open". In "open" mode, all callers
+    # are admin per dev-default — consumers in regulated contexts should
+    # refuse to render this response or require a re-fetch in token
+    # mode before relying on the data.
+    auth_mode: str = Field(
+        "token",
+        description=(
+            "Auth mode the engine is running in: 'token' (admin/auditor "
+            "role required to reach this endpoint) or 'open' (local "
+            "development only, every caller granted admin per "
+            "AUTH_MODE=open). Regulated deployments should refuse to "
+            "trust an audit-event response with auth_mode='open'."
+        ),
+    )

@@ -494,7 +494,15 @@ async def list_tools() -> list[types.Tool]:
                 "keys total_errors / total_warnings are aliases for the *_violations keys and "
                 "will be removed in v2.4 — prefer the *_violations names. "
                 "Call this to assess data quality health before deciding whether to route a "
-                "pipeline or alert an owner."
+                "pipeline or alert an owner. "
+                "Auth/trust: in AUTH_MODE=token, any authenticated caller "
+                "(validator/reader minimum) can read metrics. In AUTH_MODE=open "
+                "(local development only, boot warning issued), anonymous "
+                "callers can read. This surface assumes a single-tenant trust "
+                "boundary — operational metrics are intentionally readable by "
+                "every internal user. Multi-tenant deployments requiring "
+                "cross-tenant isolation must wait for v2.4 per-contract "
+                "scoping. Do not expose this endpoint to untrusted networks."
             ),
             inputSchema={
                 "type": "object",
@@ -529,7 +537,13 @@ async def list_tools() -> list[types.Tool]:
                 "Call this BEFORE filtering get_quality_metrics or get_quality_trend by "
                 "agent_id — it is the only way to discover which agent_id values are "
                 "actually present, without guessing. OpenDQV system agents (OpenDQV_SA_*) "
-                "are suppressed by default; pass include_system=true to surface them."
+                "are suppressed by default; pass include_system=true to surface them. "
+                "Auth/trust: same as get_quality_metrics. In AUTH_MODE=token, "
+                "any authenticated caller can read; in AUTH_MODE=open, "
+                "anonymous can read (dev-only, boot warning issued). Single-"
+                "tenant trust boundary — multi-tenant per-contract scoping is "
+                "v2.4. agent_id values are integration topology and should "
+                "not be exposed to untrusted networks."
             ),
             inputSchema={
                 "type": "object",
@@ -689,8 +703,18 @@ async def list_tools() -> list[types.Tool]:
                 "One row per /validate or /validate/batch call. Use to retrieve "
                 "a window of historical validations for replay, dispute "
                 "resolution, or regulatory evidence packs (FCA, MiFIR, EMA, "
-                "Basel). Auth-gated to admin and auditor roles. v2.3.17 F-L: "
-                "added to MCP for surface-parity with REST /audit/events."
+                "Basel). "
+                "Auth: in AUTH_MODE=token, requires admin or auditor role. In "
+                "AUTH_MODE=open (local development only, boot warning issued), "
+                "every caller is granted admin. Do not run AUTH_MODE=open in "
+                "shared or regulated environments. "
+                "Trust boundary: this surface assumes a single-tenant "
+                "deployment. Per-contract auditor scoping for multi-tenant "
+                "isolation is a v2.4 architectural item — until then, an "
+                "auditor token can read every contract's events. "
+                "Response carries auth_mode field for machine-readable trust "
+                "evidence. v2.3.17 F-L: added to MCP for surface-parity with "
+                "REST /audit/events."
             ),
             inputSchema={
                 "type": "object",
@@ -714,7 +738,13 @@ async def list_tools() -> list[types.Tool]:
             description=(
                 "Retrieve a single validation audit event by event_id. "
                 "event_id is the UUID v7 returned in the original validate "
-                "response. Auth-gated to admin and auditor roles. v2.3.17 F-L."
+                "response. "
+                "Auth: in AUTH_MODE=token, requires admin or auditor role. In "
+                "AUTH_MODE=open (local development only, boot warning issued), "
+                "every caller is granted admin. Do not run AUTH_MODE=open in "
+                "shared or regulated environments. "
+                "Trust boundary: single-tenant assumption per list_audit_events "
+                "(per-contract scoping is v2.4). v2.3.17 F-L."
             ),
             inputSchema={
                 "type": "object",

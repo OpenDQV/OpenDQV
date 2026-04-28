@@ -127,12 +127,19 @@ async def list_audit_events(
         last = events_raw[-1]
         next_cursor = _encode_cursor(last["recorded_at"], last["id"])
 
+    # v2.3.23 P0-1 (Sonnet a348734a7798db94b): additive auth_mode field.
+    # Read from config so a consuming system has machine-readable
+    # evidence of the trust model. "open" mode means every caller is
+    # admin per dev-default — regulated deployments should refuse to
+    # trust the response.
+    import opendqv.config as _config
     return AuditEventListResponse(
         events=[AuditEventListItem(**{k: v for k, v in e.items() if k != "id"}) for e in events_raw],
         has_more=has_more,
         next_cursor=next_cursor,
         effective_since=effective_since,
         limit=limit,
+        auth_mode=_config.AUTH_MODE,
     )
 
 

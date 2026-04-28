@@ -82,6 +82,23 @@ The default `AUTH_MODE=open` disables all authentication. This is intentional fo
 
 **Mitigation:** Set `AUTH_MODE=token` in `.env` for any deployment reachable from outside your local network, or where data governance controls (BCBS 239, FCA Consumer Duty) apply.
 
+### 3b. Single-Tenant Trust Boundary on Read Surfaces
+
+> ⚠️ **Impact: High in multi-tenant deployments**
+
+OpenDQV Core's audit-event and metrics endpoints assume a **single-tenant trust boundary**. Any caller authorised to reach the engine in `AUTH_MODE=token` can read across the full dataset:
+
+- `GET /api/v1/audit/events` and `GET /api/v1/audit/events/{event_id}` require admin or auditor role, but a token holder of either role can read every contract's events. There is no per-contract auditor scoping today.
+- `GET /api/v1/stats`, `GET /api/v1/agents`, `GET /api/v1/contracts/{name}/quality-trend`, and `GET /api/v1/analytics/rule-velocity` accept any authenticated token (validator/reader minimum). agent_id values, traffic volumes, pass rates, and per-contract failure counts are all readable.
+
+**Customer impact (multi-tenant):** deploying a single OpenDQV Core instance behind a shared API gateway exposes integration topology, operational health, and audit history across tenants. This is unsuitable for any environment where principal isolation matters.
+
+**Mitigation:**
+
+- Single-tenant deployments are the supported v2.3.x model. Run one engine per tenant, isolated by network or process boundary.
+- Multi-tenant deployments must wait for the v2.4 per-contract scoping work tracked in `routes_audit_events.py` module docstring. v2.4 will gate audit and metrics by per-contract role grant.
+- The `auth_mode` field on `GET /api/v1/audit/events` responses (added in v2.3.23) gives consuming systems machine-readable evidence of the trust mode in effect; regulated deployments should refuse to render an audit-event response with `auth_mode: "open"`.
+
 ### 4. SQLite Persistence — Single-File, No Encryption at Rest
 
 > ℹ️ **Impact: Informational**
