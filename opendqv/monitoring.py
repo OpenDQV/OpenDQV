@@ -87,6 +87,12 @@ ACTIVE_CONTRACT_COUNT = Gauge(
 # diagnostics. See README "Reserved agent_id prefix" section.
 SYSTEM_AGENT_PREFIX = "OpenDQV_SA_"
 
+# v2.3.23 round-5 P2-4: latency sample sizes below this threshold get
+# a `sampling_caveat` field on the response so consumers can detect
+# under-confident percentiles. 30 is the conventional minimum for
+# stable p95/p99 estimation.
+_LATENCY_SAMPLE_LOW_THRESHOLD = 30
+
 
 def _is_system_agent(agent_id: str) -> bool:
     """True if agent_id is an OpenDQV-owned system agent (OpenDQV_SA_* prefix)."""
@@ -421,7 +427,21 @@ class ValidationStats:
         return summary
 
     def get_contract_latency(self, contract_name: str, window_hours: int) -> dict:
-        """Compute latency stats for a single contract from the events window."""
+        """Compute latency stats for a single contract from the events window.
+
+        v2.3.23 round-5 P2-4 (Persona B 2026-04-28): the sample is drawn
+        from the in-memory `_events` deque which is capped at 10,000
+        entries across all contracts. Heavy traffic on other contracts
+        evicts older events. Dry-run validates do NOT populate the
+        sample (CRT165 lock). Reviewer saw sample_size=2 despite many
+        validates — those were dry-run MCP calls; non-dry-run traffic
+        was the only source. Wire shape now carries:
+          - sample_size: count of in-window events for this contract
+          - sample_source: "in_memory_event_window_cap_10000"
+          - sampling_caveat: present and explanatory when sample_size
+            is below `_LATENCY_SAMPLE_LOW_THRESHOLD` (30) so a consumer
+            can decide whether to trust the percentiles.
+        """
         cutoff = time.time() - window_hours * 3600
         latencies = []
         with self._lock:
@@ -433,13 +453,21 @@ class ValidationStats:
                 "avg_ms": None, "p50_ms": None, "p95_ms": None,
                 "p99_ms": None, "p99_9_ms": None, "max_ms": None,
                 "sample_size": 0,
+                "sample_source": "in_memory_event_window_cap_10000",
+                "sampling_caveat": (
+                    f"No latency samples for contract {contract_name!r} in the "
+                    f"last {window_hours}h. Causes: contract had no validations, "
+                    f"OR all validations were MCP-driven (dry-run, not sampled), "
+                    f"OR heavy traffic on other contracts evicted this contract's "
+                    f"events from the 10,000-entry deque."
+                ),
             }
         sorted_lat = sorted(latencies)
         n = len(sorted_lat)
         def _pct(p):
             idx = max(0, int(n * p / 100) - 1)
             return round(sorted_lat[idx], 1)
-        return {
+        result = {
             "avg_ms": round(sum(sorted_lat) / n, 1),
             "p50_ms": _pct(50),
             "p95_ms": _pct(95),
@@ -447,7 +475,17 @@ class ValidationStats:
             "p99_9_ms": _pct(99.9),
             "max_ms": round(sorted_lat[-1], 1),
             "sample_size": n,
+            "sample_source": "in_memory_event_window_cap_10000",
         }
+        if n < _LATENCY_SAMPLE_LOW_THRESHOLD:
+            result["sampling_caveat"] = (
+                f"sample_size={n} is below {_LATENCY_SAMPLE_LOW_THRESHOLD} — "
+                "percentiles may not represent the true distribution. Causes: "
+                "MCP validates are dry-run (not sampled), heavy traffic on "
+                "other contracts evicts events from the 10,000-entry deque, "
+                "or this contract had few non-dry-run validates in the window."
+            )
+        return result
 
     def get_windowed_summary_for_agent(self, window_hours: int, agent_id: str) -> dict:
         """Return windowed summary scoped to a single agent_id."""
