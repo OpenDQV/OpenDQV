@@ -345,6 +345,9 @@ async def list_tools() -> list[types.Tool]:
             description=(
                 "List all available validation contracts with their names, statuses, and rule counts. "
                 "Call this first to discover which contract applies to your data. "
+                "Default response includes contracts in active, draft, and "
+                "review status (archived ones are excluded). To include "
+                "archived entries too, pass include_all=true. "
                 "Only 'active' contracts can be used for validation."
             ),
             inputSchema={
@@ -437,13 +440,17 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="compare_contracts",
             description=(
-                "Compare two historical snapshots of the same contract identified "
-                "by entry_hash or content_hash (from list_versions). Returns "
-                "rules_added, rules_removed, rules_changed, and metadata_changed "
-                "between the two snapshots. Use this to inspect what changed "
-                "between two pinned hashes — for audit, change review, or "
-                "drift analysis. Hash pair is more precise than version pair "
-                "because a single version may produce multiple snapshots."
+                "Compare two historical snapshots of the same contract. "
+                "Workflow: call list_versions first to retrieve the "
+                "available entry_hash values for the contract, then pass "
+                "any two of those hashes here as hash_a and hash_b. "
+                "Returns rules_added, rules_removed, rules_changed, and "
+                "metadata_changed between the two snapshots. Use this to "
+                "inspect what changed between two pinned hashes — for "
+                "audit, change review, or drift analysis. Hash pair is "
+                "more precise than version pair because a single version "
+                "string may produce multiple snapshots (see is_collision "
+                "on list_versions output)."
             ),
             inputSchema={
                 "type": "object",

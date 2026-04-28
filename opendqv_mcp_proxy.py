@@ -285,7 +285,10 @@ TOOLS = [
         "name": "list_contracts",
         "description": (
             "List all available validation contracts with their names, statuses, and rule counts. "
-            "Call this first to discover which contract applies to your data."
+            "Call this first to discover which contract applies to your data. "
+            "Default response includes active, draft, and review status "
+            "entries (archived excluded). Pass include_all=true to also "
+            "include archived contracts."
         ),
         "inputSchema": {"type": "object", "properties": {}, "required": []},
     },
@@ -346,10 +349,12 @@ TOOLS = [
     {
         "name": "compare_contracts",
         "description": (
-            "Compare two historical snapshots of the same contract identified by "
-            "entry_hash or content_hash (from list_versions). Returns rules_added, "
-            "rules_removed, rules_changed, metadata_changed. Use for audit, change "
-            "review, or drift analysis between two pinned hashes."
+            "Compare two historical snapshots of the same contract. "
+            "Workflow: call list_versions first to retrieve the available "
+            "entry_hash values, then pass any two of them here as hash_a "
+            "and hash_b. Returns rules_added, rules_removed, rules_changed, "
+            "metadata_changed. Use for audit, change review, or drift "
+            "analysis between two pinned hashes."
         ),
         "inputSchema": {
             "type": "object",
