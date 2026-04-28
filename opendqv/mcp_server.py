@@ -97,14 +97,27 @@ from opendqv.core.quality_stats import QualityStats as _QualityStats, quality_co
 from opendqv.core.quality_analytics import QualityAnalytics as _QualityAnalytics
 
 
-def _severity_map(contract_name: str) -> dict:
-    """Build {rule_name: severity_value} from the live registry.
+_SEVERITY_RANK = {"info": 0, "warning": 1, "error": 2, "unknown": -1}
 
-    Used to tag entries on top_failing_rules / top_failing_rules_ranked so
-    consumers can rank a rule's operational priority correctly — a warning
-    failing 100x must not outrank an error failing 50x in a dashboard.
-    Returns empty dict when the contract is missing (e.g. removed) or has
-    no rules — callers default to "unknown" in that case.
+
+def _severity_map(contract_name: str) -> dict:
+    """Build {rule_name: worst-case-severity} from the live registry.
+
+    v2.3.23 round-4 P1-D (Sonnet a410fe4a545b865bc): walks both base
+    rules and all context overrides, returning the WORST-CASE severity
+    per rule. A rule that's `warning` in default but `error` under any
+    context override surfaces as `error` so an ops dashboard escalates
+    correctly. Reviewer's exact case: `revenue_ceiling` is warning in
+    default, error in billing context — pre-fix the dashboard showed
+    warning, masking live errors. Over-classifying (showing error when
+    a context demoted to warning) is the survivable false positive;
+    under-classifying is the defect.
+
+    Used to tag entries on top_failing_rules / top_failing_rules_ranked
+    so consumers can rank a rule's operational priority correctly — a
+    warning failing 100x must not outrank an error failing 50x in a
+    dashboard. Returns empty dict when the contract is missing (e.g.
+    removed) or has no rules — callers default to "unknown" in that case.
     """
     if not contract_name:
         return {}
@@ -114,7 +127,44 @@ def _severity_map(contract_name: str) -> dict:
         return {}
     if not contract or not getattr(contract, "rules", None):
         return {}
-    return {r.name: (r.cached_severity_value or "error") for r in contract.rules}
+    # Base severity for every rule, then promote based on context overrides.
+    sev_map: dict = {
+        r.name: (r.cached_severity_value or "error") for r in contract.rules
+    }
+    base_rule_names = set(sev_map)
+    # Build field → [rules-on-that-field] map for branch-2 (field-name)
+    # override resolution. core/contracts.py override resolution order:
+    #   1. rule-name match → modify that rule
+    #   2. field-name match → modify every rule on that field
+    #   3. neither → mint a synthetic ctx_<context>_<key> rule
+    # Branches 1 + 2 can mutate severity at runtime; we walk both here.
+    field_to_rules: dict = {}
+    for r in contract.rules:
+        field_to_rules.setdefault(r.field, []).append(r.name)
+    for _ctx_name, overrides in (contract.contexts or {}).items():
+        for key, override in (overrides or {}).items():
+            sev = override.get("severity") if isinstance(override, dict) else None
+            if not sev:
+                continue
+            sev_rank = _SEVERITY_RANK.get(sev, -1)
+            if key in base_rule_names:
+                # Branch 1: rule-name match — mutate that single rule.
+                if sev_rank > _SEVERITY_RANK.get(sev_map.get(key, "error"), -1):
+                    sev_map[key] = sev
+            elif key in field_to_rules:
+                # Branch 2: field-name match — mutate every rule on that field.
+                for rname in field_to_rules[key]:
+                    if sev_rank > _SEVERITY_RANK.get(sev_map.get(rname, "error"), -1):
+                        sev_map[rname] = sev
+            # Branch 3 mints `ctx_<context>_<key>` synthetic rules. Those
+            # don't appear in base contract.rules so they're absent from
+            # sev_map. The normalize_trend_rule_names path strips these
+            # to base rule names where possible; truly synthetic rules
+            # (no base equivalent) carry the override's severity at write
+            # time and surface as severity="unknown" in this map. That's
+            # acceptable — synthetic rules are by definition new and the
+            # registry walk cannot distinguish them from arbitrary names.
+    return sev_map
 
 
 def _error_envelope(

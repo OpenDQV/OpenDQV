@@ -134,14 +134,18 @@ class TestApiStatsEnrichesTopFailingFields:
         from opendqv.api import deps as _d
 
         class _FakeRule:
-            def __init__(self, name, severity_value):
+            def __init__(self, name, severity_value, field="field"):
                 self.name = name
                 self.cached_severity_value = severity_value
+                # v2.3.23 round-4 P1-D: _build_worst_case_severity_map
+                # walks rule.field for branch-2 (field-name) override
+                # resolution. Mock must carry the attribute.
+                self.field = field
 
         class _FakeContract:
             rules = [
-                _FakeRule("valid_email", "error"),
-                _FakeRule("tier_known", "warning"),
+                _FakeRule("valid_email", "error", field="email"),
+                _FakeRule("tier_known", "warning", field="tier"),
             ]
             contexts = {}  # required for normalizer (v2.3.23 ctx_* leak fix)
 

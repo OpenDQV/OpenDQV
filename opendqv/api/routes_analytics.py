@@ -111,11 +111,42 @@ def _enrich_top_failing_fields_with_severity(summary: dict) -> None:
         if "severity" in entry:
             continue
         if cname not in sev_cache:
-            sev_cache[cname] = (
-                {r.name: (r.cached_severity_value or "error") for r in contract.rules}
-                if contract and getattr(contract, "rules", None) else {}
-            )
+            sev_cache[cname] = _build_worst_case_severity_map(contract)
         entry["severity"] = sev_cache[cname].get(entry.get("rule", ""), "unknown")
+
+
+_SEVERITY_RANK = {"info": 0, "warning": 1, "error": 2, "unknown": -1}
+
+
+def _build_worst_case_severity_map(contract) -> dict:
+    """v2.3.23 round-4 P1-D (Sonnet a410fe4a545b865bc): worst-case
+    severity per rule across base + every context override. A rule
+    that's `warning` in default but `error` under any context surfaces
+    as `error` so an ops dashboard escalates correctly. Mirror of
+    `opendqv/mcp_server.py:_severity_map` — kept in sync at every
+    update site.
+    """
+    if contract is None or not getattr(contract, "rules", None):
+        return {}
+    sev_map = {r.name: (r.cached_severity_value or "error") for r in contract.rules}
+    base_rule_names = set(sev_map)
+    field_to_rules: dict = {}
+    for r in contract.rules:
+        field_to_rules.setdefault(r.field, []).append(r.name)
+    for _ctx_name, overrides in (contract.contexts or {}).items():
+        for key, override in (overrides or {}).items():
+            sev = override.get("severity") if isinstance(override, dict) else None
+            if not sev:
+                continue
+            sev_rank = _SEVERITY_RANK.get(sev, -1)
+            if key in base_rule_names:
+                if sev_rank > _SEVERITY_RANK.get(sev_map.get(key, "error"), -1):
+                    sev_map[key] = sev
+            elif key in field_to_rules:
+                for rname in field_to_rules[key]:
+                    if sev_rank > _SEVERITY_RANK.get(sev_map.get(rname, "error"), -1):
+                        sev_map[rname] = sev
+    return sev_map
 
 
 def _scope_summary_to_contract(summary: dict, contract_name: str) -> dict:
