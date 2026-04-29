@@ -372,8 +372,23 @@ def _validate_checksum(value: str, algorithm: str) -> bool:
         return bool(_re.match(r'^[A-Z]{2}[A-Z0-9]{3}\d{7}$', isrc_clean))
 
     else:
-        logger.warning("Unknown checksum algorithm '%s'", algorithm)
-        return True  # unknown algorithm — pass through
+        # v2.3.25 (Pilot 2026-04-29): tighten the unknown-algorithm
+        # fallback from pass-through to fail-closed. Pre-fix: a typo'd
+        # YAML key (e.g. `ibn_mod97` for `iban_mod97`) silently passed
+        # every record with a warning in the log. The warning could be
+        # missed; the records flowed downstream as if validated. Now
+        # the rule fails records under an unknown algorithm so the
+        # error surfaces at the place a regulated firm actually
+        # watches — the validation response, not the engine log.
+        # Log the warning AND return False.
+        logger.warning(
+            "Unknown checksum algorithm '%s' — rule fails closed. "
+            "Check the contract YAML for typos in checksum_algorithm "
+            "(supported: mod10_gs1, iban_mod97, isin_luhn, lei_mod97, "
+            "vin_mod11, isrc_luhn, cpf_mod11, nhs_mod11).",
+            algorithm,
+        )
+        return False
 
 
 def _semver_tuple(v):

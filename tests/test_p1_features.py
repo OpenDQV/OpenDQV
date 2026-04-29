@@ -237,11 +237,19 @@ class TestChecksumRule:
         assert result["results"][0]["valid"] is True
         assert result["results"][1]["valid"] is False
 
-    def test_unknown_algorithm_passes(self):
+    def test_unknown_algorithm_fails_closed(self):
+        """v2.3.25: unknown checksum algorithms now fail closed (was:
+        passed through with a warning log). A typo'd YAML key like
+        `ibn_mod97` would have silently passed every record under the
+        old behaviour. Now the rule fails records and the warning
+        surfaces both in the response and the engine log."""
         rule = Rule(name="r", type="checksum", field="code",
                     checksum_algorithm="unknown_algo", error_message="Failed")
         result = validate_record({"code": "anything"}, [rule])
-        assert result["valid"] is True  # unknown algorithms pass through
+        assert result["valid"] is False, (
+            f"v2.3.25: unknown checksum algorithm must fail closed "
+            f"(was pre-v2.3.25 passthrough). Got: {result}"
+        )
 
 
 # ── P1: cross_field_range rule ────────────────────────────────────────────────

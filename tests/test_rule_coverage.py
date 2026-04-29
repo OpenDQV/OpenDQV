@@ -380,10 +380,14 @@ class TestMoreChecksumAlgorithms:
         result = _validate({"value": "INVALID"}, **self._cs("isrc_luhn"))
         assert result["valid"] is False
 
-    # Unknown algorithm — passes through with warning
-    def test_unknown_algorithm_passes(self):
+    # v2.3.25: unknown algorithm fails closed (was passthrough)
+    def test_unknown_algorithm_fails_closed(self):
+        """v2.3.25: tightened unknown-algorithm fallback from pass-
+        through (return True with warning) to fail-closed (return
+        False with warning). A typo'd YAML key (`ibn_mod97` instead
+        of `iban_mod97`) was silently passing every record pre-fix."""
         result = _validate({"value": "anything"}, **self._cs("__unknown_algo__"))
-        assert result["valid"] is True
+        assert result["valid"] is False
 
 
 # ---------------------------------------------------------------------------
