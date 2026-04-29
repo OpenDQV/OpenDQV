@@ -93,10 +93,15 @@ class TestExistingChecksumCoversLeiIsin:
 
 # ── MIC registry ref file ──────────────────────────────────────────────
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
 class TestMicRegistryRefFile:
-    REF = Path(
-        "/home/sunny-sharma/OpenDQV/opendqv/contracts/ref/iso_10383_mic_codes.txt"
-    )
+    # v2.3.26 (CI hotfix): __file__-relative path so the test runs on
+    # CI runners (/home/runner/...) and in any operator's checkout.
+    # Pre-fix the absolute /home/sunny-sharma path was machine-specific
+    # and CI red since v2.3.23.
+    REF = _REPO_ROOT / "opendqv" / "contracts" / "ref" / "iso_10383_mic_codes.txt"
 
     def test_ref_file_ships(self):
         assert self.REF.exists()
@@ -129,10 +134,7 @@ class TestMifidContractUsesCheckDigitRules:
 
     @pytest.fixture
     def contract(self):
-        path = Path(
-            "/home/sunny-sharma/OpenDQV/opendqv/contracts/"
-            "mifid_transaction_report.yaml"
-        )
+        path = _REPO_ROOT / "opendqv" / "contracts" / "mifid_transaction_report.yaml"
         return yaml.safe_load(path.read_text(encoding="utf-8"))
 
     def test_lei_rules_use_checksum_not_regex(self, contract):

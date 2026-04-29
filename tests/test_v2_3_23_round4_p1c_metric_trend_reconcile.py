@@ -114,9 +114,12 @@ class TestMetricsAugmentationDropped:
         signature ('get_trend(cname, days=1)' followed by
         max(existing["failures"], count)) is no longer present."""
         from pathlib import Path
-        src = Path(
-            "/home/sunny-sharma/OpenDQV/opendqv/mcp_server.py"
-        ).read_text(encoding="utf-8")
+        # v2.3.26 (CI hotfix): __file__-relative so CI runners can read
+        # the source. Pre-fix hardcoded /home/sunny-sharma absolute
+        # path was the regression of f192dcc's earlier ban on hardcoded
+        # paths. Same anti-pattern, second occurrence.
+        repo_root = Path(__file__).resolve().parent.parent
+        src = (repo_root / "opendqv" / "mcp_server.py").read_text(encoding="utf-8")
         # The augmentation block's signature combination must not exist.
         # We allow `get_trend` calls elsewhere (the trend tool itself uses
         # it). The pin is on the days=1 + max-merge pattern.
