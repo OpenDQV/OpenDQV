@@ -524,6 +524,16 @@ class ExplainErrorResponse(BaseModel):
             "that does not expose server filesystem layout. Present only on `lookup` rules."
         ),
     )
+    curated_message: Optional[str] = Field(
+        None,
+        description=(
+            "The rule's authored `error_message` verbatim — surfaced alongside the "
+            "auto-generated `explanation` so consumers can prefer whichever fits their "
+            "UX. Often carries a real example or regulator citation that the synthesised "
+            "explanation cannot match. v2.3.24: propagation gap from v2.3.23 round-4 P2-A; "
+            "the helper produced this field but the route/MCP wrappers dropped it."
+        ),
+    )
     constraint: dict = Field(default_factory=dict, description="The raw constraint values from the contract (e.g. {'min': 0.01})")
 
 

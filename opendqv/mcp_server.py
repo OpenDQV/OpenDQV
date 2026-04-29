@@ -1422,6 +1422,10 @@ async def _tool_explain_error(args: dict) -> list[types.TextContent]:
         }
         if "lookup_source" in info:
             payload["lookup_source"] = info["lookup_source"]
+        # v2.3.24 hotfix: round-4 P2-A added curated_message to
+        # explain_rule helper but the wrapper dropped it. Propagate.
+        if "curated_message" in info:
+            payload["curated_message"] = info["curated_message"]
         return [types.TextContent(type="text", text=json.dumps(payload))]
 
     contract = _registry.get(contract_name)
@@ -1461,6 +1465,12 @@ async def _tool_explain_error(args: dict) -> list[types.TextContent]:
     }
     if "lookup_source" in info:
         response["lookup_source"] = info["lookup_source"]
+    # v2.3.24 hotfix: round-4 P2-A added curated_message to explain_rule
+    # helper but the wrapper dropped it. Propagate so the rule's authored
+    # error_message reaches the wire alongside the auto-generated
+    # explanation.
+    if "curated_message" in info:
+        response["curated_message"] = info["curated_message"]
     return [types.TextContent(type="text", text=json.dumps(response, default=str))]
 
 

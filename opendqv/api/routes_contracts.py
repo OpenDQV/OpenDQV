@@ -349,6 +349,7 @@ async def explain_error(
         valid_examples=info["valid_examples"],
         invalid_examples=info["invalid_examples"],
         lookup_source=info.get("lookup_source"),
+        curated_message=info.get("curated_message"),
         constraint=info["constraint"],
     )
 
