@@ -80,7 +80,7 @@ _KNOWN_RULE_TYPES = frozenset({
 _KNOWN_CHECKSUM_ALGORITHMS = frozenset({
     "mod10_gs1",
     "iban_mod97",
-    "isin_mod11",
+    "isin_luhn",
     "lei_mod97",
     "vin_mod11",
     "isrc_luhn",

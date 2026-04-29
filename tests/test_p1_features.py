@@ -208,13 +208,13 @@ class TestChecksumRule:
     def test_isin_valid(self):
         # Apple ISIN: US0378331005
         rule = Rule(name="r", type="checksum", field="isin",
-                    checksum_algorithm="isin_mod11", error_message="Invalid ISIN")
+                    checksum_algorithm="isin_luhn", error_message="Invalid ISIN")
         result = validate_record({"isin": "US0378331005"}, [rule])
         assert result["valid"] is True
 
     def test_isin_invalid(self):
         rule = Rule(name="r", type="checksum", field="isin",
-                    checksum_algorithm="isin_mod11", error_message="Invalid ISIN")
+                    checksum_algorithm="isin_luhn", error_message="Invalid ISIN")
         result = validate_record({"isin": "US0378331006"}, [rule])  # wrong check digit
         assert result["valid"] is False
 

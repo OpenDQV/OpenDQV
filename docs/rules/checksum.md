@@ -13,7 +13,7 @@ Supported algorithms:
 |-----------|-----------|----------|
 | `mod10_gs1` | GTIN-8, GTIN-12, GTIN-13, GTIN-14, GLN, SSCC | Retail, FMCG, Logistics, Agriculture |
 | `iban_mod97` | IBAN (ISO 13616) | Banking, Financial Services |
-| `isin_mod11` | ISIN | Financial Services, Insurance |
+| `isin_luhn` | ISIN (ISO 6166) | Financial Services, Insurance |
 | `lei_mod97` | LEI (20-character) | Financial Services, Banking |
 | `nhs_mod11` | NHS Number (10-digit) | Healthcare |
 | `cpf_mod11` | Brazilian CPF (11-digit) | Financial Services (Brazil) |
@@ -97,18 +97,20 @@ Example valid IBAN format rule to pair with this:
   severity: error
 ```
 
-### isin_mod11
+### isin_luhn
 
 **Standard:** ISO 6166
 **Industries:** Financial Services, Insurance
 
 ISIN validation: convert all characters to digits (A=10, ..., Z=35), apply Luhn mod-10 on the resulting digit string, then verify the check digit.
 
+> **v2.3.25 rename note:** the algorithm key was `isin_mod11` in v2.3.23–v2.3.24. The math has always been Luhn mod-10; the original key was mathematically misnamed. v2.3.25 renames the key to match the algorithm. There is no migration path because the only known caller was the bundled `mifid_transaction_report` contract, which was updated in lockstep.
+
 ```yaml
 - name: isin_checksum_valid
   type: checksum
   field: isin
-  checksum_algorithm: isin_mod11
+  checksum_algorithm: isin_luhn
   error_message: "ISIN check digit is invalid"
   severity: error
 ```

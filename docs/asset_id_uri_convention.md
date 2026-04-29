@@ -150,7 +150,7 @@ contract:
     - name: isin_checksum
       type: checksum
       field: instrument_isin
-      checksum_algorithm: isin_mod11
+      checksum_algorithm: isin_luhn
       severity: warning
       error_message: ISIN check digit invalid
 ```

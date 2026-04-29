@@ -141,7 +141,8 @@ class TestMifidTemporalRules:
 # v2.3.17 cluster 7 introduced the SHAPE-ONLY honesty pattern: error
 # messages explicitly stated they enforced shape only and check-digit
 # verification was deferred to v2.4. v2.3.23 round-3 closes that gap —
-# the engine's existing checksum (lei_mod97 / isin_mod11) and lookup
+# the engine's existing checksum (lei_mod97 / isin_luhn — was isin_mod11
+# in v2.3.23, renamed in v2.3.25 because the math is Luhn mod-10) and lookup
 # (ref/iso_10383_mic_codes.txt) rule types are now wired into the
 # bundled mifid_transaction_report contract. The historical honesty
 # language is no longer applicable; the new contract MUST not carry it.

@@ -36,7 +36,7 @@ Supported rule types:
                       set all_of: true to validate each element in a list field
   checksum          — validates identifier check digits
                       (IBAN, GTIN/GS1, NHS, ISIN, LEI, VIN, ISRC, CPF)
-                      checksum_algorithm: mod10_gs1 | iban_mod97 | isin_mod11 |
+                      checksum_algorithm: mod10_gs1 | iban_mod97 | isin_luhn |
                                           lei_mod97 | vin_mod11 | isrc_luhn |
                                           cpf_mod11 | nhs_mod11
   cross_field_range — value must be between two other fields
@@ -163,7 +163,7 @@ class Rule(BaseModel):
     federation_tier: Optional[str] = None
 
     # Checksum validation — type: checksum
-    # algorithm: mod10_gs1 | iban_mod97 | isin_mod11 | lei_mod97 | vin_mod11 | isrc_luhn | cpf_mod11 | nhs_mod11
+    # algorithm: mod10_gs1 | iban_mod97 | isin_luhn | lei_mod97 | vin_mod11 | isrc_luhn | cpf_mod11 | nhs_mod11
     checksum_algorithm: Optional[str] = None
 
     # Cross-field range — type: cross_field_range

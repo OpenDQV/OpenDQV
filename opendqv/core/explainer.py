@@ -583,13 +583,17 @@ def _required_if(field: str, cond_field: str, cond_value: str) -> dict:
 #   - GTIN: Wikipedia GS1 specimen (UPC-A 036000291452)
 # These are ultra-stable institutional / specification-bundled values;
 # freshness risk is low. If a public LEI lapses, replace inline.
+# v2.3.25 (Mac BT outside-review defect): renamed `isin_mod11` →
+# `isin_luhn`. The original key was mathematically misnamed (the
+# algorithm is Luhn mod-10, not mod-11). Hard rename per Pilot —
+# no users on the old key.
 _CHECKSUM_VALID_EXAMPLES = {
     "lei_mod97": [
         "529900T8BM49AURSDO55",   # BNP Paribas
         "7H6GLXDRUGQFU57RNE97",   # JPMorgan Chase Bank N.A.
         "W22LROWP2IHZNBB6K528",   # Goldman Sachs Group
     ],
-    "isin_mod11": [
+    "isin_luhn": [
         "US0378331005",           # Apple Inc.
         "GB0002634946",           # BAE Systems
         "DE000BASF111",           # BASF SE

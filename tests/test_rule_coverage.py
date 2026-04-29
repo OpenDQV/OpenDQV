@@ -324,7 +324,7 @@ class TestProfilerFileUpload:
 
 
 # ---------------------------------------------------------------------------
-# Additional checksum algorithms — mod10_gs1, iban_mod97, isin_mod11, isrc_luhn
+# Additional checksum algorithms — mod10_gs1, iban_mod97, isin_luhn, isrc_luhn
 # ---------------------------------------------------------------------------
 
 class TestMoreChecksumAlgorithms:
@@ -358,17 +358,17 @@ class TestMoreChecksumAlgorithms:
         result = _validate({"value": "GB"}, **self._cs("iban_mod97"))
         assert result["valid"] is False
 
-    # ISIN mod-11
+    # ISIN Luhn (mod-10 over expanded encoding)
     def test_isin_valid(self):
-        result = _validate({"value": "US0231351067"}, **self._cs("isin_mod11"))
+        result = _validate({"value": "US0231351067"}, **self._cs("isin_luhn"))
         assert result["valid"] is True
 
     def test_isin_invalid(self):
-        result = _validate({"value": "US0231351068"}, **self._cs("isin_mod11"))
+        result = _validate({"value": "US0231351068"}, **self._cs("isin_luhn"))
         assert result["valid"] is False
 
     def test_isin_wrong_length_fails(self):
-        result = _validate({"value": "US123"}, **self._cs("isin_mod11"))
+        result = _validate({"value": "US123"}, **self._cs("isin_luhn"))
         assert result["valid"] is False
 
     # ISRC (format-based)
@@ -929,7 +929,7 @@ class TestValidatorEdgeCases:
 
     def test_isin_with_special_char_fails(self):
         """ISIN with non-alphanumeric char in body returns False (line 228)."""
-        rule = _rule(type="checksum", checksum_algorithm="isin_mod11")
+        rule = _rule(type="checksum", checksum_algorithm="isin_luhn")
         # 12-char ISIN with '!' at position 2
         r = validate_record({"value": "US!259P5089B"}, [rule])
         assert not r["valid"]

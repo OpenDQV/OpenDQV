@@ -153,7 +153,7 @@ contract:
     - name: instrument_isin_valid
       field: instrument_isin
       type: checksum
-      checksum_algorithm: isin_mod11
+      checksum_algorithm: isin_luhn
       severity: error
       error_message: "instrument_isin must be a valid 12-character ISIN per ISO 6166 — 2-letter country code + 9 alphanumeric + 1 check digit (Luhn-style mod-10 over expanded numeric encoding). v2.3.23 round-3: full check-digit verification (was: shape-only regex)."
 

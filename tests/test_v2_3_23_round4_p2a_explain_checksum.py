@@ -11,7 +11,7 @@ Persona B 2026-04-28 outside review #4 P2:
 Sonnet pre-impl review (a68190bfb4ab4e4cb) verdict: option C — both
 fixes, in order A then B.
   A. Hardcoded valid examples for the 4 known checksum algorithms
-     (lei_mod97, isin_mod11, iban_mod97, mod10_gs1). Stable public
+     (lei_mod97, isin_luhn, iban_mod97, mod10_gs1). Stable public
      identifiers; freshness is a grep fix.
   B. Surface rule.error_message verbatim as curated_message — full
      string, no extraction (extraction logic misfires on URLs and
@@ -59,14 +59,14 @@ class TestChecksumTemplateEmitsRealExamples:
                 f"claims to demonstrate"
             )
 
-    def test_isin_mod11_template_emits_real_isin(self):
+    def test_isin_luhn_template_emits_real_isin(self):
         from opendqv.core.explainer import _checksum
         from opendqv.core.validator import _validate_checksum
-        result = _checksum("instrument_isin", "isin_mod11")
+        result = _checksum("instrument_isin", "isin_luhn")
         assert VALID_ISIN in result["valid_examples"]
         for ex in result["valid_examples"]:
-            assert _validate_checksum(ex, "isin_mod11"), (
-                f"emitted ISIN example {ex!r} fails isin_mod11"
+            assert _validate_checksum(ex, "isin_luhn"), (
+                f"emitted ISIN example {ex!r} fails isin_luhn"
             )
 
     def test_iban_mod97_template_emits_real_iban(self):
@@ -105,7 +105,7 @@ class TestChecksumTemplateEmitsRealExamples:
         checksum rules — generating a guaranteed-invalid identifier is
         fragile. The rule's error_message conveys the constraint."""
         from opendqv.core.explainer import _checksum
-        for algo in ("lei_mod97", "isin_mod11", "iban_mod97", "mod10_gs1"):
+        for algo in ("lei_mod97", "isin_luhn", "iban_mod97", "mod10_gs1"):
             result = _checksum("test_field", algo)
             assert result["invalid_examples"] == [], (
                 f"v2.3.23 round-4 P2-A: {algo} template must drop "

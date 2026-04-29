@@ -250,7 +250,15 @@ def _validate_checksum(value: str, algorithm: str) -> bool:
         except ValueError:
             return False
 
-    elif algorithm == "isin_mod11":
+    elif algorithm == "isin_luhn":
+        # v2.3.25 (Mac BT outside-review defect): renamed from
+        # `isin_mod11` — the algorithm IS Luhn mod-10 over the expanded
+        # numeric encoding (A=10..Z=35), not mod-11. Original key was
+        # mathematically misnamed in v2.3.23. Hard-renamed at v2.3.25
+        # because no production callers existed (only the bundled
+        # mifid_transaction_report YAML used the old key, and we control
+        # that). No alias kept — anyone copying from a 4-day-old example
+        # gets a clean failure with the canonical key in the error.
         # ISIN: country code (2 alpha) + 9 alphanum + check digit; Luhn mod-10 over expanded digits
         if len(s) != 12:
             return False

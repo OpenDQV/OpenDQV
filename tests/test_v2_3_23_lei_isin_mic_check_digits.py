@@ -4,7 +4,7 @@ v2.3.23 round-3 #6 — LEI/ISIN check-digit verification + MIC registry lookup.
 Persona B 2026-04-28 outside review #3: LEI/MIC/ISIN shape-only.
 
 Sonnet pre-impl review (a0808af5a86013daf):
-  - The engine ALREADY implements lei_mod97 and isin_mod11 in
+  - The engine ALREADY implements lei_mod97 and isin_luhn in
     `_validate_checksum` (core/validator.py:218-296). The defect was
     purely contract-side: bundled mifid_transaction_report.yaml used
     shape-only regex rules instead of the existing checksum rule type.
@@ -50,7 +50,7 @@ VALID_ISINS = [
 # ── Engine-level: existing checksum implementations cover LEI / ISIN ───
 
 class TestExistingChecksumCoversLeiIsin:
-    """Engine already supports lei_mod97 and isin_mod11. Pin the
+    """Engine already supports lei_mod97 and isin_luhn. Pin the
     behaviour so a future refactor doesn't lose it."""
 
     def test_lei_mod97_accepts_known_valid(self):
@@ -75,20 +75,20 @@ class TestExistingChecksumCoversLeiIsin:
         from opendqv.core.validator import _validate_checksum
         assert _validate_checksum("529900t8bm49aursdo55", "lei_mod97") is True
 
-    def test_isin_mod11_accepts_known_valid(self):
+    def test_isin_luhn_accepts_known_valid(self):
         from opendqv.core.validator import _validate_checksum
         for isin in VALID_ISINS:
-            assert _validate_checksum(isin, "isin_mod11") is True, isin
+            assert _validate_checksum(isin, "isin_luhn") is True, isin
 
-    def test_isin_mod11_rejects_one_digit_flip(self):
+    def test_isin_luhn_rejects_one_digit_flip(self):
         from opendqv.core.validator import _validate_checksum
         for isin in VALID_ISINS:
             corrupted = isin[:-1] + ("0" if isin[-1] != "0" else "1")
-            assert _validate_checksum(corrupted, "isin_mod11") is False, corrupted
+            assert _validate_checksum(corrupted, "isin_luhn") is False, corrupted
 
-    def test_isin_mod11_rejects_wrong_length(self):
+    def test_isin_luhn_rejects_wrong_length(self):
         from opendqv.core.validator import _validate_checksum
-        assert _validate_checksum("US12345", "isin_mod11") is False
+        assert _validate_checksum("US12345", "isin_luhn") is False
 
 
 # ── MIC registry ref file ──────────────────────────────────────────────
@@ -163,7 +163,7 @@ class TestMifidContractUsesCheckDigitRules:
             assert r.get("type") == "checksum", (
                 f"ISIN rule {r['name']!r} must use type=checksum"
             )
-            assert r.get("checksum_algorithm") == "isin_mod11"
+            assert r.get("checksum_algorithm") == "isin_luhn"
 
     def test_mic_rule_uses_lookup_not_regex(self, contract):
         rules = contract["contract"]["rules"]
