@@ -584,14 +584,14 @@ toml = ["tomli ; python_full_version <= \"3.11.0a6\""]
 
 [[package]]
 name = "cross-web"
-version = "0.4.1"
+version = "0.6.0"
 description = "A library for working with web frameworks"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "cross_web-0.4.1-py3-none-any.whl", hash = "sha256:41b07c3a38253c517ec0603c1a366353aff77538946092b0f9a2235033f192c2"},
-    {file = "cross_web-0.4.1.tar.gz", hash = "sha256:0466295028dcae98c9ab3d18757f90b0e74fac2ff90efbe87e74657546d9993d"},
+    {file = "cross_web-0.6.0-py3-none-any.whl", hash = "sha256:bdebf0c08d02f3a48cf67b6904d3a6d8fd8cab2cd905592ab96ab00b259cd582"},
+    {file = "cross_web-0.6.0.tar.gz", hash = "sha256:ae90570802615365ca1a781117b43bfd0d6cd3bf611649d24c3a206a82a693c9"},
 ]
 
 [package.dependencies]
@@ -2784,18 +2784,18 @@ full = ["httpx (>=0.27.0,<0.29.0)", "itsdangerous", "jinja2", "python-multipart 
 
 [[package]]
 name = "strawberry-graphql"
-version = "0.312.4"
+version = "0.315.3"
 description = "A library for creating GraphQL APIs"
 optional = false
 python-versions = "<4.0,>=3.10"
 groups = ["main"]
 files = [
-    {file = "strawberry_graphql-0.312.4-py3-none-any.whl", hash = "sha256:3021e290ccd04f3361b0c83829a2a8ec7b6baca94d1475df43d54ac4294ebf5a"},
-    {file = "strawberry_graphql-0.312.4.tar.gz", hash = "sha256:02b2610ebe39fa6846511090630c5007f6ef4174e2003cb1aa914eddbbc9e0c9"},
+    {file = "strawberry_graphql-0.315.3-py3-none-any.whl", hash = "sha256:5afced7d2bf1e4d970cc533f874fa8f615e54e9c737f4cc6faacbfdd779c3b56"},
+    {file = "strawberry_graphql-0.315.3.tar.gz", hash = "sha256:1e9f50f67b6885b7c33aa43f640afd86a56e42bd3eb6599fa2410ade38cf9692"},
 ]
 
 [package.dependencies]
-cross-web = ">=0.4.0"
+cross-web = ">=0.6.0"
 fastapi = {version = ">=0.65.2", optional = true, markers = "extra == \"fastapi\""}
 graphql-core = ">=3.2.0,<3.4.0"
 packaging = ">=23"
@@ -2805,15 +2805,16 @@ typing-extensions = ">=4.5.0"
 
 [package.extras]
 aiohttp = ["aiohttp (>=3.7.4.post0,<4)"]
+apollo-federation = ["protobuf (>=3.20)"]
 asgi = ["python-multipart (>=0.0.7)", "starlette (>=0.18.0)"]
 chalice = ["chalice (>=1.22)"]
 channels = ["asgiref (>=3.2)", "channels (>=3.0.5)"]
-cli = ["libcst", "pygments (>=2.3)", "python-multipart (>=0.0.7)", "rich (>=12.0.0)", "starlette (>=0.18.0)", "typer (>=0.12.4)", "uvicorn (>=0.11.6)", "websockets (>=15.0.1,<16)"]
+cli = ["libcst", "pygments (>=2.3)", "python-multipart (>=0.0.7)", "rich (>=12.0.0)", "starlette (>=0.18.0)", "typer (>=0.12.4)", "uvicorn (>=0.11.6)", "websockets (>=15.0.1,<17)"]
 debug = ["libcst", "rich (>=12.0.0)"]
-django = ["Django (>=3.2)", "asgiref (>=3.2)"]
+django = ["asgiref (>=3.2)", "django (>=3.2)"]
 fastapi = ["fastapi (>=0.65.2)", "python-multipart (>=0.0.7)"]
 flask = ["flask (>=1.1)"]
-litestar = ["litestar (>=2) ; python_version ~= \"3.10\""]
+litestar = ["litestar (>=2) ; python_full_version >= \"3.10.0\" and python_full_version < \"4.0.0\""]
 opentelemetry = ["opentelemetry-api (<2)", "opentelemetry-sdk (<2)"]
 pydantic = ["pydantic (>1.6.1)"]
 pyinstrument = ["pyinstrument (>=4.0.0)"]
@@ -3425,4 +3426,4 @@ ui = ["streamlit"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "8aa8614aa232742a72ad56d293a12839e996d2f1bf34969c62f29c16e346b547"
+content-hash = "34bac744a7835b3a1d64fb9657d1b47ade5190da282b8f108029a6647f661aed"
