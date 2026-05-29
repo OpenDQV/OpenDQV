@@ -8,6 +8,15 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
+    groups:
+      # Batch all routine minor + patch bumps (dev and prod) into one weekly
+      # PR. Major bumps fall outside this group and stay as individual PRs so
+      # they get their own review. Security updates are NOT grouped (no
+      # applies-to override) — they keep arriving as separate, fast PRs.
+      python-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -18,3 +27,8 @@ updates:
     labels:
       - "dependencies"
       - "ci"
+    groups:
+      # Action SHA/version bumps are low-risk — batch them all into one PR.
+      github-actions:
+        patterns:
+          - "*"
