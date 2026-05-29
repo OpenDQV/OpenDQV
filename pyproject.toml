@@ -42,7 +42,7 @@ opendqv = "opendqv.cli:main"
 [tool.poetry.dependencies]
 python = "^3.11"
 fastapi = ">=0.115,<0.137"
-uvicorn = {version = ">=0.34,<0.45", extras = ["standard"]}
+uvicorn = {version = ">=0.34,<0.49", extras = ["standard"]}
 pydantic = "^2.10"
 pyyaml = "^6.0"
 pandas = ">=2.2,<4.0"

@@ -41,7 +41,7 @@ typing-extensions==4.15.0 ; python_version >= "3.11" and python_version < "4.0"
 typing-inspection==0.4.2 ; python_version >= "3.11" and python_version < "4.0"
 tzdata==2025.3 ; python_version >= "3.11" and python_version < "4.0" and (sys_platform == "win32" or sys_platform == "emscripten")
 urllib3==2.7.0 ; python_version >= "3.11" and python_version < "4.0"
-uvicorn==0.44.0 ; python_version >= "3.11" and python_version < "4.0"
+uvicorn==0.48.0 ; python_version >= "3.11" and python_version < "4.0"
 uvloop==0.22.1 ; python_version >= "3.11" and python_version < "4.0" and sys_platform != "win32" and sys_platform != "cygwin" and platform_python_implementation != "PyPy"
 watchfiles==1.1.1 ; python_version >= "3.11" and python_version < "4.0"
 websockets==16.0 ; python_version >= "3.11" and python_version < "4.0"
