@@ -5,3 +5,14 @@ ignore:
   # No stable Python release carries the patch. Re-evaluate when 3.15 GA ships.
   - vulnerability: CVE-2026-4519
     reason: "Fix in Python 3.15.0 only (pre-release). No stable fix available."
+
+  # CPython hash-flooding / insufficient-entropy in XML (expat) parsing.
+  # Real severity MEDIUM (NVD/Debian); grype over-scores as Critical. Verified
+  # 2026-06-08 that python:3.13-slim (3.13.13) AND python:3.14-slim (3.14.5)
+  # both still report it — grype recognises the fix only in 3.15.0b2 (beta), so
+  # a base-image bump cannot clear it. OpenDQV validates JSON/YAML, not
+  # attacker-controlled XML on the hot path, so exposure is low.
+  # Re-evaluate when python:3.13/3.14-slim ships the backport in a stable point
+  # release (re-run `grype <image> --fail-on high --only-fixed` to confirm).
+  - vulnerability: CVE-2026-7210
+    reason: "CPython expat hash-flooding (real: Medium). No stable Python fix; only 3.15.0b2. Low exposure — OpenDQV does not parse untrusted XML."
