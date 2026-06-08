@@ -128,7 +128,7 @@ class TestExtractRecord:
 # ---------------------------------------------------------------------------
 
 def _make_client(token="test-token", cache_dir=None):
-    with patch("sdk.client.httpx.Client"):
+    with patch("opendqv.sdk.client.httpx.Client"):
         client = OpenDQVClient("http://localhost:8000", token=token,
                                contract_cache_dir=cache_dir)
     return client
@@ -295,8 +295,11 @@ class TestGuardDecoratorSync:
         async def async_save(data: dict):
             return "async_saved"
 
-        result = asyncio.get_event_loop().run_until_complete(
-            async_save(data={"email": "a@b.com"}))
+        # asyncio.run() creates and tears down its own loop — immune to the
+        # ambient-loop state pytest-asyncio (>=1.4) leaves between tests.
+        # The old asyncio.get_event_loop() pattern passed in isolation but
+        # failed mid-suite once a prior async test closed the shared loop.
+        result = asyncio.run(async_save(data={"email": "a@b.com"}))
         assert result == "async_saved"
 
     def test_custom_record_param(self):
@@ -311,7 +314,7 @@ class TestGuardDecoratorSync:
 # ---------------------------------------------------------------------------
 
 def _make_async_client(cache_dir=None):
-    with patch("sdk.client.httpx.AsyncClient"):
+    with patch("opendqv.sdk.client.httpx.AsyncClient"):
         client = AsyncOpenDQVClient("http://localhost:8000", token="test-token",
                                     contract_cache_dir=cache_dir)
     return client
@@ -405,3 +408,39 @@ class TestAsyncOpenDQVClientValidate:
         client._client.get = AsyncMock(side_effect=httpx.RequestError("down"))
         result = await client.contract("customer")
         assert result["name"] == "customer"
+
+
+# ---------------------------------------------------------------------------
+# Recurrence guards (Protocol 32) — two latent bugs surfaced when a dep bump
+# changed test ordering / event-loop handling. Both passed in isolation and
+# failed mid-suite, so a static guard is the only reliable recurrence net.
+# ---------------------------------------------------------------------------
+
+class TestNoRegressedTestPatterns:
+    # Needles are assembled from fragments so this guard never matches its own
+    # source. The SDK moved to opendqv.sdk in the CRT163 namespace migration;
+    # a top-level 'sdk.' patch target only resolved by import-order luck and
+    # broke under Python 3.13 pkgutil resolution. The ambient-loop driver
+    # depends on event-loop state pytest-asyncio (>=1.4) no longer guarantees.
+    SDK_NEEDLES = ['patch(' + '"sdk.', 'patch(' + "'sdk."]
+    LOOP_NEEDLE = 'get_event_loop().' + 'run_until_complete'
+
+    def _test_sources(self):
+        import pathlib
+        tests_dir = pathlib.Path(__file__).resolve().parent
+        return {p: p.read_text(encoding="utf-8")
+                for p in tests_dir.glob("test_*.py")}
+
+    def test_no_stale_top_level_sdk_patch_target(self):
+        offenders = {p.name for p, src in self._test_sources().items()
+                     if any(n in src for n in self.SDK_NEEDLES)}
+        assert not offenders, (
+            "Stale top-level sdk patch target in %s — use the opendqv.sdk "
+            "module path so mock.patch resolves the real module." % offenders)
+
+    def test_no_ambient_event_loop_driver(self):
+        offenders = {p.name for p, src in self._test_sources().items()
+                     if self.LOOP_NEEDLE in " ".join(src.split())}
+        assert not offenders, (
+            "Fragile ambient event-loop driver in %s — use asyncio.run(coro), "
+            "which owns its loop." % offenders)
