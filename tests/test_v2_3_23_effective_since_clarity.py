@@ -44,19 +44,28 @@ class TestEffectiveSinceDescription:
 
     def test_query_param_description_matches(self):
         """The `since` query param description must point to the same
-        explanation so a consumer reading either reaches the same model."""
-        from fastapi.routing import APIRoute
+        explanation so a consumer reading either reaches the same model.
+
+        Read from the OpenAPI schema rather than introspecting
+        ``app.routes`` directly: fastapi 0.137 wraps included routers in
+        an internal ``_IncludedRouter`` object instead of flattening their
+        routes onto the parent app, so the old ``isinstance(r, APIRoute)``
+        scan no longer finds prefixed routes. The published schema is the
+        consumer-facing contract and is stable across fastapi internals.
+        """
+        from fastapi.testclient import TestClient
         from opendqv.main import app
-        route = next(
-            r for r in app.routes
-            if isinstance(r, APIRoute) and r.path.endswith("/audit/events")
-            and "GET" in r.methods
+
+        with TestClient(app) as client:
+            spec = client.get("/openapi.json").json()
+        path_item = next(
+            item for path, item in spec["paths"].items()
+            if path.endswith("/audit/events") and "get" in item
         )
-        # Find the `since` parameter description.
         since_param = next(
-            p for p in route.dependant.query_params if p.name == "since"
+            p for p in path_item["get"]["parameters"] if p["name"] == "since"
         )
-        desc = (since_param.field_info.description or "").lower()
+        desc = (since_param.get("description") or "").lower()
         assert "not a retention boundary" in desc, (
             f"`since` query param description must mirror the response "
             f"field's retention disclaimer. Got: {desc!r}"
