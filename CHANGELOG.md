@@ -58,154 +58,221 @@ dependency set rather than trailing it.
 
 ## [2.3.25] - 2026-04-29
 
-Two checksum-engine correctness fixes found in post-tag review of the
-LEI/ISIN check-digit work that shipped in v2.3.23.
+Two related checksum-correctness fixes shipped together to harden the
+LEI/ISIN check-digit work that landed in v2.3.23. Both found in the
+post-v2.3.24 inside-check.
 
-### Fixed
+### `_validate_checksum` unknown-algorithm fallback now fails closed
 
-- **Unknown checksum algorithm now fails closed.** `_validate_checksum`
-  (`opendqv/core/validator.py`) previously fell through to a permissive
-  path when handed an algorithm key it didn't recognise, so a typo'd or
-  unsupported `algorithm:` in a contract would silently pass every record
-  instead of erroring. It now rejects unknown algorithms — a validation
-  rule that cannot be evaluated must not report success. 99-line
-  regression suite added (`test_v2_3_25_unknown_checksum_fails_closed.py`).
-- **`isin_mod11` → `isin_luhn` rename.** The ISIN check-digit algorithm
-  key was misnamed: ISIN uses the Luhn (mod-10) algorithm, not mod-11.
-  Renamed across the validator, rule parser, linter, explainer, the
-  `mifid_transaction_report` contract, and docs so the key names the
-  algorithm it actually runs.
+**Before:** a typo'd YAML key (e.g. `ibn_mod97` for `iban_mod97`) silently
+passed every record with only an engine-log warning — records flowed
+downstream as if validated when no validation actually ran. A rule that
+cannot be evaluated must not report success.
+
+**After:** the rule fails the record, and the warning lists the supported
+algorithms so an operator can spot the typo from the log alone:
+
+> `Unknown checksum algorithm 'ibn_mod97' — rule fails closed. Check the
+> contract YAML for typos in checksum_algorithm (supported: mod10_gs1,
+> iban_mod97, isin_luhn, lei_mod97, vin_mod11, isrc_luhn, cpf_mod11,
+> nhs_mod11).`
+
+99-line regression suite added
+(`test_v2_3_25_unknown_checksum_fails_closed.py`).
+
+### `isin_mod11` → `isin_luhn` rename
+
+The algorithm key was mathematically misnamed in v2.3.23: ISIN uses
+**Luhn mod-10** over the expanded numeric encoding (A=10..Z=35), not
+mod-11. Comments, error-message text, and the explainer template already
+described the algorithm correctly — only the enum key was misleading.
+**Hard rename, no alias:** the only caller was the bundled
+`mifid_transaction_report` contract, updated in lockstep (4-day-old key,
+beta OSS project, no upgrade path needed). Renamed across the validator,
+rule parser, linter, explainer, contract, and docs.
 
 ## [2.3.24] - 2026-04-29
 
-Single-concern hotfix to v2.3.23, caught by the inside-view MCP smoke
-probe the day after tagging.
+Single-concern hotfix on top of v2.3.23, found during post-tag MCP smoke.
 
 ### Why this release exists
 
-v2.3.23 round-4 added `curated_message` to the `explain_rule` helper
-output, but the three response wrappers — the REST route, the MCP
-in-process tool, and the MCP remote-client tool — each built their
-payload from an explicit field pick-list and silently dropped the new
-field. So the engine computed `curated_message` but no wire surface
+v2.3.23 round-4 added a `curated_message` field to the `explain_rule()`
+helper — the rule's authored `error_message` surfaced verbatim alongside
+the auto-generated explanation, so consumers can prefer whichever fits
+their UX. It often carries a real example or regulator citation the
+synthesised explanation can't match.
+
+The three response wrappers — REST route, MCP in-process, and MCP
+remote-client — each built their payload from an explicit pick-list of
+keys and **silently dropped the field**. The helper-level test in round-4
+passed; the wire-level test didn't exist; the persona reviewer didn't
+flag it because an absent-but-useful field doesn't break tool
+composition. So the engine computed `curated_message` but no wire surface
 emitted it.
 
 ### Fixed
 
-Three-line additive propagation: `ExplainErrorResponse` gains a
-`curated_message` field, and all three wrappers pass through
-`info.get("curated_message")` mirroring the existing `lookup_source`
-pattern. Wire-verified on the live engine; 4 regression tests pin the
-shape across all three surfaces.
+Three-line additive change:
+
+- `opendqv/api/models.py` — `ExplainErrorResponse` adds
+  `curated_message: Optional[str]`.
+- `opendqv/api/routes_contracts.py` — the REST
+  `/contracts/{name}/explain/{field}/{rule_name}` route propagates
+  `info.get("curated_message")`.
+- `opendqv/mcp_server.py` — `_tool_explain_error` (both remote-client and
+  in-process branches) mirrors the existing `lookup_source` pass-through
+  pattern.
+
+Wire-verified on the live engine; 4 regression tests pin the shape across
+all three surfaces.
 
 ## [2.3.23] - 2026-04-28
 
-Five Persona B outside-review rounds in one calendar day — iterate
-until the reviewer's *What works* list outgrew the *What's broken* list.
-15 fixes, ~150 new regression tests, Sonnet pre-implementation review on
-every fix. Final reviewer verdict: *"Conditional yes — pilot it as a
-runtime DQ layer in non-critical regulated workflows. Rule engine itself
-I would adopt without reservation."* (Tracked as CRT174.)
+Five Persona B outside-review rounds in one calendar day — iterate until
+the reviewer's *What works* list outgrew the *What's broken* list. 15
+fixes, ~150 new regression tests, Sonnet pre-implementation review on
+every fix. (Tracked as CRT174.)
 
-### Validation correctness
+Final reviewer verdict (Persona B, senior data platform engineer at a
+regulated FS firm):
 
-- **LEI / ISIN check-digit verification** — was shape-only regex; now
-  verifies the actual check digit. **MIC registry lookup** against an
-  ISO 10383 starter list.
-- **`same_date` compare_op** was silently a no-op in the batch path —
-  fixed (B1).
-- **Severity reflects worst-case across context overrides** — e.g. a
-  rule that is `warning` in the default context but `error` in `billing`
-  now reports `error`.
+> **Conditional yes** — pilot it as a runtime DQ layer in non-critical
+> regulated workflows. **The rule engine itself I would adopt without
+> reservation** — better-aligned to actual UK/EU regulation than most
+> commercial DQ tools, and the hash-pinning + structured-diff combination
+> is exactly the audit primitive a regulated firm needs.
 
-### Metrics / trend reconciliation
+### Round 3 — 9 fixes
 
-- **`top_failing_fields` scoped to the query window** — was leaking
-  lifetime counts into windowed views; closes the metrics-vs-trend
-  reconciliation gap.
-- **`/api/v1/stats?contract=X` no longer leaks unscoped global
-  `by_agent`** (B2); per-contract entries no longer inline global agent
-  breakdowns (P0).
-- **`get_quality_trend(by=rule)`** emits `{key, violation_count,
-  severity}` only — no spurious `date:null` or empty
-  `top_failing_rules`; `days=N` returns at most N daily buckets.
-- **`agent_id` emits `null` for unattributed** consistently across all
-  wire surfaces (was a mix of `""` and `null`); `by=agent` grouping
-  labels empty agent_id as `unattributed`.
-
-### Wire-shape & naming hygiene
-
-- **`ctx_<context>_` prefix stripped at all live emit boundaries** (REST,
-  MCP, `/api/v1/stats`) with a conservative collision guard.
-- **`effective_since` description** disambiguates default-window
-  truncation from retention-boundary semantics (it is *not* a retention
-  boundary).
 - **`catalog_hint` URI prefix configurable** via
-  `OPENDQV_CATALOG_URI_PREFIX` (DataHub, Unity Catalog, OpenMetadata,
-  Atlan, Collibra).
-- **JSON Schema export `additionalProperties` is flippable** via
-  `OPENDQV_JSON_SCHEMA_STRICT` or per-call `strict=true`; default
-  permissive preserved. Conditional rules export `if/then/else`.
+  `OPENDQV_CATALOG_URI_PREFIX` — works with DataHub, Unity Catalog,
+  OpenMetadata, Atlan, Collibra. Default `marmot:assets/` preserved.
+- **`top_failing_rules` entries carry a `severity` tag** so a warning
+  failing 100× doesn't outrank an error failing 50× on dashboards.
+- **`get_quality_trend by=rule`** emits `{key, violation_count, severity}`
+  only — no spurious `date:null` or empty `top_failing_rules`.
+- **`ctx_<context>_` prefix stripped** at all live emit boundaries (REST,
+  MCP, `/api/v1/stats`) with a conservative guard and collision
+  coalescing.
+- **`agent_id` emits `null` for unattributed** across every wire surface
+  (was a mix of `""` and `null`).
+- **`effective_since` description** disambiguates default-window
+  truncation from retention-boundary semantics.
+- **LEI/ISIN check-digit verification** — `mifid_transaction_report`
+  upgraded from shape-only regex to **ISO 17442 mod-97-10** (LEI) +
+  **ISO 6166 Luhn-style** (ISIN). **MIC registry lookup** against a
+  bundled **ISO 10383** starter list (~95 major operating MICs).
+- **`explain_error` for `regex` rules** emits real synthesised samples via
+  a vendor-free mini-walker; falls back honestly to "no example
+  auto-generated" for complex patterns.
+- **`latency_ms_avg` persisted** on `quality_stats`; hydrated rows now
+  carry a real per-event latency proxy instead of `null`.
 
-### explain_error honesty
+### Round 4 — 4 fixes
 
-- **Regex synthesis emits real, self-validating samples** via a
-  vendor-free mini-walker; falls back honestly for patterns it can't
-  synthesise.
-- **Checksum templates emit real LEI/ISIN/IBAN/GTIN examples**;
-  `explain_rule` surfaces the rule's `error_message` verbatim as
-  `curated_message`.
-- **TYPE_MISMATCH carries a `suggested_fix`**; type confusion in
-  min/max/range no longer fires the wrong error code.
+- Engine version 2.3.22 → 2.3.23 across `pyproject.toml` and the response
+  envelope.
+- **`top_failing_fields` scoped to the window** — closes the
+  metrics-vs-trend reconciliation gap (was lifetime-leaking into windowed
+  views); drops the hydration-era `days=1` augmentation crutch.
+- **Severity reflects worst-case across context overrides** —
+  `revenue_ceiling: warning` in default + `error` in billing surfaces as
+  `error`, so ops escalation is correct.
+- **`explain_error` checksum templates emit real LEI/ISIN/IBAN/GTIN
+  examples**; every rule's curated `error_message` is surfaced verbatim
+  as `curated_message`.
 
-### Confidence signalling
+### Round 5 — 2 fixes
 
-- **`latency_ms_avg` persisted** on `quality_stats`; hydration uses a
-  real per-event latency proxy instead of `null` on hydrated rows.
-- **`get_contract_latency` emits `sample_source` + `sampling_caveat`**
-  when `sample_size < 30`, explaining dry-run / eviction / low-traffic
-  causes of under-confident percentiles.
-- **`list_versions` surfaces SemVer-label collisions** per entry;
-  data-confidence bands cited on metrics / trend / velocity.
+- **JSON Schema export `additionalProperties` is flippable** —
+  `OPENDQV_JSON_SCHEMA_STRICT=true` engine-wide, or per-call `strict=true`
+  on REST/MCP. Default permissive preserved.
+- **`get_contract_latency`** emits `sample_source` always, and
+  `sampling_caveat` when `sample_size < 30` — explains the dry-run /
+  eviction / low-traffic causes of under-confident percentiles.
 
-### Auth & docs honesty
+### Deployment posture
 
-- **Auth / trust-model documentation** corrected for accuracy (P0-1/P0-2);
-  `get_audit_event` 404 behaviour documented; `list_contracts` /
-  `compare_contracts` docstrings match actual filter behaviour.
+The reviewer flagged `AUTH_MODE=open` as the gating control for any FS
+deployment. **OpenDQV ships with `AUTH_MODE=open` for local development;
+production deploys must set `AUTH_MODE=token`** before any audit
+attribution can be trusted.
 
 ### CI
 
-- Replaced hardcoded `/home/sunny-sharma` test paths with
-  `__file__`-relative paths so the suite runs on CI's `/home/runner`.
+- Replaced hardcoded absolute test paths with `__file__`-relative paths
+  so the suite runs on CI's `/home/runner`.
+
+### Deferred to v2.4 (reviewer-acknowledged)
+
+- F-C version-collision-on-write (CAS pattern)
+- F-K field-name preservation in audit storage (schema migration)
+- CRT167 inherit-then-override refactor → unified
+  `compute_summary_from_events`
+- CRT172-K3 per-contract scoping for the multi-tenant trust boundary
+- 10k deque ceiling → SQLite-backed windowed totals
+- LEI/MIC/ISIN content-side authority (engine ships a starter taxonomy;
+  operators replace ref files for production)
 
 ## [2.3.22] - 2026-04-27
 
-Eight inside-view defect clusters plus one P0 and a proxy-path shape-parity
-pass. +60 regression tests (3860 total). Inside-view persona probe run
-before tagging; one defect (proxy MCP shape parity) caught and fixed in
-the same cycle.
+Eight reviewer-driven defect clusters + one P0 + one CRT170-J family
+closure caught in the inside-view persona probe before tag. 3860 tests
+passing (+60 since v2.3.21), 24 skipped.
 
-### Fixed — clusters
+### P0
 
-- **A** — proxy-path `/api/v1/stats` now forwards `contract`, `agent_id`,
-  and `window_hours=0` instead of dropping them.
-- **C** — persist the hash triplet to the audit log (completes F-J).
-- **D** — `explain_error` proxy path reconstructs the `Rule` with its full
-  constraint set (was partial).
-- **E** — `include_system` honoured on `get_quality_trend(by=agent)` and
-  `get_agent_breakdown`.
-- **F** — `pass_rate_pct` returns `null` on 0/0 (a no-data signal) instead
-  of a misleading `100.0`.
-- **H** — `caller_principal` threaded end-to-end with a token-mode smoke.
-- **K** — JSON Schema export hygiene (N-9 narrowed) and S-5 close-out.
+- **N-2** — `get_quality_trend(by=rule)` returned `no_data` while
+  `by=date` showed real validations. MCP in-process path fix mirroring the
+  v2.3.17 REST fix; a cross-path parity test now pins both surfaces.
 
-### Fixed — P0 & parity
+### Reviewer-driven cluster fixes
 
-- **N-2 (P0)** — MCP in-process `get_quality_trend(by=rule)`
-  `total_validations` miscount fixed.
-- **Proxy shape parity** — proxy MCP `get_quality_metrics` response matches
-  the in-process shape (the defect the inside-view probe caught pre-tag).
+- **Cluster A** — proxy-path `/api/v1/stats` now forwards `contract` +
+  `agent_id` + `window_hours=0` (silently dropped pre-fix; the missing
+  proxy-only test surface now exists).
+- **Cluster F** — `pass_rate_pct` returns `null` on 0/0 across REST + MCP +
+  storage. Empty dashboards now signal no-data, not "100% perfect."
+- **Cluster H** — `caller_principal` end-to-end token-mode smoke:
+  validate response → `quality_stats` row → `get_audit_event` → JWT `sub`
+  preserved.
+- **Cluster E** — `include_system` parameter on
+  `get_quality_trend(by=agent)` and `get_agent_breakdown`. Default `False`
+  honours the suppression contract already governing `list_agents` and
+  `get_quality_metrics`.
+- **Cluster D** — `explain_error` proxy-path `Rule` reconstruction passes
+  the full constraint set (was dropping every constraint field, so
+  regex/lookup branches emitted "matching None" / "(reference list)"
+  placeholders). Constraint payload now identical across in-process and
+  proxy paths.
+- **Cluster C** — persist `effective_rule_hash` + `entry_hash` +
+  `content_hash` on the audit row (F-J completion). Idempotent SQLite
+  migration; existing rows get an empty-string sentinel — no false history
+  via head-recompute.
+- **Cluster K** — JSON Schema export: `not_empty` emits
+  `{type: string, minLength: 1}` (was empty `{}`, which let downstream
+  validators accept `""`). Lookup-rule unmapped reason now distinguishes
+  external-ref-file from structurally-inexpressible.
+
+### Inside-view persona probe catch
+
+- **Proxy MCP `get_quality_metrics` shape parity** with in-process MCP —
+  CRT170-J family drift since v2.3.13 (same tool name, two paths, two
+  shapes). Closed before tag.
+
+### Wire-shape notes for consumers
+
+Defects under the prior shape, not breaking changes, but worth flagging:
+
+- `pass_rate_pct: null` is the new empty-window value (was `100.0`). If a
+  dashboard does `pass_rate_pct >= 95`, handle `null` explicitly.
+- `get_audit_event` now includes `effective_rule_hash`, `entry_hash`,
+  `content_hash` (empty string for pre-Cluster-C rows).
+- Proxy MCP `get_quality_metrics` now returns the per-contract entry shape
+  the in-process MCP has always returned.
+- New `include_system` query param + MCP arg on `get_quality_trend` and
+  `get_agent_breakdown` (default `False`).
 
 ## [2.3.21] - 2026-04-27
 
