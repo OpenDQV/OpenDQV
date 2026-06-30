@@ -2,6 +2,60 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.26] - 2026-06-30
+
+Security and dependency maintenance roll-up. No engine behaviour change —
+the rule engine, API surface, contract format, and wire shape are identical
+to v2.3.25. This release tags the accumulated dependency hygiene that has
+landed on `main` since v2.3.25, with several CVE clearances among it.
+
+### Why this release exists
+
+Since v2.3.25, `main` carried a run of dependency-maintenance commits
+(custodian mode — keeping Core current and secure) without a tagged release.
+This release consolidates them so `pip install opendqv` ships the patched
+dependency set rather than trailing it.
+
+### Security — CVEs cleared
+
+- **cryptography 49.0.0** — GHSA-537c-gmf6-5ccf (HIGH)
+- **starlette 1.3.1** — GHSA-82w8-qh3p-5jfq (HIGH), GHSA-jp82-jpqv-5vv3 (LOW)
+- **pydantic-settings 2.14.2** — GHSA-4xgf-cpjx-pc3j (MEDIUM; transitive via mcp)
+- **pyjwt 2.13.0** — four auth-library CVEs
+- earlier security bumps folded in: idna, urllib3, gitpython, python-multipart
+
+### Dependency bumps
+
+- **Runtime:** fastapi 0.138.2, uvicorn 0.49.0, gunicorn 26.0.0 (major),
+  httpx 0.28.1, strawberry-graphql 0.320.0, mcp 1.28.1, duckdb 1.5.4,
+  pydantic 2.13.4, regex 2026.6.28, anyio 4.14.1
+- **Dev/CI:** pytest 9.1.1, ruff 0.15.20, pytest-asyncio 1.x, actions/checkout 7,
+  setup-python 6.3, codecov-action 7, plus the github-actions group
+
+### Engineering notes
+
+- fastapi 0.137 began wrapping included routers in an internal `_IncludedRouter`
+  rather than flattening their routes onto `app.routes`; the one test that
+  introspected `app.routes` directly now reads the OpenAPI schema instead
+  (consumer-facing contract, stable across fastapi internals). API unaffected.
+- Two latent test-isolation bugs surfaced by pytest-asyncio 1.x fixed (stale
+  `sdk.` patch target; `asyncio.run` over an ambient loop).
+- CI hardening: Dependabot PR grouping (cut weekly PR volume), time-boxed
+  grype-ignore for CVE-2026-7210 (CPython expat, no stable fix on 3.13/3.14),
+  link-check exclude for a WAF false positive, `__file__`-relative test paths.
+
+### Held back (not regressions)
+
+- **pandas 3.0.4** — wheel published but PyPI index metadata had not propagated
+  to the resolver at release time; non-security patch, will land next cycle.
+- **pydantic-core 2.47.0** — pydantic 2.13.4 exact-pins 2.46.4; unresolvable
+  until pydantic itself bumps.
+
+### Tests
+
+4124 passed, 23 skipped. gunicorn + UvicornWorker boot validated
+(`/health`, `/api/v1/audit/events`, `/graphql` all 200).
+
 ## [2.3.21] - 2026-04-27
 
 Single-concern follow-up to v2.3.20. Inside-view probe caught a
