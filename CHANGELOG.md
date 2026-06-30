@@ -56,6 +56,157 @@ dependency set rather than trailing it.
 4124 passed, 23 skipped. gunicorn + UvicornWorker boot validated
 (`/health`, `/api/v1/audit/events`, `/graphql` all 200).
 
+## [2.3.25] - 2026-04-29
+
+Two checksum-engine correctness fixes found in post-tag review of the
+LEI/ISIN check-digit work that shipped in v2.3.23.
+
+### Fixed
+
+- **Unknown checksum algorithm now fails closed.** `_validate_checksum`
+  (`opendqv/core/validator.py`) previously fell through to a permissive
+  path when handed an algorithm key it didn't recognise, so a typo'd or
+  unsupported `algorithm:` in a contract would silently pass every record
+  instead of erroring. It now rejects unknown algorithms — a validation
+  rule that cannot be evaluated must not report success. 99-line
+  regression suite added (`test_v2_3_25_unknown_checksum_fails_closed.py`).
+- **`isin_mod11` → `isin_luhn` rename.** The ISIN check-digit algorithm
+  key was misnamed: ISIN uses the Luhn (mod-10) algorithm, not mod-11.
+  Renamed across the validator, rule parser, linter, explainer, the
+  `mifid_transaction_report` contract, and docs so the key names the
+  algorithm it actually runs.
+
+## [2.3.24] - 2026-04-29
+
+Single-concern hotfix to v2.3.23, caught by the inside-view MCP smoke
+probe the day after tagging.
+
+### Why this release exists
+
+v2.3.23 round-4 added `curated_message` to the `explain_rule` helper
+output, but the three response wrappers — the REST route, the MCP
+in-process tool, and the MCP remote-client tool — each built their
+payload from an explicit field pick-list and silently dropped the new
+field. So the engine computed `curated_message` but no wire surface
+emitted it.
+
+### Fixed
+
+Three-line additive propagation: `ExplainErrorResponse` gains a
+`curated_message` field, and all three wrappers pass through
+`info.get("curated_message")` mirroring the existing `lookup_source`
+pattern. Wire-verified on the live engine; 4 regression tests pin the
+shape across all three surfaces.
+
+## [2.3.23] - 2026-04-28
+
+Five Persona B outside-review rounds in one calendar day — iterate
+until the reviewer's *What works* list outgrew the *What's broken* list.
+15 fixes, ~150 new regression tests, Sonnet pre-implementation review on
+every fix. Final reviewer verdict: *"Conditional yes — pilot it as a
+runtime DQ layer in non-critical regulated workflows. Rule engine itself
+I would adopt without reservation."* (Tracked as CRT174.)
+
+### Validation correctness
+
+- **LEI / ISIN check-digit verification** — was shape-only regex; now
+  verifies the actual check digit. **MIC registry lookup** against an
+  ISO 10383 starter list.
+- **`same_date` compare_op** was silently a no-op in the batch path —
+  fixed (B1).
+- **Severity reflects worst-case across context overrides** — e.g. a
+  rule that is `warning` in the default context but `error` in `billing`
+  now reports `error`.
+
+### Metrics / trend reconciliation
+
+- **`top_failing_fields` scoped to the query window** — was leaking
+  lifetime counts into windowed views; closes the metrics-vs-trend
+  reconciliation gap.
+- **`/api/v1/stats?contract=X` no longer leaks unscoped global
+  `by_agent`** (B2); per-contract entries no longer inline global agent
+  breakdowns (P0).
+- **`get_quality_trend(by=rule)`** emits `{key, violation_count,
+  severity}` only — no spurious `date:null` or empty
+  `top_failing_rules`; `days=N` returns at most N daily buckets.
+- **`agent_id` emits `null` for unattributed** consistently across all
+  wire surfaces (was a mix of `""` and `null`); `by=agent` grouping
+  labels empty agent_id as `unattributed`.
+
+### Wire-shape & naming hygiene
+
+- **`ctx_<context>_` prefix stripped at all live emit boundaries** (REST,
+  MCP, `/api/v1/stats`) with a conservative collision guard.
+- **`effective_since` description** disambiguates default-window
+  truncation from retention-boundary semantics (it is *not* a retention
+  boundary).
+- **`catalog_hint` URI prefix configurable** via
+  `OPENDQV_CATALOG_URI_PREFIX` (DataHub, Unity Catalog, OpenMetadata,
+  Atlan, Collibra).
+- **JSON Schema export `additionalProperties` is flippable** via
+  `OPENDQV_JSON_SCHEMA_STRICT` or per-call `strict=true`; default
+  permissive preserved. Conditional rules export `if/then/else`.
+
+### explain_error honesty
+
+- **Regex synthesis emits real, self-validating samples** via a
+  vendor-free mini-walker; falls back honestly for patterns it can't
+  synthesise.
+- **Checksum templates emit real LEI/ISIN/IBAN/GTIN examples**;
+  `explain_rule` surfaces the rule's `error_message` verbatim as
+  `curated_message`.
+- **TYPE_MISMATCH carries a `suggested_fix`**; type confusion in
+  min/max/range no longer fires the wrong error code.
+
+### Confidence signalling
+
+- **`latency_ms_avg` persisted** on `quality_stats`; hydration uses a
+  real per-event latency proxy instead of `null` on hydrated rows.
+- **`get_contract_latency` emits `sample_source` + `sampling_caveat`**
+  when `sample_size < 30`, explaining dry-run / eviction / low-traffic
+  causes of under-confident percentiles.
+- **`list_versions` surfaces SemVer-label collisions** per entry;
+  data-confidence bands cited on metrics / trend / velocity.
+
+### Auth & docs honesty
+
+- **Auth / trust-model documentation** corrected for accuracy (P0-1/P0-2);
+  `get_audit_event` 404 behaviour documented; `list_contracts` /
+  `compare_contracts` docstrings match actual filter behaviour.
+
+### CI
+
+- Replaced hardcoded `/home/sunny-sharma` test paths with
+  `__file__`-relative paths so the suite runs on CI's `/home/runner`.
+
+## [2.3.22] - 2026-04-27
+
+Eight inside-view defect clusters plus one P0 and a proxy-path shape-parity
+pass. +60 regression tests (3860 total). Inside-view persona probe run
+before tagging; one defect (proxy MCP shape parity) caught and fixed in
+the same cycle.
+
+### Fixed — clusters
+
+- **A** — proxy-path `/api/v1/stats` now forwards `contract`, `agent_id`,
+  and `window_hours=0` instead of dropping them.
+- **C** — persist the hash triplet to the audit log (completes F-J).
+- **D** — `explain_error` proxy path reconstructs the `Rule` with its full
+  constraint set (was partial).
+- **E** — `include_system` honoured on `get_quality_trend(by=agent)` and
+  `get_agent_breakdown`.
+- **F** — `pass_rate_pct` returns `null` on 0/0 (a no-data signal) instead
+  of a misleading `100.0`.
+- **H** — `caller_principal` threaded end-to-end with a token-mode smoke.
+- **K** — JSON Schema export hygiene (N-9 narrowed) and S-5 close-out.
+
+### Fixed — P0 & parity
+
+- **N-2 (P0)** — MCP in-process `get_quality_trend(by=rule)`
+  `total_validations` miscount fixed.
+- **Proxy shape parity** — proxy MCP `get_quality_metrics` response matches
+  the in-process shape (the defect the inside-view probe caught pre-tag).
+
 ## [2.3.21] - 2026-04-27
 
 Single-concern follow-up to v2.3.20. Inside-view probe caught a
