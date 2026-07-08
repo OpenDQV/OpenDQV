@@ -189,3 +189,41 @@ class TestGraphQLSecurityParity:
         )
         assert r.status_code == 200
         assert r.json()["data"]["validateBatch"]["summary"]["total"] == 3
+
+    def test_batch_rejects_non_list_records(self, client, auth_headers):
+        """CRT175 #4 (Sonnet): a non-list JSON payload must be rejected cleanly,
+        not crash in DataFrame construction with a masked 'unexpected error'."""
+        query = (
+            'mutation { validateBatch(records: {email: "a@b.com"}, '
+            'contract: "customer") { summary { total } } }'
+        )
+        r = client.post("/graphql", json={"query": query}, headers=auth_headers)
+        assert r.status_code == 200
+        body = r.json()
+        assert (body.get("data") or {}).get("validateBatch") is None
+        assert any("must be a list" in e["message"] for e in body["errors"])
+
+    def test_alias_amplification_is_capped(self, client, auth_headers):
+        """CRT175 #3 (Sonnet): aliasing many root mutation fields in one request
+        must be rejected before execution, closing the N×MAX_BATCH_ROWS DoS."""
+        aliases = " ".join(
+            f'a{i}: validateBatch(records: [{{email: "a@b.com"}}], contract: "customer") {{ summary {{ total }} }}'
+            for i in range(15)
+        )
+        r = client.post(
+            "/graphql", json={"query": "mutation { " + aliases + " }"}, headers=auth_headers
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body.get("data") is None
+        assert any("exceeding the maximum" in e["message"] for e in body["errors"])
+
+    def test_normal_multi_field_query_still_allowed(self, client, auth_headers):
+        """A handful of root fields (well under the cap) must still work."""
+        query = (
+            'mutation { a: validate(record: {email: "a@b.com"}, contract: "customer") { valid } '
+            'b: validate(record: {email: "c@d.com"}, contract: "customer") { valid } }'
+        )
+        r = client.post("/graphql", json={"query": query}, headers=auth_headers)
+        assert r.status_code == 200
+        assert r.json()["data"]["a"]["valid"] is not None

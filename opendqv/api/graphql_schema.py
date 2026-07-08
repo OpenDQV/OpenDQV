@@ -5,17 +5,44 @@ Provides the same validation capabilities as the REST API via GraphQL.
 Uses strawberry-graphql with FastAPI integration.
 """
 
+import os
 import time
 import logging
 from typing import Optional
 
 import strawberry
 from strawberry.scalars import JSON
-from graphql import GraphQLError
+from strawberry.extensions import AddValidationRules
+from graphql import GraphQLError, ValidationRule
+from graphql.language import FieldNode
 
 import opendqv.config as config
 
 logger = logging.getLogger(__name__)
+
+# DoS guard: cap the number of root-level fields in a single GraphQL document.
+# The per-resolver MAX_BATCH_ROWS cap limits ONE validateBatch call, but a
+# caller can alias many of them in one request (`{ a: validateBatch(...) b:
+# validateBatch(...) ... }`) to multiply the work past the cap on a single
+# worker tick (Sonnet red-team, CRT175 #3). Limiting root-field count closes
+# the amplification while leaving normal usage (a handful of fields) untouched.
+_MAX_ROOT_FIELDS = int(os.environ.get("OPENDQV_GRAPHQL_MAX_ROOT_FIELDS", "10"))
+
+
+class _RootFieldLimitRule(ValidationRule):
+    def enter_operation_definition(self, node, *_args):
+        selections = node.selection_set.selections if node.selection_set else []
+        field_count = sum(1 for s in selections if isinstance(s, FieldNode))
+        if field_count > _MAX_ROOT_FIELDS:
+            self.report_error(
+                GraphQLError(
+                    f"Operation has {field_count} root fields, exceeding the "
+                    f"maximum of {_MAX_ROOT_FIELDS}. Aliasing many "
+                    f"validate/validateBatch calls in one request is not "
+                    f"permitted; split them across requests.",
+                    node,
+                )
+            )
 
 # Registry is set by main.py at startup
 _registry = None
@@ -207,6 +234,11 @@ class Mutation:
         # OOM a worker.
         # GraphQLError (not ValueError) so strawberry surfaces the real
         # message to the client instead of masking it as "unexpected error".
+        # The JSON scalar accepts any JSON value; a non-list (dict/str/number)
+        # would slip past the empty/size checks below and crash in DataFrame
+        # construction with a masked "unexpected error". Reject it explicitly.
+        if not isinstance(records, list):
+            raise GraphQLError("`records` must be a list of record objects.")
         if not records:
             raise GraphQLError("Batch is empty — provide at least one record.")
         if len(records) > config.MAX_BATCH_ROWS:
@@ -253,4 +285,9 @@ class Mutation:
 
 # ── Schema ───────────────────────────────────────────────────────────
 
-schema = strawberry.Schema(query=Query, mutation=Mutation)
+schema = strawberry.Schema(
+    query=Query,
+    mutation=Mutation,
+    # Factory (not instance) so strawberry builds a fresh extension per request.
+    extensions=[lambda: AddValidationRules([_RootFieldLimitRule])],
+)
