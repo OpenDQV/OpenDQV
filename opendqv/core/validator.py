@@ -853,7 +853,7 @@ def _check_conditional_lookup(value, rule: Rule, record: Optional[dict] = None) 
             valid_values = _load_http_lookup_set(rule.lookup_file, rule.lookup_field or "", ttl, auth_header=rule.lookup_auth_header)
         else:
             valid_values = _load_lookup_set(rule.lookup_file, rule.lookup_field or "")
-    except (FileNotFoundError, KeyError, OSError, RuntimeError) as exc:
+    except (FileNotFoundError, KeyError, OSError, RuntimeError, ValueError) as exc:
         logger.error("conditional_lookup rule '%s' could not load '%s': %s", rule.name, rule.lookup_file, exc)
         return rule.error_message
     if str(value) not in valid_values:
@@ -1047,6 +1047,16 @@ def _load_http_lookup_set(url: str, lookup_field: str, cache_ttl: int, auth_head
             values, expires_at = cached
             if now < expires_at:
                 return values
+
+    # SEC-008: SSRF guard. A lookup rule's URL comes from a contract author
+    # (editor role), so it is attacker-influenced input exactly like a webhook
+    # URL — without this check an `editor` could point a lookup at cloud
+    # metadata (169.254.169.254), loopback, or RFC-1918 hosts and, via the
+    # ${ENV} auth-header substitution below, exfiltrate server secrets to it.
+    # Reuse the webhook dispatcher's guard so both surfaces enforce one policy.
+    # Runs on every cache miss (including TTL refresh) to catch DNS rebinding.
+    from .webhooks import assert_url_public
+    assert_url_public(url, label="Lookup URL")
 
     # Fetch outside the lock to avoid holding it during network I/O
     try:
