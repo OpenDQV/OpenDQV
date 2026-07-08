@@ -12,29 +12,48 @@ It validates records against YAML data contracts at the point of write — befor
 data enters the pipeline ("shift-left"). It is **not** a pipeline monitoring tool
 (that's Monte Carlo) or a pipeline test framework (that's dbt/Soda).
 
-**Version:** 2.1.0
+**Version:** 2.3.26
 **Stack:** FastAPI + Gunicorn/Uvicorn, Streamlit UI, SQLite/PostgreSQL, DuckDB (batch), MCP
 
 ---
 
 ## Repository layout
 
+Since the CRT163 namespace migration (v2.1.0) all importable code lives under
+the `opendqv/` package. The top-level `api/`, `core/`, `security/`, `sdk/`
+directories are gone — do not look for code there.
+
 ```
-api/            FastAPI routes (routes.py ~2400 lines), models, GraphQL schema
-core/           Engine: validator, rule_parser, contracts, code_generator, profiler,
-                webhooks, federation, trace_log, node_health, isolation_log,
-                quality_stats, worker_heartbeat, onboarding
-core/importers/ 8 format importers: GX, dbt, Soda, CSV, ODCS, CSVW, OTel, NDC
-opendqv/contracts/      YAML data contracts (43 active, 22+ industry domains) — shipped in the wheel since v2.2.4
-opendqv/contracts/ref/  Lookup reference files used by lookup rules
+opendqv/api/            REST surface. routes.py is a 41-line assembly shim that
+                        mounts 9 domain sub-routers (routes_validation.py,
+                        routes_contracts.py, routes_imports.py, routes_tokens.py,
+                        routes_webhooks.py, routes_analytics.py,
+                        routes_audit_events.py, routes_federation.py,
+                        routes_profiler.py). Shared state/helpers in deps.py.
+                        graphql_schema.py = GraphQL (mounted at /graphql).
+opendqv/core/           Engine: validator, rule_parser, contracts, code_generator,
+                        profiler, webhooks, federation, trace_log, node_health,
+                        isolation_log, quality_stats, quality_analytics,
+                        worker_heartbeat, onboarding, jsonschema, linter, storage
+opendqv/core/importers/ 8 format importers: GX, dbt, Soda, CSV, ODCS, CSVW, OTel, NDC
+opendqv/contracts/      YAML data contracts (41 bundled, 22+ industry domains) — shipped in the wheel since v2.2.4
+opendqv/contracts/ref/  Lookup reference files (.txt) used by lookup rules
+opendqv/sdk/            Python SDK: sync client, async client, local validator
+opendqv/security/       JWT PAT auth (auth.py)
+opendqv/cli.py          CLI (~26 subcommands). opendqv/main.py = FastAPI app.
+opendqv/mcp_server.py   In-process MCP server (official mcp SDK, stdio)
+opendqv_mcp_proxy.py    Standalone REST-bridge MCP proxy (repo root, NOT in the wheel)
 docs/           76 markdown files: integration guides, security, operations
 examples/       Starter contracts + sample records by domain
 scripts/        Demo, wizard, perf-test, smoke tests, diagnostics
-sdk/            Python SDK: sync client, async client, local validator
-security/       JWT PAT auth (auth.py)
-tests/          3,398+ unit/integration tests (45 test files)
-ui/             Streamlit governance workbench (app.py ~2,500 lines)
+tests/          4,100+ unit/integration tests (138 test files)
+ui/             Streamlit governance workbench (app.py ~2,800 lines)
 ```
+
+**Two MCP entry points** — `opendqv/mcp_server.py` (in-process) and
+`opendqv_mcp_proxy.py` (stdio REST bridge). They have independent schemas and
+drift; update both on every MCP-touching change. `tests/test_v2_3_17_cluster4_proxy_parity.py`
+guards tool + schema parity.
 
 ---
 
@@ -77,7 +96,7 @@ python -m opendqv.cli validate customer '{"name":"Alice","age":30}'
 - Python code accesses: `rule.min_value`, `rule.max_value` (canonical field names)
 - Pydantic `Field(alias="min")` + `populate_by_name=True` accepts both
 - Importers MUST use `"min_value"` / `"max_value"` as dict keys (not the aliases)
-- `api/routes.py` import endpoints MUST use `str(config.CONTRACTS_DIR)` — never hardcode `os.path.dirname(__file__)`
+- Import endpoints (`opendqv/api/routes_imports.py`) MUST use `str(config.CONTRACTS_DIR)` — never hardcode `os.path.dirname(__file__)`
 
 ### Contract lifecycle
 States: `draft` → `review` → `active` | `archived`
@@ -137,12 +156,13 @@ States: `draft` → `review` → `active` | `archived`
 
 | File | What it does |
 |------|-------------|
-| `main.py` | FastAPI app startup, health endpoint, lifespan |
-| `config.py` | All configuration via env vars (104 lines) |
-| `core/rule_parser.py` | `Rule` Pydantic model, `ContractStatus` enum |
-| `core/validator.py` | Single-record and DuckDB batch validation engine |
-| `core/contracts.py` | Contract registry, YAML load/save, version management |
-| `api/routes.py` | 50 REST endpoints (~2,400 lines) |
-| `security/auth.py` | JWT PAT auth, RBAC (admin/approver/editor/validator/auditor/reader) |
-| `core/onboarding.py` | Interactive setup wizard |
+| `opendqv/main.py` | FastAPI app startup, health endpoint, lifespan, GraphQL mount |
+| `opendqv/config.py` | All configuration via env vars |
+| `opendqv/core/rule_parser.py` | `Rule` Pydantic model, `ContractStatus` enum |
+| `opendqv/core/validator.py` | Single-record and DuckDB batch validation engine |
+| `opendqv/core/contracts.py` | Contract registry, YAML load/save, version management |
+| `opendqv/api/routes.py` | 41-line shim mounting 9 domain sub-routers (~67 REST endpoints total) |
+| `opendqv/api/deps.py` | Shared router state, limiter, auth/validation helpers |
+| `opendqv/security/auth.py` | JWT PAT auth, RBAC (admin/approver/editor/validator/auditor/reader) |
+| `opendqv/core/onboarding.py` | Interactive setup wizard |
 | `tests/conftest.py` | Test fixtures — sets temp contracts dir, auth tokens |
