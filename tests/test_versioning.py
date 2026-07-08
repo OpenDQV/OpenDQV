@@ -1,7 +1,14 @@
 """Tests for contract versioning and history features."""
 
 
-from opendqv.core.contracts import ContractHistory, DataContract, _GENESIS_HASH, _compute_entry_hash
+from opendqv.core.contracts import (
+    ContractHistory,
+    ContractRegistry,
+    DataContract,
+    _GENESIS_HASH,
+    _compute_entry_hash,
+    _version_sort_key,
+)
 from opendqv.core.rule_parser import Rule, ContractStatus
 
 
@@ -502,3 +509,57 @@ class TestHashDomainCompleteness:
             f"_HASH_DOMAIN_CONTENT_FIELDS references unknown DataContract fields: "
             f"{ghosts}. Field renamed or removed without updating the hash domain."
         )
+
+
+# ---------------------------------------------------------------------------
+# CRT175 #4: "latest" version resolution for draft-suffixed versions
+# ---------------------------------------------------------------------------
+
+class TestVersionSortKey:
+    """The old sort key collapsed every '-draft.N' version to a constant, so
+    'latest' resolution among drafts was order-dependent. _version_sort_key
+    must give a total, deterministic ordering."""
+
+    def test_numeric_base_ordering(self):
+        assert _version_sort_key("2.0") > _version_sort_key("1.9")
+        assert _version_sort_key("1.10") > _version_sort_key("1.9")
+        assert _version_sort_key("1.0.1") > _version_sort_key("1.0")
+
+    def test_released_outranks_its_drafts(self):
+        assert _version_sort_key("1.0") > _version_sort_key("1.0-draft.5")
+
+    def test_higher_draft_counter_is_later(self):
+        assert _version_sort_key("1.0-draft.2") > _version_sort_key("1.0-draft.1")
+        assert _version_sort_key("2.3-draft.10") > _version_sort_key("2.3-draft.9")
+
+    def test_higher_base_beats_lower_base_draft(self):
+        assert _version_sort_key("2.0") > _version_sort_key("1.0-draft.99")
+
+    def test_latest_among_drafts_is_deterministic_regardless_of_insertion_order(self):
+        keys = ["1.0", "1.0-draft.1", "1.0-draft.2"]
+        # The old bug: both drafts sorted to the same constant key, so the
+        # winner depended on dict/iteration order. Both orderings must agree.
+        assert sorted(keys, key=_version_sort_key)[-1] == "1.0"
+        assert sorted(reversed(keys), key=_version_sort_key)[-1] == "1.0"
+
+    def test_latest_is_highest_draft_when_no_release_exists(self):
+        keys = ["1.0-draft.1", "1.0-draft.3", "1.0-draft.2"]
+        assert sorted(keys, key=_version_sort_key)[-1] == "1.0-draft.3"
+
+
+class TestRegistryLatestResolution:
+    """End-to-end: registry.get(name, 'latest') must be stable with drafts present."""
+
+    def test_get_latest_picks_highest_draft(self, tmp_path):
+        reg = ContractRegistry(tmp_path)
+        base = DataContract(
+            name="widget", version="1.0", description="d", owner="o",
+            status=ContractStatus.DRAFT,
+            rules=[Rule(name="r", type="not_empty", field="id")],
+        )
+        reg._contracts["widget"] = {
+            "1.0-draft.1": base.model_copy(update={"version": "1.0-draft.1"}),
+            "1.0-draft.3": base.model_copy(update={"version": "1.0-draft.3"}),
+            "1.0-draft.2": base.model_copy(update={"version": "1.0-draft.2"}),
+        }
+        assert reg.get("widget", "latest").version == "1.0-draft.3"
