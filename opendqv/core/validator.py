@@ -68,6 +68,26 @@ from .trace_log import write_trace_entry
 
 logger = logging.getLogger(__name__)
 
+_REDOS_UNPROTECTED_WARNING = (
+    "SEC-001 DEGRADED: the `regex` library is not installed — ReDoS timeout "
+    "protection is DISABLED and regex rules run on stdlib `re` with no timeout. "
+    "Reinstall OpenDQV with its dependencies (`pip install opendqv`) to restore it."
+)
+
+
+def _warn_if_redos_unprotected(has_regex_lib: bool) -> None:
+    """SEC-001: `regex` is a hard runtime dependency precisely because it
+    provides the per-match timeout that protects against ReDoS. If it is
+    missing the engine still runs, but on the stdlib `re` fallback — which has
+    NO timeout, so a pathological pattern can hang a worker. That degradation
+    used to be silent; warn loudly so operators notice a broken/tampered
+    install rather than discovering it under a ReDoS attack."""
+    if not has_regex_lib:
+        logger.warning(_REDOS_UNPROTECTED_WARNING)
+
+
+_warn_if_redos_unprotected(_HAS_REGEX_LIB)
+
 # ── Hot-path constants (allocated once) ─────────────────────────────
 
 _COMPARE_OPS = {

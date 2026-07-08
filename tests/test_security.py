@@ -56,6 +56,28 @@ class TestReDosProtection:
             "Run: pip install regex>=2024.0.0"
         )
 
+    def test_missing_regex_lib_warns_loudly(self, caplog):
+        """CRT175 #3: the degraded (no-timeout) fallback must not be silent.
+
+        When the regex lib is absent, ReDoS protection is off; _warn_if_redos_
+        unprotected must emit a SEC-001 warning so a broken install is visible.
+        """
+        import logging
+        from opendqv.core.validator import _warn_if_redos_unprotected
+
+        with caplog.at_level(logging.WARNING, logger="opendqv.core.validator"):
+            _warn_if_redos_unprotected(has_regex_lib=False)
+        assert any("SEC-001 DEGRADED" in rec.message for rec in caplog.records)
+
+    def test_present_regex_lib_does_not_warn(self, caplog):
+        """The healthy path must stay quiet — no false SEC-001 alarm."""
+        import logging
+        from opendqv.core.validator import _warn_if_redos_unprotected
+
+        with caplog.at_level(logging.WARNING, logger="opendqv.core.validator"):
+            _warn_if_redos_unprotected(has_regex_lib=True)
+        assert not any("SEC-001 DEGRADED" in rec.message for rec in caplog.records)
+
     def test_timeout_on_catastrophic_pattern(self):
         """
         A classic ReDoS pattern should either: (a) timeout and return False,
