@@ -218,6 +218,35 @@ class TestGraphQLSecurityParity:
         assert body.get("data") is None
         assert any("exceeding the maximum" in e["message"] for e in body["errors"])
 
+    def test_alias_amplification_via_fragments_is_capped(self, client, auth_headers):
+        """CRT175 Sonnet blind re-verify: hiding the aliased calls inside named
+        fragments (`{ ...f0 ...f1 }`) must NOT evade the cap. The rule must
+        count through fragment spreads, not just direct root fields."""
+        frags = " ".join(
+            f'fragment f{i} on Mutation {{ a{i}: validateBatch(records: [{{email: "a@b.com"}}], contract: "customer") {{ summary {{ total }} }} }}'
+            for i in range(15)
+        )
+        spreads = " ".join(f"...f{i}" for i in range(15))
+        query = "mutation { " + spreads + " } " + frags
+        r = client.post("/graphql", json={"query": query}, headers=auth_headers)
+        assert r.status_code == 200
+        body = r.json()
+        assert body.get("data") is None
+        assert any("exceeding the maximum" in e["message"] for e in body["errors"])
+
+    def test_alias_amplification_via_inline_fragments_is_capped(self, client, auth_headers):
+        inline = " ".join(
+            f'... on Mutation {{ a{i}: validateBatch(records: [{{email: "a@b.com"}}], contract: "customer") {{ summary {{ total }} }} }}'
+            for i in range(15)
+        )
+        r = client.post(
+            "/graphql", json={"query": "mutation { " + inline + " }"}, headers=auth_headers
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body.get("data") is None
+        assert any("exceeding the maximum" in e["message"] for e in body["errors"])
+
     def test_normal_multi_field_query_still_allowed(self, client, auth_headers):
         """A handful of root fields (well under the cap) must still work."""
         query = (
