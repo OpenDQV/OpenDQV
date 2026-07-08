@@ -572,8 +572,22 @@ class TestLookupRules:
 class TestHttpLookupRules:
     """Tests for REST-based lookup rule type (HTTP endpoint)."""
 
+    @staticmethod
+    def _public_dns_patch():
+        """Patch getaddrinfo so the SEC-008 lookup SSRF guard resolves test
+        hostnames (example.com) to a public IP without real DNS — keeps these
+        unit tests hermetic now that _load_http_lookup_set validates the URL."""
+        import socket
+        from unittest.mock import patch
+        return patch("socket.getaddrinfo", return_value=[
+            (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", 0))
+        ])
+
     def _make_mock_urlopen(self, body: str, content_type: str = "application/json"):
-        """Return a context manager mock for urllib.request.urlopen."""
+        """Return a context manager mocking the lookup fetch. The fetch now goes
+        through validator._ssrf_safe_opener (not bare urlopen) so redirect
+        targets are re-validated (SEC-008) — patch that, plus DNS for the guard."""
+        from contextlib import ExitStack
         from unittest.mock import MagicMock, patch
 
         mock_resp = MagicMock()
@@ -581,7 +595,13 @@ class TestHttpLookupRules:
         mock_resp.read.return_value = body.encode()
         mock_resp.__enter__ = lambda s: s
         mock_resp.__exit__ = MagicMock(return_value=False)
-        return patch("urllib.request.urlopen", return_value=mock_resp)
+
+        stack = ExitStack()
+        stack.enter_context(self._public_dns_patch())
+        stack.enter_context(
+            patch("opendqv.core.validator._ssrf_safe_opener.open", return_value=mock_resp)
+        )
+        return stack
 
     def setup_method(self):
         from opendqv.core.validator import _http_lookup_cache
@@ -626,7 +646,7 @@ class TestHttpLookupRules:
 
         call_count = 0
 
-        def mock_urlopen(req, timeout=10):
+        def mock_open(req, timeout=10):
             nonlocal call_count
             call_count += 1
             mock_resp = MagicMock()
@@ -636,7 +656,8 @@ class TestHttpLookupRules:
             mock_resp.__exit__ = MagicMock(return_value=False)
             return mock_resp
 
-        with patch("urllib.request.urlopen", side_effect=mock_urlopen):
+        with self._public_dns_patch(), \
+                patch("opendqv.core.validator._ssrf_safe_opener.open", side_effect=mock_open):
             _load_http_lookup_set("https://example.com/items", "", 300)
             _load_http_lookup_set("https://example.com/items", "", 300)
 
@@ -646,8 +667,9 @@ class TestHttpLookupRules:
         import urllib.error
         from unittest.mock import patch
         from opendqv.core.validator import validate_record
-        with patch("urllib.request.urlopen",
-                   side_effect=urllib.error.URLError("connection refused")):
+        with self._public_dns_patch(), \
+                patch("opendqv.core.validator._ssrf_safe_opener.open",
+                      side_effect=urllib.error.URLError("connection refused")):
             rules = [Rule(name="r", type="lookup", field="panel_id",
                           lookup_file="https://example.com/panels", cache_ttl=60)]
             result = validate_record({"panel_id": "PANEL_001"}, rules)
@@ -667,7 +689,8 @@ class TestHttpLookupRules:
         mock_resp.__enter__ = lambda s: s
         mock_resp.__exit__ = MagicMock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_resp):
+        with self._public_dns_patch(), \
+                patch("opendqv.core.validator._ssrf_safe_opener.open", return_value=mock_resp):
             _load_http_lookup_set("https://example.com/x", "", _HTTP_LOOKUP_DEFAULT_TTL)
 
         key = ("https://example.com/x", "", _HTTP_LOOKUP_DEFAULT_TTL, None)
