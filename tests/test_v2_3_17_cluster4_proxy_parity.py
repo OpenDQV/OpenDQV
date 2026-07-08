@@ -35,6 +35,17 @@ KNOWN_ASYMMETRIES = {
     ),
 }
 
+# Per-tool inputSchema property names that legitimately exist on the
+# in-process surface but NOT the proxy. The proxy hard-locks dry_run=True on
+# every validate call (a safety lock — MCP-driven validation never persists),
+# so it deliberately omits the knob. Any OTHER property drift is a silent
+# capability gap (the class of bug where `strict` and `include_system` were
+# dropped by the proxy — CRT175 #5) and must fail the parity test.
+KNOWN_PROPERTY_ASYMMETRIES = {
+    "validate_record": {"dry_run"},
+    "validate_batch": {"dry_run"},
+}
+
 
 def _proxy_tool_names() -> set:
     """Read the proxy's TOOLS list without invoking its httpx client."""
@@ -145,6 +156,36 @@ class TestProxyInprocessParity:
                 diffs.append((name, proxy_required, inproc_required))
         assert not diffs, \
             f"Required-field drift between proxy and in-process for tools: {diffs}"
+
+    def test_input_schema_properties_match_for_shared_tools(self):
+        """For each tool on BOTH surfaces, the inputSchema property NAMES must
+        agree except for documented transport asymmetries. This is the guard
+        the older required-fields test lacked: `strict` (get_contract_jsonschema)
+        and `include_system` (get_quality_trend) were present in-process but
+        silently dropped by the proxy, so a caller passing them got different
+        behaviour depending on transport. Optional params never appear in
+        `required`, so only a full property-set comparison catches this."""
+        proxy_names_set, proxy = _proxy_tool_names()
+        inproc_names_set, inproc_tools = _in_process_tool_names()
+
+        proxy_by_name = {t["name"]: t for t in proxy.TOOLS}
+        inproc_by_name = {t.name: t for t in inproc_tools}
+
+        diffs = []
+        for name in proxy_names_set & inproc_names_set:
+            proxy_props = set(proxy_by_name[name]["inputSchema"].get("properties", {}))
+            inproc_props = set(inproc_by_name[name].inputSchema.get("properties", {}))
+            allowed = KNOWN_PROPERTY_ASYMMETRIES.get(name, set())
+            only_inproc = inproc_props - proxy_props - allowed
+            only_proxy = proxy_props - inproc_props
+            if only_inproc or only_proxy:
+                diffs.append((name, {"only_inproc": only_inproc, "only_proxy": only_proxy}))
+        assert not diffs, (
+            f"inputSchema property drift between proxy and in-process: {diffs}. "
+            f"A param on one surface but not the other is a silent capability "
+            f"gap — add it to the proxy/in-process tool OR to "
+            f"KNOWN_PROPERTY_ASYMMETRIES with a documented reason."
+        )
 
     def test_initialize_serverinfo_version_does_not_drift(self):
         """v2.3.18+ Sonnet belt-and-suspenders: the existing parity test
