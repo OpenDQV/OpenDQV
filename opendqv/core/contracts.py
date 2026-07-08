@@ -809,12 +809,18 @@ def _version_sort_key(version: str) -> tuple:
             parts.append(0)  # non-numeric segment — treat as 0, keep total order
     if draft == "":
         # Released version: outranks its drafts (released_flag=1, counter=0)
-        return (tuple(parts), 1, 0)
-    try:
-        draft_n = int(draft)
-    except ValueError:
-        draft_n = 0
-    return (tuple(parts), 0, draft_n)
+        released_flag, draft_n = 1, 0
+    else:
+        released_flag = 0
+        try:
+            draft_n = int(draft)
+        except ValueError:
+            draft_n = 0
+    # Trailing raw-string component guarantees a TOTAL order: two distinct
+    # version strings that coerce to the same numeric key (e.g. a malformed
+    # hand-typed "1.0-draft" vs the released "1.0") can no longer tie and fall
+    # back to nondeterministic dict-iteration order (Sonnet red-team, CRT175).
+    return (tuple(parts), released_flag, draft_n, version)
 
 
 def validate_promotion_readiness(contract: "DataContract") -> list[str]:

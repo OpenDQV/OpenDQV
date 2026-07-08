@@ -546,6 +546,24 @@ class TestVersionSortKey:
         keys = ["1.0-draft.1", "1.0-draft.3", "1.0-draft.2"]
         assert sorted(keys, key=_version_sort_key)[-1] == "1.0-draft.3"
 
+    def test_malformed_versions_do_not_tie_and_are_deterministic(self):
+        """Sonnet red-team (CRT175): a hand-typed 'X.Y-draft' with no counter,
+        or other odd strings, used to coerce to the same key as a clean release
+        and tie — leaving 'latest' iteration-order dependent. The raw-string
+        tiebreak must make the order total and stable regardless of input order."""
+        keys = ["1.0", "1.0-draft", "1.0.0", "banana", ""]
+        a = sorted(keys, key=_version_sort_key)
+        b = sorted(reversed(keys), key=_version_sort_key)
+        assert a == b  # deterministic regardless of insertion order
+        # distinct strings never produce equal keys → no ties
+        skeys = [_version_sort_key(k) for k in keys]
+        assert len(set(skeys)) == len(skeys)
+
+    def test_sort_key_never_raises_on_arbitrary_strings(self):
+        for v in ["", "1", "1.0", "1.0.0", "1.0-draft", "1.0-draft.x",
+                  "v2", "1..0", "-", "1.0-draft.-1"]:
+            _version_sort_key(v)  # must not raise
+
 
 class TestRegistryLatestResolution:
     """End-to-end: registry.get(name, 'latest') must be stable with drafts present."""
