@@ -11,6 +11,9 @@ from typing import Optional
 
 import strawberry
 from strawberry.scalars import JSON
+from graphql import GraphQLError
+
+import opendqv.config as config
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +199,22 @@ class Mutation:
         context: Optional[str] = None,
     ) -> BatchValidateResult:
         from opendqv.core.validator import validate_batch as vb
+
+        # DoS parity with REST POST /validate/batch: reject empty and
+        # oversized batches before handing them to the engine. Without this
+        # cap the GraphQL surface accepted unbounded batches that the REST
+        # path already refuses (MAX_BATCH_ROWS), so a single mutation could
+        # OOM a worker.
+        # GraphQLError (not ValueError) so strawberry surfaces the real
+        # message to the client instead of masking it as "unexpected error".
+        if not records:
+            raise GraphQLError("Batch is empty — provide at least one record.")
+        if len(records) > config.MAX_BATCH_ROWS:
+            raise GraphQLError(
+                f"Batch of {len(records)} records exceeds the maximum of "
+                f"{config.MAX_BATCH_ROWS}. Set OPENDQV_MAX_BATCH_ROWS to raise it, "
+                f"or split the batch."
+            )
 
         start = time.monotonic()
         c = _registry.get(contract, version)
