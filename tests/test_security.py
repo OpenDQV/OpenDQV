@@ -473,6 +473,60 @@ class TestLookupHTTPSSRF:
         )
         assert _check_conditional_lookup("GB", rule) == "country not allowed"
 
+    def test_redirect_to_private_ip_is_rejected(self):
+        """CRT175 #1 (Sonnet red-team): the guard checked only the initial URL,
+        but urllib follows redirects. A public URL that 302s to a private host
+        must be rejected on the redirect hop, not followed."""
+        import http.client
+        import urllib.request
+        from opendqv.core.validator import _SSRFSafeRedirectHandler
+
+        handler = _SSRFSafeRedirectHandler()
+        req = urllib.request.Request("https://public.example.com/list")
+        with pytest.raises(ValueError, match="private|reserved"):
+            handler.redirect_request(
+                req, None, 302, "Found", http.client.HTTPMessage(),
+                "http://169.254.169.254/latest/meta-data/",
+            )
+
+    def test_redirect_to_loopback_is_rejected(self):
+        import http.client
+        import urllib.request
+        from opendqv.core.validator import _SSRFSafeRedirectHandler
+
+        handler = _SSRFSafeRedirectHandler()
+        req = urllib.request.Request("https://public.example.com/list")
+        with pytest.raises(ValueError, match="private|reserved|loopback"):
+            handler.redirect_request(
+                req, None, 302, "Found", http.client.HTTPMessage(),
+                "http://127.0.0.1:8000/internal",
+            )
+
+    def test_redirect_to_public_is_allowed(self):
+        """A public→public redirect must still be followed (returns a Request)."""
+        import http.client
+        import socket
+        import urllib.request
+        from opendqv.core.validator import _SSRFSafeRedirectHandler
+
+        handler = _SSRFSafeRedirectHandler()
+        req = urllib.request.Request("https://public.example.com/list")
+        with patch("socket.getaddrinfo", return_value=[
+            (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", 0))
+        ]):
+            new = handler.redirect_request(
+                req, None, 302, "Found", http.client.HTTPMessage(),
+                "https://cdn.example.com/list",
+            )
+        assert isinstance(new, urllib.request.Request)
+
+    def test_lookup_opener_installs_ssrf_safe_redirect_handler(self):
+        """The fetch path must actually use the guarded opener, not bare urlopen."""
+        from opendqv.core.validator import _ssrf_safe_opener, _SSRFSafeRedirectHandler
+        assert any(
+            isinstance(h, _SSRFSafeRedirectHandler) for h in _ssrf_safe_opener.handlers
+        )
+
     def test_public_lookup_url_still_fetches(self):
         """A public URL passes the guard and reaches the fetch path."""
         import socket
@@ -488,7 +542,7 @@ class TestLookupHTTPSSRF:
 
         with patch("socket.getaddrinfo", return_value=[
             (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", 0))
-        ]), patch("urllib.request.urlopen", return_value=fake_resp):
+        ]), patch("opendqv.core.validator._ssrf_safe_opener.open", return_value=fake_resp):
             result = _load_http_lookup_set("https://api.example.com/countries", "", 300)
         assert "GB" in result and "US" in result
 

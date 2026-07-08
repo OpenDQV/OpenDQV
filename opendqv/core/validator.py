@@ -1046,6 +1046,29 @@ _http_lookup_lock = threading.Lock()
 _HTTP_LOOKUP_DEFAULT_TTL = 300  # seconds
 
 
+class _SSRFSafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """SEC-008: re-validate every redirect hop before following it.
+
+    urllib's default opener follows 3xx redirects transparently, so validating
+    only the initial URL is not enough — a public URL that the guard approves
+    can 302-redirect to http://169.254.169.254/ (cloud metadata) or any
+    RFC-1918 host, bypassing the check entirely. This handler runs the same
+    assert_url_public guard on each Location before allowing the redirect; a
+    private/reserved target raises ValueError, which propagates out of urlopen
+    and is caught by the lookup handlers (fail-closed).
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        from .webhooks import assert_url_public
+        assert_url_public(newurl, label="Lookup URL (redirect target)")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+# Opener that enforces the SSRF guard on redirects. Module-level so it is built
+# once; stateless and thread-safe for concurrent lookup fetches.
+_ssrf_safe_opener = urllib.request.build_opener(_SSRFSafeRedirectHandler)
+
+
 def _load_http_lookup_set(url: str, lookup_field: str, cache_ttl: int, auth_header: Optional[str] = None) -> frozenset:
     """
     Fetch a set of valid values from an HTTP endpoint. Results are cached for cache_ttl seconds.
@@ -1088,7 +1111,9 @@ def _load_http_lookup_set(url: str, lookup_field: str, cache_ttl: int, auth_head
             headers["Authorization"] = auth_value
         req = urllib.request.Request(url, headers=headers)
         _MAX_LOOKUP_BYTES = 10_485_760  # 10 MB
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        # Use the SSRF-safe opener so redirect targets are re-validated (SEC-008)
+        # rather than followed blindly to an internal host.
+        with _ssrf_safe_opener.open(req, timeout=10) as resp:
             content_type = resp.headers.get("Content-Type", "")
             body = resp.read(_MAX_LOOKUP_BYTES + 1)
             if len(body) > _MAX_LOOKUP_BYTES:
