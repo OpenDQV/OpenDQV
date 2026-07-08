@@ -2,6 +2,53 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.27] - 2026-07-08
+
+Security hardening and correctness release from a first-hand discovery pass over
+the engine, reviewed adversarially (three red-team rounds) before merge. No
+change to the rule-evaluation semantics, contract format, or wire shape — the
+fixes close gaps on the surfaces around the core (GraphQL, HTTP-lookup fetch,
+version resolution, the MCP proxy).
+
+### Security
+
+- **SEC-008 — HTTP-lookup rule SSRF.** A `lookup` rule can fetch an HTTP
+  endpoint whose URL comes from a contract author; that fetch previously had
+  none of the private-IP/metadata/loopback protections the webhook dispatcher
+  enforces. Applied the shared `assert_url_public` guard to the lookup fetch,
+  **including re-validation of every HTTP redirect hop** (urllib follows 3xx by
+  default, so a public URL that 302-redirects to `169.254.169.254` or an
+  RFC-1918 host would otherwise bypass the check). Both lookup handlers now
+  fail closed on a rejected URL.
+- **GraphQL auth bypass.** The `/graphql` mutations (`validate`,
+  `validateBatch`) were mounted without an auth dependency — an unauthenticated,
+  uncapped path to the validation engine in `AUTH_MODE=token`. GraphQL now sits
+  behind the same token gate as REST, enforces `MAX_BATCH_ROWS`, rejects empty
+  and non-list batches, and caps root-field aliasing (counting through fragment
+  spreads and inline fragments) to prevent request amplification.
+- **SEC-001 — ReDoS protection visibility.** If the `regex` library is absent
+  the engine falls back to stdlib `re` (no timeout); that degradation is now a
+  loud `SEC-001 DEGRADED` warning instead of silent.
+
+### Fixed
+
+- **Contract "latest" version resolution.** The sort key collapsed every
+  draft-suffixed version (`1.0-draft.N`) to a constant, making `get(name,
+  "latest")` order-dependent once draft patch-counters existed. Replaced with a
+  total ordering (numeric base, released-outranks-its-drafts, higher counter
+  later, raw-string tiebreak for determinism on malformed input).
+- **MCP proxy parameter parity.** The stdio proxy silently dropped `strict`
+  (`get_contract_jsonschema`) and `include_system` (`get_quality_trend`) that
+  the in-process server accepts. Both are now forwarded, and the proxy/in-process
+  parity test compares full input-schema property sets, not just required fields.
+
+### Chore / docs
+
+- Untracked `.coverage` and `nohup.out` (accidentally committed run artifacts);
+  added them to `.gitignore`.
+- Corrected `CLAUDE.md` to the post-CRT163 package layout (version, `opendqv/`
+  namespace, `routes.py` is a shim over 9 sub-routers, contract/test counts).
+
 ## [2.3.26] - 2026-06-30
 
 Security and dependency maintenance roll-up. No engine behaviour change —

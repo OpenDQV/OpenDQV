@@ -31,7 +31,7 @@ import os
 
 import opendqv.config as config
 from opendqv.api.routes import router, limiter, set_registry as set_routes_registry
-from opendqv.security.auth import get_current_role, init_db as _init_auth_db
+from opendqv.security.auth import get_current_role, get_current_user, init_db as _init_auth_db
 from opendqv.api.graphql_schema import schema, set_registry as set_graphql_registry
 from opendqv.core.contracts import ContractRegistry
 from opendqv.core.worker_heartbeat import heartbeat as worker_heartbeat
@@ -177,8 +177,18 @@ async def add_auth_mode_header(request, call_next):
 app.include_router(router)
 
 # ── Mount GraphQL ────────────────────────────────────────────────────
+# GraphQL must sit behind the same auth gate as the REST surface. Without
+# this dependency the /graphql mutations (validate, validate_batch) were an
+# unauthenticated bypass of the token wall in AUTH_MODE=token — a caller
+# could run validation the REST path would have rejected. get_current_user
+# is a no-op returning "anonymous" in open mode, so this changes nothing for
+# dev/POC deployments and only bites when token auth is actually enabled.
 graphql_app = GraphQLRouter(schema)
-app.include_router(graphql_app, prefix="/graphql")
+app.include_router(
+    graphql_app,
+    prefix="/graphql",
+    dependencies=[Depends(get_current_user)],
+)
 
 # ── Mount Prometheus metrics ─────────────────────────────────────────
 instrument_app(app)

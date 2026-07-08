@@ -68,6 +68,26 @@ from .trace_log import write_trace_entry
 
 logger = logging.getLogger(__name__)
 
+_REDOS_UNPROTECTED_WARNING = (
+    "SEC-001 DEGRADED: the `regex` library is not installed — ReDoS timeout "
+    "protection is DISABLED and regex rules run on stdlib `re` with no timeout. "
+    "Reinstall OpenDQV with its dependencies (`pip install opendqv`) to restore it."
+)
+
+
+def _warn_if_redos_unprotected(has_regex_lib: bool) -> None:
+    """SEC-001: `regex` is a hard runtime dependency precisely because it
+    provides the per-match timeout that protects against ReDoS. If it is
+    missing the engine still runs, but on the stdlib `re` fallback — which has
+    NO timeout, so a pathological pattern can hang a worker. That degradation
+    used to be silent; warn loudly so operators notice a broken/tampered
+    install rather than discovering it under a ReDoS attack."""
+    if not has_regex_lib:
+        logger.warning(_REDOS_UNPROTECTED_WARNING)
+
+
+_warn_if_redos_unprotected(_HAS_REGEX_LIB)
+
 # ── Hot-path constants (allocated once) ─────────────────────────────
 
 _COMPARE_OPS = {
@@ -853,7 +873,7 @@ def _check_conditional_lookup(value, rule: Rule, record: Optional[dict] = None) 
             valid_values = _load_http_lookup_set(rule.lookup_file, rule.lookup_field or "", ttl, auth_header=rule.lookup_auth_header)
         else:
             valid_values = _load_lookup_set(rule.lookup_file, rule.lookup_field or "")
-    except (FileNotFoundError, KeyError, OSError, RuntimeError) as exc:
+    except (FileNotFoundError, KeyError, OSError, RuntimeError, ValueError) as exc:
         logger.error("conditional_lookup rule '%s' could not load '%s': %s", rule.name, rule.lookup_file, exc)
         return rule.error_message
     if str(value) not in valid_values:
@@ -1026,6 +1046,29 @@ _http_lookup_lock = threading.Lock()
 _HTTP_LOOKUP_DEFAULT_TTL = 300  # seconds
 
 
+class _SSRFSafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """SEC-008: re-validate every redirect hop before following it.
+
+    urllib's default opener follows 3xx redirects transparently, so validating
+    only the initial URL is not enough — a public URL that the guard approves
+    can 302-redirect to http://169.254.169.254/ (cloud metadata) or any
+    RFC-1918 host, bypassing the check entirely. This handler runs the same
+    assert_url_public guard on each Location before allowing the redirect; a
+    private/reserved target raises ValueError, which propagates out of urlopen
+    and is caught by the lookup handlers (fail-closed).
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        from .webhooks import assert_url_public
+        assert_url_public(newurl, label="Lookup URL (redirect target)")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+# Opener that enforces the SSRF guard on redirects. Module-level so it is built
+# once; stateless and thread-safe for concurrent lookup fetches.
+_ssrf_safe_opener = urllib.request.build_opener(_SSRFSafeRedirectHandler)
+
+
 def _load_http_lookup_set(url: str, lookup_field: str, cache_ttl: int, auth_header: Optional[str] = None) -> frozenset:
     """
     Fetch a set of valid values from an HTTP endpoint. Results are cached for cache_ttl seconds.
@@ -1048,6 +1091,16 @@ def _load_http_lookup_set(url: str, lookup_field: str, cache_ttl: int, auth_head
             if now < expires_at:
                 return values
 
+    # SEC-008: SSRF guard. A lookup rule's URL comes from a contract author
+    # (editor role), so it is attacker-influenced input exactly like a webhook
+    # URL — without this check an `editor` could point a lookup at cloud
+    # metadata (169.254.169.254), loopback, or RFC-1918 hosts and, via the
+    # ${ENV} auth-header substitution below, exfiltrate server secrets to it.
+    # Reuse the webhook dispatcher's guard so both surfaces enforce one policy.
+    # Runs on every cache miss (including TTL refresh) to catch DNS rebinding.
+    from .webhooks import assert_url_public
+    assert_url_public(url, label="Lookup URL")
+
     # Fetch outside the lock to avoid holding it during network I/O
     try:
         headers = {"User-Agent": "OpenDQV-lookup/1.0"}
@@ -1058,7 +1111,9 @@ def _load_http_lookup_set(url: str, lookup_field: str, cache_ttl: int, auth_head
             headers["Authorization"] = auth_value
         req = urllib.request.Request(url, headers=headers)
         _MAX_LOOKUP_BYTES = 10_485_760  # 10 MB
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        # Use the SSRF-safe opener so redirect targets are re-validated (SEC-008)
+        # rather than followed blindly to an internal host.
+        with _ssrf_safe_opener.open(req, timeout=10) as resp:
             content_type = resp.headers.get("Content-Type", "")
             body = resp.read(_MAX_LOOKUP_BYTES + 1)
             if len(body) > _MAX_LOOKUP_BYTES:

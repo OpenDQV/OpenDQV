@@ -785,6 +785,44 @@ class ContractHistory(ContractHistoryBackend):
         }
 
 
+def _version_sort_key(version: str) -> tuple:
+    """Total ordering key for a contract version string, used to resolve "latest".
+
+    Handles both plain versions ("1.0", "2.3.1") and draft-suffixed versions
+    produced by _bump_draft_patch_counter ("1.0-draft.2"). The previous key
+    collapsed *any* version containing a non-digit — every "-draft.N" — to a
+    constant, so once draft patch-counters existed "latest" resolution became
+    order-dependent (CRT175 #4).
+
+    Ordering rules, ascending:
+      1. numeric base parts compared left-to-right ("2.0" > "1.9")
+      2. a released version outranks its own drafts ("1.0" > "1.0-draft.5")
+      3. among drafts of the same base, higher counter is later
+    So sorted(...)[-1] is the most-authoritative/newest version.
+    """
+    base, _, draft = version.partition("-draft.")
+    parts = []
+    for p in base.split("."):
+        try:
+            parts.append(int(p))
+        except ValueError:
+            parts.append(0)  # non-numeric segment — treat as 0, keep total order
+    if draft == "":
+        # Released version: outranks its drafts (released_flag=1, counter=0)
+        released_flag, draft_n = 1, 0
+    else:
+        released_flag = 0
+        try:
+            draft_n = int(draft)
+        except ValueError:
+            draft_n = 0
+    # Trailing raw-string component guarantees a TOTAL order: two distinct
+    # version strings that coerce to the same numeric key (e.g. a malformed
+    # hand-typed "1.0-draft" vs the released "1.0") can no longer tie and fall
+    # back to nondeterministic dict-iteration order (Sonnet red-team, CRT175).
+    return (tuple(parts), released_flag, draft_n, version)
+
+
 def validate_promotion_readiness(contract: "DataContract") -> list[str]:
     """Return list of missing fields blocking promotion to ACTIVE. Empty = ready."""
     issues = []
@@ -980,7 +1018,7 @@ class ContractRegistry:
         if not versions:
             return None
         if version == "latest":
-            latest_key = sorted(versions.keys(), key=lambda v: [int(x) for x in v.split(".")] if all(x.isdigit() for x in v.split(".")) else [0])[-1]
+            latest_key = sorted(versions.keys(), key=_version_sort_key)[-1]
             return versions[latest_key]
         return versions.get(version)
 

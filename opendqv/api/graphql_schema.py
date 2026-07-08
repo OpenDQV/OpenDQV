@@ -5,14 +5,70 @@ Provides the same validation capabilities as the REST API via GraphQL.
 Uses strawberry-graphql with FastAPI integration.
 """
 
+import os
 import time
 import logging
 from typing import Optional
 
 import strawberry
 from strawberry.scalars import JSON
+from strawberry.extensions import AddValidationRules
+from graphql import GraphQLError, ValidationRule
+from graphql.language import FieldNode, FragmentSpreadNode, InlineFragmentNode
+
+import opendqv.config as config
 
 logger = logging.getLogger(__name__)
+
+# DoS guard: cap the number of root-level resolver fields in a single GraphQL
+# document. The per-resolver MAX_BATCH_ROWS cap limits ONE validateBatch call,
+# but a caller can alias many of them in one request (`{ a: validateBatch(...)
+# b: validateBatch(...) ... }`) to multiply the work past the cap on a single
+# worker tick (Sonnet red-team, CRT175 #3). Limiting root-field count closes
+# the amplification while leaving normal usage (a handful of fields) untouched.
+_MAX_ROOT_FIELDS = int(os.environ.get("OPENDQV_GRAPHQL_MAX_ROOT_FIELDS", "10"))
+
+
+class _RootFieldLimitRule(ValidationRule):
+    """Cap the number of root-level resolver fields per operation, counting
+    THROUGH fragment spreads and inline fragments. Sonnet's blind re-verify
+    (CRT175) showed a naive direct-FieldNode count is trivially bypassed by
+    hiding the aliased calls inside named fragments (`{ ...f }` where f holds
+    50 validateBatch calls). We resolve spreads so the amplification is counted
+    regardless of how it is wrapped. We do NOT descend into a field's own
+    sub-selections (response shape ≠ extra operations)."""
+
+    def enter_operation_definition(self, node, *_args):
+        count = self._count_root_fields(node.selection_set, set())
+        if count > _MAX_ROOT_FIELDS:
+            self.report_error(
+                GraphQLError(
+                    f"Operation has {count} root fields, exceeding the "
+                    f"maximum of {_MAX_ROOT_FIELDS}. Aliasing many "
+                    f"validate/validateBatch calls in one request is not "
+                    f"permitted; split them across requests.",
+                    node,
+                )
+            )
+
+    def _count_root_fields(self, selection_set, seen_fragments: set) -> int:
+        if selection_set is None:
+            return 0
+        total = 0
+        for sel in selection_set.selections:
+            if isinstance(sel, FieldNode):
+                total += 1  # a resolver call — do not recurse into its children
+            elif isinstance(sel, InlineFragmentNode):
+                total += self._count_root_fields(sel.selection_set, seen_fragments)
+            elif isinstance(sel, FragmentSpreadNode):
+                name = sel.name.value
+                if name in seen_fragments:
+                    continue  # cycle guard (graphql-core also rejects cycles)
+                seen_fragments.add(name)
+                frag = self.context.get_fragment(name)
+                if frag is not None:
+                    total += self._count_root_fields(frag.selection_set, seen_fragments)
+        return total
 
 # Registry is set by main.py at startup
 _registry = None
@@ -197,6 +253,27 @@ class Mutation:
     ) -> BatchValidateResult:
         from opendqv.core.validator import validate_batch as vb
 
+        # DoS parity with REST POST /validate/batch: reject empty and
+        # oversized batches before handing them to the engine. Without this
+        # cap the GraphQL surface accepted unbounded batches that the REST
+        # path already refuses (MAX_BATCH_ROWS), so a single mutation could
+        # OOM a worker.
+        # GraphQLError (not ValueError) so strawberry surfaces the real
+        # message to the client instead of masking it as "unexpected error".
+        # The JSON scalar accepts any JSON value; a non-list (dict/str/number)
+        # would slip past the empty/size checks below and crash in DataFrame
+        # construction with a masked "unexpected error". Reject it explicitly.
+        if not isinstance(records, list):
+            raise GraphQLError("`records` must be a list of record objects.")
+        if not records:
+            raise GraphQLError("Batch is empty — provide at least one record.")
+        if len(records) > config.MAX_BATCH_ROWS:
+            raise GraphQLError(
+                f"Batch of {len(records)} records exceeds the maximum of "
+                f"{config.MAX_BATCH_ROWS}. Set OPENDQV_MAX_BATCH_ROWS to raise it, "
+                f"or split the batch."
+            )
+
         start = time.monotonic()
         c = _registry.get(contract, version)
         if not c:
@@ -234,4 +311,9 @@ class Mutation:
 
 # ── Schema ───────────────────────────────────────────────────────────
 
-schema = strawberry.Schema(query=Query, mutation=Mutation)
+schema = strawberry.Schema(
+    query=Query,
+    mutation=Mutation,
+    # Factory (not instance) so strawberry builds a fresh extension per request.
+    extensions=[lambda: AddValidationRules([_RootFieldLimitRule])],
+)

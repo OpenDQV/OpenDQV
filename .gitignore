@@ -9,6 +9,12 @@ opendqv.db
 dist/
 *.egg-info/
 
+# Test/run artifacts — never commit; regenerated locally and in CI
+.coverage
+.coverage.*
+htmlcov/
+nohup.out
+
 # Runtime PID lock files (machine-specific, never commit)
 .opendqv_*.lock
 

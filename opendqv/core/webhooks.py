@@ -95,7 +95,7 @@ def _is_private_ip(ip_str: str) -> bool:
         return False
 
 
-def _check_resolved_ips(hostname: str, url: str) -> None:
+def _check_resolved_ips(hostname: str, url: str, label: str = "Webhook URL") -> None:
     """
     Resolve hostname and verify none of the returned IPs are private/reserved.
 
@@ -107,7 +107,7 @@ def _check_resolved_ips(hostname: str, url: str) -> None:
         addr_infos = socket.getaddrinfo(hostname, None)
     except socket.gaierror as exc:
         raise ValueError(
-            f"Webhook URL hostname could not be resolved (DNS failure — rejecting for safety): "
+            f"{label} hostname could not be resolved (DNS failure — rejecting for safety): "
             f"{hostname!r}: {exc}"
         ) from exc
 
@@ -115,14 +115,16 @@ def _check_resolved_ips(hostname: str, url: str) -> None:
         resolved_ip = addr_info[4][0]
         if _is_private_ip(resolved_ip):
             raise ValueError(
-                f"Webhook URL hostname {hostname!r} resolves to a private/reserved IP address "
+                f"{label} hostname {hostname!r} resolves to a private/reserved IP address "
                 f"({resolved_ip}) — DNS rebinding attack rejected: {url!r}"
             )
 
 
-def _validate_webhook_url(url: str) -> None:
+def assert_url_public(url: str, label: str = "URL") -> None:
     """
-    Reject webhook URLs that could be used for SSRF attacks.
+    SEC-008: Reject a URL that could be used for SSRF — shared by the webhook
+    dispatcher and the HTTP-lookup rule fetcher so both surfaces enforce the
+    identical policy.
 
     Blocks:
     - Non-HTTP/HTTPS schemes (file://, ftp://, etc.)
@@ -131,41 +133,50 @@ def _validate_webhook_url(url: str) -> None:
     - Cloud instance metadata endpoints (169.254.x.x)
     - DNS rebinding: hostname is resolved and all returned IPs are checked
     - Resolution failure: fails closed (NXDOMAIN → rejected)
+
+    `label` is woven into the error messages so callers surface a
+    domain-appropriate message (e.g. "Webhook URL", "Lookup URL"). Raises
+    ValueError on any violation.
     """
     try:
         parsed = urlparse(url)
     except Exception:
-        raise ValueError(f"Invalid webhook URL: {url!r}")
+        raise ValueError(f"Invalid {label}: {url!r}")
 
     if parsed.scheme not in ("http", "https"):
         raise ValueError(
-            f"Webhook URL scheme must be http or https, got {parsed.scheme!r}: {url!r}"
+            f"{label} scheme must be http or https, got {parsed.scheme!r}: {url!r}"
         )
 
     hostname = parsed.hostname
     if not hostname:
-        raise ValueError(f"Webhook URL has no hostname: {url!r}")
+        raise ValueError(f"{label} has no hostname: {url!r}")
 
     # Block localhost by name
     if hostname.lower() in ("localhost", "localhost.localdomain"):
-        raise ValueError(f"Webhook URL must not target localhost: {url!r}")
+        raise ValueError(f"{label} must not target localhost: {url!r}")
 
     # If the hostname is a literal IP address, check directly
     try:
         ip = ipaddress.ip_address(hostname)
         if _is_private_ip(str(ip)):
             raise ValueError(
-                f"Webhook URL targets a private/reserved IP address ({ip}): {url!r}"
+                f"{label} targets a private/reserved IP address ({ip}): {url!r}"
             )
         # It's a valid public literal IP — no DNS resolution needed
         return
     except ValueError as exc:
-        if "Webhook URL" in str(exc):
+        if label in str(exc):
             raise
         # Not a valid IP literal — proceed to DNS resolution
 
-    # SEC-008: DNS rebinding protection — resolve at registration time
-    _check_resolved_ips(hostname, url)
+    # SEC-008: DNS rebinding protection — resolve and check every returned IP
+    _check_resolved_ips(hostname, url, label)
+
+
+def _validate_webhook_url(url: str) -> None:
+    """Reject webhook URLs that could be used for SSRF attacks. See assert_url_public."""
+    assert_url_public(url, label="Webhook URL")
 
 
 class WebhookManager:

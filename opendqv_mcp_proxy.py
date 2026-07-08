@@ -357,13 +357,23 @@ TOOLS = [
             "Emit a JSON Schema (draft 2020-12) document for a contract. Use to "
             "bootstrap structural validation in a producer. Cross-field rules "
             "appear under `x-opendqv-unmapped` — OpenDQV still enforces them at "
-            "validate time, but plain JSON Schema cannot express them."
+            "validate time, but plain JSON Schema cannot express them. Pass "
+            "strict=true to emit additionalProperties:false so producer-side "
+            "validators reject unknown fields."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "Contract name."},
                 "context": {"type": "string", "description": "Optional context override."},
+                "strict": {
+                    "type": "boolean",
+                    "description": (
+                        "If true, emit additionalProperties:false so unknown "
+                        "fields are rejected. Default reads OPENDQV_JSON_SCHEMA_STRICT "
+                        "(false → additionalProperties:true)."
+                    ),
+                },
             },
             "required": ["name"],
         },
@@ -514,6 +524,16 @@ TOOLS = [
                     "default": "date",
                     "description": "Grouping dimension. Default: date.",
                 },
+                "include_system": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": (
+                        "When by=agent, include OpenDQV system agents (OpenDQV_SA_* — "
+                        "smoke probes, demos, MCP self-tests). Default false keeps system "
+                        "traffic absent from customer-visible read surfaces. Other by= "
+                        "dimensions are unaffected."
+                    ),
+                },
             },
             "required": ["contract"],
         },
@@ -655,6 +675,8 @@ def _call_tool(name: str, arguments: dict) -> str:
             params = {}
             if arguments.get("context"):
                 params["context"] = arguments["context"]
+            if arguments.get("strict") is not None:
+                params["strict"] = "true" if arguments["strict"] else "false"
             resp = _client.get(
                 f"/api/v1/contracts/{arguments['name']}/jsonschema",
                 params=params,
@@ -716,6 +738,8 @@ def _call_tool(name: str, arguments: dict) -> str:
             params = {"days": arguments.get("days", 7), "by": arguments.get("by", "date")}
             if arguments.get("context"):
                 params["context"] = arguments["context"]
+            if arguments.get("include_system"):
+                params["include_system"] = "true"
             resp = _client.get(
                 f"/api/v1/contracts/{arguments['contract']}/quality-trend",
                 params=params,

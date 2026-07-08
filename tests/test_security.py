@@ -56,6 +56,28 @@ class TestReDosProtection:
             "Run: pip install regex>=2024.0.0"
         )
 
+    def test_missing_regex_lib_warns_loudly(self, caplog):
+        """CRT175 #3: the degraded (no-timeout) fallback must not be silent.
+
+        When the regex lib is absent, ReDoS protection is off; _warn_if_redos_
+        unprotected must emit a SEC-001 warning so a broken install is visible.
+        """
+        import logging
+        from opendqv.core.validator import _warn_if_redos_unprotected
+
+        with caplog.at_level(logging.WARNING, logger="opendqv.core.validator"):
+            _warn_if_redos_unprotected(has_regex_lib=False)
+        assert any("SEC-001 DEGRADED" in rec.message for rec in caplog.records)
+
+    def test_present_regex_lib_does_not_warn(self, caplog):
+        """The healthy path must stay quiet — no false SEC-001 alarm."""
+        import logging
+        from opendqv.core.validator import _warn_if_redos_unprotected
+
+        with caplog.at_level(logging.WARNING, logger="opendqv.core.validator"):
+            _warn_if_redos_unprotected(has_regex_lib=True)
+        assert not any("SEC-001 DEGRADED" in rec.message for rec in caplog.records)
+
     def test_timeout_on_catastrophic_pattern(self):
         """
         A classic ReDoS pattern should either: (a) timeout and return False,
@@ -391,6 +413,138 @@ class TestWebhookSSRFDNSRebinding:
         ]):
             # Should not raise
             _validate_webhook_url("https://example.com/hook")
+
+
+# ---------------------------------------------------------------------------
+# SEC-008: HTTP-lookup rule SSRF (CRT175 #2)
+#
+# A `lookup` rule can point at an HTTP endpoint, and the URL comes from a
+# contract author (editor role) — the same attacker-influenced input as a
+# webhook URL. Before this fix the lookup fetcher had NONE of the webhook
+# SSRF protections, so an editor could target cloud metadata / loopback /
+# RFC-1918 hosts and exfiltrate ${ENV} secrets via the auth header. The
+# fetcher now runs the shared assert_url_public guard, and both lookup
+# handlers fail closed (return the rule's error_message) rather than crash.
+# ---------------------------------------------------------------------------
+
+class TestLookupHTTPSSRF:
+    def test_shared_guard_rejects_metadata_literal_ip(self):
+        from opendqv.core.webhooks import assert_url_public
+        with pytest.raises(ValueError, match="private|reserved"):
+            assert_url_public("http://169.254.169.254/latest/meta-data/", label="Lookup URL")
+
+    def test_http_lookup_set_rejects_metadata_ip(self):
+        from opendqv.core.validator import _load_http_lookup_set, _http_lookup_cache
+        _http_lookup_cache.clear()
+        with pytest.raises(ValueError, match="private|reserved"):
+            _load_http_lookup_set("http://169.254.169.254/creds", "", 300)
+
+    def test_http_lookup_set_rejects_dns_rebind_to_private(self):
+        import socket
+        from opendqv.core.validator import _load_http_lookup_set, _http_lookup_cache
+        _http_lookup_cache.clear()
+        with patch("socket.getaddrinfo", return_value=[
+            (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("10.0.0.5", 0))
+        ]):
+            with pytest.raises(ValueError, match="private|reserved"):
+                _load_http_lookup_set("https://evil-lookup.example.com/list", "", 300)
+
+    def test_lookup_rule_fails_closed_on_ssrf(self):
+        """_check_lookup must return the error_message, not raise, on an SSRF URL."""
+        from opendqv.core.rule_parser import Rule
+        from opendqv.core.validator import _check_lookup, _http_lookup_cache
+        _http_lookup_cache.clear()
+        rule = Rule(
+            name="country_lookup", type="lookup", field="country",
+            lookup_file="http://169.254.169.254/creds",
+            error_message="country not in allowed list",
+        )
+        assert _check_lookup("GB", rule) == "country not in allowed list"
+
+    def test_conditional_lookup_fails_closed_on_ssrf(self):
+        """_check_conditional_lookup must also catch ValueError and fail closed."""
+        from opendqv.core.rule_parser import Rule
+        from opendqv.core.validator import _check_conditional_lookup, _http_lookup_cache
+        _http_lookup_cache.clear()
+        rule = Rule(
+            name="cond_lookup", type="conditional_lookup", field="country",
+            lookup_file="http://127.0.0.1:8000/internal",
+            error_message="country not allowed",
+        )
+        assert _check_conditional_lookup("GB", rule) == "country not allowed"
+
+    def test_redirect_to_private_ip_is_rejected(self):
+        """CRT175 #1 (Sonnet red-team): the guard checked only the initial URL,
+        but urllib follows redirects. A public URL that 302s to a private host
+        must be rejected on the redirect hop, not followed."""
+        import http.client
+        import urllib.request
+        from opendqv.core.validator import _SSRFSafeRedirectHandler
+
+        handler = _SSRFSafeRedirectHandler()
+        req = urllib.request.Request("https://public.example.com/list")
+        with pytest.raises(ValueError, match="private|reserved"):
+            handler.redirect_request(
+                req, None, 302, "Found", http.client.HTTPMessage(),
+                "http://169.254.169.254/latest/meta-data/",
+            )
+
+    def test_redirect_to_loopback_is_rejected(self):
+        import http.client
+        import urllib.request
+        from opendqv.core.validator import _SSRFSafeRedirectHandler
+
+        handler = _SSRFSafeRedirectHandler()
+        req = urllib.request.Request("https://public.example.com/list")
+        with pytest.raises(ValueError, match="private|reserved|loopback"):
+            handler.redirect_request(
+                req, None, 302, "Found", http.client.HTTPMessage(),
+                "http://127.0.0.1:8000/internal",
+            )
+
+    def test_redirect_to_public_is_allowed(self):
+        """A public→public redirect must still be followed (returns a Request)."""
+        import http.client
+        import socket
+        import urllib.request
+        from opendqv.core.validator import _SSRFSafeRedirectHandler
+
+        handler = _SSRFSafeRedirectHandler()
+        req = urllib.request.Request("https://public.example.com/list")
+        with patch("socket.getaddrinfo", return_value=[
+            (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", 0))
+        ]):
+            new = handler.redirect_request(
+                req, None, 302, "Found", http.client.HTTPMessage(),
+                "https://cdn.example.com/list",
+            )
+        assert isinstance(new, urllib.request.Request)
+
+    def test_lookup_opener_installs_ssrf_safe_redirect_handler(self):
+        """The fetch path must actually use the guarded opener, not bare urlopen."""
+        from opendqv.core.validator import _ssrf_safe_opener, _SSRFSafeRedirectHandler
+        assert any(
+            isinstance(h, _SSRFSafeRedirectHandler) for h in _ssrf_safe_opener.handlers
+        )
+
+    def test_public_lookup_url_still_fetches(self):
+        """A public URL passes the guard and reaches the fetch path."""
+        import socket
+        from unittest.mock import MagicMock
+        from opendqv.core.validator import _load_http_lookup_set, _http_lookup_cache
+        _http_lookup_cache.clear()
+
+        fake_resp = MagicMock()
+        fake_resp.headers.get.return_value = "application/json"
+        fake_resp.read.return_value = b'["GB", "US", "FR"]'
+        fake_resp.__enter__.return_value = fake_resp
+        fake_resp.__exit__.return_value = False
+
+        with patch("socket.getaddrinfo", return_value=[
+            (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", 0))
+        ]), patch("opendqv.core.validator._ssrf_safe_opener.open", return_value=fake_resp):
+            result = _load_http_lookup_set("https://api.example.com/countries", "", 300)
+        assert "GB" in result and "US" in result
 
 
 # ---------------------------------------------------------------------------
