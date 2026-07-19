@@ -16,3 +16,15 @@ ignore:
   # release (re-run `grype <image> --fail-on high --only-fixed` to confirm).
   - vulnerability: CVE-2026-7210
     reason: "CPython expat hash-flooding (real: Medium). No stable Python fix; only 3.15.0b2. Low exposure — OpenDQV does not parse untrusted XML."
+
+  # CPython html.parser.HTMLParser CPU-DoS via repeated unterminated markup
+  # declarations (CVSS 7.5-8.7 High). Fixed in Python 3.15.0 only — grype lists
+  # no 3.13.x/3.14.x backport, so a base-image bump cannot clear it (same shape
+  # as CVE-2026-4519 / CVE-2026-7210). Exploitable ONLY by feeding untrusted
+  # HTML to HTMLParser; verified 2026-07-19 that OpenDQV never imports
+  # html.parser anywhere — the engine validates JSON/YAML records, not HTML —
+  # so the hot path has no exposure. Re-evaluate when python:3.13/3.14-slim
+  # ships the backport in a stable point release (re-run
+  # `grype <image> --fail-on high --only-fixed` to confirm).
+  - vulnerability: CVE-2026-15308
+    reason: "CPython html.parser DoS (High). Fix in Python 3.15.0 only; no stable base carries it. Zero exposure — OpenDQV does not import html.parser / parse untrusted HTML."
