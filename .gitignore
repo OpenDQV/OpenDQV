@@ -17,6 +17,7 @@ nohup.out
 
 # Runtime PID lock files (machine-specific, never commit)
 .opendqv_*.lock
+.claude/*.lock
 
 # OpenAPI spec — generated dynamically by FastAPI at runtime (/openapi.json, /docs, /redoc)
 # Never commit the static file; it will always drift. Let FastAPI serve the live spec.
