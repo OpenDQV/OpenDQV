@@ -16,6 +16,7 @@ import threading
 import time
 import urllib.request
 import urllib.error
+import urllib.parse
 from datetime import datetime, timezone
 from collections import defaultdict
 from functools import lru_cache
@@ -1069,6 +1070,139 @@ class _SSRFSafeRedirectHandler(urllib.request.HTTPRedirectHandler):
 _ssrf_safe_opener = urllib.request.build_opener(_SSRFSafeRedirectHandler)
 
 
+class LookupAuthPolicyError(ValueError):
+    """SEC-011: a lookup auth-header ${VAR} substitution violated policy.
+
+    A subclass of ValueError so the single-record lookup handlers (which already
+    catch ValueError and fail closed → error_message) treat it as a load failure.
+    The batch handler catches it explicitly to fail closed too, distinct from the
+    transient-infra errors it otherwise skips fail-open.
+    """
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """SEC-011 / OWASP: refuse redirects for credential-bearing lookups.
+
+    urllib re-sends the Authorization header across 3xx redirects, so an
+    allowlisted host that 302s to any other host would forward the resolved
+    secret onward, defeating the egress allowlist. For secret-bearing fetches we
+    do not follow redirects at all — a legitimate auth lookup returns 200 with
+    its list, not a redirect. Fail closed.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(
+            req.full_url, code,
+            "Redirect not permitted for an authenticated (secret-bearing) lookup",
+            headers, fp,
+        )
+
+
+_no_redirect_opener = urllib.request.build_opener(_NoRedirectHandler)
+
+# SEC-011: matches a single ${VAR} reference. Applied once (re.sub does not
+# rescan its own replacements), so a resolved value cannot be re-expanded.
+_LOOKUP_SECRET_REF_RE = re.compile(r'\$\{([^}]+)\}')
+
+# Generic denial message. Deliberately does NOT echo the env var value, nor
+# distinguish "var unset" from "var disallowed" — avoids an env-var existence
+# oracle. The three policy reasons below are separate strings because each names
+# operator-controlled POLICY (open-mode opt-in, name prefix, host allowlist),
+# never the secret itself or whether any particular var is set.
+_LOOKUP_SECRET_OPEN_MODE_MSG = (
+    "SEC-011: lookup auth-header secret substitution is disabled under "
+    "AUTH_MODE=open; set OPENDQV_ALLOW_LOOKUP_SECRETS to opt in"
+)
+_LOOKUP_SECRET_PREFIX_MSG = (
+    "SEC-011: lookup auth-header may only reference env vars named with the "
+    "OPENDQV_LOOKUP_ prefix"
+)
+_LOOKUP_SECRET_HOST_MSG = (
+    "SEC-011: secret-bearing lookup URL host is not on "
+    "OPENDQV_LOOKUP_EGRESS_ALLOWLIST (fail-closed)"
+)
+
+
+def _canonical_host(hostname: str) -> Optional[str]:
+    """Canonicalise a hostname for strict allowlist comparison.
+
+    Lowercases, strips a trailing dot, and IDNA-encodes so a Unicode homoglyph
+    (e.g. Cyrillic 'а') or punycode form cannot masquerade as an ASCII host.
+    Returns None if the host cannot be canonicalised (⇒ caller rejects).
+    """
+    if not hostname:
+        return None
+    host = hostname.strip().lower().rstrip(".")
+    if not host:
+        return None
+    try:
+        # str.encode("idna") rejects empty labels / over-length / bad chars.
+        return host.encode("idna").decode("ascii").lower()
+    except Exception:
+        return None
+
+
+def _assert_lookup_host_allowed(url: str) -> None:
+    """SEC-011 control #3: the URL host must be on the egress allowlist.
+
+    Uses urlparse().hostname (so userinfo `user@evil.example` resolves to the
+    real host, not the userinfo) and canonicalises both sides. Fail-closed:
+    an empty allowlist rejects every secret-bearing lookup.
+    """
+    import opendqv.config as config
+
+    parsed = urllib.parse.urlparse(url)
+    # Defense-in-depth: reject userinfo (user@host). urllib's connect path
+    # (http.client via the legacy host split) parses the netloc differently from
+    # urlparse().hostname, so a "allowed.example@evil.example" form could diverge
+    # between the host we check and the host that is dialled. Refuse it outright
+    # rather than rely on the divergent form failing DNS.
+    if parsed.username is not None or "@" in (parsed.netloc or ""):
+        raise LookupAuthPolicyError(_LOOKUP_SECRET_HOST_MSG)
+
+    allow = {_canonical_host(h) for h in config.LOOKUP_EGRESS_ALLOWLIST}
+    allow.discard(None)
+    host = _canonical_host(parsed.hostname or "")
+    if host is None or host not in allow:
+        raise LookupAuthPolicyError(_LOOKUP_SECRET_HOST_MSG)
+
+
+def _resolve_lookup_auth_header(auth_header: Optional[str], url: str):
+    """SEC-011: resolve a lookup auth header, enforcing the three-layer policy.
+
+    Returns (resolved_header_or_None, is_secret_bearing). Raises
+    LookupAuthPolicyError (fail-closed) on any policy violation. A header with no
+    ${VAR} reference is a literal credential known to the contract author already
+    — it carries no server secret, so it is returned unguarded (the SSRF guard
+    still applies to the URL upstream).
+    """
+    if not auth_header:
+        return None, False
+
+    refs = _LOOKUP_SECRET_REF_RE.findall(auth_header)
+    if not refs:
+        return auth_header, False
+
+    import opendqv.config as config
+
+    # Control #2 — no trust boundary under AUTH_MODE=open.
+    if config.IS_OPEN_MODE and not config.ALLOW_LOOKUP_SECRETS_IN_OPEN_MODE:
+        raise LookupAuthPolicyError(_LOOKUP_SECRET_OPEN_MODE_MSG)
+
+    # Control #1 — only OPENDQV_LOOKUP_-prefixed names may be substituted.
+    for name in refs:
+        if not name.startswith(config.LOOKUP_SECRET_ENV_PREFIX):
+            raise LookupAuthPolicyError(_LOOKUP_SECRET_PREFIX_MSG)
+
+    # Control #3 — destination host must be explicitly allowlisted.
+    _assert_lookup_host_allowed(url)
+
+    resolved = _LOOKUP_SECRET_REF_RE.sub(
+        lambda m: os.environ.get(m.group(1), ""), auth_header
+    )
+    return resolved, True
+
+
 def _load_http_lookup_set(url: str, lookup_field: str, cache_ttl: int, auth_header: Optional[str] = None) -> frozenset:
     """
     Fetch a set of valid values from an HTTP endpoint. Results are cached for cache_ttl seconds.
@@ -1101,19 +1235,24 @@ def _load_http_lookup_set(url: str, lookup_field: str, cache_ttl: int, auth_head
     from .webhooks import assert_url_public
     assert_url_public(url, label="Lookup URL")
 
+    # SEC-011: resolve + policy-gate the auth header BEFORE any network I/O.
+    # Raises LookupAuthPolicyError (fail-closed) if substitution is disallowed.
+    # Runs on every cache miss so a policy-violating config never populates the
+    # cache and never fetches. A secret-bearing header additionally forbids
+    # redirects (the credential must not be forwarded to a 3xx target).
+    resolved_auth, is_secret_bearing = _resolve_lookup_auth_header(auth_header, url)
+
     # Fetch outside the lock to avoid holding it during network I/O
     try:
         headers = {"User-Agent": "OpenDQV-lookup/1.0"}
-        if auth_header:
-            import os
-            import re as _re
-            auth_value = _re.sub(r'\$\{([^}]+)\}', lambda m: os.environ.get(m.group(1), ""), auth_header)
-            headers["Authorization"] = auth_value
+        if resolved_auth is not None:
+            headers["Authorization"] = resolved_auth
         req = urllib.request.Request(url, headers=headers)
         _MAX_LOOKUP_BYTES = 10_485_760  # 10 MB
-        # Use the SSRF-safe opener so redirect targets are re-validated (SEC-008)
-        # rather than followed blindly to an internal host.
-        with _ssrf_safe_opener.open(req, timeout=10) as resp:
+        # Secret-bearing lookups: no-redirect opener (OWASP — don't forward the
+        # credential). Otherwise the SSRF-safe opener re-validates each hop.
+        opener = _no_redirect_opener if is_secret_bearing else _ssrf_safe_opener
+        with opener.open(req, timeout=10) as resp:
             content_type = resp.headers.get("Content-Type", "")
             body = resp.read(_MAX_LOOKUP_BYTES + 1)
             if len(body) > _MAX_LOOKUP_BYTES:
@@ -1580,6 +1719,16 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
                         failing.add(idx)
                 elif str(val) not in valid_values:
                     failing.add(idx)
+        except LookupAuthPolicyError as exc:
+            # SEC-011: a policy violation is not a transient infra error — fail
+            # CLOSED (unlike the infra handler below). Every record subject to
+            # this rule fails, mirroring the single-record path's error_message.
+            logger.error("lookup rule '%s' blocked by SEC-011 policy: %s", rule.name, exc)
+            for idx in range(len(df)):
+                val = df[field].iloc[idx]
+                if val is None or (isinstance(val, float) and pd.isna(val)):
+                    continue
+                failing.add(idx)
         except (FileNotFoundError, KeyError, OSError, RuntimeError) as exc:
             logger.warning("lookup rule '%s' skipped (infrastructure error, not failing batch): %s", rule.name, exc)
 

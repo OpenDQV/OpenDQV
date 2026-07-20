@@ -32,7 +32,7 @@ Supported rule types:
                       lookup_file: /path/to/ids.csv          + lookup_field: column_name (CSV)
                       lookup_file: https://host/endpoint     (HTTP GET — JSON array or newline text)
                       cache_ttl: 300                         (HTTP cache TTL seconds, default 300)
-                      lookup_auth_header: "Bearer ${TOKEN}"  (authenticated HTTP endpoints)
+                      lookup_auth_header: "Bearer ${OPENDQV_LOOKUP_TOKEN}"  (auth'd HTTP; SEC-011: only OPENDQV_LOOKUP_* env vars, allowlisted host)
                       set all_of: true to validate each element in a list field
   checksum          — validates identifier check digits
                       (IBAN, GTIN/GS1, NHS, ISIN, LEI, VIN, ISRC, CPF)
@@ -220,8 +220,13 @@ class Rule(BaseModel):
     geo_min_lon: Optional[float] = None      # minimum longitude (-180 to 180)
     geo_max_lon: Optional[float] = None      # maximum longitude (-180 to 180)
 
-    # HTTP lookup auth — Bearer token for authenticated endpoints
-    # e.g. "Bearer ${OFAC_API_KEY}" — env var substitution performed at runtime
+    # HTTP lookup auth — Bearer token for authenticated endpoints.
+    # e.g. "Bearer ${OPENDQV_LOOKUP_OFAC_API_KEY}" — env var substitution at
+    # runtime. SEC-011 (see validator._resolve_lookup_auth_header): only env
+    # vars named with the OPENDQV_LOOKUP_ prefix are substitutable, the
+    # destination host must be on OPENDQV_LOOKUP_EGRESS_ALLOWLIST, and under
+    # AUTH_MODE=open substitution is disabled unless OPENDQV_ALLOW_LOOKUP_SECRETS
+    # is set. Any violation fails the lookup closed.
     lookup_auth_header: Optional[str] = None
 
     # All_of for list lookup — type: lookup with all_of: true
