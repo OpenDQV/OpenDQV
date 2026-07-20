@@ -80,6 +80,45 @@ IS_FEDERATED = bool(UPSTREAM_URL)
 # Auth convenience predicates — derived from AUTH_MODE, never set independently.
 IS_OPEN_MODE: bool = AUTH_MODE == "open"
 
+# ── SEC-011: lookup-rule auth-header secret substitution ───────────────────
+# The `lookup_auth_header` Rule field authenticates HTTP lookup endpoints and
+# supports ${VAR} substitution from the process environment. A contract author
+# (editor role — a NO-OP under AUTH_MODE=open) controls BOTH the destination URL
+# and the header template, so unrestricted substitution is a secret-exfiltration
+# primitive (CWE-526): `lookup_auth_header: "Bearer ${AWS_SECRET_ACCESS_KEY}"` +
+# a public attacker URL ships the secret out. The webhook/lookup SSRF guard
+# (SEC-008) does NOT stop this — the destination is a legitimate public host;
+# the leak is the credential in the header, not the network path.
+#
+# Three layered controls gate substitution — ALL must pass or the fetch is
+# refused fail-closed (see opendqv/core/validator.py):
+#   1. Only env vars named with LOOKUP_SECRET_ENV_PREFIX are substitutable.
+#      A reference to any other name hard-fails (no silent empty string).
+#   2. Under AUTH_MODE=open there is no trust boundary, so substitution is
+#      DISABLED entirely unless the operator sets OPENDQV_ALLOW_LOOKUP_SECRETS.
+#   3. A secret-bearing lookup may only target a host on LOOKUP_EGRESS_ALLOWLIST
+#      (fail-closed: empty allowlist ⇒ no authenticated lookup permitted), and
+#      redirects are NOT followed (a 3xx would forward the credential onward).
+LOOKUP_SECRET_ENV_PREFIX: str = "OPENDQV_LOOKUP_"
+
+
+def _parse_bool_env(name: str, default: str = "") -> bool:
+    return os.environ.get(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+ALLOW_LOOKUP_SECRETS_IN_OPEN_MODE: bool = _parse_bool_env("OPENDQV_ALLOW_LOOKUP_SECRETS")
+
+# Comma-separated host allowlist for secret-bearing lookup URLs. Hosts are
+# lowercased and trailing dots stripped at load; IDNA canonicalisation and the
+# strict comparison happen in the validator against the incoming URL's parsed
+# hostname (defeats userinfo-@, case, trailing-dot and punycode-homoglyph
+# bypasses). Empty ⇒ fail-closed (no authenticated lookup permitted).
+LOOKUP_EGRESS_ALLOWLIST: frozenset = frozenset(
+    h.strip().lower().rstrip(".")
+    for h in os.environ.get("OPENDQV_LOOKUP_EGRESS_ALLOWLIST", "").split(",")
+    if h.strip()
+)
+
 # Rate-limit sentinel values — "off", "0", or "disabled" disable per-IP limiting.
 _RATE_LIMIT_OFF_VALUES: frozenset = frozenset({"off", "0", "disabled"})
 

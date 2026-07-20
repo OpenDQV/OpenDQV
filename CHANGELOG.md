@@ -2,6 +2,47 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.28] - 2026-07-20
+
+Security release closing a secret-exfiltration hole in the `lookup` rule's
+authenticated-endpoint support. Found in review, researched against industry
+prior art (dbt, GitHub Actions, Vault, OWASP), and adversarially red-teamed
+before merge. No change to rule-evaluation semantics or contract format.
+
+### Security
+
+- **SEC-011 — `lookup_auth_header` environment-variable exfiltration (CWE-526).**
+  The `lookup_auth_header` field expanded `${VAR}` references against the entire
+  process environment into an outbound `Authorization` header. Because a contract
+  author controls both the header template and the destination URL, a rule such
+  as `lookup_auth_header: "Bearer ${AWS_SECRET_ACCESS_KEY}"` pointed at a public
+  attacker URL exfiltrated any server secret (JWT signing key, database
+  credentials, cloud keys). The SEC-008 SSRF guard did not prevent this — the
+  destination is a legitimate public host; the leak is the credential in the
+  header, not the network path. Substitution is now gated by three layered,
+  fail-closed controls:
+  1. **Prefix allowlist** — only environment variables named with the
+     `OPENDQV_LOOKUP_` prefix are substitutable. A reference to any other name
+     fails the lookup (no silent empty string).
+  2. **`AUTH_MODE=open` posture** — under open auth (the shipped default, where
+     the `editor` role is a no-op) secret substitution is **disabled entirely**
+     unless the operator explicitly sets `OPENDQV_ALLOW_LOOKUP_SECRETS`.
+  3. **Egress domain allowlist** — a secret-bearing lookup may only target a host
+     listed in `OPENDQV_LOOKUP_EGRESS_ALLOWLIST` (empty ⇒ no authenticated lookup
+     permitted). The host is taken from the parsed URL hostname and IDNA-
+     canonicalised, defeating `user@evil.example` userinfo, case, trailing-dot
+     and punycode-homoglyph bypasses. Redirects are **not** followed for
+     secret-bearing lookups (a 3xx would forward the credential onward).
+
+  The failure is enforced at fetch time, so one malformed lookup rule fails only
+  its own validation (fail-closed) and never drops a contract's other rules.
+
+  **Breaking change:** existing contracts using a bare `${VAR}` auth header (e.g.
+  `"Bearer ${TOKEN}"`) now fail closed. Rename the environment variable to the
+  `OPENDQV_LOOKUP_` prefix (`OPENDQV_LOOKUP_TOKEN`), add the endpoint host to
+  `OPENDQV_LOOKUP_EGRESS_ALLOWLIST`, and — if running `AUTH_MODE=open` — set
+  `OPENDQV_ALLOW_LOOKUP_SECRETS`. Literal (non-`${}`) auth headers are unaffected.
+
 ## [2.3.27] - 2026-07-08
 
 Security hardening and correctness release from a first-hand discovery pass over
