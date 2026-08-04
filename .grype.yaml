@@ -28,3 +28,27 @@ ignore:
   # `grype <image> --fail-on high --only-fixed` to confirm).
   - vulnerability: CVE-2026-15308
     reason: "CPython html.parser DoS (High). Fix in Python 3.15.0 only; no stable base carries it. Zero exposure — OpenDQV does not import html.parser / parse untrusted HTML."
+
+  # CPython tarfile.extractall() path-traversal — a crafted archive can place a
+  # hardlink referencing a symlink stored deeper than the hardlink, so the
+  # extraction-filter fallback recreates the symlink at the shallower path and
+  # escapes the destination (incomplete fix of CVE-2025-4330). The patch has
+  # landed in the 3.13 git branch but NOT yet in a stable point release — the
+  # latest stable is python 3.13.14 (2026-06-10), which the CI base image runs,
+  # and grype maps the fix only to 3.15.0b4, so a base-image bump cannot satisfy
+  # `--only-fixed` (same shape as CVE-2026-4519 / -7210 / -15308). Zero exposure:
+  # verified 2026-08-04 that OpenDQV imports no `tarfile` and calls no
+  # `extractall`/`extract` anywhere in the repo — the engine validates JSON/YAML
+  # records, never extracts archives. Re-evaluate when python:3.13-slim ships
+  # 3.13.15 with the backport (re-run `grype <image> --fail-on high --only-fixed`).
+  - vulnerability: CVE-2026-11940
+    reason: "CPython tarfile extractall path-traversal (High). Fix in 3.13 branch but not yet in a stable release (latest 3.13.14); grype recognises only 3.15.0b4. Zero exposure — OpenDQV never imports tarfile / extracts archives."
+
+  # CPython tarfile streaming-mode (mode='r|') mishandles EOF — a crafted archive
+  # is parsed in an infinite loop (CPU DoS, CWE-252). Real severity MEDIUM per
+  # NVD; grype over-scores as High. Fix recognised by grype only in 3.15.0b4; no
+  # stable 3.13.x carries it (latest 3.13.14). Zero exposure — same verification
+  # as CVE-2026-11940: OpenDQV never opens tar archives. Re-evaluate on the
+  # 3.13.x backport (re-run `grype <image> --fail-on high --only-fixed`).
+  - vulnerability: CVE-2026-11972
+    reason: "CPython tarfile streaming-mode EOF infinite loop (real: Medium; grype over-scores High). No stable Python fix; only 3.15.0b4. Zero exposure — OpenDQV never opens tar archives."
