@@ -6,9 +6,12 @@ Supports both GX 0.x and 1.x suite formats.
 
 from __future__ import annotations
 
+import logging
 import re
 from collections import Counter
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 import yaml
 
@@ -240,9 +243,12 @@ def import_gx_suite(suite_json: dict) -> dict:
         try:
             partial_rules = handler(kwargs)
         except Exception as exc:
+            # SEC/CWE-209: log the exception detail server-side; return a generic
+            # reason so a caught runtime error is not echoed to the API client.
+            logger.warning("GX importer handler error for %r: %s", exp_type, exc)
             skipped.append({
                 "expectation_type": exp_type,
-                "reason": f"handler error: {exc}",
+                "reason": "handler error",
             })
             continue
 

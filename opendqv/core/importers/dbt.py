@@ -7,9 +7,12 @@ tests as well as common dbt_utils and dbt_expectations tests.
 
 from __future__ import annotations
 
+import logging
 import re
 from collections import Counter
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 import yaml
 
@@ -181,10 +184,12 @@ def _process_column(column: dict, name_counter: Counter) -> tuple[list[dict], li
         try:
             partial_rules = handler(cfg, col_name)
         except Exception as exc:
+            # SEC/CWE-209: log detail server-side, return a generic reason.
+            logger.warning("dbt importer handler error for test %r (col %r): %s", test_name, col_name, exc)
             skipped.append({
                 "test": test_name,
                 "column": col_name,
-                "reason": f"handler error: {exc}",
+                "reason": "handler error",
             })
             continue
 
