@@ -14,6 +14,7 @@ Two layers of guard:
 """
 
 import inspect
+import json
 
 import opendqv.api.routes_federation as _fed
 import opendqv.core.trace_log as _trace
@@ -21,6 +22,7 @@ import opendqv.core.importers.great_expectations as _gx
 import opendqv.core.importers.soda as _soda
 import opendqv.core.importers.dbt as _dbt
 import opendqv.core.importers.csv_rules as _csv
+from opendqv.core.importers.csv_rules import import_csv_rules
 
 
 # Vulnerable fragments assembled from parts so this file does not flag itself
@@ -51,6 +53,51 @@ class TestNoExceptionTextInResponses:
         src = inspect.getsource(_fed)
         assert _PEER_LEAK not in src
         assert 'result["peer_error"] = "peer sync failed"' in src
+
+
+def _raise(*_a, **_k):
+    raise KeyError("SECRET-LEAK-xyz")
+
+
+_SECRET = "SECRET-LEAK-xyz"
+
+
+class TestImporterHandlerErrorBehaviour:
+    """Trigger each importer's handler-error branch and assert the exception
+    text is NOT echoed into the result (only the generic reason is) — this also
+    exercises the server-side logging path the fix added."""
+
+    def test_gx_handler_error(self, monkeypatch):
+        from opendqv.core.importers.great_expectations import import_gx_suite
+        monkeypatch.setitem(_gx._HANDLERS, "expect_column_values_to_not_be_null", _raise)
+        suite = {"expectations": [
+            {"expectation_type": "expect_column_values_to_not_be_null",
+             "kwargs": {"column": "email"}}
+        ]}
+        result = import_gx_suite(suite)
+        assert _SECRET not in json.dumps(result)
+        assert any(s.get("reason") == "handler error" for s in result.get("skipped", []))
+
+    def test_soda_handler_error(self, monkeypatch):
+        from opendqv.core.importers.soda import import_soda_checks
+        monkeypatch.setitem(_soda._METRIC_HANDLERS, "missing_count", _raise)
+        result = import_soda_checks({"checks for customers": ["missing_count(email) = 0"]})
+        assert _SECRET not in json.dumps(result)
+
+    def test_dbt_handler_error(self, monkeypatch):
+        from opendqv.core.importers.dbt import import_dbt_schema
+        monkeypatch.setitem(_dbt._HANDLERS, "not_null", _raise)
+        schema = {"models": [
+            {"name": "m", "columns": [{"name": "c", "tests": ["not_null"]}]}
+        ]}
+        result = import_dbt_schema(schema)
+        assert _SECRET not in json.dumps(result)
+
+    def test_csv_handler_error(self, monkeypatch):
+        monkeypatch.setitem(_csv._RULE_HANDLERS, "not_empty", _raise)
+        result = import_csv_rules("field,rule_type,value\nemail,not_empty,\n", "t")
+        assert _SECRET not in json.dumps(result)
+        assert any(s.get("reason") == "handler error" for s in result.get("skipped", []))
 
 
 class TestTraceLogParseErrorBehaviour:
