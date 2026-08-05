@@ -7,9 +7,12 @@ inline check expressions like ``missing_count(email) = 0``.
 
 from __future__ import annotations
 
+import logging
 import re
 from collections import Counter
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 import yaml
 
@@ -285,9 +288,11 @@ def import_soda_checks(checks_yaml: dict) -> dict:
             try:
                 partial_rules = handler(field, operator, value, config)
             except Exception as exc:
+                # SEC/CWE-209: log detail server-side, return a generic reason.
+                logger.warning("Soda importer handler error for %s(%s): %s", metric, field, exc)
                 skipped.append({
                     "check": f"{metric}({field}) {operator} {value}",
-                    "reason": f"handler error: {exc}",
+                    "reason": "handler error",
                 })
                 continue
 

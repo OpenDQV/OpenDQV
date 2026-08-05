@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import time
 from datetime import datetime, timezone
 from typing import Optional
@@ -11,6 +12,8 @@ from fastapi.responses import StreamingResponse
 import opendqv.api.deps as _d
 import opendqv.config as config
 from opendqv.security.auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 sub_router = APIRouter()
 
@@ -202,7 +205,11 @@ async def federation_sync_status(
                         "count": len(diverged),
                     })
         except Exception as exc:
-            result["peer_error"] = str(exc)
+            # SEC/CWE-209: log the sync failure detail server-side; surface a
+            # generic, non-null marker to the client (kept truthy so callers can
+            # still detect that this peer failed).
+            logger.warning("federation sync: peer %r error: %s", peer, exc)
+            result["peer_error"] = "peer sync failed"
 
     return result
 

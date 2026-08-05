@@ -230,7 +230,11 @@ def verify_trace_log(log_path: Optional[str] = None) -> dict:
             try:
                 entry = json.loads(line)
             except json.JSONDecodeError as e:
-                return {"valid": False, "broken_at": count, "entries": count, "error": f"JSON parse error: {e}"}
+                # SEC/CWE-209: log the parser detail server-side; return a generic
+                # location-only error (consistent with the sibling mismatch cases)
+                # rather than echoing the exception text to the caller.
+                logger.warning("trace log verify: JSON parse error at entry %d: %s", count, e)
+                return {"valid": False, "broken_at": count, "entries": count, "error": f"JSON parse error at entry {count}"}
 
             stored_prev = entry.get("prev_hash", "")
             stored_hash = entry.get("entry_hash", "")

@@ -12,10 +12,13 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 from collections import Counter
 from typing import Any
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -234,11 +237,13 @@ def import_csv_rules(csv_content: str, contract_name: str = "csv_import") -> dic
         try:
             rule = handler(field, value)
         except Exception as exc:
+            # SEC/CWE-209: log detail server-side, return a generic reason.
+            logger.warning("CSV importer handler error (row %s, field %r, rule %r): %s", total, field, rule_type, exc)
             skipped.append({
                 "row": total,
                 "field": field,
                 "rule_type": rule_type,
-                "reason": f"handler error: {exc}",
+                "reason": "handler error",
             })
             continue
 
