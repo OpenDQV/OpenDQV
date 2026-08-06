@@ -1,14 +1,50 @@
 import os
 import yaml as _yaml
 
-from fastapi import APIRouter, Body, Depends, File, Query, Request, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile
 
 import opendqv.api.deps as _d
 import opendqv.config as config
 from opendqv.core.profiler import profile_records
-from opendqv.security.auth import get_current_user
+from opendqv.core.rule_parser import ContractStatus
+from opendqv.security.auth import get_current_user, get_current_role
 
 sub_router = APIRouter()
+
+
+def _assert_may_save_profile(role: str, contract_name: str) -> None:
+    """Guard the profiler's `save=true` contract-write path (CRT177 Tier 2).
+
+    Two holes closed here:
+
+    1. **No role guard.** Every sibling write path (`/import/*`) requires
+       editor/admin (SEC-010); the profiler save did not, so ANY authenticated
+       principal — including `reader`/`validator`/`auditor` — could write a
+       contract.
+    2. **Destructive overwrite by name.** The write was a bare
+       ``open(f"{contract_name}.yaml", "w")`` with no existence check, and
+       `_validate_contract_name` is charset-only. `?contract_name=customer`
+       therefore REPLACED the live ACTIVE `customer` contract with
+       profiler-generated rules and reloaded it — bypassing ACTIVE
+       immutability and the approval workflow in a single unprivileged request.
+
+    Profiling into a *new* name, or refreshing one's own DRAFT, stays allowed.
+    """
+    if role not in ("editor", "admin"):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Role '{role}' is not permitted to save contracts. Required: editor or admin.",
+        )
+    existing = _d.registry.get(contract_name)
+    if existing is not None and existing.status != ContractStatus.DRAFT:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Contract '{contract_name}' already exists with status "
+                f"'{existing.status.value}' and will not be overwritten by the profiler. "
+                f"Profile into a new name, or create a draft version first."
+            ),
+        )
 
 
 @sub_router.post("/profile")
@@ -19,9 +55,12 @@ async def profile_data(
     contract_name: str = Query("profiled", description="Name for the generated contract"),
     save: bool = Query(False, description="Save as YAML contract"),
     user=Depends(get_current_user),
+    role: str = Depends(get_current_role),
 ):
     """Analyze records and auto-generate an OpenDQV contract with suggested rules."""
     _d._validate_contract_name(contract_name)
+    if save:
+        _assert_may_save_profile(role, contract_name)
     result = profile_records(records, contract_name=contract_name)
 
     if save:
@@ -46,6 +85,7 @@ async def profile_file(
     contract_name: str = Query("profiled", description="Name for the generated contract"),
     save: bool = Query(False, description="Save as YAML contract"),
     user=Depends(get_current_user),
+    role: str = Depends(get_current_role),
 ):
     """
     Profile records from an uploaded CSV or Parquet file.
@@ -55,6 +95,8 @@ async def profile_file(
     Max file size: configured via OPENDQV_MAX_UPLOAD_MB (default 10MB).
     """
     _d._validate_contract_name(contract_name)
+    if save:
+        _assert_may_save_profile(role, contract_name)
     content = await file.read()
     filename = file.filename or ""
     df = _d._parse_upload(content, filename)
