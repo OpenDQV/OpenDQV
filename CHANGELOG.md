@@ -2,6 +2,72 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.30] - 2026-08-06
+
+Contract-governance release (CRT177 Tier 2, patch tier). Closes four paths that
+bypassed ACTIVE-contract immutability, the maker-checker approval workflow, or
+both. Design reviewed before implementation. No public API change; no contract
+format change.
+
+**Behaviour change worth noting:** `POST /import/*?save=true` now genuinely
+persists as `draft`. The CSV and ODCS importers previously landed as `active`
+because the status stamp was written to the wrong level of the YAML document —
+the route already *documented* and *reported* `draft`, so this aligns disk with
+the documented contract rather than changing it.
+
+### Security
+
+- **Profiler contract-save was unguarded and destructive.** `POST /profile?save=true`
+  and `POST /profile/file?save=true` had no role guard — every `/import/*`
+  sibling requires `editor`/`admin` (SEC-010) — and wrote with a bare
+  `open(name.yaml, "w")` and no existence check. Because the name is
+  caller-supplied, `?contract_name=customer&save=true` **replaced a live ACTIVE
+  contract** with profiler-generated rules and reloaded it, defeating ACTIVE
+  immutability and the approval workflow in one unprivileged request. Now
+  requires `editor`/`admin`, and returns `409` rather than overwriting any
+  existing non-DRAFT contract. Profiling *without* `save` is unchanged.
+- **Contract status changes were authorized only when promoting to ACTIVE.**
+  `POST /contracts/{name}/status` checked the caller's role solely for the
+  ACTIVE target, so any authenticated principal — including `reader`,
+  `auditor`, and `validator` — could archive or demote a production contract.
+  Archiving a live contract is a validation outage; demoting one to DRAFT
+  unlocks rule mutation, so demote-then-edit defeated maker-checker. Any
+  transition **to** or **out of** ACTIVE now requires `approver`/`admin`; all
+  other transitions require `editor`/`admin`.
+- **Imports could persist as ACTIVE, skipping approval.** The import routes
+  stamped `status`/`source`/`created_by` onto the top level of the YAML
+  document while the loader reads them from the nested `contract:` block, so
+  every stamp was a silent no-op. The CSV importer (hardcoded `active`) and the
+  ODCS importer (caller-controlled `info.status`) therefore persisted as ACTIVE
+  — live, immutable, never approved. Provenance is now recorded on all eight
+  importers (`created_by` maps to `proposed_by`).
+- **Imports could overwrite a live ACTIVE contract.** The contract name is
+  caller-supplied and the import write had no existence check, so
+  `POST /import/*?save=true` aimed at an existing contract replaced its rules
+  wholesale — and, once imports correctly landed as DRAFT, demoted it too,
+  which is precisely what the status guard above restricts to approver/admin.
+  Both bulk-write surfaces (import and profiler) now share one guard: `409`
+  unless the target contract is absent or already DRAFT. A read-only import
+  preview (`save=false`) onto an existing name is unaffected.
+
+### Fixed
+
+- **Contract lifecycle state did not survive a reload.** The YAML serializer
+  wrote only `rules` and `version`, so `submit_for_review`, `approve_contract`,
+  and `reject_contract` updated memory and history but never reached disk — an
+  approval reverted to the on-disk status on the next restart or
+  `POST /contracts/reload` while the history chain claimed ACTIVE. Because
+  `set_status` (the demote/archive path) *did* persist, the durability
+  guarantee was inverted: the ungoverned transition was durable and the
+  governed one was not. Status and provenance (`source`, `proposed_by/at`,
+  `approved_by/at`, `rejected_by/at`, `rejection_reason`) are now serialized
+  structurally on every transition, and rejection metadata is read back on load.
+- **Status write-back could corrupt a contract.** `set_status` persisted via an
+  unanchored `^( +status: )\S+` regex that rewrote **every** indented `status:`
+  line in the file — corrupting a rule field named `status` or a context
+  override — and wrote non-atomically. Replaced with structured serialization
+  through the shared atomic writer.
+
 ## [2.3.29] - 2026-08-06
 
 Security and correctness release (CRT177 Tier 1). Three fixes surfaced in a
