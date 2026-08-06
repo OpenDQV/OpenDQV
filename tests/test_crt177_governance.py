@@ -76,6 +76,58 @@ class TestProfilerCannotOverwriteGovernedContract:
             "ACTIVE contract rules must be untouched by a refused profiler save"
 
 
+class TestImportCannotOverwriteGovernedContract:
+    """The import routes are the profiler hole's twin: caller-supplied contract
+    name, bare `open(..., "w")`, no existence check. An editor could point an
+    import at a live ACTIVE contract and replace its rules wholesale — and
+    because imports now correctly land as DRAFT, doing so also *demoted* it,
+    which `POST /contracts/{name}/status` restricts to approver/admin."""
+
+    _ACTIVE = "customer"
+
+    def _gx_suite(self, name):
+        return {
+            "expectation_suite_name": name,
+            "expectations": [{
+                "expectation_type": "expect_column_values_to_not_be_null",
+                "kwargs": {"column": "crt177_probe"},
+            }],
+        }
+
+    def test_import_save_onto_active_name_is_refused(self, client, editor_headers):
+        r = client.post(
+            "/api/v1/import/gx", params={"save": "true"},
+            json=self._gx_suite(self._ACTIVE), headers=editor_headers,
+        )
+        assert r.status_code == 409
+
+    def test_active_contract_survives_import_attempt(self, client, editor_headers):
+        before = client.get(f"/api/v1/contracts/{self._ACTIVE}").json()
+        client.post(
+            "/api/v1/import/gx", params={"save": "true"},
+            json=self._gx_suite(self._ACTIVE), headers=editor_headers,
+        )
+        after = client.get(f"/api/v1/contracts/{self._ACTIVE}").json()
+        assert after["status"] == before["status"] == "active"
+        assert len(after.get("rules", [])) == len(before.get("rules", [])), \
+            "an import must not replace the rules of an ACTIVE contract"
+
+    def test_preview_without_save_is_still_allowed(self, client, editor_headers):
+        """The guard gates the WRITE — a read-only preview must not 409."""
+        r = client.post(
+            "/api/v1/import/gx",
+            json=self._gx_suite(self._ACTIVE), headers=editor_headers,
+        )
+        assert r.status_code == 200
+
+    def test_import_to_a_new_name_still_saves(self, client, editor_headers):
+        r = client.post(
+            "/api/v1/import/gx", params={"save": "true"},
+            json=self._gx_suite("crt177_import_fresh"), headers=editor_headers,
+        )
+        assert r.status_code == 200
+
+
 class TestStatusChangeAuthorization:
     """Every transition is a governed write — not just promotion to ACTIVE."""
 

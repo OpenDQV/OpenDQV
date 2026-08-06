@@ -75,6 +75,40 @@ def _check_validate_in_states(contract, contract_name: str, allow_draft: bool) -
             )
 
 
+def _assert_contract_overwritable(name: str, user: str, surface: str) -> None:
+    """Refuse to replace a governed contract via a bulk file-write surface.
+
+    CRT177 Tier 2. The import and profiler `save=true` paths write contract YAML
+    with a bare `open(..., "w")` and then `registry.reload()`. They never went
+    through the rule-mutation API, so `_assert_contract_mutable` (the 409 that
+    protects ACTIVE contracts) never ran — and the contract name is
+    caller-supplied. An `editor` could therefore point an import at the name of
+    a live ACTIVE contract and replace its rules wholesale.
+
+    That also bypasses the status-transition guard: because imports now
+    correctly land as DRAFT, overwriting an ACTIVE contract would *demote* it —
+    something `POST /contracts/{name}/status` deliberately restricts to
+    approver/admin, since DRAFT unlocks rule mutation.
+
+    Creating a new contract, or refreshing an existing DRAFT, stays allowed.
+    """
+    existing = registry.get(name) if registry else None
+    if existing is not None and existing.status != ContractStatus.DRAFT:
+        logger.warning(
+            "contract_overwrite_blocked contract=%s surface=%s caller=%s status=%s",
+            name, surface, user, existing.status.value,
+        )
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Contract '{name}' already exists with status "
+                f"'{existing.status.value}' and will not be overwritten by {surface}. "
+                f"Use a different name, or create a draft version first via "
+                f"POST /api/v1/contracts/{name}/version."
+            ),
+        )
+
+
 def _assert_contract_mutable(contract, name: str, user: str, op: str) -> None:
     if contract.status == ContractStatus.ACTIVE:
         logger.warning(

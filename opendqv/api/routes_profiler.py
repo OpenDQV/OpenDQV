@@ -6,13 +6,12 @@ from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Reques
 import opendqv.api.deps as _d
 import opendqv.config as config
 from opendqv.core.profiler import profile_records
-from opendqv.core.rule_parser import ContractStatus
 from opendqv.security.auth import get_current_user, get_current_role
 
 sub_router = APIRouter()
 
 
-def _assert_may_save_profile(role: str, contract_name: str) -> None:
+def _assert_may_save_profile(role: str, contract_name: str, user: str = "") -> None:
     """Guard the profiler's `save=true` contract-write path (CRT177 Tier 2).
 
     Two holes closed here:
@@ -35,16 +34,9 @@ def _assert_may_save_profile(role: str, contract_name: str) -> None:
             status_code=403,
             detail=f"Role '{role}' is not permitted to save contracts. Required: editor or admin.",
         )
-    existing = _d.registry.get(contract_name)
-    if existing is not None and existing.status != ContractStatus.DRAFT:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"Contract '{contract_name}' already exists with status "
-                f"'{existing.status.value}' and will not be overwritten by the profiler. "
-                f"Profile into a new name, or create a draft version first."
-            ),
-        )
+    # Shared with the import routes — both are bulk file-write surfaces that
+    # bypass the rule-mutation API's ACTIVE guard.
+    _d._assert_contract_overwritable(contract_name, user, "the profiler")
 
 
 @sub_router.post("/profile")
@@ -60,7 +52,7 @@ async def profile_data(
     """Analyze records and auto-generate an OpenDQV contract with suggested rules."""
     _d._validate_contract_name(contract_name)
     if save:
-        _assert_may_save_profile(role, contract_name)
+        _assert_may_save_profile(role, contract_name, user)
     result = profile_records(records, contract_name=contract_name)
 
     if save:
@@ -96,7 +88,7 @@ async def profile_file(
     """
     _d._validate_contract_name(contract_name)
     if save:
-        _assert_may_save_profile(role, contract_name)
+        _assert_may_save_profile(role, contract_name, user)
     content = await file.read()
     filename = file.filename or ""
     df = _d._parse_upload(content, filename)

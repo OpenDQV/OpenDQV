@@ -77,6 +77,7 @@ async def import_great_expectations(
     if save:
         contract_name = result["contract"]["name"]
         _d._validate_contract_name(contract_name)
+        _d._assert_contract_overwritable(contract_name, user, "import")
         yaml_content = gx_suite_to_yaml(suite)
         _dd = _yaml.safe_load(yaml_content)
         _apply_import_meta(_dd, created_by)
@@ -121,6 +122,7 @@ async def import_dbt(
         for item in result["contracts"]:
             contract_name = item["contract"]["name"]
             _d._validate_contract_name(contract_name)
+            _d._assert_contract_overwritable(contract_name, user, "import")
             pairs = dbt_schema_to_yaml(schema)
             for name, yaml_content in pairs:
                 if name == contract_name:
@@ -169,6 +171,7 @@ async def import_soda(
         pairs = soda_checks_to_yaml(checks)
         for name, yaml_content in pairs:
             _d._validate_contract_name(name)
+            _d._assert_contract_overwritable(name, user, "import")
             _dd = _yaml.safe_load(yaml_content)
             _apply_import_meta(_dd, created_by)
             yaml_content = _yaml.dump(_dd, default_flow_style=False, allow_unicode=True, sort_keys=False)
@@ -205,6 +208,8 @@ async def import_csv(
     csv_content = body_bytes.decode("utf-8")
 
     _d._validate_contract_name(contract_name)
+    if save:
+        _d._assert_contract_overwritable(contract_name, user, "import")
     result = import_csv_rules(csv_content, contract_name)
     result["contract"]["source"] = "import"
     result["contract"]["status"] = "draft"
@@ -257,6 +262,7 @@ async def import_odcs_contract(
     if save:
         contract_name, yaml_content = odcs_to_yaml(contract_data, contract_name or None)
         _d._validate_contract_name(contract_name)
+        _d._assert_contract_overwritable(contract_name, user, "import")
         _dd = _yaml.safe_load(yaml_content)
         _apply_import_meta(_dd, created_by)
         yaml_content = _yaml.dump(_dd, default_flow_style=False, allow_unicode=True, sort_keys=False)
@@ -296,6 +302,8 @@ async def import_from_csvw(
     if role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail=f"Role '{role}' is not permitted. Required: editor or admin.")
     _d._validate_contract_name(contract_name)
+    if save:
+        _d._assert_contract_overwritable(contract_name, user, "import")
     try:
         result = import_csvw(body)
         yaml_output = csvw_to_yaml(body, contract_name)
@@ -346,6 +354,8 @@ async def import_from_otel(
     if role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail=f"Role '{role}' is not permitted. Required: editor or admin.")
     _d._validate_contract_name(contract_name)
+    if save:
+        _d._assert_contract_overwritable(contract_name, user, "import")
     try:
         result = import_otel(body)
         yaml_output = otel_to_yaml(body, contract_name)
@@ -397,6 +407,8 @@ async def import_from_ndc(
     if role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail=f"Role '{role}' is not permitted. Required: editor or admin.")
     _d._validate_contract_name(contract_name)
+    if save:
+        _d._assert_contract_overwritable(contract_name, user, "import")
     try:
         result = import_ndc(body)
         yaml_output = ndc_to_yaml(body, contract_name)
