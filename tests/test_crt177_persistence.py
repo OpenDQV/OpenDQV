@@ -17,11 +17,17 @@ provenance never reached disk:
 Both are fixed by serialising status + provenance structurally through the
 shared atomic writer.
 """
+import os
+
 import yaml
 
 import pytest
 
-from opendqv.core.contracts import ContractRegistry
+from opendqv.core.contracts import (
+    ContractPersistenceError,
+    ContractRegistry,
+    DataContract,
+)
 from opendqv.core.rule_parser import ContractStatus
 
 
@@ -94,6 +100,58 @@ class TestStatusWriteDoesNotCorruptNestedKeys:
         _write(cdir, "c6", {"name": "c6", "version": "1.0", "status": "draft", "rules": []})
         ContractRegistry(cdir).set_status("c6", "1.0", ContractStatus.ACTIVE)
         assert not list(cdir.glob("*.tmp")), "atomic write must not leave a temp file"
+
+
+class TestPersistenceFailureIsReported:
+    """A transition that did not reach disk must not be reported as success —
+    memory/history would say ACTIVE while the next reload reverts it. Found by
+    adversarial review of the first cut of this fix, which logged and continued."""
+
+    def test_legacy_format_transition_persists(self, cdir):
+        """Flat `rules:` list — no `contract:` block. Status/provenance are
+        written at the top level and read back there, so the transition is
+        durable rather than a silent no-op."""
+        (cdir / "legacy_c.yaml").write_text(
+            yaml.safe_dump({"version": "1.0",
+                            "rules": [{"name": "r", "field": "f", "type": "not_empty"}]}),
+            encoding="utf-8",
+        )
+        ContractRegistry(cdir).set_status("legacy_c", "1.0", ContractStatus.DRAFT)
+        assert ContractRegistry(cdir).get("legacy_c").status == ContractStatus.DRAFT
+
+    def test_legacy_format_approval_provenance_persists(self, cdir):
+        (cdir / "legacy_d.yaml").write_text(
+            yaml.safe_dump({"version": "1.0", "status": "draft",
+                            "rules": [{"name": "r", "field": "f", "type": "not_empty"}]}),
+            encoding="utf-8",
+        )
+        reg = ContractRegistry(cdir)
+        reg.submit_for_review("legacy_d", "1.0", "alice")
+        reg.approve_contract("legacy_d", "1.0", "bob")
+        reloaded = ContractRegistry(cdir).get("legacy_d")
+        assert reloaded.status == ContractStatus.ACTIVE
+        assert reloaded.approved_by == "bob"
+
+    def test_write_failure_raises(self, cdir):
+        _write(cdir, "c8", {"name": "c8", "version": "1.0", "status": "draft", "rules": []})
+        reg = ContractRegistry(cdir)
+        reg.submit_for_review("c8", "1.0", "alice")
+        os.chmod(cdir, 0o500)  # read-only directory → the YAML write fails
+        try:
+            with pytest.raises(ContractPersistenceError):
+                reg.approve_contract("c8", "1.0", "bob")
+        finally:
+            os.chmod(cdir, 0o700)
+
+    def test_in_memory_contract_without_yaml_is_silent(self, cdir):
+        """A contract with no file on disk has nothing to persist to — that is a
+        legitimate state and must NOT raise."""
+        reg = ContractRegistry(cdir)
+        reg._contracts["mem"] = {
+            "1.0": DataContract(name="mem", version="1.0",
+                                status=ContractStatus.DRAFT, rules=[])
+        }
+        reg.set_status("mem", "1.0", ContractStatus.ACTIVE)  # must not raise
 
 
 class TestSerializerReaderSymmetry:

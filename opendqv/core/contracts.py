@@ -22,6 +22,34 @@ from .rule_parser import Rule, Severity, ContractStatus
 
 class UnknownContextError(ValueError):
     """Raised when a named context is specified but does not exist in the contract."""
+
+
+def _read_meta(raw: dict) -> dict:
+    """Read lifecycle status + provenance written at the top level of a YAML doc.
+
+    Used by the legacy and onboarding formats, which have no `contract:` block
+    (CRT177 Tier 2). Absent keys are omitted so DataContract's own defaults
+    apply — notably `status`, which must not be forced when the file never
+    carried one.
+    """
+    out: dict = {}
+    if raw.get("status") is not None:
+        out["status"] = raw["status"]
+    for field in ("source", "proposed_by", "proposed_at", "approved_by",
+                  "approved_at", "rejected_by", "rejected_at", "rejection_reason"):
+        if raw.get(field) is not None:
+            out[field] = raw[field]
+    return out
+
+
+class ContractPersistenceError(RuntimeError):
+    """Raised when a lifecycle transition could not be written to the contract's YAML file.
+
+    The transition has already been applied in memory and recorded in history,
+    so the caller must be told the change is not durable — it will revert on the
+    next reload. Silently swallowing this is what allowed an approval to live
+    only in memory (CRT177 Tier 2).
+    """
 from .storage import ContractHistoryBackend
 
 import opendqv.config as config
@@ -951,6 +979,10 @@ class ContractRegistry:
             description=raw.get("description", ""),
             rules=rules,
             contexts=raw.get("contexts", {}),
+            # CRT177 Tier 2: this format has no `contract:` block, so lifecycle
+            # status and provenance are persisted at the top level. Read them
+            # back or a transition is silently lost on reload.
+            **_read_meta(raw),
         )
 
     def _parse_onboarding_format(self, raw: dict, path: Path) -> DataContract:
@@ -1007,6 +1039,9 @@ class ContractRegistry:
             owner=metadata.get("author", ""),
             rules=rules,
             contexts=raw.get("contexts", {}),
+            # CRT177 Tier 2: lifecycle status/provenance are persisted at the
+            # top level for this format too (no `contract:` block).
+            **_read_meta(raw),
         )
 
     def get(self, name: str, version: str = "latest") -> Optional[DataContract]:
@@ -1411,17 +1446,30 @@ class ContractRegistry:
                 block[field] = value
 
     def _persist_contract_meta(self, name: str, contract: "DataContract") -> None:
-        """Persist status + provenance only (no rule changes), best-effort.
+        """Persist status + provenance only (no rule changes).
 
         Used by the lifecycle transitions (set_status, submit, approve, reject).
-        Failure to write must not roll back an in-memory transition that has
-        already been recorded in history, so this logs rather than raises —
-        matching the pre-existing set_status behaviour.
+
+        A contract with no YAML file on disk (constructed in memory) has nothing
+        to persist to — that is a legitimate state, logged at debug and ignored.
+
+        Anything else is reported. A transition that did not reach disk is a lie
+        to the caller: memory and history would say ACTIVE while the next reload
+        reverts to the on-disk status. That silent divergence is the exact
+        defect this method exists to fix, so it must not be swallowed here.
         """
+        path = self._contract_paths.get(name)
+        if not path or not path.exists():
+            logger.debug("No YAML file for contract %s — nothing to persist", name)
+            return
         try:
             self._write_contract_yaml(name, contract, include_rules=False)
         except Exception as exc:
-            logger.warning("Could not persist status/provenance for %s: %s", name, exc)
+            logger.error("Could not persist status/provenance for %s: %s", name, exc)
+            raise ContractPersistenceError(
+                f"Contract '{name}' transitioned to '{contract.status.value}' in memory but the "
+                f"change could not be written to disk; it will revert on the next reload."
+            ) from exc
 
     def _write_contract_yaml(self, name: str, contract: "DataContract", include_rules: bool = True) -> None:
         """Write contract state back to the YAML file atomically.
@@ -1444,6 +1492,13 @@ class ContractRegistry:
                 f"(e.g. !!python/object). Remove them manually and re-save. "
                 f"Detail: {exc}"
             ) from exc
+        if "contract" not in raw:
+            # Legacy (flat `rules:` list) and onboarding (`fields:`) formats have
+            # no `contract:` block. Writing the meta into a block that isn't
+            # there would be a silent no-op that loses the transition, so write
+            # it at the top level — which is where _parse_legacy_format and
+            # _parse_onboarding_format now read it back from. (CRT177 Tier 2)
+            self._apply_contract_meta(raw, contract)
         if "contract" in raw:
             if include_rules:
                 # Use mode='json' to ensure enum values are serialised as plain strings,
