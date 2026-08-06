@@ -267,8 +267,13 @@ class TestODCSImportAPI:
         assert "contract" in body
 
     def test_import_odcs_save_true(self, client, editor_headers):
+        # CRT177 Tier 2: pass an explicit contract_name (as every sibling import
+        # test does). Without one the ODCS importer falls back to the generic
+        # default `imported_contract`, which another test in the suite creates
+        # and promotes to ACTIVE — and an import must not overwrite a governed
+        # contract, so this correctly 409s depending on test order.
         r = client.post(
-            "/api/v1/import/odcs?save=true",
+            "/api/v1/import/odcs?save=true&contract_name=test_odcs_saved",
             json=self.ODCS_CONTRACT,
             headers=editor_headers,
         )

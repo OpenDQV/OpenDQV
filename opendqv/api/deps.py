@@ -92,21 +92,50 @@ def _assert_contract_overwritable(name: str, user: str, surface: str) -> None:
 
     Creating a new contract, or refreshing an existing DRAFT, stays allowed.
     """
-    existing = registry.get(name) if registry else None
-    if existing is not None and existing.status != ContractStatus.DRAFT:
-        logger.warning(
-            "contract_overwrite_blocked contract=%s surface=%s caller=%s status=%s",
-            name, surface, user, existing.status.value,
-        )
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"Contract '{name}' already exists with status "
-                f"'{existing.status.value}' and will not be overwritten by {surface}. "
-                f"Use a different name, or create a draft version first via "
-                f"POST /api/v1/contracts/{name}/version."
-            ),
-        )
+    if not registry:
+        return
+
+    # Match case-insensitively. The lookup is a case-SENSITIVE dict, but the
+    # write is `open(f"{name}.yaml", "w")` on a filesystem that may be
+    # case-INSENSITIVE (Windows and macOS defaults — both supported targets).
+    # There, "Customer" and "customer" are the same inode, so a case-sensitive
+    # "doesn't exist" verdict would let the write silently replace a live ACTIVE
+    # contract — the very hole this guard closes. On a case-sensitive
+    # filesystem the same input instead plants a confusable near-duplicate
+    # beside the governed contract. Both are refused. (CRT177 Tier 2)
+    folded = name.casefold()
+    for existing_name in list(registry._contracts.keys()):
+        if existing_name.casefold() != folded:
+            continue
+        existing = registry.get(existing_name)
+        if existing is None:
+            continue
+        if existing_name != name:
+            logger.warning(
+                "contract_overwrite_blocked contract=%s conflicts_with=%s surface=%s caller=%s",
+                name, existing_name, surface, user,
+            )
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Contract name '{name}' differs only by case from the existing contract "
+                    f"'{existing_name}' and will not be written by {surface}. Use a distinct name."
+                ),
+            )
+        if existing.status != ContractStatus.DRAFT:
+            logger.warning(
+                "contract_overwrite_blocked contract=%s surface=%s caller=%s status=%s",
+                name, surface, user, existing.status.value,
+            )
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Contract '{name}' already exists with status "
+                    f"'{existing.status.value}' and will not be overwritten by {surface}. "
+                    f"Use a different name, or create a draft version first via "
+                    f"POST /api/v1/contracts/{name}/version."
+                ),
+            )
 
 
 def _assert_contract_mutable(contract, name: str, user: str, op: str) -> None:
