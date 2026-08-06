@@ -175,13 +175,19 @@ class TestFederationSyncCompare:
         assert data["peer_error"] is None
 
     def test_sync_with_unreachable_peer_sets_peer_error(self, client, auth_headers):
-        """When peer is unreachable, peer_error is populated (lines 204-205)."""
+        """When peer is unreachable, peer_error is populated (lines 204-205).
+
+        CRT177: the peer must be a public IP so it passes the SSRF guard
+        (added to this endpoint); the httpx layer is still mocked to simulate
+        the connection failure. A hostname like ``unreachable.invalid`` would
+        now fail closed at the guard (NXDOMAIN → 400) before httpx is reached.
+        """
         import httpx as _httpx
         import unittest.mock as mock
 
         with mock.patch("httpx.AsyncClient.get", side_effect=_httpx.ConnectError("refused")):
             r = client.get(
-                "/api/v1/federation/sync-status?peer=http://unreachable.invalid",
+                "/api/v1/federation/sync-status?peer=http://8.8.8.8/",
                 headers=auth_headers,
             )
 
@@ -200,7 +206,9 @@ class TestFederationSyncCompare:
 
         with mock.patch("httpx.AsyncClient.get", return_value=mock_resp):
             r = client.get(
-                "/api/v1/federation/sync-status?peer=http://mock-peer.local",
+                # CRT177: public IP peer so it passes the SSRF guard; the
+                # httpx response is mocked to drive the divergence path.
+                "/api/v1/federation/sync-status?peer=http://8.8.8.8/",
                 headers=auth_headers,
             )
 
@@ -208,6 +216,29 @@ class TestFederationSyncCompare:
         data = r.json()
         assert isinstance(data["diverged"], list)
         assert data["peer_error"] is None
+
+    def test_sync_rejects_ssrf_peer(self, client, auth_headers):
+        """CRT177 finding #3: a caller-controlled peer that targets an
+        internal/loopback/metadata address must be rejected with 400 BEFORE
+        any request is made — not fetched and echoed. Recurrence guard for the
+        authenticated-SSRF hole in GET /federation/sync-status."""
+        import unittest.mock as mock
+
+        ssrf_peers = [
+            "http://169.254.169.254/latest/meta-data/?",  # cloud metadata (path neutralised with ?)
+            "http://127.0.0.1:8000/",                     # loopback
+            "http://[::ffff:169.254.169.254]/",           # IPv4-mapped IPv6 metadata
+            "http://[64:ff9b::a9fe:a9fe]/",               # NAT64-embedded metadata
+            "http://10.0.0.1/",                           # RFC1918
+        ]
+        # If the guard ever regresses, this mock proves no outbound call slipped through.
+        with mock.patch("httpx.AsyncClient.get", side_effect=AssertionError("SSRF: request must not be made")):
+            for peer in ssrf_peers:
+                r = client.get(
+                    f"/api/v1/federation/sync-status?peer={peer}",
+                    headers=auth_headers,
+                )
+                assert r.status_code == 400, f"{peer!r} should be rejected, got {r.status_code}"
 
 
 class TestFederationSSEStream:

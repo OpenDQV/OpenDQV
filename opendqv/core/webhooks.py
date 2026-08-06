@@ -69,30 +69,79 @@ BATCH_EVENT_SCHEMA = {
 }
 
 
-# Private/reserved IP ranges that must not be reachable via webhook URLs.
-# Prevents SSRF attacks where a registered webhook causes the server to probe
-# internal infrastructure (cloud metadata, Docker internal network, etc.).
-_BLOCKED_NETWORKS = [
-    ipaddress.ip_network("10.0.0.0/8"),
-    ipaddress.ip_network("172.16.0.0/12"),
-    ipaddress.ip_network("192.168.0.0/16"),
-    ipaddress.ip_network("169.254.0.0/16"),   # link-local / cloud metadata (AWS/GCP/Azure)
-    ipaddress.ip_network("127.0.0.0/8"),       # loopback
-    ipaddress.ip_network("::1/128"),            # IPv6 loopback
-    ipaddress.ip_network("fc00::/7"),           # IPv6 unique-local
-]
+# RFC 6052 NAT64 Well-Known Prefix. is_global is True for the whole /96
+# regardless of the embedded IPv4, so where a NAT64 gateway is on-path
+# (IPv6-only cloud subnets, e.g. IPv6-only EKS/GKE nodes) a literal such as
+# 64:ff9b::a9fe:a9fe would reach 169.254.169.254 (cloud metadata). Unwrap and
+# classify the embedded IPv4 instead. Residual: operator-chosen Network-
+# Specific Prefixes (RFC 6052 §2.2) are indistinguishable from ordinary global
+# IPv6 and cannot be closed by a generic classifier — accepted risk, same tier
+# as Teredo and the DNS-rebinding TOCTOU. (CRT177 pre-impl red-team, Sonnet.)
+# IPv6 → IPv4 transition / embedding forms. Each one carries or tunnels an
+# IPv4 that `ipaddress.is_global` does NOT see (it classifies the v6 wrapper,
+# not the embedded v4), so each is an SSRF bypass if allowed. We do NOT try to
+# unwrap-and-selectively-allow (that design missed NAT64, then IPv4-compatible,
+# then ISATAP across three review rounds — every miss was a live bypass).
+# Instead we BLOCK the whole transition space outright: none of these literal
+# forms has a legitimate webhook/lookup-egress use, so blocking them is
+# fail-safe (a detected form is blocked even if we could not correctly extract
+# its embedded v4). Detectable set, by prefix:
+#   ::ffff:0:0/96  IPv4-mapped          (RFC 4291 §2.5.5.2)
+#   ::/96          IPv4-compatible       (RFC 4291 §2.5.5.1, deprecated)
+#   64:ff9b::/96   NAT64 well-known      (RFC 6052)
+#   2002::/16      6to4                  (RFC 3056)
+#   2001::/32      Teredo                (RFC 4380)
+# plus ISATAP (RFC 5214), matched by its interface-id signature below.
+# Residual accepted risk (indistinguishable from ordinary global IPv6 without
+# out-of-band knowledge, same tier as the DNS-rebinding TOCTOU): NAT64
+# operator-chosen Network-Specific Prefixes (RFC 6052 §2.2) and 6rd
+# operator prefixes (RFC 5969).
+_IPV6_TRANSITION_PREFIXES = (
+    ipaddress.ip_network("::ffff:0:0/96"),
+    ipaddress.ip_network("::/96"),
+    ipaddress.ip_network("64:ff9b::/96"),
+    ipaddress.ip_network("2002::/16"),
+    ipaddress.ip_network("2001::/32"),
+)
+
+# ISATAP interface identifier (low 64 bits): 0000:5EFE:v4 (private/any v4) or
+# 0200:5EFE:v4 (U/L bit set, public v4), under ANY routing prefix — so it is
+# matched by bits 32–63 rather than by a prefix. (Caught in CRT177 round-3
+# re-verify, Sonnet.)
+_ISATAP_IID_SIGNATURES = (0x00005EFE, 0x02005EFE)
+
+
+def _is_transition_ipv6(ip) -> bool:
+    """True if `ip` is any IPv6 transition/embedding form that carries or
+    tunnels an IPv4 (see _IPV6_TRANSITION_PREFIXES). Such forms are blocked
+    wholesale for SSRF safety."""
+    if not isinstance(ip, ipaddress.IPv6Address):
+        return False
+    if any(ip in net for net in _IPV6_TRANSITION_PREFIXES):
+        return True
+    if ((int(ip) >> 32) & 0xFFFFFFFF) in _ISATAP_IID_SIGNATURES:
+        return True
+    return False
 
 
 def _is_private_ip(ip_str: str) -> bool:
-    """Return True if the IP address string belongs to a blocked (private/reserved) network."""
+    """SEC-008: True if the address must be blocked for SSRF.
+
+    Two rules, both fail-safe:
+      1. Any IPv6 transition/embedding form (see _is_transition_ipv6) — blocked
+         outright, because is_global cannot see the embedded/tunnelled IPv4.
+      2. Otherwise, allow only globally-routable addresses (is_global). This
+         allowlist-by-classification covers private/RFC1918, loopback,
+         link-local, cloud-metadata, reserved, unspecified, multicast, and
+         CGNAT in one check — the old hand-rolled denylist missed 0.0.0.0/8,
+         fe80::/10, and every mapped form (all confirmed bypasses, CRT177)."""
     try:
         ip = ipaddress.ip_address(ip_str)
-        for network in _BLOCKED_NETWORKS:
-            if ip in network:
-                return True
-        return False
     except ValueError:
         return False
+    if _is_transition_ipv6(ip):
+        return True
+    return not ip.is_global
 
 
 def _check_resolved_ips(hostname: str, url: str, label: str = "Webhook URL") -> None:
@@ -156,21 +205,21 @@ def assert_url_public(url: str, label: str = "URL") -> None:
     if hostname.lower() in ("localhost", "localhost.localdomain"):
         raise ValueError(f"{label} must not target localhost: {url!r}")
 
-    # If the hostname is a literal IP address, check directly
+    # If the hostname is a literal IP address, classify it directly.
     try:
         ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        ip = None  # not an IP literal — fall through to DNS resolution
+
+    if ip is not None:
         if _is_private_ip(str(ip)):
             raise ValueError(
                 f"{label} targets a private/reserved IP address ({ip}): {url!r}"
             )
-        # It's a valid public literal IP — no DNS resolution needed
+        # Valid globally-routable literal IP — no DNS resolution needed.
         return
-    except ValueError as exc:
-        if label in str(exc):
-            raise
-        # Not a valid IP literal — proceed to DNS resolution
 
-    # SEC-008: DNS rebinding protection — resolve and check every returned IP
+    # SEC-008: DNS rebinding protection — resolve and check every returned IP.
     _check_resolved_ips(hostname, url, label)
 
 

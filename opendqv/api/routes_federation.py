@@ -174,6 +174,20 @@ async def federation_sync_status(
     }
 
     if peer:
+        # SEC-008: the peer URL is caller-controlled — it must pass the same
+        # SSRF guard as webhooks and lookup rules before we fetch it, or `peer`
+        # is an authenticated SSRF primitive (e.g.
+        # `http://169.254.169.254/latest/meta-data/?` reaching cloud metadata).
+        # A blocked/invalid peer is a client error (400), kept distinct from a
+        # genuine peer-sync failure below. httpx defaults follow_redirects=False
+        # so a single pre-request check is sufficient (no redirect-hop
+        # revalidation, unlike the urllib lookup fetcher). (CRT177)
+        from opendqv.core.webhooks import assert_url_public
+        try:
+            assert_url_public(peer, label="Federation peer URL")
+        except ValueError:
+            # Generic message — do not echo the parsed URL/IP back (CWE-209).
+            raise HTTPException(status_code=400, detail="Peer URL is not permitted.")
         try:
             async with httpx.AsyncClient(timeout=5.0) as http:
                 resp = await http.get(f"{peer.rstrip('/')}/api/v1/contracts")
