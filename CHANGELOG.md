@@ -48,7 +48,12 @@ the documented contract rather than changing it.
   which is precisely what the status guard above restricts to approver/admin.
   Both bulk-write surfaces (import and profiler) now share one guard: `409`
   unless the target contract is absent or already DRAFT. A read-only import
-  preview (`save=false`) onto an existing name is unaffected.
+  preview (`save=false`) onto an existing name is unaffected. The guard matches
+  names **case-insensitively**: the registry lookup is case-sensitive but the
+  write is not, and on a case-insensitive filesystem (Windows and macOS
+  defaults) `Customer.yaml` and `customer.yaml` are the same file — so a
+  case-variant name would otherwise have slipped past the check and replaced the
+  contract it was meant to protect.
 
 ### Fixed
 
@@ -62,6 +67,16 @@ the documented contract rather than changing it.
   governed one was not. Status and provenance (`source`, `proposed_by/at`,
   `approved_by/at`, `rejected_by/at`, `rejection_reason`) are now serialized
   structurally on every transition, and rejection metadata is read back on load.
+  This covers the legacy (flat `rules:` list) and onboarding (`fields:`)
+  formats too — they have no `contract:` block, so their state is written at
+  the top level of the document and read back from there.
+- **A failed state write is no longer silent.** If a lifecycle transition
+  cannot be written to disk (for example an unwritable contracts directory),
+  the registry now raises `ContractPersistenceError` instead of logging and
+  continuing — previously the API returned `200`, fired the
+  `opendqv.contract.approved` webhook, and only a restart revealed that the
+  approval had not been durable. A contract held purely in memory, with no YAML
+  file to persist to, is unaffected.
 - **Status write-back could corrupt a contract.** `set_status` persisted via an
   unanchored `^( +status: )\S+` regex that rewrote **every** indented `status:`
   line in the file — corrupting a rule field named `status` or a context
