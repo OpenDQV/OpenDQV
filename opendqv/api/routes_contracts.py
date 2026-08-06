@@ -572,10 +572,20 @@ async def change_contract_status(
 
     Governance workflow: draft → active → archived
 
-    Maker-checker: promoting a contract to 'active' requires the 'approver' or
-    'admin' role. Writers may only set contracts to 'draft' or 'archived'.
-    This enforces separation of duties — the person who writes a contract cannot
-    also be the person who promotes it to production.
+    Maker-checker (CRT177 Tier 2 — now enforced on EVERY transition):
+
+    * Any transition that promotes a contract **to** ACTIVE, or that takes one
+      **out of** ACTIVE (demote to draft, archive a live contract), requires
+      `approver` or `admin`. Demotion is not a lesser act than promotion: DRAFT
+      unlocks rule mutation, so an editor who could demote-then-edit would
+      defeat the separation of duties that promotion enforces. Archiving a live
+      contract is a validation outage.
+    * All other transitions (e.g. draft → archived, archived → draft,
+      review → draft) require `editor` or `admin`.
+
+    Previously the role check fired ONLY when the target status was ACTIVE, so
+    any authenticated principal — including `reader`, `auditor`, and
+    `validator` — could archive or demote a production ACTIVE contract.
     """
     try:
         new_status = ContractStatus(status.lower())
@@ -593,6 +603,28 @@ async def change_contract_status(
             detail=(
                 f"Promoting a contract to 'active' requires the 'approver' or 'admin' role. "
                 f"Current role: '{role}'. Request approval from a contract approver."
+            ),
+        )
+
+    # CRT177 Tier 2: transitions OUT of ACTIVE carry the same weight as
+    # promotion — demote unlocks rule mutation (maker-checker bypass) and
+    # archiving a live contract is a validation outage.
+    if contract.status == ContractStatus.ACTIVE and new_status != ContractStatus.ACTIVE:
+        if role not in ("admin", "approver"):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    f"Changing an ACTIVE contract to '{new_status.value}' requires the "
+                    f"'approver' or 'admin' role. Current role: '{role}'."
+                ),
+            )
+    elif new_status != ContractStatus.ACTIVE and role not in ("admin", "approver", "editor"):
+        # Every remaining transition is still a governed write.
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Changing contract status requires the 'editor', 'approver' or 'admin' role. "
+                f"Current role: '{role}'."
             ),
         )
 

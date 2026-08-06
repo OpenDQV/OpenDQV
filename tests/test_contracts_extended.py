@@ -697,12 +697,16 @@ class TestChangeContractStatusArchive:
     def teardown_method(self):
         _remove_contract(self._NAME)
 
-    def test_archive_draft_contract(self, client, auth_headers):
-        """Archiving a DRAFT contract (DRAFT→ARCHIVED) returns 200 with status=archived."""
+    def test_archive_draft_contract(self, client, editor_headers):
+        """Archiving a DRAFT contract (DRAFT→ARCHIVED) returns 200 with status=archived.
+
+        CRT177 Tier 2: status changes are governed writes — editor+ required.
+        This previously passed with a `validator` token.
+        """
         r = client.post(
             f"/api/v1/contracts/{self._NAME}/status",
             params={"status": "archived"},
-            headers=auth_headers,
+            headers=editor_headers,
         )
         assert r.status_code == 200
         data = r.json()
