@@ -19,6 +19,35 @@ from opendqv.security.auth import get_current_user, get_current_role
 sub_router = APIRouter()
 
 
+def _apply_import_meta(doc: dict, created_by: str = "") -> None:
+    """Stamp import provenance onto the contract block (CRT177 Tier 2).
+
+    These keys were previously set on the TOP LEVEL of the YAML document
+    (``doc["status"]``), but the loader reads them from the NESTED ``contract:``
+    block (``_parse_contract_format`` → ``c.get("status", "active")``). Every
+    one of them was therefore a silent no-op on disk:
+
+    * ``status: draft`` never applied — so the CSV importer (which hardcodes
+      ``status: active``) and the ODCS importer (which takes a caller-controlled
+      ``info.status``, defaulting to active) persisted contracts as **ACTIVE**,
+      live for validation and immutable, with the approval workflow skipped
+      entirely. The other six importers escaped only because they already nest
+      ``status: draft`` themselves.
+    * ``source`` and ``created_by`` never applied on ANY of the eight importers,
+      so import provenance was lost from the audit trail.
+
+    ``created_by`` maps to ``proposed_by``, which is the attribution field the
+    loader and the review workflow actually read.
+    """
+    block = doc.get("contract")
+    if not isinstance(block, dict):
+        return
+    block["source"] = "import"
+    block["status"] = "draft"
+    if created_by:
+        block["proposed_by"] = created_by
+
+
 @sub_router.post("/import/gx")
 @_d._default_limit
 async def import_great_expectations(
@@ -48,12 +77,10 @@ async def import_great_expectations(
     if save:
         contract_name = result["contract"]["name"]
         _d._validate_contract_name(contract_name)
+        _d._assert_contract_overwritable(contract_name, user, "import")
         yaml_content = gx_suite_to_yaml(suite)
         _dd = _yaml.safe_load(yaml_content)
-        _dd["source"] = "import"
-        _dd["status"] = "draft"
-        if created_by:
-            _dd["created_by"] = created_by
+        _apply_import_meta(_dd, created_by)
         yaml_content = _yaml.dump(_dd, default_flow_style=False, allow_unicode=True, sort_keys=False)
         contracts_dir = str(config.CONTRACTS_DIR)
         file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
@@ -95,14 +122,12 @@ async def import_dbt(
         for item in result["contracts"]:
             contract_name = item["contract"]["name"]
             _d._validate_contract_name(contract_name)
+            _d._assert_contract_overwritable(contract_name, user, "import")
             pairs = dbt_schema_to_yaml(schema)
             for name, yaml_content in pairs:
                 if name == contract_name:
                     _dd = _yaml.safe_load(yaml_content)
-                    _dd["source"] = "import"
-                    _dd["status"] = "draft"
-                    if created_by:
-                        _dd["created_by"] = created_by
+                    _apply_import_meta(_dd, created_by)
                     yaml_content = _yaml.dump(_dd, default_flow_style=False, allow_unicode=True, sort_keys=False)
                     file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
                     with open(file_path, "w", encoding="utf-8") as f:
@@ -146,11 +171,9 @@ async def import_soda(
         pairs = soda_checks_to_yaml(checks)
         for name, yaml_content in pairs:
             _d._validate_contract_name(name)
+            _d._assert_contract_overwritable(name, user, "import")
             _dd = _yaml.safe_load(yaml_content)
-            _dd["source"] = "import"
-            _dd["status"] = "draft"
-            if created_by:
-                _dd["created_by"] = created_by
+            _apply_import_meta(_dd, created_by)
             yaml_content = _yaml.dump(_dd, default_flow_style=False, allow_unicode=True, sort_keys=False)
             file_path = os.path.join(contracts_dir, f"{name}.yaml")
             with open(file_path, "w", encoding="utf-8") as f:
@@ -185,6 +208,8 @@ async def import_csv(
     csv_content = body_bytes.decode("utf-8")
 
     _d._validate_contract_name(contract_name)
+    if save:
+        _d._assert_contract_overwritable(contract_name, user, "import")
     result = import_csv_rules(csv_content, contract_name)
     result["contract"]["source"] = "import"
     result["contract"]["status"] = "draft"
@@ -192,10 +217,7 @@ async def import_csv(
     if save:
         yaml_content = csv_rules_to_yaml(csv_content, contract_name)
         _dd = _yaml.safe_load(yaml_content)
-        _dd["source"] = "import"
-        _dd["status"] = "draft"
-        if created_by:
-            _dd["created_by"] = created_by
+        _apply_import_meta(_dd, created_by)
         yaml_content = _yaml.dump(_dd, default_flow_style=False, allow_unicode=True, sort_keys=False)
         contracts_dir = str(config.CONTRACTS_DIR)
         file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
@@ -240,11 +262,9 @@ async def import_odcs_contract(
     if save:
         contract_name, yaml_content = odcs_to_yaml(contract_data, contract_name or None)
         _d._validate_contract_name(contract_name)
+        _d._assert_contract_overwritable(contract_name, user, "import")
         _dd = _yaml.safe_load(yaml_content)
-        _dd["source"] = "import"
-        _dd["status"] = "draft"
-        if created_by:
-            _dd["created_by"] = created_by
+        _apply_import_meta(_dd, created_by)
         yaml_content = _yaml.dump(_dd, default_flow_style=False, allow_unicode=True, sort_keys=False)
         contracts_dir = str(config.CONTRACTS_DIR)
         file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
@@ -282,14 +302,13 @@ async def import_from_csvw(
     if role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail=f"Role '{role}' is not permitted. Required: editor or admin.")
     _d._validate_contract_name(contract_name)
+    if save:
+        _d._assert_contract_overwritable(contract_name, user, "import")
     try:
         result = import_csvw(body)
         yaml_output = csvw_to_yaml(body, contract_name)
         _dd = _yaml.safe_load(yaml_output)
-        _dd["source"] = "import"
-        _dd["status"] = "draft"
-        if created_by:
-            _dd["created_by"] = created_by
+        _apply_import_meta(_dd, created_by)
         yaml_output = _yaml.dump(_dd, default_flow_style=False, allow_unicode=True, sort_keys=False)
         resp = {
             "rules": result["rules"],
@@ -335,14 +354,13 @@ async def import_from_otel(
     if role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail=f"Role '{role}' is not permitted. Required: editor or admin.")
     _d._validate_contract_name(contract_name)
+    if save:
+        _d._assert_contract_overwritable(contract_name, user, "import")
     try:
         result = import_otel(body)
         yaml_output = otel_to_yaml(body, contract_name)
         _dd = _yaml.safe_load(yaml_output)
-        _dd["source"] = "import"
-        _dd["status"] = "draft"
-        if created_by:
-            _dd["created_by"] = created_by
+        _apply_import_meta(_dd, created_by)
         yaml_output = _yaml.dump(_dd, default_flow_style=False, allow_unicode=True, sort_keys=False)
         resp = {
             "rules": result["rules"],
@@ -389,14 +407,13 @@ async def import_from_ndc(
     if role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail=f"Role '{role}' is not permitted. Required: editor or admin.")
     _d._validate_contract_name(contract_name)
+    if save:
+        _d._assert_contract_overwritable(contract_name, user, "import")
     try:
         result = import_ndc(body)
         yaml_output = ndc_to_yaml(body, contract_name)
         _dd = _yaml.safe_load(yaml_output)
-        _dd["source"] = "import"
-        _dd["status"] = "draft"
-        if created_by:
-            _dd["created_by"] = created_by
+        _apply_import_meta(_dd, created_by)
         yaml_output = _yaml.dump(_dd, default_flow_style=False, allow_unicode=True, sort_keys=False)
         resp = {
             "rules": result["rules"],

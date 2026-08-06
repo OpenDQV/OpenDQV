@@ -24,11 +24,14 @@ class TestContractStatus:
 class TestStatusChange:
     """Test changing contract lifecycle status."""
 
-    def test_change_to_draft(self, client, auth_headers, approver_headers):
+    def test_change_to_draft(self, client, approver_headers):
+        # CRT177 Tier 2: demoting an ACTIVE contract requires approver/admin —
+        # DRAFT unlocks rule mutation, so demote carries the same weight as
+        # promote. This previously passed with a `validator` token.
         r = client.post(
             "/api/v1/contracts/customer/status",
             params={"status": "draft"},
-            headers=auth_headers,
+            headers=approver_headers,
         )
         assert r.status_code == 200
         assert r.json()["status"] == "draft"
@@ -71,7 +74,7 @@ class TestDraftBlocking:
 
     def test_draft_blocks_validate(self, client, auth_headers, approver_headers):
         # Set to draft
-        client.post("/api/v1/contracts/customer/status", params={"status": "draft"}, headers=auth_headers)
+        client.post("/api/v1/contracts/customer/status", params={"status": "draft"}, headers=approver_headers)
 
         body = {"record": {"email": "test@example.com"}, "contract": "customer"}
         r = client.post("/api/v1/validate", json=body, headers=auth_headers)
@@ -82,7 +85,7 @@ class TestDraftBlocking:
         client.post("/api/v1/contracts/customer/status", params={"status": "active"}, headers=approver_headers)
 
     def test_draft_allowed_with_flag(self, client, auth_headers, approver_headers):
-        client.post("/api/v1/contracts/customer/status", params={"status": "draft"}, headers=auth_headers)
+        client.post("/api/v1/contracts/customer/status", params={"status": "draft"}, headers=approver_headers)
 
         body = {
             "record": {
@@ -228,7 +231,7 @@ class TestRuleMutationOnDraft:
             pytest.skip("No active contracts available")
         contract_name = active[0]["name"]
 
-        client.post(f"/api/v1/contracts/{contract_name}/status", params={"status": "draft"}, headers=auth_headers)
+        client.post(f"/api/v1/contracts/{contract_name}/status", params={"status": "draft"}, headers=approver_headers)
         try:
             r = client.post(f"/api/v1/contracts/{contract_name}/rules", json=self._RULE, headers=editor_headers)
             assert r.status_code == 200
@@ -248,7 +251,7 @@ class TestRuleMutationOnDraft:
             pytest.skip("No active contracts available")
         contract_name = active[0]["name"]
 
-        client.post(f"/api/v1/contracts/{contract_name}/status", params={"status": "draft"}, headers=auth_headers)
+        client.post(f"/api/v1/contracts/{contract_name}/status", params={"status": "draft"}, headers=approver_headers)
         try:
             rule_a = dict(self._RULE, name="act047_counter_rule_a")
             rule_b = dict(self._RULE, name="act047_counter_rule_b")
@@ -281,7 +284,7 @@ class TestRuleMutationOnDraft:
             pytest.skip("No active contracts available")
         contract_name = active[0]["name"]
 
-        client.post(f"/api/v1/contracts/{contract_name}/status", params={"status": "draft"}, headers=auth_headers)
+        client.post(f"/api/v1/contracts/{contract_name}/status", params={"status": "draft"}, headers=approver_headers)
         try:
             # Add a rule first so we have something to delete
             r = client.post(f"/api/v1/contracts/{contract_name}/rules", json=self._RULE, headers=editor_headers)
