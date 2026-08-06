@@ -704,15 +704,17 @@ class TestFederationSyncStatus:
         r = client.get("/api/v1/federation/sync-status", headers=auth_headers)
         assert r.json()["diverged"] == []
 
-    def test_with_unreachable_peer_returns_peer_error(self, client, auth_headers):
+    def test_localhost_peer_rejected_ssrf(self, client, auth_headers):
+        # CRT177 finding #3: a localhost/internal peer must be rejected by the
+        # SSRF guard (400) before any request is made — previously this was
+        # fetched, making `peer` an authenticated SSRF primitive. The
+        # unreachable-public-peer → peer_error path is covered in
+        # test_federation_api.py::TestFederationSyncCompare.
         r = client.get(
             "/api/v1/federation/sync-status?peer=http://localhost:19999",
             headers=auth_headers,
         )
-        assert r.status_code == 200
-        data = r.json()
-        assert data["peer"] == "http://localhost:19999"
-        assert data["peer_error"] is not None
+        assert r.status_code == 400
 
     def test_node_id_matches_config(self, client, auth_headers):
         import opendqv.config as config
