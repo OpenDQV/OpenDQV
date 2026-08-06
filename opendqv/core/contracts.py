@@ -933,6 +933,12 @@ class ContractRegistry:
             # own approve workflow.
             approved_by=c.get("approved_by"),
             approved_at=c.get("approved_at"),
+            # CRT177 Tier 2: rejection metadata is now serialised by
+            # reject_contract, so it must be read back or it is lost on reload.
+            # Keep this set in sync with _PERSISTED_META_FIELDS.
+            rejected_by=c.get("rejected_by"),
+            rejected_at=c.get("rejected_at"),
+            rejection_reason=c.get("rejection_reason"),
         )
 
     def _parse_legacy_format(self, raw: dict, path: Path) -> DataContract:
@@ -1084,31 +1090,12 @@ class ContractRegistry:
         logger.info("Contract %s v%s status changed to %s", name, contract.version, status.value)
 
         # Write the new status back to the YAML file so it survives reload.
-        path = self._contract_paths.get(name)
-        if path and path.exists():
-            try:
-                import re
-                text = path.read_text(encoding="utf-8")
-                # Replace an existing "  status: <value>" line inside the contract block.
-                new_text, n = re.subn(
-                    r'^( +status: )\S+',
-                    lambda m: m.group(1) + status.value,
-                    text,
-                    flags=re.MULTILINE,
-                )
-                if n == 0:
-                    # status field absent — insert it after the "name:" line.
-                    new_text = re.sub(
-                        r'(^contract:\n( +)name:.*\n)',
-                        lambda m: m.group(0) + m.group(2) + f"status: {status.value}\n",
-                        text,
-                        flags=re.MULTILINE,
-                    )
-                path.write_text(new_text, encoding="utf-8")
-                logger.info("Wrote status=%s back to %s", status.value, path.name)
-            except Exception as exc:
-                logger.warning("Could not write status back to YAML for %s: %s", name, exc)
-
+        # CRT177 Tier 2: this used an unanchored `^( +status: )\S+` regex that
+        # rewrote EVERY indented `status:` line in the file — it would corrupt a
+        # nested `status` key (e.g. inside contexts: or a rule) and the write was
+        # non-atomic. Replaced with structured serialisation through the shared
+        # atomic writer.
+        self._persist_contract_meta(name, contract)
         return contract
 
     def submit_for_review(self, name: str, version: str, proposed_by: str) -> Optional[DataContract]:
@@ -1122,6 +1109,9 @@ class ContractRegistry:
         contract.proposed_by = proposed_by
         contract.proposed_at = datetime.now(timezone.utc).isoformat()
         self.history.record_version(contract)
+        # CRT177 Tier 2: persist — this transition previously lived only in
+        # memory, so a restart/reload silently reverted it to the on-disk status.
+        self._persist_contract_meta(name, contract)
         return contract
 
     def approve_contract(self, name: str, version: str, approved_by: str) -> Optional[DataContract]:
@@ -1135,6 +1125,10 @@ class ContractRegistry:
         contract.approved_by = approved_by
         contract.approved_at = datetime.now(timezone.utc).isoformat()
         self.history.record_version(contract, approved_by=approved_by)
+        # CRT177 Tier 2: an approval is the single most important transition to
+        # persist — without this it reverted to `draft` on the next reload while
+        # history claimed ACTIVE.
+        self._persist_contract_meta(name, contract)
         return contract
 
     def reject_contract(self, name: str, version: str, rejected_by: str, reason: str) -> Optional[DataContract]:
@@ -1149,6 +1143,8 @@ class ContractRegistry:
         contract.rejected_at = datetime.now(timezone.utc).isoformat()
         contract.rejection_reason = reason
         self.history.record_version(contract)
+        # CRT177 Tier 2: persist the rejection + its reason.
+        self._persist_contract_meta(name, contract)
         return contract
 
     def create_draft(
@@ -1393,8 +1389,47 @@ class ContractRegistry:
         logger.info("delete_rule contract=%s rule=%s version=%s", name, rule_name, contract.version)
         return contract
 
-    def _write_contract_yaml(self, name: str, contract: "DataContract") -> None:
-        """Write contract rules back to the YAML file atomically."""
+    # Lifecycle + provenance fields that must survive a reload.
+    # MUST stay in sync with _parse_contract_format — a field written here but
+    # not read there is silently lost on the next reload. (CRT177 Tier 2: the
+    # serializer previously wrote only rules+version, so an approval lived in
+    # memory only and reverted to the on-disk status on restart/reload.)
+    _PERSISTED_META_FIELDS: tuple = (
+        "source",
+        "proposed_by", "proposed_at",
+        "approved_by", "approved_at",
+        "rejected_by", "rejected_at", "rejection_reason",
+    )
+
+    @classmethod
+    def _apply_contract_meta(cls, block: dict, contract: "DataContract") -> None:
+        """Write lifecycle status + provenance into a raw ``contract:`` block."""
+        block["status"] = contract.status.value
+        for field in cls._PERSISTED_META_FIELDS:
+            value = getattr(contract, field, None)
+            if value is not None:
+                block[field] = value
+
+    def _persist_contract_meta(self, name: str, contract: "DataContract") -> None:
+        """Persist status + provenance only (no rule changes), best-effort.
+
+        Used by the lifecycle transitions (set_status, submit, approve, reject).
+        Failure to write must not roll back an in-memory transition that has
+        already been recorded in history, so this logs rather than raises —
+        matching the pre-existing set_status behaviour.
+        """
+        try:
+            self._write_contract_yaml(name, contract, include_rules=False)
+        except Exception as exc:
+            logger.warning("Could not persist status/provenance for %s: %s", name, exc)
+
+    def _write_contract_yaml(self, name: str, contract: "DataContract", include_rules: bool = True) -> None:
+        """Write contract state back to the YAML file atomically.
+
+        Always persists lifecycle status + provenance; rules and version are
+        written only when ``include_rules`` (the lifecycle transitions do not
+        touch rules).
+        """
         path = self._contract_paths.get(name)
         if not path or not path.exists():
             raise RuntimeError(f"No YAML path found for contract '{name}'")
@@ -1410,15 +1445,17 @@ class ContractRegistry:
                 f"Detail: {exc}"
             ) from exc
         if "contract" in raw:
-            # Use mode='json' to ensure enum values are serialised as plain strings,
-            # not as Python-specific YAML tags (e.g. Severity.ERROR → 'error').
-            rules_out = [
-                r.model_dump(by_alias=True, exclude_none=True, mode='json')
-                for r in contract.rules
-            ]
-            raw["contract"]["rules"] = rules_out
-            # ACT-047-02: persist the version field (may have been updated by draft patch counter).
-            raw["contract"]["version"] = contract.version
+            if include_rules:
+                # Use mode='json' to ensure enum values are serialised as plain strings,
+                # not as Python-specific YAML tags (e.g. Severity.ERROR → 'error').
+                rules_out = [
+                    r.model_dump(by_alias=True, exclude_none=True, mode='json')
+                    for r in contract.rules
+                ]
+                raw["contract"]["rules"] = rules_out
+                # ACT-047-02: persist the version field (may have been updated by draft patch counter).
+                raw["contract"]["version"] = contract.version
+            self._apply_contract_meta(raw["contract"], contract)
         tmp = path.with_suffix(".yaml.tmp")
         tmp.write_text(yaml.safe_dump(raw, default_flow_style=False, allow_unicode=True, sort_keys=False), encoding="utf-8")
         tmp.replace(path)
