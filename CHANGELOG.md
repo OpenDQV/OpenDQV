@@ -2,6 +2,53 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.3.29] - 2026-08-06
+
+Security and correctness release (CRT177 Tier 1). Three fixes surfaced in a
+first-hand engine discovery pass; the SSRF rewrite was adversarially
+red-teamed across four rounds before merge (see Security). All fixes are
+independent of `AUTH_MODE` and apply in the default posture. No change to the
+contract format.
+
+### Fixed
+
+- **NaN / infinity false-pass in numeric rules (correctness).** A `NaN`
+  (or the string `"nan"`) passed `min`, `max`, and `range` rules on both the
+  single-record and batch paths — `NaN` compares `False` to every bound, and a
+  single-sided `min`/`max` rule also let `±inf` through. Non-finite values are
+  now rejected as a type mismatch (`OPENDQV_TYPE_MISMATCH`) with a clear
+  message. A genuinely-absent optional numeric field (missing key or `null`)
+  still passes — the batch path reads the original record value so a missing
+  field stays distinct from an explicit `NaN`.
+- **Unhandled-exception DoS on checksum rules (CWE-248 → HTTP 500).** A field
+  whose value contained a Unicode digit such as `²` (U+00B2) crashed the
+  validator: `str.isdigit()` accepts it but `int()` raises. Affected
+  `mod10_gs1`, `nhs_mod11`, `cpf_mod11`, and `isin_luhn`. Checksum inputs are
+  now validated as ASCII digits (a clean "invalid checksum"), and the
+  single-record path fails closed on any unexpected checker error rather than
+  returning 500 — matching the batch path.
+
+### Security
+
+- **SEC-008 — SSRF guard IPv6 bypasses.** The shared `assert_url_public` guard
+  (used by webhooks **and** the `lookup` rule fetcher) allowed several
+  internal-reaching addresses: `0.0.0.0`, IPv4-mapped IPv6
+  (`::ffff:169.254.169.254`), IPv6 link-local (`fe80::/10`), NAT64
+  (`64:ff9b::…`), IPv4-compatible (`::a9fe:a9fe`), ISATAP (`::5efe:…`), and
+  CGNAT (`100.64/10`). The guard was rewritten to an allowlist-by-
+  classification: it blocks **every** IPv6→IPv4 transition/embedding form
+  outright (IPv4-mapped, IPv4-compatible, NAT64 well-known prefix, 6to4,
+  Teredo, ISATAP) and otherwise permits only globally-routable addresses. The
+  same policy guards DNS-resolved addresses, closing DNS64/rebinding variants.
+  Residual (disclosed, architecturally unclosable): NAT64 operator
+  Network-Specific Prefixes and 6rd/MAP operator prefixes are indistinguishable
+  from ordinary global IPv6.
+- **SEC-008 — authenticated SSRF in `GET /federation/sync-status`.** The
+  caller-controlled `peer` parameter was fetched with no SSRF guard, allowing
+  any authenticated caller to make the server request an arbitrary internal
+  URL. `peer` is now validated through `assert_url_public` before the request
+  (HTTP 400 on a disallowed target).
+
 ## [2.3.28] - 2026-07-20
 
 Security release closing a secret-exfiltration hole in the `lookup` rule's
