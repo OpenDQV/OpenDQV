@@ -9,6 +9,7 @@ Both return structured results with per-field errors and severity.
 """
 
 import csv
+import math
 import os
 import re
 import logging
@@ -166,9 +167,29 @@ def validate_record(
 
     for rule in rules:
         value = record.get(rule.field)
-        failure = _check_rule(value, rule, record)
-        if not failure and rule.cached_has_age_constraint:
-            failure = _check_age(value, rule)
+        try:
+            failure = _check_rule(value, rule, record)
+            if not failure and rule.cached_has_age_constraint:
+                failure = _check_age(value, rule)
+        except Exception:
+            # Fail closed. An unexpected error inside a checker must never
+            # crash the worker — an unhandled exception surfaces as HTTP 500,
+            # a remotely-triggerable DoS. The batch path already fails closed
+            # on exception; bring the single-record path to parity by
+            # rejecting the record with a generic message (CWE-209: never
+            # echo the exception detail to the caller).
+            logger.exception(
+                "validate_record: checker raised on rule=%s field=%s — failing closed",
+                rule.name, rule.field,
+            )
+            errors.append(FieldError(
+                field=rule.field,
+                rule=rule.name,
+                message="Rule could not be evaluated; record rejected (fail-closed).",
+                severity=Severity.ERROR.value,
+                error_code="OPENDQV_RULE_ERROR",
+            ).to_dict())
+            continue
 
         if failure:
             # v2.3.23 outside-review #3: detect type-mismatch sentinel.
@@ -236,6 +257,18 @@ def _check_condition(rule: Rule, record: Optional[dict]) -> bool:
     return True
 
 
+def _is_ascii_digits(s: str) -> bool:
+    """True only for a non-empty run of ASCII 0-9.
+
+    str.isdigit() also returns True for Unicode digit characters such as
+    superscripts (U+00B2 '²') and other scripts' digits, but int() raises on
+    the former — so an isdigit()-gated int() is an unhandled-ValueError (500)
+    primitive. An identifier check-string is never validly non-ASCII, so
+    reject those here and return a clean "invalid checksum" instead of crashing.
+    """
+    return s.isascii() and s.isdigit()
+
+
 def _validate_checksum(value: str, algorithm: str) -> bool:
     """Validate identifier check digits. Returns True if checksum is valid."""
     s = str(value).strip().upper()
@@ -243,7 +276,7 @@ def _validate_checksum(value: str, algorithm: str) -> bool:
     if algorithm == "mod10_gs1":
         # GS1 Mod-10 — used for GTIN-8, GTIN-12, GTIN-13, GTIN-14, GLN, SSCC
         digits = s.replace(" ", "").replace("-", "")
-        if not digits.isdigit():
+        if not _is_ascii_digits(digits):
             return False
         total = 0
         for i, d in enumerate(reversed(digits[:-1])):
@@ -262,7 +295,7 @@ def _validate_checksum(value: str, algorithm: str) -> bool:
         for ch in rearranged:
             if ch.isalpha():
                 numeric += str(ord(ch) - ord('A') + 10)
-            elif ch.isdigit():
+            elif ch in "0123456789":
                 numeric += ch
             else:
                 return False
@@ -288,9 +321,11 @@ def _validate_checksum(value: str, algorithm: str) -> bool:
         for ch in s[:-1]:
             if ch.isalpha():
                 expanded += str(ord(ch) - ord('A') + 10)
-            elif ch.isdigit():
+            elif ch in "0123456789":
                 expanded += ch
             else:
+                # Reject Unicode digits (str.isdigit() True but int() raises)
+                # and any other non-alphanumeric — invalid, not a crash.
                 return False
         # Luhn on expanded digits
         total = 0
@@ -315,7 +350,7 @@ def _validate_checksum(value: str, algorithm: str) -> bool:
         for ch in s:
             if ch.isalpha():
                 numeric += str(ord(ch) - ord('A') + 10)
-            elif ch.isdigit():
+            elif ch in "0123456789":
                 numeric += ch
             else:
                 return False
@@ -327,7 +362,7 @@ def _validate_checksum(value: str, algorithm: str) -> bool:
     elif algorithm == "nhs_mod11":
         # NHS Number: 10 digits, weights 10..2, check digit is last
         digits = s.replace(" ", "")
-        if len(digits) != 10 or not digits.isdigit():
+        if len(digits) != 10 or not _is_ascii_digits(digits):
             return False
         total = sum(int(d) * w for d, w in zip(digits[:9], range(10, 1, -1)))
         remainder = total % 11
@@ -341,7 +376,7 @@ def _validate_checksum(value: str, algorithm: str) -> bool:
     elif algorithm == "cpf_mod11":
         # Brazilian CPF: 11 digits, two check digits
         digits = s.replace(".", "").replace("-", "")
-        if len(digits) != 11 or not digits.isdigit():
+        if len(digits) != 11 or not _is_ascii_digits(digits):
             return False
         if len(set(digits)) == 1:
             return False  # all same digit is invalid
@@ -481,6 +516,18 @@ _TYPE_MISMATCH_PREFIX = "__OPENDQV_TYPE_MISMATCH__::"
 
 
 def _type_mismatch_msg(rule: Rule, value) -> str:
+    # A NaN or infinity is not a valid finite measurement — the canonical
+    # "corrupt number" a broken upstream pipeline emits. It parses as a float
+    # but must never satisfy a numeric bound (NaN compares False to every
+    # bound; ±inf slips single-sided min/max rules), so it surfaces here as a
+    # type/domain mismatch with an accurate, non-generic message.
+    if isinstance(value, float) and not math.isfinite(value):
+        got = "NaN" if math.isnan(value) else "infinity"
+        return (
+            f"{_TYPE_MISMATCH_PREFIX}"
+            f"{rule.type} rule on field '{rule.field}' expected a finite "
+            f"numeric value, got {got}"
+        )
     return (
         f"{_TYPE_MISMATCH_PREFIX}"
         f"{rule.type} rule on field '{rule.field}' expected numeric "
@@ -510,7 +557,10 @@ def _check_min(value, rule: Rule, record: Optional[dict] = None) -> Optional[str
         except (TypeError, ValueError):
             return _type_mismatch_msg(rule, value)
     try:
-        if float(value) < rule.min_value:
+        v = float(value)
+        if not math.isfinite(v):
+            return _type_mismatch_msg(rule, value)
+        if v < rule.min_value:
             return rule.error_message
     except (TypeError, ValueError):
         return _type_mismatch_msg(rule, value)
@@ -526,7 +576,10 @@ def _check_max(value, rule: Rule, record: Optional[dict] = None) -> Optional[str
         except (TypeError, ValueError):
             return _type_mismatch_msg(rule, value)
     try:
-        if float(value) > rule.max_value:
+        v = float(value)
+        if not math.isfinite(v):
+            return _type_mismatch_msg(rule, value)
+        if v > rule.max_value:
             return rule.error_message
     except (TypeError, ValueError):
         return _type_mismatch_msg(rule, value)
@@ -543,6 +596,8 @@ def _check_range(value, rule: Rule, record: Optional[dict] = None) -> Optional[s
             return _type_mismatch_msg(rule, value)
     try:
         v = float(value)
+        if not math.isfinite(v):
+            return _type_mismatch_msg(rule, value)
         if rule.min_value is not None and v < rule.min_value:
             return rule.error_message
         if rule.max_value is not None and v > rule.max_value:
@@ -1358,6 +1413,7 @@ def validate_batch(
             try:
                 failing_indices = _batch_check_rule(
                     con, df, rule, failing_type_mismatches=failing_type_mismatches,
+                    records=records,
                 )
             except Exception as e:
                 # Log only rule metadata — never include record field values.
@@ -1468,7 +1524,7 @@ def validate_batch(
     }
 
 
-def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches: Optional[dict] = None) -> set[int]:
+def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches: Optional[dict] = None, records: Optional[list[dict]] = None) -> set[int]:
     """Run a single rule against the batch via DuckDB. Returns set of failing row indices.
 
     v2.3.23 outside-review #3 (Sonnet aec401d0381905d97): for numeric
@@ -1476,11 +1532,29 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
     is populated as `{idx: type_mismatch_message}` so the caller can
     swap the error_code to OPENDQV_TYPE_MISMATCH on those rows. Other
     rule types are unaffected.
+
+    `records` is the original list of dicts (row idx aligned with df).
+    The numeric branches read the raw value from it rather than the
+    DataFrame cell: pandas collapses a missing key AND an explicit NaN
+    both to np.nan, which would make an absent optional numeric field
+    (legitimately skipped) indistinguishable from a corrupt NaN value
+    (must be rejected). Reading the original dict restores the single-
+    record semantics exactly — missing key → None → absent → pass;
+    explicit NaN/inf → rejected as non-finite.
     """
     field = rule.field
     failing = set()
     if failing_type_mismatches is None:
         failing_type_mismatches = {}
+
+    def _orig_val(idx):
+        # Numeric branches read the raw record value so a missing key
+        # (absent → skip) stays distinct from an explicit NaN/inf
+        # (non-finite → reject). Defensive fallback to the DataFrame cell
+        # if records was not supplied (records is always passed today).
+        if records is not None:
+            return records[idx].get(field)
+        return df[field].iloc[idx]
 
     if rule.type == "regex" and rule.pattern:
         # DuckDB doesn't support \w, \s, \d shorthand classes — fall back to Python.
@@ -1515,7 +1589,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
         # violation. Per-row check is slower (~10x) but correct;
         # v2.4 may reintroduce a hybrid TRY_CAST + per-row fallback.
         for idx in range(len(df)):
-            failure = _check_min(df[field].iloc[idx], rule)
+            failure = _check_min(_orig_val(idx), rule)
             if failure is not None:
                 failing.add(idx)
                 if failure.startswith(_TYPE_MISMATCH_PREFIX):
@@ -1523,7 +1597,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
 
     elif rule.type == "max" and rule.max_value is not None:
         for idx in range(len(df)):
-            failure = _check_max(df[field].iloc[idx], rule)
+            failure = _check_max(_orig_val(idx), rule)
             if failure is not None:
                 failing.add(idx)
                 if failure.startswith(_TYPE_MISMATCH_PREFIX):
@@ -1531,7 +1605,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
 
     elif rule.type == "range" and rule.min_value is not None and rule.max_value is not None:
         for idx in range(len(df)):
-            failure = _check_range(df[field].iloc[idx], rule)
+            failure = _check_range(_orig_val(idx), rule)
             if failure is not None:
                 failing.add(idx)
                 if failure.startswith(_TYPE_MISMATCH_PREFIX):
