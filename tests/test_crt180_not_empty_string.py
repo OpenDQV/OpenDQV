@@ -30,13 +30,15 @@ class TestSingleRecord:
             assert res["errors"][0]["error_code"].startswith("OPENDQV_NOT_EMPTY_STRING_")
             assert res["errors"][0]["message"] == "Email is required"
 
-    def test_non_string_values_are_type_mismatch_not_coerced(self):
+    def test_non_string_values_fail_under_the_rule_code_not_coerced(self):
+        # Same code as the managed engine: the type guard is this rule's own
+        # assertion (a cross-engine fixture run caught the earlier TYPE_MISMATCH choice).
         for val in (0, 1, 1.5, False, True, [], ["x"], {}, {"k": "v"}):
             res = validate_record({"email": val}, [_rule()])
             assert res["valid"] is False, val
             err = res["errors"][0]
-            assert err["error_code"] == "OPENDQV_TYPE_MISMATCH", val
-            assert "must be a string" in err["message"]
+            assert err["error_code"].startswith("OPENDQV_NOT_EMPTY_STRING_"), val
+            assert "must be a JSON string" in err["message"]
 
     def test_not_empty_still_coerces_for_contrast(self):
         res = validate_record({"email": 0}, [_rule(type="not_empty", name="e")])

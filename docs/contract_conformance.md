@@ -141,6 +141,48 @@ upper-cased, plus `OPENDQV_TYPE_MISMATCH`, `OPENDQV_REQUIRED_FIELD_MISSING`
 (managed engine, implicit-required) and `OPENDQV_ADDITIONAL_PROPERTIES`
 (`strict_schema`).
 
+## First cross-engine run (2026-09-02, the managed engine on these fixtures)
+
+The five fixture files were run through the managed engine against the
+same synced contracts (wrapper removed — the only transformation).
+
+| Fixture | Probes | Identical | Differ |
+|---|---|---|---|
+| banking_transaction | 16 | 15 | 1 |
+| hr_employee | 20 | 18 | 2 |
+| customer | 15 | 14 | 1 |
+| dora_ict_incident | 40 | 35 | 5 |
+| nhs_dsp_patient | 20 | 18 | 2 |
+| **total** | **111** | **100** | **11** |
+
+Every one of the 111 probes gets the **same `valid` verdict** on both
+engines. The 11 differences are in which error codes accompany an invalid
+record, and they fall into exactly two classes — both are specification
+questions, not bugs on either side:
+
+- **Class A — implicit-required (5 probes, the empty record `{}`).** The
+  managed engine adds `OPENDQV_REQUIRED_FIELD_MISSING` for every
+  error-severity single-field format rule whose field is absent (its
+  implicit-required semantics, the thing `optional: true` opts out of). Core
+  reports only the `not_empty` codes because format-class rules skip absent
+  fields. → **Decision D2** above; whichever way it goes, the fixtures
+  encode it.
+- **Class B — empty string on format-class rules (6 probes: one field set
+  to `""`).** Core treats `""` as absent for format-class rules (`regex`,
+  `date_format`, …), so only the `not_empty` rule fires — CRT170/J3, "the
+  presence-class rules are the single catcher for absence". The managed
+  engine fires the format rule too (`OPENDQV_REGEX_EMAIL_FORMAT`,
+  `OPENDQV_DATE_FORMAT_DETECTION_TIMESTAMP_FORMAT`, …) alongside `not_empty`.
+  → **Decision D6: is an empty string absent?** Recommendation: Core's
+  reading — one error per missing value, from the rule whose job it is —
+  and the managed engine adopts it.
+
+A third class existed for one run and is gone: the first cut of
+`not_empty_string` in this change set reported a non-string value under
+`OPENDQV_TYPE_MISMATCH`, while the managed engine (which shipped the type
+first) reports it under the rule's own code. The fixtures caught it within
+minutes; Core now matches. That is the mechanism working.
+
 ## Known issues
 
 **K1 — batch skips absent fields.** `validate_batch` logs "Skipping rule —

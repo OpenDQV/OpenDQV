@@ -561,17 +561,38 @@ def _check_not_empty_string(value, rule: Rule, record: Optional[dict] = None) ->
     """Presence + JSON-string type guard (CRT180 contract-format conformance).
 
     Unlike not_empty, a non-string value is never coerced: 0, false, [] and
-    {} are rejected as OPENDQV_TYPE_MISMATCH rather than silently
-    stringified into "0" / "False" / "[]" and passed. Absent, null and
+    {} are rejected — under this rule's own error code, with a typed
+    message — rather than silently stringified into "0" / "False" / "[]"
+    and passed. Absent, null and
     whitespace-only values fail with the rule's own message.
     """
     if value is None:
         return rule.error_message
     if not isinstance(value, str):
-        return _TYPE_MISMATCH_PREFIX + f"{rule.field} must be a string; got {type(value).__name__}"
+        # Reported under the rule's own error code (not OPENDQV_TYPE_MISMATCH):
+        # the type guard IS this rule's assertion, so the code stays routable
+        # to the rule — matches the managed engine, which shipped this type
+        # first (cross-engine fixture run, CRT180).
+        return (
+            f"field '{rule.field}' must be a JSON string, got {_json_type_name(value)} — "
+            "send the value as a quoted string to preserve canonical form "
+            "(e.g. leading zeros: \"00012345\", not 12345)"
+        )
     if value.strip() == "":
         return rule.error_message
     return None
+
+
+def _json_type_name(value) -> str:
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, (int, float)):
+        return "number"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    return "null" if value is None else type(value).__name__
 
 
 def _check_regex(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
@@ -1723,18 +1744,14 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
 
     elif rule.type == "not_empty_string":
         # CRT180: presence + string-type guard. Read the raw record value —
-        # pandas collapses types inside object columns — and mark non-string,
-        # non-null values as type mismatches so the caller swaps the
-        # error_code to OPENDQV_TYPE_MISMATCH (single-record parity).
+        # pandas collapses types inside object columns. Non-string values fail
+        # under the rule's own code (single-record parity).
         for idx in range(len(df)):
             val = _orig_val(idx)
             if val is None or (isinstance(val, float) and pd.isna(val)):
                 failing.add(idx)
             elif not isinstance(val, str):
-                failing.add(idx)
-                failing_type_mismatches[idx] = (
-                    _TYPE_MISMATCH_PREFIX + f"{field} must be a string; got {type(val).__name__}"
-                )
+                failing.add(idx)  # rule's own code, see _check_not_empty_string
             elif val.strip() == "":
                 failing.add(idx)
 
