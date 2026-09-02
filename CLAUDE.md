@@ -12,7 +12,7 @@ It validates records against YAML data contracts at the point of write — befor
 data enters the pipeline ("shift-left"). It is **not** a pipeline monitoring tool
 (that's Monte Carlo) or a pipeline test framework (that's dbt/Soda).
 
-**Version:** 2.4.0
+**Version:** 2.5.1
 **Stack:** FastAPI + Gunicorn/Uvicorn, Streamlit UI, SQLite/PostgreSQL, DuckDB (batch), MCP
 
 ---
@@ -101,7 +101,9 @@ python -m opendqv.cli validate customer '{"name":"Alice","age":30}'
 ### Contract lifecycle
 States: `draft` → `review` → `active` | `archived`
 - `reject_contract()` transitions REVIEW → DRAFT
-- ACTIVE contracts are immutable — rule mutations return 409
+- ACTIVE and REVIEW contracts are immutable — rule mutations return 409 (REVIEW: reject back to DRAFT to edit)
+- `POST /contracts/{name}/version` creates a NEW object + `{name}_v{version}.yaml` via `ContractRegistry.create_version` — the base object is never mutated
+- The file index is `_contract_paths[name][version]` — two-level, mirroring `_contracts`
 - Draft contracts auto-increment version counter on rule mutations and write back to YAML
 
 ### Test isolation
@@ -148,7 +150,9 @@ States: `draft` → `review` → `active` | `archived`
 - SEC-008: Webhook SSRF protection (RFC 1918 + loopback + link-local blocked)
 - SEC-009: Token role whitelist — `/tokens/generate` rejects unknown roles with HTTP 422
 - SEC-010: Import/webhook/reload/token role guards — `POST /import/*`, `POST/DELETE /webhooks` require `editor`/`admin`; `POST /contracts/reload` requires `admin`; `GET/POST /tokens/*` require `admin`
-- ACTIVE contracts are immutable — rule mutations return 409
+- ACTIVE and REVIEW contracts are immutable — rule mutations return 409 (registry-level gate, v2.5.1)
+- SEC-004 covers every field reference a rule carries (trigger fields, compare_to, cross-field names), not just `field`; `date_format.format` is a bound SQL parameter (v2.4.1)
+- `CONTRACT_NAME_RE` in `core/contracts.py` is the single contract-name charset; every core write path taking a caller-supplied name checks it (v2.4.1)
 
 ---
 
