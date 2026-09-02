@@ -88,7 +88,7 @@ except ImportError:
     sys.exit(1)
 
 import opendqv.config as config
-from opendqv.core.contracts import ContractRegistry
+from opendqv.core.contracts import CONTRACT_NAME_RE, ContractRegistry
 from opendqv.core.validator import validate_record as _validate_record, validate_batch as _validate_batch, strict_schema_kwargs
 from opendqv.core.explainer import explain_rule
 from opendqv.core.rule_parser import ContractStatus, Rule as _Rule
@@ -1511,6 +1511,21 @@ async def _tool_create_contract_draft(args: dict) -> list[types.TextContent]:
                 f"draft contracts in the last hour."
             ),
             remediation="Wait before creating more drafts, or contact an admin to raise the limit.",
+        ))]
+
+    # CRT178 #10: charset guard BEFORE the prefix guard — "MCP_../../x" passed
+    # the prefix check and reached an unguarded file write. Also enforced
+    # inside ContractRegistry.create_draft.
+    if not CONTRACT_NAME_RE.match(name):
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="INVALID_CONTRACT_NAME",
+            kind="validation",
+            status=422,
+            detail=(
+                f"Invalid contract name '{name}'. Names must contain only letters, "
+                f"digits, hyphens, and underscores (1-100 chars)."
+            ),
+            remediation="Use a name like MCP_satellite_telemetry — no slashes, dots, or spaces.",
         ))]
 
     # MCP_ prefix guard (also enforced inside ContractRegistry.create_draft)

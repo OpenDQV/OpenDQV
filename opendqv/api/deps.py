@@ -235,9 +235,8 @@ def _parse_upload(content: bytes, filename: str):
         raise HTTPException(status_code=400, detail="Invalid file format. Expected CSV or Parquet.")
 
 
-import re as _re
 
-_CONTRACT_NAME_RE = _re.compile(r'^[A-Za-z0-9_-]{1,100}$')
+from opendqv.core.contracts import CONTRACT_NAME_RE as _CONTRACT_NAME_RE  # single source of truth (CRT178 #10)
 
 def _validate_contract_name(name: str) -> None:
     if not _CONTRACT_NAME_RE.match(name):

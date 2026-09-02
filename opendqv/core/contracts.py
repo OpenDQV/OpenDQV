@@ -10,6 +10,7 @@ File naming: {name}.yaml or {name}_v{version}.yaml
 import copy
 import hashlib
 import json
+import re as _re
 import sqlite3
 import yaml
 import logging
@@ -18,6 +19,12 @@ from pathlib import Path
 from typing import Optional
 from pydantic import BaseModel, field_validator
 from .rule_parser import Rule, Severity, ContractStatus
+
+# Canonical contract-name charset. Letters, digits, hyphen, underscore only —
+# no path separators, no dots, so a name can never escape ``contracts_dir``
+# (SEC-002/006). The REST layer (``api/deps._CONTRACT_NAME_RE``) aliases this;
+# every core write path that takes a caller-supplied name must check it.
+CONTRACT_NAME_RE = _re.compile(r"^[A-Za-z0-9_-]{1,100}$")
 
 
 class UnknownContextError(ValueError):
@@ -1267,9 +1274,18 @@ class ContractRegistry:
         in the shared library until a human approves it via submit_for_review +
         approve_contract.
 
-        Raises ValueError if the name does not start with 'MCP_', if the contract
-        already exists, or if any rule definition is invalid.
+        Raises ValueError if the name is not a valid contract name, does not
+        start with 'MCP_', if the contract already exists, or if any rule
+        definition is invalid.
         """
+        # CRT178 #10: the prefix check alone let "MCP_../../x" through to an
+        # unguarded ``contracts_dir / f"{name}.yaml"`` write — an arbitrary
+        # file write from an agent-facing tool. Charset first, prefix second.
+        if not isinstance(name, str) or not CONTRACT_NAME_RE.match(name):
+            raise ValueError(
+                f"Invalid contract name '{name}'. Names must contain only letters, "
+                f"digits, hyphens, and underscores (1-100 chars)."
+            )
         if not name.startswith("MCP_"):
             raise ValueError(
                 f"Agent-created contracts must be named with the 'MCP_' prefix "
@@ -1305,6 +1321,10 @@ class ContractRegistry:
         )
 
         path = self.contracts_dir / f"{name}.yaml"
+        # Defence in depth: the charset above already forbids separators; this
+        # containment check makes the invariant explicit and independent of it.
+        if path.resolve().parent != self.contracts_dir.resolve():
+            raise ValueError(f"Contract path escapes the contracts directory: {name}")
         path.write_text(self._contract_to_yaml(contract), encoding="utf-8")
 
         if name not in self._contracts:
