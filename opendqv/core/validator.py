@@ -152,7 +152,7 @@ _CROSS_FIELD_ATTRS = (
 _CONDITION_ATTRS = ("required_if", "forbidden_if", "condition")
 
 
-def declared_field_set(rules: list, extra_fields: Optional[list] = None) -> set[str]:
+def declared_field_set(rules: list, extra_fields: list | None = None) -> set[str]:
     """Every field name a contract declares — the strict-schema allow-list.
 
     A field is declared when any rule targets it, references it across
@@ -197,8 +197,8 @@ def strict_schema_kwargs(contract, rules: list) -> dict:
     }
 
 
-def _additional_properties_error(record: dict, declared_fields: Optional[set]) -> Optional[dict]:
-    unknown = sorted(k for k in record.keys() if k not in (declared_fields or set()))
+def _additional_properties_error(record: dict, declared_fields: set | None) -> dict | None:
+    unknown = sorted(k for k in record if k not in (declared_fields or set()))
     if not unknown:
         return None
     quoted = ", ".join(f"'{u}'" for u in unknown)
@@ -221,7 +221,7 @@ def validate_record(
     record_index: int = 0,
     sensitive_fields: Optional[list] = None,
     strict_schema: bool = False,
-    declared_fields: Optional[set] = None,
+    declared_fields: set | None = None,
 ) -> dict:
     """
     Validate a single record against rules. Pure Python — no DataFrame, no DuckDB.
@@ -557,7 +557,7 @@ def _check_not_empty(value, rule: Rule, record: Optional[dict] = None) -> Option
     return None
 
 
-def _check_not_empty_string(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+def _check_not_empty_string(value, rule: Rule, record: dict | None = None) -> str | None:
     """Presence + JSON-string type guard (CRT180 contract-format conformance).
 
     Unlike not_empty, a non-string value is never coerced: 0, false, [] and
@@ -1490,7 +1490,7 @@ def validate_batch(
     context: Optional[str] = None,
     sensitive_fields: Optional[list] = None,
     strict_schema: bool = False,
-    declared_fields: Optional[set] = None,
+    declared_fields: set | None = None,
 ) -> dict:
     """
     Validate a batch of records using DuckDB for performance.
