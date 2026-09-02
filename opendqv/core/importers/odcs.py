@@ -511,6 +511,8 @@ def import_odcs(contract_data: dict) -> dict:
     else:
         description = str(desc or "")
     owner, owner_email = _team_owner(contract_data.get("team"))
+    strict_schema = bool(_custom_property(contract_data, "opendqv.strict_schema") or False)
+    declared_fields = _custom_property(contract_data, "opendqv.fields") or []
 
     rules: list[dict] = []
     skipped: list[str] = []
@@ -578,6 +580,10 @@ def import_odcs(contract_data: dict) -> dict:
     }
     if owner_email:
         contract["owner_email"] = owner_email
+    if strict_schema:
+        contract["strict_schema"] = True
+    if isinstance(declared_fields, list) and declared_fields:
+        contract["fields"] = [str(f) for f in declared_fields]
 
     return {
         "contract": contract,
@@ -670,6 +676,8 @@ def export_odcs(
     owner: str = "",
     owner_email: Optional[str] = None,
     odcs_metadata: Optional[dict] = None,
+    strict_schema: bool = False,
+    fields: Optional[list] = None,
 ) -> dict:
     """Export OpenDQV rules to an ODCS v3.1.0 contract dict (schema-valid)."""
     by_field: "OrderedDict[str, list[dict]]" = OrderedDict()
@@ -729,6 +737,10 @@ def export_odcs(
         {"property": "opendqv.status", "value": str(status).lower()},
         {"property": "opendqv.engine", "value": "opendqv"},
     ]
+    if strict_schema:
+        doc["customProperties"].append({"property": "opendqv.strict_schema", "value": True})
+    if fields:
+        doc["customProperties"].append({"property": "opendqv.fields", "value": [str(f) for f in fields]})
     schema_obj: dict[str, Any] = {"name": contract_name, "logicalType": "object", "properties": properties}
     if object_quality:
         schema_obj["quality"] = object_quality
@@ -749,8 +761,11 @@ def contract_to_odcs_yaml(
     owner: str = "",
     owner_email: Optional[str] = None,
     odcs_metadata: Optional[dict] = None,
+    strict_schema: bool = False,
+    fields: Optional[list] = None,
 ) -> str:
     """Export OpenDQV contract to ODCS v3.1.0 YAML string."""
     doc = export_odcs(contract_name, rules, version=version, status=status, description=description,
-                      owner=owner, owner_email=owner_email, odcs_metadata=odcs_metadata)
+                      owner=owner, owner_email=owner_email, odcs_metadata=odcs_metadata,
+                      strict_schema=strict_schema, fields=fields)
     return yaml.dump(doc, default_flow_style=False, sort_keys=False, allow_unicode=True)

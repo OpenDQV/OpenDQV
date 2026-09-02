@@ -276,3 +276,7 @@ OpenDQV Core is the source-layer anchor of the modern data quality stack — des
 | [Contexts](contexts.md) | Per-source-system rule overrides; multi-tenant SaaS patterns; regional compliance |
 | [Federation](federation.md) | Multi-node contract synchronisation; 2PC event flow; isolation handling |
 | [Custom Rules](custom_rules.md) | Add domain-specific rule types in 3 steps |
+
+## Strict schema
+
+Set `strict_schema: true` on a contract to reject records that carry fields the contract does not declare (`OPENDQV_ADDITIONAL_PROPERTIES`). Add `fields: [..]` for names allowed without a rule. Default is permissive. Full description: [strict_schema.md](strict_schema.md).

@@ -144,6 +144,75 @@ class FieldError:
 
 # ── Single-record validation (pure Python, no DuckDB) ───────────────
 
+# ── CRT180: strict schema — declared-field set + kwargs helper ───────────
+_CROSS_FIELD_ATTRS = (
+    "compare_to", "date_diff_field", "cross_min_field", "cross_max_field",
+    "ratio_numerator", "ratio_denominator", "geo_lon_field", "dob_field",
+)
+_CONDITION_ATTRS = ("required_if", "forbidden_if", "condition")
+
+
+def declared_field_set(rules: list, extra_fields: Optional[list] = None) -> set[str]:
+    """Every field name a contract declares — the strict-schema allow-list.
+
+    A field is declared when any rule targets it, references it across
+    fields (compare_to, date_diff_field, cross_min/max_field, ratio
+    numerator/denominator, geo_lon_field, dob_field, sum_fields, group_by,
+    or the `field` key of required_if / forbidden_if / condition), or when
+    it is listed in the contract's `fields:` allow-list. The calendar
+    sentinels `today` / `now` are not field names.
+    """
+    declared: set[str] = set()
+
+    def add(name):
+        if isinstance(name, str) and name and name not in ("today", "now"):
+            declared.add(name)
+
+    for rule in rules or []:
+        add(getattr(rule, "field", None))
+        for attr in _CROSS_FIELD_ATTRS:
+            add(getattr(rule, attr, None))
+        for attr in ("sum_fields", "group_by"):
+            for name in getattr(rule, attr, None) or []:
+                add(name)
+        for attr in _CONDITION_ATTRS:
+            spec = getattr(rule, attr, None)
+            if isinstance(spec, dict):
+                add(spec.get("field"))
+    for name in extra_fields or []:
+        add(name)
+    return declared
+
+
+def strict_schema_kwargs(contract, rules: list) -> dict:
+    """Keyword arguments for validate_record / validate_batch from a contract.
+
+    Empty for non-strict contracts, so call sites can splat it unconditionally.
+    """
+    if not getattr(contract, "strict_schema", False):
+        return {}
+    return {
+        "strict_schema": True,
+        "declared_fields": declared_field_set(rules, getattr(contract, "fields", None)),
+    }
+
+
+def _additional_properties_error(record: dict, declared_fields: Optional[set]) -> Optional[dict]:
+    unknown = sorted(k for k in record.keys() if k not in (declared_fields or set()))
+    if not unknown:
+        return None
+    quoted = ", ".join(f"'{u}'" for u in unknown)
+    return FieldError(
+        field="",
+        rule="additional_properties",
+        message=(
+            f"record contains {len(unknown)} unknown field(s) not declared in the contract: {quoted}"
+        ),
+        severity=Severity.ERROR.value,
+        error_code="OPENDQV_ADDITIONAL_PROPERTIES",
+    ).to_dict()
+
+
 def validate_record(
     record: dict,
     rules: list[Rule],
@@ -151,6 +220,8 @@ def validate_record(
     context: Optional[str] = None,
     record_index: int = 0,
     sensitive_fields: Optional[list] = None,
+    strict_schema: bool = False,
+    declared_fields: Optional[set] = None,
 ) -> dict:
     """
     Validate a single record against rules. Pure Python — no DataFrame, no DuckDB.
@@ -164,6 +235,13 @@ def validate_record(
     """
     errors = []
     warnings = []
+
+    # CRT180: strict schema — undeclared fields are rejected before any rule
+    # runs, naming every unknown field so the producer sees all of them at once.
+    if strict_schema:
+        extra = _additional_properties_error(record, declared_fields)
+        if extra:
+            errors.append(extra)
 
     for rule in rules:
         value = record.get(rule.field)
@@ -1390,6 +1468,8 @@ def validate_batch(
     contract_name: str = "",
     context: Optional[str] = None,
     sensitive_fields: Optional[list] = None,
+    strict_schema: bool = False,
+    declared_fields: Optional[set] = None,
 ) -> dict:
     """
     Validate a batch of records using DuckDB for performance.
@@ -1419,6 +1499,13 @@ def validate_batch(
 
         # Per-row results: index -> {"errors": [], "warnings": []}
         row_results = {i: {"errors": [], "warnings": []} for i in range(total)}
+
+        # CRT180: strict schema — same per-record check as the single path.
+        if strict_schema:
+            for i, rec in enumerate(records):
+                extra = _additional_properties_error(rec if isinstance(rec, dict) else {}, declared_fields)
+                if extra:
+                    row_results[i]["errors"].append(extra)
 
         for rule in rules:
             if rule.field not in df.columns:

@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Optional
 
 from opendqv.core.contracts import ContractRegistry
-from opendqv.core.validator import validate_record, validate_batch
+from opendqv.core.validator import validate_record, validate_batch, strict_schema_kwargs
 
 
 class ContractNotFoundError(Exception):
@@ -96,7 +96,7 @@ class LocalValidator:
                 f"Loaded contracts: {[c['name'] for c in self._registry.list_contracts()]}"
             )
         rules = self._registry.get_rules_with_context(dc, context)
-        result = validate_record(record, rules)
+        result = validate_record(record, rules, **strict_schema_kwargs(dc, rules))
         result["contract"] = contract
         result["version"] = dc.version
         return result
@@ -128,7 +128,7 @@ class LocalValidator:
                 f"Loaded contracts: {[c['name'] for c in self._registry.list_contracts()]}"
             )
         rules = self._registry.get_rules_with_context(dc, context)
-        result = validate_batch(records, rules)
+        result = validate_batch(records, rules, **strict_schema_kwargs(dc, rules))
         result["contract"] = contract
         result["version"] = dc.version
         return result

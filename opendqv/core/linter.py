@@ -207,6 +207,28 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
             ),
         ))
 
+    # ── Contract-level (CRT180): strict_schema / fields shape ─────────────────
+    if isinstance(data.get("contract"), dict):
+        _strict = contract_node.get("strict_schema")
+        if _strict is not None and not isinstance(_strict, bool):
+            result.issues.append(LintIssue(
+                severity="error", rule_name=None, code="STRICT_SCHEMA_NOT_BOOL",
+                message=f"contract.strict_schema must be true or false, got {_strict!r}.",
+            ))
+        _fields = contract_node.get("fields")
+        if _fields is not None and (
+            not isinstance(_fields, list) or not all(isinstance(f, str) and f for f in _fields)
+        ):
+            result.issues.append(LintIssue(
+                severity="error", rule_name=None, code="FIELDS_NOT_STRING_LIST",
+                message="contract.fields must be a list of non-empty field names.",
+            ))
+        elif _fields and not _strict:
+            result.issues.append(LintIssue(
+                severity="warning", rule_name=None, code="FIELDS_WITHOUT_STRICT_SCHEMA",
+                message="contract.fields has no effect unless strict_schema: true.",
+            ))
+
     # ── Contract-level: owner_email present and well-shaped ──────────────────
     # Skip the check on top-level fragment YAML (just `rules:`) — there is no
     # contract block to attach an owner_email to. Only flag when the YAML

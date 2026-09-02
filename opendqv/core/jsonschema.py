@@ -26,6 +26,8 @@ def contract_to_jsonschema(contract, strict: bool = None) -> dict:
         a fork.
       - False → `additionalProperties: true` (explicit permissive).
     """
+    if strict is None and getattr(contract, "strict_schema", False):
+        strict = True  # CRT180: the contract itself declares strictness
     if strict is None:
         try:
             from opendqv.config import JSON_SCHEMA_STRICT as _default_strict
@@ -40,6 +42,11 @@ def contract_to_jsonschema(contract, strict: bool = None) -> dict:
     # `properties` exactly as before — the response shape only grows
     # `allOf` when conditional rules exist.
     all_of: list[dict[str, Any]] = []
+
+    # CRT180: fields allowed by a strict contract without a rule get a bare
+    # property entry so additionalProperties: false does not reject them.
+    for extra in getattr(contract, "fields", None) or []:
+        properties.setdefault(extra, {})
 
     for rule in contract.rules:
         field = rule.field

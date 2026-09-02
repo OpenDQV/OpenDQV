@@ -41,7 +41,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 import sqlite3
 
 from opendqv.core.contracts import ContractRegistry, _compute_entry_hash
-from opendqv.core.validator import validate_record, validate_batch
+from opendqv.core.validator import validate_record, validate_batch, strict_schema_kwargs
 from opendqv.core.code_generator import generate_code
 from opendqv.core.importers.great_expectations import import_gx_suite, gx_suite_to_yaml, export_gx_suite
 from opendqv.core.importers.soda import import_soda_checks, soda_checks_to_yaml
@@ -237,7 +237,7 @@ def cmd_validate(args):
         sys.exit(1)
 
     rules = registry.get_rules_with_context(contract, args.context)
-    result = validate_record(record, rules)
+    result = validate_record(record, rules, **strict_schema_kwargs(contract, rules))
 
     status = "PASS" if result["valid"] else "FAIL"
     print(f"Result: {status}")
@@ -489,6 +489,8 @@ def cmd_export_odcs(args):
         description=getattr(contract, "description", "") or "",
         owner=getattr(contract, "owner", "") or "",
         owner_email=getattr(contract, "owner_email", None),
+        strict_schema=getattr(contract, "strict_schema", False),
+        fields=getattr(contract, "fields", None),
     )
 
     if args.output:
@@ -562,7 +564,7 @@ def cmd_validate_file(args):
     observe_only = getattr(args, "observe_only", False)
 
     rules = registry.get_rules_with_context(contract, args.context)
-    result = validate_batch(records, rules, contract_name=args.contract)
+    result = validate_batch(records, rules, contract_name=args.contract, **strict_schema_kwargs(contract, rules))
     summary = result["summary"]
 
     # Note: trace log entries are written by validate_batch() internally.

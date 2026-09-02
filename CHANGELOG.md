@@ -13,6 +13,16 @@ CRT180 — contract-format conformance across engines (see
   and batch paths agree; linter, JSON-Schema export (`type: string`, `minLength: 1`),
   explainer, the five push-down code generators and the ODCS projection
   (`required: true`) all know the type.
+- **New contract flag `strict_schema: true` + `fields:` allow-list** — reject
+  records carrying any field the contract does not declare (JSON Schema's
+  `additionalProperties: false`, enforced at the write boundary). One
+  `OPENDQV_ADDITIONAL_PROPERTIES` error per record naming every unknown field;
+  identical on the single-record and batch paths; cross-field references count
+  as declared. Both values are audit content: they join the canonical hash
+  payload only when set (pre-CRT180 contracts keep their v2 hashes unchanged),
+  persist on `contract_history`, restore from snapshots, round-trip through
+  YAML, JSON-Schema export (`additionalProperties: false`) and ODCS custom
+  properties. Linter checks the shapes. Docs: `docs/strict_schema.md`.
 
 ## [2.4.0] - 2026-09-02
 

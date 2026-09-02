@@ -125,3 +125,7 @@ Code matching `OPENDQV_<TYPE>_001` no longer exists.
 | `code == "OPENDQV_REGEX_001"` | `code.startswith("OPENDQV_REGEX_")` (rule type) |
 | `code == "OPENDQV_REGEX_001"` | `code == "OPENDQV_REGEX_VALID_EMAIL"` (rule instance) |
 | `code.endswith("_001")` | drop — the `_001` suffix is gone |
+
+## `OPENDQV_ADDITIONAL_PROPERTIES`
+
+Emitted once per record by a contract with `strict_schema: true` when the record carries fields the contract does not declare. `field` is empty, `rule` is `additional_properties`, and the message names every unknown field. Fix the producer, add a rule for the field, or list it under the contract's `fields:` allow-list. See `docs/strict_schema.md`.
