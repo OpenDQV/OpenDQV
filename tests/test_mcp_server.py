@@ -42,6 +42,7 @@ VALID_BANKING_RECORD = {
     "transaction_type": "credit",
     "merchant_id": "MERCH01",
     "channel": "online",
+    "reference": "INV-2026-1001",  # explicit presence (CRT181): reference_required
     # merchant_category_code dropped (CRT180): banking_transaction is strict_schema,
     # and no rule declares that field, so the record would be rejected.
 }

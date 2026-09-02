@@ -50,6 +50,12 @@ contract:
       severity: error
       error_message: "user_id is required"
 
+    - name: event_timestamp_required
+      field: event_timestamp
+      type: not_empty
+      severity: error
+      error_message: event_timestamp is required
+
     - name: event_timestamp_format
       field: event_timestamp
       type: date_format

@@ -1733,7 +1733,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
         compiled = rule.compiled_pattern or re.compile(rule.pattern)
         for idx, val in enumerate(df[field]):
             # CRT170/J3: skip absent fields (not_empty is the catcher).
-            if val is None or (isinstance(val, float) and pd.isna(val)):
+            if _batch_absent(val):  # D6: absent or blank
                 continue
             str_val = str(val)
             if str_val.strip() == "":
@@ -1789,7 +1789,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
         # under the rule's own code (single-record parity).
         for idx in range(len(df)):
             val = _orig_val(idx)
-            if val is None or (isinstance(val, float) and pd.isna(val)):
+            if _batch_absent(val):  # D6: absent or blank
                 failing.add(idx)
             elif not isinstance(val, str):
                 failing.add(idx)
@@ -1982,7 +1982,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
             logger.error("lookup rule '%s' blocked by SEC-011 policy: %s", rule.name, exc)
             for idx in range(len(df)):
                 val = df[field].iloc[idx]
-                if val is None or (isinstance(val, float) and pd.isna(val)):
+                if _batch_absent(val):  # D6: absent or blank
                     continue
                 failing.add(idx)
         except (FileNotFoundError, KeyError, OSError, RuntimeError) as exc:
@@ -1990,7 +1990,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
 
     elif rule.type == "checksum" and rule.checksum_algorithm:
         for idx, val in enumerate(df[field]):
-            if val is None or (isinstance(val, float) and pd.isna(val)):
+            if _batch_absent(val):  # D6: absent or blank
                 # CRT170/J3: absent field — skip.
                 continue
             elif not _validate_checksum(str(val), rule.checksum_algorithm):
@@ -1999,7 +1999,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
     elif rule.type == "cross_field_range":
         for idx in range(len(df)):
             val = df[field].iloc[idx]
-            if val is None or (isinstance(val, float) and pd.isna(val)):
+            if _batch_absent(val):  # D6: absent or blank
                 # CRT170/J3: absent field — skip.
                 continue
             try:
@@ -2109,7 +2109,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
     elif rule.type == "geospatial_bounds":
         for idx in range(len(df)):
             val = df[field].iloc[idx]
-            if val is None or (isinstance(val, float) and pd.isna(val)):
+            if _batch_absent(val):  # D6: absent or blank
                 # CRT170/J3: absent field — skip (not_empty is the catcher).
                 continue
             try:

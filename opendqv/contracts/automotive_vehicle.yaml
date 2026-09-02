@@ -60,6 +60,11 @@ contract:
     inherited: false
     negate: false
     all_of: false
+  - name: year_required
+    field: year
+    type: not_empty
+    severity: error
+    error_message: year is required
   - name: year_range
     description: ''
     type: range
@@ -71,6 +76,11 @@ contract:
     inherited: false
     negate: false
     all_of: false
+  - name: mileage_km_required
+    field: mileage_km
+    type: not_empty
+    severity: error
+    error_message: mileage_km is required
   - name: mileage_km_min
     description: ''
     type: min

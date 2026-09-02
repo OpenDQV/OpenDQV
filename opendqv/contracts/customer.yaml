@@ -16,6 +16,11 @@ contract:
   status: active
   asset_id: urn:opendqv:customer
   rules:
+  - name: email_required
+    field: email
+    type: not_empty
+    severity: error
+    error_message: email is required
   - name: valid_email
     description: ''
     type: regex
@@ -26,6 +31,11 @@ contract:
     inherited: false
     negate: false
     all_of: false
+  - name: age_required
+    field: age
+    type: not_empty
+    severity: error
+    error_message: age is required
   - name: age_minimum
     description: Age must be at least 0
     type: min
@@ -65,6 +75,11 @@ contract:
     inherited: false
     negate: false
     all_of: false
+  - name: phone_required
+    field: phone
+    type: not_empty
+    severity: error
+    error_message: phone is required
   - name: valid_phone
     description: Phone must be E.164 format
     type: regex
@@ -84,6 +99,11 @@ contract:
     inherited: false
     negate: false
     all_of: false
+  - name: score_required
+    field: score
+    type: not_empty
+    severity: error
+    error_message: score is required
   - name: score_range
     description: Score must be between 0 and 100
     type: range
@@ -95,6 +115,11 @@ contract:
     inherited: false
     negate: false
     all_of: false
+  - name: date_required
+    field: date
+    type: not_empty
+    severity: error
+    error_message: date is required
   - name: valid_date
     description: Date must be valid format
     type: date_format
@@ -105,6 +130,11 @@ contract:
     inherited: false
     negate: false
     all_of: false
+  - name: username_required
+    field: username
+    type: not_empty
+    severity: error
+    error_message: username is required
   - name: username_format
     description: Username must be alphanumeric/underscore only
     type: regex
@@ -115,6 +145,11 @@ contract:
     inherited: false
     negate: false
     all_of: false
+  - name: password_required
+    field: password
+    type: not_empty
+    severity: error
+    error_message: password is required
   - name: password_length
     description: Password must be at least 8 characters
     type: min_length
@@ -128,6 +163,7 @@ contract:
   - name: loyalty_tier_valid
     description: loyalty_tier must be a recognised tier value when provided
     type: lookup
+    optional: true
     field: loyalty_tier
     lookup_file: ref/loyalty_tiers.txt
     severity: error

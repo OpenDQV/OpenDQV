@@ -121,11 +121,23 @@ contract:
       error_message: "language must be a valid ISO 639-1 two-letter lowercase code
         (e.g. en, fr, de, es, zh) — required for AVMS Directive quota reporting"
 
+    - name: publish_date_required
+      field: publish_date
+      type: not_empty
+      severity: error
+      error_message: publish_date is required
+
     - name: publish_date_format
       field: publish_date
       type: date_format
       severity: error
       error_message: "publish_date must be a valid date (YYYY-MM-DD)"
+
+    - name: duration_seconds_required
+      field: duration_seconds
+      type: not_empty
+      severity: error
+      error_message: duration_seconds is required
 
     - name: duration_seconds_min
       field: duration_seconds
@@ -144,6 +156,12 @@ contract:
       severity: warning
       error_message: "duration_seconds exceeds 86,400 (24 hours) — verify this is
         not a unit error (milliseconds stored as seconds)"
+
+    - name: views_required
+      field: views
+      type: not_empty
+      severity: error
+      error_message: views is required
 
     - name: views_min
       field: views

@@ -227,6 +227,11 @@ contract:
       error_message: "seller_id must be a valid 20-character LEI per ISO 17442 when seller_id_type is lei — shape AND mod-97-10 check digit. v2.3.23 round-3: full check-digit verification (was: shape-only regex)."
 
     # ── PRICE AND QUANTITY ───────────────────────────────────────────────────
+    - name: price_required
+      field: price
+      type: not_empty
+      severity: error
+      error_message: price is required
     - name: price_min
       field: price
       type: min
@@ -246,6 +251,12 @@ contract:
       lookup_file: ref/mifid_price_type.txt
       severity: error
       error_message: "price_type must be one of: monetary, yield, spread, percentage, basis_points, no_price"
+
+    - name: quantity_required
+      field: quantity
+      type: not_empty
+      severity: error
+      error_message: quantity is required
 
     - name: quantity_min
       field: quantity

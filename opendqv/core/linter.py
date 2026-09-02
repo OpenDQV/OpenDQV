@@ -249,9 +249,12 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
     _rules_node = contract_node.get("rules") if isinstance(contract_node, dict) else None
     if not isinstance(_rules_node, list):
         _rules_node = data.get("rules") if isinstance(data.get("rules"), list) else []
+    # A field's presence is decided by a presence rule, or conditionally by
+    # required_if; a rule marked optional or carrying a condition has decided
+    # for itself.
     _presence_fields = {
         r.get("field") for r in _rules_node
-        if isinstance(r, dict) and r.get("type") in _PRESENCE_RULE_TYPES
+        if isinstance(r, dict) and (r.get("type") in _PRESENCE_RULE_TYPES or r.get("type") == "required_if")
     }
     _d6_seen: set = set()
     for r in _rules_node:
@@ -262,6 +265,7 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
             _f and _f not in _presence_fields and _f not in _d6_seen
             and r.get("type") in _FORMAT_RULE_TYPES
             and str(r.get("severity", "error")).lower() == "error"
+            and not r.get("optional") and not r.get("condition")
         ):
             _d6_seen.add(_f)
             result.issues.append(LintIssue(

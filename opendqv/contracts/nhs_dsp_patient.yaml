@@ -44,11 +44,23 @@ contract:
       severity: error
       error_message: "last_name is required"
 
+    - name: date_of_birth_required
+      field: date_of_birth
+      type: not_empty
+      severity: error
+      error_message: date_of_birth is required
+
     - name: date_of_birth_format
       field: date_of_birth
       type: date_format
       severity: error
       error_message: "date_of_birth must be a valid date (YYYY-MM-DD)"
+
+    - name: nhs_number_required
+      field: nhs_number
+      type: not_empty
+      severity: error
+      error_message: nhs_number is required
 
     - name: nhs_number_format
       description: "NHS number format: 10 digits, optionally grouped as NNN-NNN-NNNN.
@@ -63,6 +75,12 @@ contract:
       severity: error
       error_message: "nhs_number must be a valid 10-digit NHS number (e.g. 123-456-7890)
         — verify Modulus 11 check digit before use in clinical systems"
+
+    - name: sex_required
+      field: sex
+      type: not_empty
+      severity: error
+      error_message: sex is required
 
     - name: sex_values
       description: "NHS Data Dictionary sex classification aligned with SNOMED CT
@@ -110,6 +128,12 @@ contract:
       severity: warning
       error_message: "ethnicity must be a valid ONS/NHS 16+1 ethnicity code —
         'not_stated' must be recorded where patient declines (Equality Act 2010)"
+
+    - name: admission_date_required
+      field: admission_date
+      type: not_empty
+      severity: error
+      error_message: admission_date is required
 
     - name: admission_date_format
       field: admission_date
@@ -160,6 +184,12 @@ contract:
       severity: error
       error_message: "diagnosis_code must be a valid ICD-10 code (e.g. A09, J45.0,
         Z00.00) — invalid codes are rejected by NHS SUS+ data warehouse"
+
+    - name: blood_type_required
+      field: blood_type
+      type: not_empty
+      severity: error
+      error_message: blood_type is required
 
     - name: blood_type_format
       description: "ABO/Rhesus blood group classification. Incorrect blood group

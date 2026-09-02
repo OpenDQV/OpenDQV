@@ -32,11 +32,23 @@ contract:
       severity: error
       error_message: "meter_id is required"
 
+    - name: reading_date_required
+      field: reading_date
+      type: not_empty
+      severity: error
+      error_message: reading_date is required
+
     - name: reading_date_format
       field: reading_date
       type: date_format
       severity: error
       error_message: "reading_date must be a valid date (YYYY-MM-DD)"
+
+    - name: consumption_m3_required
+      field: consumption_m3
+      type: not_empty
+      severity: error
+      error_message: consumption_m3 is required
 
     - name: consumption_m3_min
       field: consumption_m3
@@ -97,6 +109,12 @@ contract:
         faulty, removed, awaiting_installation, decommissioned (MOSL MDD meter
         asset lifecycle values)"
 
+    - name: read_type_required
+      field: read_type
+      type: not_empty
+      severity: error
+      error_message: read_type is required
+
     - name: read_type_values
       description: "Read type classification per MOSL standards. 'estimated' reads
         must not be used for billing disputes or leakage reporting. 'smart' reads
@@ -121,6 +139,12 @@ contract:
       type: not_empty
       severity: error
       error_message: "tariff_zone is required"
+
+    - name: previous_reading_m3_required
+      field: previous_reading_m3
+      type: not_empty
+      severity: error
+      error_message: previous_reading_m3 is required
 
     - name: previous_reading_m3_min
       field: previous_reading_m3

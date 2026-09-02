@@ -52,12 +52,24 @@ contract:
         malformed MSISDNs cause CDR mediation rejection and roaming settlement
         failure (ITU-T E.164, GSMA IR.21)"
 
+    - name: call_start_required
+      field: call_start
+      type: not_empty
+      severity: error
+      error_message: call_start is required
+
     - name: call_start_format
       field: call_start
       type: date_format
       format: "%Y-%m-%dT%H:%M:%S"
       severity: error
       error_message: "call_start must be a valid datetime (YYYY-MM-DDTHH:MM:SS)"
+
+    - name: call_end_required
+      field: call_end
+      type: not_empty
+      severity: error
+      error_message: call_end is required
 
     - name: call_end_format
       field: call_end
@@ -80,6 +92,12 @@ contract:
       error_message: "call_end must be on or after call_start — negative duration
         CDRs indicate NTP clock drift or timezone error and cause NRTRDE roaming
         exchange rejection (GSMA IR.21)"
+
+    - name: duration_seconds_required
+      field: duration_seconds
+      type: not_empty
+      severity: error
+      error_message: duration_seconds is required
 
     - name: duration_seconds_min
       field: duration_seconds
@@ -181,12 +199,24 @@ contract:
         fraud_suspect, suppressed, reprocessing (unrated = revenue leakage risk;
         fraud_suspect requires FMS referral within 24h per GSMA FS.11)"
 
+    - name: charge_amount_required
+      field: charge_amount
+      type: not_empty
+      severity: error
+      error_message: charge_amount is required
+
     - name: charge_amount_min
       field: charge_amount
       type: min
       min: 0
       severity: error
       error_message: "charge_amount must be >= 0"
+
+    - name: data_volume_mb_required
+      field: data_volume_mb
+      type: not_empty
+      severity: error
+      error_message: data_volume_mb is required
 
     - name: data_volume_mb_min
       field: data_volume_mb

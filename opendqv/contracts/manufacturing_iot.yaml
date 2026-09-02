@@ -62,12 +62,24 @@ contract:
       error_message: "device_type must be a standard ISA-88 equipment type — use
         one of the defined values for MES routing and ATEX compliance checking"
 
+    - name: timestamp_required
+      field: timestamp
+      type: not_empty
+      severity: error
+      error_message: timestamp is required
+
     - name: timestamp_format
       field: timestamp
       type: date_format
       format: "%Y-%m-%dT%H:%M:%S"
       severity: error
       error_message: "timestamp must be a valid datetime (YYYY-MM-DDTHH:MM:SS)"
+
+    - name: temperature_required
+      field: temperature
+      type: not_empty
+      severity: error
+      error_message: temperature is required
 
     - name: temperature_range
       description: "Physical temperature bounds for manufacturing environments.
@@ -82,6 +94,12 @@ contract:
       severity: error
       error_message: "temperature must be between -50 and 500 — readings outside
         this range indicate sensor failure or unit error (verify Celsius vs Kelvin)"
+
+    - name: pressure_required
+      field: pressure
+      type: not_empty
+      severity: error
+      error_message: pressure is required
 
     - name: pressure_min
       field: pressure
@@ -102,6 +120,12 @@ contract:
       severity: warning
       error_message: "pressure exceeds 1,000 bar — verify sensor calibration and
         unit of measure. If genuine, this is a safety-critical overpressure event."
+
+    - name: humidity_percent_required
+      field: humidity_percent
+      type: not_empty
+      severity: error
+      error_message: humidity_percent is required
 
     - name: humidity_range
       description: "Relative humidity is bounded 0-100% by definition. Values
@@ -213,6 +237,12 @@ contract:
       type: not_empty
       severity: error
       error_message: "operator_id is required"
+
+    - name: unit_of_measure_required
+      field: unit_of_measure
+      type: not_empty
+      severity: error
+      error_message: unit_of_measure is required
 
     - name: unit_of_measure_valid
       field: unit_of_measure

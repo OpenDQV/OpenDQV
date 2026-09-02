@@ -88,12 +88,24 @@ contract:
       error_message: "category should be a standard retail department — use one of
         the defined GS1 UK taxonomy values for space planning and category reporting"
 
+    - name: price_required
+      field: price
+      type: not_empty
+      severity: error
+      error_message: price is required
+
     - name: price_min
       field: price
       type: min
       min: 0
       severity: error
       error_message: "price must be >= 0"
+
+    - name: currency_required
+      field: currency
+      type: not_empty
+      severity: error
+      error_message: currency is required
 
     - name: currency_format
       description: "ISO 4217 three-letter currency code. Required on all price fields
@@ -105,6 +117,12 @@ contract:
       severity: error
       error_message: "currency must be a valid ISO 4217 three-letter code (e.g.
         GBP, EUR, USD)"
+
+    - name: stock_quantity_required
+      field: stock_quantity
+      type: not_empty
+      severity: error
+      error_message: stock_quantity is required
 
     - name: stock_quantity_min
       field: stock_quantity
@@ -156,6 +174,12 @@ contract:
       type: not_empty
       severity: error
       error_message: "supplier_id is required"
+
+    - name: last_updated_required
+      field: last_updated
+      type: not_empty
+      severity: error
+      error_message: last_updated is required
 
     - name: last_updated_format
       field: last_updated

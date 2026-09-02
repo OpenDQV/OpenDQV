@@ -35,6 +35,12 @@ contract:
       severity: error
       error_message: "service_type is required"
 
+    - name: submission_date_required
+      field: submission_date
+      type: not_empty
+      severity: error
+      error_message: submission_date is required
+
     - name: submission_date_format
       field: submission_date
       type: date_format
@@ -58,6 +64,12 @@ contract:
       type: not_empty
       severity: error
       error_message: "region is required"
+
+    - name: postcode_required
+      field: postcode
+      type: not_empty
+      severity: error
+      error_message: postcode is required
 
     - name: postcode_format
       field: postcode

@@ -88,6 +88,12 @@ contract:
         detached_bungalow, semi_detached_bungalow, cottage, townhouse, commercial,
         land, farm, houseboat, park_home"
 
+    - name: bedrooms_required
+      field: bedrooms
+      type: not_empty
+      severity: error
+      error_message: bedrooms is required
+
     - name: bedrooms_range
       field: bedrooms
       type: range
@@ -96,12 +102,24 @@ contract:
       severity: error
       error_message: "bedrooms must be between 0 and 100"
 
+    - name: asking_price_required
+      field: asking_price
+      type: not_empty
+      severity: error
+      error_message: asking_price is required
+
     - name: asking_price_min
       field: asking_price
       type: min
       min: 0
       severity: error
       error_message: "asking_price must be >= 0"
+
+    - name: listing_date_required
+      field: listing_date
+      type: not_empty
+      severity: error
+      error_message: listing_date is required
 
     - name: listing_date_format
       field: listing_date

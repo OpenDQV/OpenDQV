@@ -42,6 +42,12 @@ contract:
       severity: error
       error_message: "email must be a valid email address"
 
+    - name: departure_date_required
+      field: departure_date
+      type: not_empty
+      severity: error
+      error_message: departure_date is required
+
     - name: departure_date_format
       field: departure_date
       type: date_format
@@ -66,12 +72,24 @@ contract:
       severity: error
       error_message: "destination is required"
 
+    - name: ticket_price_required
+      field: ticket_price
+      type: not_empty
+      severity: error
+      error_message: ticket_price is required
+
     - name: ticket_price_min
       field: ticket_price
       type: min
       min: 0
       severity: error
       error_message: "ticket_price must be >= 0"
+
+    - name: booking_date_required
+      field: booking_date
+      type: not_empty
+      severity: error
+      error_message: booking_date is required
 
     - name: booking_date_format
       field: booking_date

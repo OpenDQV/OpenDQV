@@ -56,6 +56,12 @@ contract:
       severity: error
       error_message: "email must be a valid email address"
 
+    - name: ni_number_required
+      field: ni_number
+      type: not_empty
+      severity: error
+      error_message: ni_number is required
+
     - name: ni_number_format
       description: "UK National Insurance number format as validated by HMRC. Two
         prefix letters (with invalid prefix pairs excluded: BG, GB, NK, KN, TN,
@@ -82,11 +88,23 @@ contract:
       severity: error
       error_message: "job_title is required"
 
+    - name: start_date_required
+      field: start_date
+      type: not_empty
+      severity: error
+      error_message: start_date is required
+
     - name: start_date_format
       field: start_date
       type: date_format
       severity: error
       error_message: "start_date must be a valid date (YYYY-MM-DD)"
+
+    - name: salary_required
+      field: salary
+      type: not_empty
+      severity: error
+      error_message: salary is required
 
     - name: salary_min
       field: salary
@@ -170,6 +188,12 @@ contract:
       error_message: "employment_status must be one of: active, on_leave,
         maternity_leave, paternity_leave, sick_leave, gardening_leave,
         notice_period, suspended, terminated, retired"
+
+    - name: right_to_work_status_required
+      field: right_to_work_status
+      type: not_empty
+      severity: error
+      error_message: right_to_work_status is required
 
     - name: right_to_work_values
       description: "Right-to-work classification under the Immigration Act 2014
