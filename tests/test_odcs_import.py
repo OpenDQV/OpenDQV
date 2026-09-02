@@ -248,7 +248,7 @@ class TestExportNativeProjection:
         doc = export_odcs("t", _rules({"name": "a", "type": "date_format", "field": "ts", "format": "%Y-%m-%dT%H:%M:%S"}))
         p = _prop(doc, "ts")
         assert p["logicalType"] == "timestamp"
-        assert p["logicalTypeOptions"] == {"format": "yyyy-MM-ddTHH:mm:ss"}
+        assert p["logicalTypeOptions"] == {"format": "yyyy-MM-dd'T'HH:mm:ss"}   # literal T is quoted (JDK)
         assert _schema_errors(doc) == []
 
     def test_unique_with_group_by_becomes_object_level_duplicate_values(self):
@@ -257,7 +257,42 @@ class TestExportNativeProjection:
         oq = doc["schema"][0]["quality"]
         assert len(oq) == 1   # at most one per object
         assert oq[0]["metric"] == "duplicateValues" and oq[0]["arguments"] == {"properties": ["sku", "store"]}
+        # unique-within-group must NOT also project as property-level unique: true
+        assert "unique" not in _prop(doc, "sku") and "unique" not in _prop(doc, "line")
         assert _schema_errors(doc) == []
+
+    def test_negated_regex_is_not_projected(self):
+        """negate: true inverts the match; ODCS pattern has no negate — projecting would invert semantics."""
+        doc = export_odcs("t", _rules({"name": "a", "type": "regex", "field": "e", "pattern": "^test@", "negate": True}))
+        assert "logicalTypeOptions" not in _prop(doc, "e")
+        assert _prop(doc, "e")["quality"][0]["implementation"]["negate"] is True
+
+    def test_conditional_rules_are_not_projected(self):
+        """A rule with condition: applies only sometimes; native ODCS is unconditional (proof_of_play case)."""
+        cond = {"field": "transaction_type", "not_value": "CREDIT"}
+        doc = export_odcs("t", _rules(
+            {"name": "a", "type": "min", "field": "revenue", "min_value": 0, "condition": cond},
+            {"name": "b", "type": "not_empty", "field": "ref", "condition": cond},
+            {"name": "c", "type": "date_format", "field": "d", "format": "%Y-%m-%d", "condition": cond},
+            {"name": "d", "type": "allowed_values", "field": "k", "allowed_values": ["x"], "condition": cond}))
+        assert "logicalTypeOptions" not in _prop(doc, "revenue")
+        assert "required" not in _prop(doc, "ref")
+        assert "logicalTypeOptions" not in _prop(doc, "d")
+        assert all(q["type"] == "custom" for q in _prop(doc, "k")["quality"])
+        assert _schema_errors(doc) == []
+
+    @pytest.mark.parametrize("name", _bundled_contract_names())
+    def test_no_bundled_qualified_rule_projects_natively(self, name):
+        """Ledger guard: every projected native constraint traces to an unconditional, un-negated, ungrouped error rule."""
+        c = _load_bundled(name)
+        doc = _export_bundled(name)
+        for p in doc["schema"][0]["properties"]:
+            projected = bool(p.get("required") or p.get("unique") or p.get("logicalTypeOptions"))
+            if not projected:
+                continue
+            clean = [r for r in c["rules"] if r["field"] == p["name"] and r.get("severity", "error") == "error"
+                     and not r.get("condition") and not r.get("negate") and not r.get("group_by")]
+            assert clean, f"{name}.{p['name']} projects a native constraint with no unqualified error rule behind it"
 
     def test_custom_entry_shape(self):
         doc = export_odcs("t", _rules({"name": "cmp", "type": "compare", "field": "end", "compare_to": "start",
@@ -277,6 +312,19 @@ class TestExportNativeProjection:
             custom = [q for p in doc["schema"][0]["properties"] for q in p["quality"] if q["type"] == "custom"]
             assert len(custom) == len(c["rules"])
             assert [q["name"] for q in custom] == [r["name"] for r in c["rules"]]
+
+    def test_engine_stamped_fields_never_exported_and_enums_are_plain_strings(self):
+        """severity_floor/provenance/inherited/federation_tier/lookup_auth_header are node-local; must not leak
+        (and an enum must never surface as a !!python/object YAML tag)."""
+        r = Rule(name="fed", type="not_empty", field="pii", severity_floor="error", inherited=True,
+                 federation_tier="REGULATORY", provenance={"authority_node": "a", "lsn": 1})
+        text = contract_to_odcs_yaml("t", [r])
+        assert "!!python" not in text
+        impl = yaml.safe_load(text)["schema"][0]["properties"][0]["quality"][0]["implementation"]
+        for k in ("severity_floor", "inherited", "federation_tier", "provenance", "lookup_auth_header"):
+            assert k not in impl
+        # and the export re-imports (the denylist would otherwise reject its own output)
+        assert import_odcs(yaml.safe_load(text))["rule_count"] == 1
 
     def test_export_is_deterministic(self):
         assert _export_bundled("customer") == _export_bundled("customer")
@@ -557,7 +605,7 @@ class TestImportRejectsNonODCS3:
 class TestDateFormatConversion:
     @pytest.mark.parametrize("ours,jdk", [
         ("%Y-%m-%d", "yyyy-MM-dd"),
-        ("%Y-%m-%dT%H:%M:%S", "yyyy-MM-dd'T'HH:mm:ss".replace("'T'", "T")),
+        ("%Y-%m-%dT%H:%M:%S", "yyyy-MM-dd'T'HH:mm:ss"),
         ("YYYY-MM-DD", "yyyy-MM-dd"),
         ("YYYY-MM-DD HH:MM:SS", "yyyy-MM-dd HH:mm:ss"),
         ("DD/MM/YYYY", "dd/MM/yyyy"),
@@ -573,6 +621,8 @@ class TestDateFormatConversion:
         ("yyyy-MM-dd", "%Y-%m-%d"),
         ("yyyy-MM-dd HH:mm:ss", "%Y-%m-%d %H:%M:%S"),
         ("dd/MM/yyyy", "%d/%m/%Y"),
+        ("yyyy-MM-dd'T'HH:mm:ss", "%Y-%m-%dT%H:%M:%S"),
+        ("yyyy-MM-dd'T'HH:mm:ss'Z'", "%Y-%m-%dT%H:%M:%SZ"),
     ])
     def test_from_jdk(self, jdk, strf):
         assert _from_jdk_format(jdk) == strf

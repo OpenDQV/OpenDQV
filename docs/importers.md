@@ -109,7 +109,7 @@ the test suite on all bundled contracts.
 | `unique` (error) | `unique: true` |
 | `regex` / `min_length` / `max_length` (error, string field) | `logicalTypeOptions.pattern` / `minLength` / `maxLength`. Built-in pattern aliases are expanded. Patterns using lookahead, lookbehind, atomic groups or backreferences are **not** projected (RE2-based consumers abort on them) and travel custom-only |
 | `min` / `max` / `range` (error, numeric field) | `logicalTypeOptions.minimum` / `maximum`; `logicalType: number` |
-| `date_format` (error) | `logicalType: date` (or `timestamp` when the format has a time part), `logicalTypeOptions.format` as a JDK pattern (`yyyy-MM-dd`); omitted when the format has no JDK equivalent |
+| `date_format` (error) | `logicalType: date` (or `timestamp` when the format has a time part), `logicalTypeOptions.format` as a JDK pattern (`yyyy-MM-dd`, literal text quoted: `yyyy-MM-dd'T'HH:mm:ss`); omitted when the format has no JDK equivalent |
 | `allowed_values` (error) | `quality: {type: library, metric: invalidValues, arguments.validValues, mustBe: 0}` — values emitted as strings (the engine compares `str(value)`; a bare `true`/`1.0` is a CAST error in the reference implementation) |
 | `unique` with `group_by` (error) | object-level `quality: {type: library, metric: duplicateValues, arguments.properties: [field, …group_by]}` — at most one per object |
 
@@ -132,6 +132,10 @@ projected fields and nothing else. Deliberately absent from the native projectio
 | OpenDQV rule | Native ODCS | Why |
 |---|---|---|
 | any warning-severity rule | nothing | a native constraint is hard downstream |
+| any rule with `condition:` | nothing | a native constraint is unconditional; 19 bundled error rules are conditional |
+| `regex` with `negate: true` | nothing | `pattern` always means "must match" — projecting would invert the rule |
+| `unique` with `group_by` | object-level `duplicateValues` only | property-level `unique: true` would reject rows the grouped rule accepts |
+| `inherited`, `federation_tier`, `provenance`, `severity_floor`, `lookup_auth_header` | stripped from the `custom` entry too | node-local engine state; refused on import, meaningless elsewhere |
 | `regex` with lookaround / backreference | nothing | RE2 consumers abort on the whole object |
 | `regex` on a numeric/date field | nothing | `pattern` is only valid under `logicalType: string` |
 | `not_empty` | `required: true` | ODCS `required` allows empty strings; OpenDQV does not — no double-count with `missingValues` |

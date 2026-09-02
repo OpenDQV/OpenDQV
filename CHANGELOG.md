@@ -67,6 +67,20 @@ semantic caveats (e.g. `required` → `not_empty` is stricter). The clean CSV
 fixture passes all 20 checks the reference implementation generates from the
 projection; the bad fixture fails exactly the 8 planted fields.
 
+**Ultrareview findings (2026-09-02, all three confirmed and fixed).** (1) Native
+projection ignored rule qualifiers: a rule with `condition:` (19 bundled
+error-severity rules), `regex` with `negate: true`, or `unique` with `group_by`
+projected as an unconditional / inverted / stricter native constraint —
+`datacontract test` would have rejected rows the OpenDQV engine legitimately
+passes. Qualified rules now stay custom-only; a ledger-guard test proves every
+projected native constraint on every bundled contract traces to an
+unconditional, un-negated, ungrouped error rule. (2) JDK date patterns now quote
+literal text (`yyyy-MM-dd'T'HH:mm:ss`), which Java consumers require, and the
+importer un-quotes it. (3) `severity_floor` leaked as a `!!python/object` YAML
+tag that `yaml.safe_load` rejects; the exporter now dumps in JSON mode and strips
+the engine-stamped federation/credential fields the importer refuses, so a
+federated rule round-trips.
+
 Docs: `importers.md` (full export/import mapping tables, loss ledger,
 verification recipe), `cli.md`, `api_reference.md`, `troubleshooting.md`, UI
 import placeholder.

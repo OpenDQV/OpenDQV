@@ -176,6 +176,14 @@ def _to_jdk_format(fmt: str) -> Optional[str]:
                     return None
                 out.append(_STRFTIME_TO_JDK[code])
                 i += 2
+            elif fmt[i].isalpha():
+                # Every A-Z/a-z is a reserved JDK pattern letter; literal text
+                # (e.g. the ISO 8601 'T') must be single-quoted.
+                j = i
+                while j < len(fmt) and fmt[j].isalpha():
+                    j += 1
+                out.append(f"'{fmt[i:j]}'")
+                i = j
             else:
                 out.append(fmt[i])
                 i += 1
@@ -209,6 +217,14 @@ def _from_jdk_format(fmt: str) -> Optional[str]:
         return None
     out, i = [], 0
     while i < len(fmt):
+        if fmt[i] == "'":
+            end = fmt.find("'", i + 1)
+            if end < 0:
+                return None   # unterminated literal
+            literal = fmt[i + 1:end] or "'"   # '' is an escaped quote in JDK
+            out.append(literal.replace("%", "%%"))
+            i = end + 1
+            continue
         for tok, code in _JDK_TOKENS:
             if fmt.startswith(tok, i):
                 out.append(code)
@@ -234,6 +250,7 @@ _IMPORT_DENIED_FIELDS = frozenset({
     "inherited", "federation_tier", "provenance", "severity_floor",
     "lookup_auth_header",
 })
+_ENGINE_STAMPED_FIELDS = _IMPORT_DENIED_FIELDS
 _ALLOWED_RULE_FIELDS = frozenset(Rule.model_fields.keys()) - _IMPORT_DENIED_FIELDS
 _ALIAS_TO_FIELD = {"min": "min_value", "max": "max_value"}
 
@@ -248,7 +265,9 @@ def _sanitise_name(raw: str) -> str:
 def _rule_to_dict(rule: Any) -> dict:
     """Rule object or dict → plain dict with canonical field names, defaults dropped."""
     if isinstance(rule, Rule):
-        d = rule.model_dump(exclude_none=True, exclude_defaults=True, by_alias=False)
+        # mode="json": enums (severity_floor etc.) become plain strings, so the
+        # YAML never carries a Python-specific !!python/object tag.
+        d = rule.model_dump(mode="json", exclude_none=True, exclude_defaults=True, by_alias=False)
         # exclude_defaults drops severity=error / description="" — keep what matters
         d["type"] = rule.type
         d["field"] = rule.field
@@ -265,6 +284,10 @@ def _rule_to_dict(rule: Any) -> dict:
         d["severity"] = sev.value if hasattr(sev, "value") else str(sev)
     if d.get("inherited") is False:
         d.pop("inherited")
+    # Engine-stamped federation / credential fields are node-local state, are
+    # refused on import, and mean nothing to another system: never export them.
+    for k in _ENGINE_STAMPED_FIELDS:
+        d.pop(k, None)
     # Deterministic key order: identity first, then the rest alphabetically.
     head = ["name", "type", "field", "severity", "error_message", "description"]
     ordered: dict[str, Any] = OrderedDict()
@@ -578,16 +601,30 @@ def odcs_to_yaml(contract_data: dict, contract_name: Optional[str] = None) -> tu
 # Exporter
 # ---------------------------------------------------------------------------
 
+def _is_qualified(rule: dict) -> bool:
+    """True when a rule only applies conditionally — native ODCS has no way to say that."""
+    return bool(rule.get("condition"))
+
+
 def _project_native(prop: dict, ltype: str, rule: dict) -> None:
-    """Project an error-severity rule onto native ODCS fields when compatible."""
+    """Project an error-severity rule onto native ODCS fields when compatible.
+
+    A native ODCS constraint is unconditional and un-negated. Rules qualified
+    by ``condition``, ``negate`` or ``group_by`` would project as something
+    stronger than (or the inverse of) what OpenDQV enforces, so they stay
+    custom-only. (Ultrareview finding, 2026-09-02.)
+    """
+    if _is_qualified(rule):
+        return
     rtype = rule["type"]
     opts: dict = prop.setdefault("logicalTypeOptions", {})
     if rtype == "not_empty":
         prop["required"] = True
     elif rtype == "unique":
-        prop["unique"] = True
+        if not rule.get("group_by"):
+            prop["unique"] = True
     elif ltype == "string":
-        if rtype == "regex" and rule.get("pattern"):
+        if rtype == "regex" and rule.get("pattern") and not rule.get("negate"):
             portable = _portable_pattern(rule["pattern"])
             if portable:
                 opts["pattern"] = portable
@@ -650,7 +687,7 @@ def export_odcs(
         for r in field_rules:
             if r.get("severity", "error") == "error":
                 _project_native(prop, ltype, r)
-                if r["type"] in ("allowed_values", "lookup") and r.get("allowed_values"):
+                if r["type"] in ("allowed_values", "lookup") and r.get("allowed_values") and not _is_qualified(r) and not r.get("negate"):
                     # Values are quoted strings: the engine compares str(value),
                     # and a bare true/1.0 raises a CAST error in the reference implementation.
                     quality.append({
@@ -659,7 +696,7 @@ def export_odcs(
                         "mustBe": 0, "severity": "error", "dimension": "conformity",
                         **({"description": r["error_message"]} if r.get("error_message") else {}),
                     })
-                if r["type"] == "unique" and r.get("group_by") and not object_quality:
+                if r["type"] == "unique" and r.get("group_by") and not _is_qualified(r) and not object_quality:
                     # Compound uniqueness is object-level in ODCS. At most one per
                     # object — the reference implementation mis-reports a second.
                     object_quality.append({
