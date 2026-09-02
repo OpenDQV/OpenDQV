@@ -18,8 +18,8 @@ Commands:
     import-dbt <file>              Import dbt schema.yml and save as YAML contract(s)
     import-soda <file>             Import Soda Core checks YAML and save as YAML contract(s)
     import-csv <file>              Import CSV rules and save as YAML contract
-    import-odcs <file>             Import ODCS 3.1 contract (YAML/JSON) and save as OpenDQV contract
-    export-odcs <contract>         Export contract as ODCS 3.1 YAML
+    import-odcs <file>             Import ODCS v3.x contract (YAML/JSON) and save as OpenDQV contract
+    export-odcs <contract>         Export contract as ODCS v3.1.0 YAML
     export-dbt <contract>          Export contract as dbt schema.yml
     generate <contract> <target>   Generate validation code (salesforce/js/snowflake/spark/bigquery)
     onboard                        Interactive setup wizard — first validation in 90 seconds
@@ -427,7 +427,7 @@ def cmd_import_csv(args):
 
 
 def cmd_import_odcs(args):
-    """Import ODCS 3.1 contract (YAML or JSON) and save as OpenDQV contract YAML."""
+    """Import ODCS v3.x contract (YAML or JSON) and save as OpenDQV contract YAML."""
     import yaml as _yaml
 
     path = Path(args.file)
@@ -451,6 +451,7 @@ def cmd_import_odcs(args):
     _validate_contract_name(contract_name)
     rule_count = result["rule_count"]
     skipped = result["skipped_checks"]
+    notes = result.get("import_notes", [])
 
     CONTRACTS_DIR.mkdir(parents=True, exist_ok=True)
     out_path = CONTRACTS_DIR / f"{contract_name}.yaml"
@@ -463,10 +464,14 @@ def cmd_import_odcs(args):
         print(f"Skipped checks: {len(skipped)}")
         for s in skipped:
             print(f"  - {s}")
+    if notes:
+        print(f"Notes: {len(notes)}")
+        for n in notes:
+            print(f"  - {n}")
 
 
 def cmd_export_odcs(args):
-    """Export a contract as ODCS 3.1 YAML."""
+    """Export a contract as ODCS v3.1.0 YAML."""
 
     registry = get_registry()
     contract = registry.get(args.contract)
@@ -483,6 +488,7 @@ def cmd_export_odcs(args):
         status=status_val,
         description=getattr(contract, "description", "") or "",
         owner=getattr(contract, "owner", "") or "",
+        owner_email=getattr(contract, "owner_email", None),
     )
 
     if args.output:
@@ -1053,12 +1059,12 @@ def main():
     p_import_csv.add_argument("--name", default=None, help="Contract name (default: CSV filename stem)")
 
     # import-odcs
-    p_import_odcs = subparsers.add_parser("import-odcs", help="Import ODCS 3.1 contract and save as OpenDQV contract")
-    p_import_odcs.add_argument("file", help="Path to ODCS 3.1 YAML or JSON file")
+    p_import_odcs = subparsers.add_parser("import-odcs", help="Import ODCS v3.x contract and save as OpenDQV contract")
+    p_import_odcs.add_argument("file", help="Path to ODCS v3.x YAML or JSON file")
     p_import_odcs.add_argument("--name", default=None, help="Contract name override (default: from info.title)")
 
     # export-odcs
-    p_export_odcs = subparsers.add_parser("export-odcs", help="Export contract as ODCS 3.1 YAML")
+    p_export_odcs = subparsers.add_parser("export-odcs", help="Export contract as ODCS v3.1.0 YAML")
     p_export_odcs.add_argument("contract", help="Contract name")
     p_export_odcs.add_argument("--context", default=None, help="Context to apply before export")
     p_export_odcs.add_argument("--output", "-o", default=None, help="Write output to file instead of stdout")

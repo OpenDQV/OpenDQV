@@ -2016,8 +2016,8 @@ if section == "Import Rules":
 
     with st.expander("Import / Export ODCS 3.1 (Open Data Contract Standard)", expanded=False):
         st.markdown(
-            "Import an [ODCS 3.1](https://bitol-io.github.io/open-data-contract-standard/) contract "
-            "(OpenMetadata, Soda, Monte Carlo, Data Contract CLI) or export any OpenDQV contract to ODCS format."
+            "Import an [ODCS v3.x](https://bitol-io.github.io/open-data-contract-standard/) contract "
+            "or export any OpenDQV contract as ODCS v3.1.0 (validates with `datacontract lint`)."
         )
 
         odcs_mode = st.radio("Mode", ["Import", "Export"], horizontal=True, key="odcs_mode")
@@ -2028,9 +2028,11 @@ if section == "Import Rules":
                 "ODCS contract (YAML or JSON)",
                 height=300,
                 placeholder=(
-                    "apiVersion: v3.1.0\nkind: DataContract\ninfo:\n  title: My Contract\n"
-                    "  version: '1.0'\nschema:\n  - name: customers\n    properties:\n"
-                    "      - name: email\n        required: true\n        unique: true"
+                    "apiVersion: v3.1.0\nkind: DataContract\nid: my_contract\nname: my_contract\n"
+                    "version: '1.0'\nstatus: draft\nschema:\n  - name: customers\n    logicalType: object\n"
+                    "    properties:\n      - name: email\n        logicalType: string\n"
+                    "        required: true\n        unique: true\n        logicalTypeOptions:\n"
+                    "          pattern: '^[^@]+@[^@]+$'"
                 ),
                 key="odcs_import_input",
             )
@@ -2048,6 +2050,8 @@ if section == "Import Rules":
                             st.success(f"Imported {rule_count} rules" + (f", skipped {len(skipped)}" if skipped else ""))
                             if skipped:
                                 st.warning(f"Skipped unsupported checks: {', '.join(skipped)}")
+                            if data.get("import_notes"):
+                                st.info("Notes: " + "; ".join(data["import_notes"]))
                             if data.get("saved_to"):
                                 st.info(f"Saved to: {data['saved_to']}")
                             st.markdown("**Generated contract YAML preview:**")

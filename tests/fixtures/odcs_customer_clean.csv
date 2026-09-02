@@ -1,0 +1,3 @@
+email,age,id,balance,phone,name,score,date,username,password,loyalty_tier
+alice@example.com,30,C1,10.5,+441234567890,Alice,50,2026-01-02,alice_1,longpassword,gold
+bob@example.org,41,C2,0,+15551234567,Bob,99,2025-12-31,bob_2,anotherlongpw,silver

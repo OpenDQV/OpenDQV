@@ -83,39 +83,119 @@ be reviewed and activated before it can be used for production validation.
 
 ---
 
-## ODCS — Open Data Contract Standard (schema.quality section)
+## ODCS — Open Data Contract Standard (v3.1.0)
 
-OpenDQV imports and exports the **quality and schema sections** of ODCS 3.1 contracts.
-The following ODCS normative sections are **outside scope** and are silently dropped on
-import unless the contract was produced by OpenDQV itself:
+OpenDQV exports contracts as [ODCS v3.1.0](https://bitol-io.github.io/open-data-contract-standard/latest/)
+and imports ODCS v3.0.x / v3.1.0 documents. Every export validates against the official
+ODCS JSON schema and passes `datacontract lint`
+([datacontract-cli](https://github.com/datacontract/datacontract-cli)); this is enforced by
+the test suite on all bundled contracts.
 
-| ODCS normative section | Status in OpenDQV |
-|------------------------|-------------------|
-| `schema.quality` (not_null, unique, regex, range, min, max, min_length, max_length, date_format) | ✅ Imported and exported |
-| `info` (title, version, status, description, owner) | ✅ Imported and exported |
-| `sla` / `serviceLevel` | ❌ Out of scope — use your observability platform |
-| `semantics` (business meaning, ontology) | ❌ Out of scope — use your data catalog |
-| `infrastructure` (storage system, cloud, throughput) | ❌ Out of scope |
-| `terms_of_use` (licensing, regulatory constraints) | ❌ Out of scope |
-| `lineage` / upstream dependencies | ❌ Out of scope — use your lineage tool |
-| Consumer ownership model | ❌ Out of scope — OpenDQV enforces at the producer boundary |
+> **Before v2.4.0** the ODCS exporter emitted an `info:` block and `mustBeSatisfied`
+> quality checks. That shape was not ODCS 3.x and failed `datacontract lint` on the first
+> check. Re-export any contract exported with an earlier version.
+
+### Export mapping
+
+| OpenDQV | ODCS v3.1.0 |
+|---------|-------------|
+| `name` | `id`, `name`, `schema[0].name` |
+| `version` | `version` |
+| `status` draft / review / active / archived | `status` draft / proposed / active / deprecated (original kept in `customProperties[opendqv.status]`) |
+| `description` | `description.purpose` |
+| `owner`, `owner_email` | `team.name`, `team.members[].username` (role `owner`) |
+| every rule | one `quality` entry: `type: custom`, `engine: opendqv`, `implementation: <rule>`, plus `name`, `severity`, `dimension`, `description` (= `error_message`) |
+| `not_empty` (error) | `required: true` |
+| `unique` (error) | `unique: true` |
+| `regex` / `min_length` / `max_length` (error, string field) | `logicalTypeOptions.pattern` / `minLength` / `maxLength`. Built-in pattern aliases are expanded. Patterns using lookahead, lookbehind, atomic groups or backreferences are **not** projected (RE2-based consumers abort on them) and travel custom-only |
+| `min` / `max` / `range` (error, numeric field) | `logicalTypeOptions.minimum` / `maximum`; `logicalType: number` |
+| `date_format` (error) | `logicalType: date` (or `timestamp` when the format has a time part), `logicalTypeOptions.format` as a JDK pattern (`yyyy-MM-dd`, literal text quoted: `yyyy-MM-dd'T'HH:mm:ss`); omitted when the format has no JDK equivalent |
+| `allowed_values` (error) | `quality: {type: library, metric: invalidValues, arguments.validValues, mustBe: 0}` — values emitted as strings (the engine compares `str(value)`; a bare `true`/`1.0` is a CAST error in the reference implementation) |
+| `unique` with `group_by` (error) | object-level `quality: {type: library, metric: duplicateValues, arguments.properties: [field, …group_by]}` — at most one per object |
+
+Two deliberate choices:
+
+- **Warning-severity rules are never projected onto native ODCS fields.** A native
+  constraint (`required`, `logicalTypeOptions`) is a hard constraint to every other ODCS
+  consumer; a soft OpenDQV warning must not become one downstream. Warnings travel only in
+  the `custom` entry, with `severity: warning`.
+- **A field has one `logicalType`** (numeric wins over date wins over string). Only rules
+  compatible with it are projected natively — the schema forbids e.g. `pattern` on a
+  number. Nothing is lost: the `custom` entry always carries the full rule.
+
+### What other tools see (the loss ledger)
+
+The `custom/opendqv` entry is lossless, but only OpenDQV reads it. A native-only consumer
+(datacontract-cli's SodaCL / JSON-schema / dbt exporters, OpenMetadata) sees exactly the
+projected fields and nothing else. Deliberately absent from the native projection:
+
+| OpenDQV rule | Native ODCS | Why |
+|---|---|---|
+| any warning-severity rule | nothing | a native constraint is hard downstream |
+| any rule with `condition:` | nothing | a native constraint is unconditional; 19 bundled error rules are conditional |
+| `regex` with `negate: true` | nothing | `pattern` always means "must match" — projecting would invert the rule |
+| `unique` with `group_by` | object-level `duplicateValues` only | property-level `unique: true` would reject rows the grouped rule accepts |
+| `inherited`, `federation_tier`, `provenance`, `severity_floor`, `lookup_auth_header` | stripped from the `custom` entry too | node-local engine state; refused on import, meaningless elsewhere |
+| `regex` with lookaround / backreference | nothing | RE2 consumers abort on the whole object |
+| `regex` on a numeric/date field | nothing | `pattern` is only valid under `logicalType: string` |
+| `not_empty` | `required: true` | ODCS `required` allows empty strings; OpenDQV does not — no double-count with `missingValues` |
+| `min_age` / `max_age` / `age_match` / `date_diff` | `logicalType: date` only | no ODCS calendar arithmetic |
+| `compare`, `required_if`, `forbidden_if`, `conditional_value`, `cross_field_range`, `field_sum`, `ratio_check`, `geospatial_bounds`, `checksum`, `lookup` (file / URL), `conditional_lookup` | nothing | cross-field / reference-data / algorithmic rules have no declarative ODCS form |
+
+`tests/test_odcs_import.py` pins this ledger: changing what projects is a deliberate edit.
+
+### Verification recipe
+
+```bash
+pip install 'datacontract-cli[duckdb]'
+opendqv export-odcs customer -o customer.odcs.yaml
+datacontract lint customer.odcs.yaml            # official schema
+# add  servers: [{server: local, type: local, path: rows.csv, format: csv}]  then:
+datacontract test customer.odcs.yaml            # executes required/unique/lengths/bounds/pattern/library metrics
+```
+
+The test suite runs both automatically when `datacontract` is on PATH (or `OPENDQV_DATACONTRACT_BIN`
+is set): on the bundled `customer` contract, a clean CSV passes all 20 generated checks and a
+CSV with 8 planted violations fails exactly those 8 fields.
+
+### Import mapping
+
+| ODCS v3.x | OpenDQV |
+|-----------|---------|
+| `name` (else `id`) | contract name (lower-cased, non `[a-z0-9_]` → `_`) |
+| `version`, `status` | `version`; status mapped back (proposed → review, deprecated/retired → archived). The REST import always lands as `draft`. |
+| `description.purpose` (else `usage`) | `description` |
+| `team.name` / `team.members[0].username` (or the v3.0 member list) | `owner` / `owner_email` |
+| `quality: {type: custom, engine: opendqv, implementation}` | the rule itself — authoritative; native projections on that property are ignored |
+| `required: true` / `unique: true` | `not_empty` / `unique` (error) |
+| `logicalTypeOptions.pattern` / `minLength` / `maxLength` | `regex` / `min_length` / `max_length` |
+| `logicalTypeOptions.minimum` + `maximum` (number, integer) | `range`; one of them → `min` / `max`. `exclusiveMinimum` / `exclusiveMaximum` have no strict-bound rule and are **skipped, never loosened** to inclusive (that would pass a value the document rejects) |
+| `logicalTypeOptions.format` (date) | `date_format` (JDK pattern → strftime; unsupported letters are reported) |
+| `library` `nullValues` / `duplicateValues` `mustBe: 0` | `not_empty` / `unique` (severity from the entry) |
+| `library` `invalidValues` + `arguments.validValues` (or `arguments.pattern`) `mustBe: 0` | `allowed_values` (or `regex`) |
+| `library` `missingValues` with `arguments.missingValues` ⊆ `[null, '']` `mustBe: 0` | `not_empty`; any other sentinel (e.g. `'N/A'`) cannot be honoured and is skipped |
+| `text` entry carrying a `metric` | treated as `library` (the reference implementation executes it) |
+
+Everything else — `text` and `sql` checks, `custom` checks for other engines, object-level
+checks, `rowCount` / `missingValues`, percentage thresholds, `multipleOf`, date bounds — is
+dataset-level or not expressible at the record boundary and is listed in `skipped_checks`.
+Nothing is dropped silently. Multiple schema objects are flattened into one record contract;
+a field defined twice is reported and the first definition kept. `import_notes` carries semantic
+caveats that are not skips — e.g. `required: true` becomes `not_empty`, which is stricter than
+ODCS `required` (ODCS allows empty strings). The CLI and UI print both lists.
+
+**Import safety.** A `custom/opendqv` implementation is allow-listed against the `Rule`
+model. It may not set `inherited`, `federation_tier`, `provenance`, `severity_floor` or
+`lookup_auth_header` — those are engine-stamped authority and credential fields — and an
+invalid rule fails the whole import with HTTP 422 rather than loading partially.
+
+Other ODCS sections (`servers`, `slaProperties`, `roles`, `support`, `price`, `tags`,
+`domain`, `tenant`) are outside OpenDQV's scope. They are returned as `_odcs_metadata` in
+the API response for the caller's use and are not persisted.
 
 > **Vocabulary note:** In ODCS and Data Mesh terminology, OpenDQV's "source system" is
 > the **data producer** and each calling service is a **data consumer**. OpenDQV enforces
 > quality rules at the producer boundary — before data leaves the source.
-
-> **Status on import:** Unlike GX and Soda importers (which always import as `draft`),
-> the ODCS importer preserves the source contract's `status` field (defaulting to `active`
-> if absent). This is intentional — ODCS carries explicit lifecycle status. Review the
-> imported contract before activating it for production validation.
-
-**Unsupported ODCS quality types (skipped with warning):**
-
-| ODCS type | Reason |
-|-----------|--------|
-| `custom` | No standard mapping |
-| `values` (enumerated) | No inline value set support; convert to `regex` manually |
-| `freshness` | Dataset-level time check — no record-level equivalent |
 
 ---
 
@@ -327,6 +407,6 @@ OpenDQV can also export contracts back to external schema formats:
 | Target format | CLI command | Notes |
 |---------------|-------------|-------|
 | dbt `schema.yml` | `export-dbt <contract>` | Produces dbt v2 column tests; use `--output` to write a file |
-| ODCS 3.1 | `export-odcs <contract>` | Open Data Contract Standard JSON/YAML |
+| ODCS v3.1.0 | `export-odcs <contract>` | Open Data Contract Standard YAML (schema-valid) |
 
 See [dbt Integration](dbt_integration.md) for the full rule-to-test mapping and required dbt packages.

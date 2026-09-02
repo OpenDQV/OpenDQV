@@ -54,8 +54,8 @@ opendqv --version
 | `import-dbt` | `<file>` | — | Import a dbt `schema.yml` and save as one or more YAML contracts |
 | `import-soda` | `<file>` | — | Import a Soda Core checks YAML and save as one or more YAML contracts |
 | `import-csv` | `<file>` | `--name` | Import a CSV rules file and save as a YAML contract |
-| `import-odcs` | `<file>` | `--name` | Import an ODCS 3.1 contract (YAML or JSON) and save as an OpenDQV contract |
-| `export-odcs` | `<contract>` | `--context`, `--output`/`-o` | Export contract as ODCS 3.1 YAML |
+| `import-odcs` | `<file>` | `--name` | Import an ODCS v3.x contract (YAML or JSON) and save as an OpenDQV contract |
+| `export-odcs` | `<contract>` | `--context`, `--output`/`-o` | Export contract as ODCS v3.1.0 YAML (validates with `datacontract lint`) |
 | `export-dbt` | `<contract>` | `--context`, `--output`/`-o` | Export contract as a dbt `schema.yml` |
 | `generate` | `<contract> <target>` | `--context` | Generate push-down validation code for `salesforce`, `js`, or `snowflake` |
 | `onboard` | — | — | Launch the interactive setup wizard; first validation in ~90 seconds |
@@ -191,7 +191,7 @@ opendqv import-csv rules/customer_rules.csv --name customer_v2
 
 ### `import-odcs <file>`
 
-Reads an Open Data Contract Standard (ODCS 3.1) contract — YAML or JSON — and converts it to an OpenDQV YAML contract. The contract name is taken from `info.title` unless `--name` is provided.
+Reads an Open Data Contract Standard (ODCS v3.0.x or v3.1.0) contract — YAML or JSON — and converts it to an OpenDQV YAML contract. The contract name is taken from the top-level `name` (falling back to `id`) unless `--name` is provided. Documents that are not ODCS v3.x are rejected.
 
 ```bash
 opendqv import-odcs my_odcs_contract.yaml --name payments
@@ -201,7 +201,7 @@ opendqv import-odcs my_odcs_contract.yaml --name payments
 
 ### `export-odcs <contract>`
 
-Exports a contract as ODCS 3.1 YAML, suitable for sharing with other platforms that consume the standard.
+Exports a contract as ODCS v3.1.0 YAML. The output validates against the official ODCS JSON schema and `datacontract lint`, so it can be handed to any tool that consumes the standard. See [importers.md](importers.md#odcs--open-data-contract-standard) for the exact mapping.
 
 ```bash
 opendqv export-odcs customer --output customer_odcs.yaml

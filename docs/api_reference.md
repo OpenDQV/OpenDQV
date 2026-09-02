@@ -42,11 +42,11 @@ Full interactive docs at `/docs` (Swagger) and `/redoc` (ReDoc) when the server 
 | `POST` | `/api/v1/import/dbt` | Yes (editor+) | Import dbt schema.yml |
 | `POST` | `/api/v1/import/soda` | Yes (editor+) | Import Soda Core checks YAML |
 | `POST` | `/api/v1/import/csv` | Yes (editor+) | Import CSV rule definitions |
-| `POST` | `/api/v1/import/odcs` | Yes (editor+) | Import ODCS 3.1 contract |
+| `POST` | `/api/v1/import/odcs` | Yes (editor+) | Import ODCS v3.x contract (422 if not ODCS v3) |
 | `POST` | `/api/v1/import/csvw` | Yes (editor+) | Import CSV on the Web metadata |
 | `POST` | `/api/v1/import/otel` | Yes (editor+) | Import OpenTelemetry semantic conventions |
 | `POST` | `/api/v1/import/ndc` | Yes (editor+) | Import NDC format |
-| `GET` | `/api/v1/export/odcs/{contract}` | No | Export contract as ODCS 3.1 YAML |
+| `GET` | `/api/v1/export/odcs/{contract}` | No | Export contract as ODCS v3.1.0 YAML |
 | `GET` | `/api/v1/trace/verify` | Yes (auditor+) | Verify trace log hash-chain integrity |
 | `GET` | `/api/v1/registry` | No | Schema registry — list all contracts as versioned schemas |
 | `GET` | `/api/v1/registry/{name}` | No | Schema registry — get specific schema |
@@ -143,7 +143,7 @@ All importers return stats (total, imported, skipped) and a list of skipped item
 Pass `?save=true` to the API to persist contracts to disk and trigger a reload.
 CLI import commands always save by default.
 
-Export: `GET /api/v1/export/odcs/{contract}` — export a contract as ODCS 3.1 YAML.
+Export: `GET /api/v1/export/odcs/{contract}` — export a contract as ODCS v3.1.0 YAML (schema-valid; passes `datacontract lint`).
 
 ---
 

@@ -1,0 +1,3 @@
+email,age,id,balance,phone,name,score,date,username,password,loyalty_tier
+not-an-email,-5,C1,10.5,0123,,150,2025-12-31,bad user,short,gold
+bob@example.org,41,C1,0,+15551234567,Bob,99,2025-12-31,bob_2,anotherlongpw,silver

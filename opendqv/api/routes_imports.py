@@ -235,27 +235,33 @@ async def import_csv(
 async def import_odcs_contract(
     request: Request,
     response: Response,
-    contract_data: dict = Body(..., description="ODCS 3.1 contract as JSON dict"),
+    contract_data: dict = Body(..., description="ODCS v3.x contract as JSON dict"),
     save: bool = Query(False, description="Save as YAML contract to disk and reload registry"),
-    contract_name: str = Query("", description="Override contract name (default: from info.title)"),
+    contract_name: str = Query("", description="Override contract name (default: top-level name, else id)"),
     created_by: str = Query("", description="Identity of the caller creating this contract"),
     user=Depends(get_current_user),
     role: str = Depends(get_current_role),
 ):
     """
-    Import an Open Data Contract Standard (ODCS) 3.1 contract and convert to OpenDQV.
+    Import an Open Data Contract Standard (ODCS) v3.x contract and convert to OpenDQV.
 
-    Accepts ODCS 3.1 dict with apiVersion, kind, info, and schema sections.
-    Maps quality checks (not_null, unique, regex, range, min, max, min_length,
-    max_length, date_format) and field-level shortcuts (required, unique,
-    minLength, maxLength) to OpenDQV rules.
+    Accepts an ODCS v3.0.x / v3.1.0 document (apiVersion, kind, id, version,
+    status, schema). Maps property flags (required, unique), logicalTypeOptions
+    (pattern, minLength, maxLength, minimum, maximum, date format), record-level
+    library metrics (nullValues / duplicateValues / invalidValues with mustBe: 0)
+    and `custom` quality entries with `engine: opendqv` to OpenDQV rules.
+    Everything else is listed in `skipped_checks`. Documents that are not ODCS
+    v3.x, or that carry an invalid or forbidden rule definition, return 422.
 
     Pass ?save=true to write the contract YAML to the contracts/ directory and
     reload the registry, making it immediately available for validation.
     """
     if role not in ("editor", "admin"):
         raise HTTPException(status_code=403, detail=f"Role '{role}' is not permitted. Required: editor or admin.")
-    result = import_odcs(contract_data)
+    try:
+        result = import_odcs(contract_data)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"ODCS import failed: {exc}") from exc
     result["contract"]["source"] = "import"
     result["contract"]["status"] = "draft"
 
@@ -472,11 +478,12 @@ async def export_to_odcs(
     user=Depends(get_current_user),
 ):
     """
-    Export an OpenDQV contract as an ODCS 3.1 data contract YAML.
+    Export an OpenDQV contract as an ODCS v3.1.0 data contract YAML.
 
-    Returns ODCS 3.1 YAML (apiVersion: v3.1.0, kind: DataContract) with quality
-    checks mapped from OpenDQV rules. Suitable for use with OpenMetadata, Soda,
-    Monte Carlo, and the Data Contract CLI.
+    The output validates against the official ODCS v3.1.0 JSON schema and
+    `datacontract lint`. Error-severity rules are projected onto native ODCS
+    fields (required, unique, logicalTypeOptions); every rule is also carried
+    losslessly as a `custom` quality entry with `engine: opendqv`.
     """
     contract = _d._get_contract_versioned_or_404(contract_name, version)
 
@@ -491,6 +498,7 @@ async def export_to_odcs(
         status=contract.status.value if hasattr(contract.status, "value") else str(contract.status),
         description=getattr(contract, "description", "") or "",
         owner=getattr(contract, "owner", "") or "",
+        owner_email=getattr(contract, "owner_email", None),
     )
     from fastapi.responses import Response
     return Response(content=yaml_str, media_type="application/yaml")
