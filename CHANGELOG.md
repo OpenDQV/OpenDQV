@@ -58,6 +58,11 @@ CRT180 — contract-format conformance across engines (see
   fails if a rule type in the validator's handler table has no probe.
   `library_manifest.json` (`scripts/library_manifest.py`, CI-checked) pins one
   SHA-256 per bundled contract's rules for downstream mirrors.
+- **D6 closed on Core's own handlers:** `allowed_values`, `lookup` and `date_diff`
+  no longer fire on a blank / whitespace-only value (they already skipped
+  `None`); batch path aligned (`_batch_absent`), `forbidden_if` batch SQL trims
+  before comparing. Found by the third cross-engine run; see
+  `docs/contract_conformance.md`.
 - **Engine-generated message wording** (cross-engine alignment): type names in
   `OPENDQV_TYPE_MISMATCH` and `not_empty_string` messages are JSON type names
   (`string`, `number`, `boolean`, `array`, `object`, `null`) instead of Python

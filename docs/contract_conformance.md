@@ -259,6 +259,35 @@ three lookup failures until the directory was pointed at `ref/`), and the
 `lookup`-backed clean rows are the only rows whose verdict depends on files
 outside the contract. Both are now noted in the probe procedure.
 
+## Third cross-engine run (2026-09-02, after both engines adopted D6 and D7)
+
+The managed engine adopted D6 (blank is absent, one catcher) and D7
+(start-anchored patterns), and refuses `contexts:` at parse (D1). Running
+the corpus against it then exposed **Core's own D6 gaps**: `allowed_values`,
+`lookup` and `date_diff` still fired on a blank string on the single path,
+and their batch twins did too. Fixed here (`_is_field_absent` on the three
+handlers; `_batch_absent` on the batch loops; `forbidden_if`'s batch SQL
+trims before comparing). The generator's single/batch parity gate caught
+the batch half before the corpus could be regenerated — the mechanism
+working on its own oracle.
+
+| Fixture | Rows | Identical (verdict + code + severity) | … incl. messages | Verdict |
+|---|---|---|---|---|
+| banking_transaction (strict) | 18 | 17 | 16 | 18/18 |
+| hr_employee | 22 | 21 | 21 | 22/22 |
+| customer | 17 | 16 | 16 | 17/17 |
+| dora_ict_incident (strict) | 41 | 41 | 41 | 41/41 |
+| nhs_dsp_patient | 22 | 21 | 21 | 22/22 |
+| **total** | **120** | **116** | **115** | **120/120** |
+
+The residue is now exactly the two open decisions: **Class A** (4 rows, the
+`{}` probe on the four contracts with format-only fields → D2, implicit-
+required) and **D9** (1 message, length rules on a number). Class B is
+closed on both engines. One more harness note: the managed engine's probe
+drops the `contexts:` block from Core's `customer` contract before parsing
+(it would be refused otherwise) — the same one-transformation rule as the
+envelope wrapper.
+
 ## Known issues
 
 **K1 — batch skipped absent fields (FIXED, review B6).** `validate_batch`

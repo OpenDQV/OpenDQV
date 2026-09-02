@@ -556,6 +556,18 @@ def _is_field_absent(value) -> bool:
     return False
 
 
+def _batch_absent(val) -> bool:
+    """Batch-path twin of _is_field_absent: None, NaN, or a blank string.
+
+    The two must agree or validate_record and validate_batch drift on blank
+    values (D6) — the conformance generator refuses to emit a corpus when
+    they do.
+    """
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return True
+    return isinstance(val, str) and val.strip() == ""
+
+
 def _check_not_empty(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if _is_field_absent(value):
         return rule.error_message
@@ -903,8 +915,8 @@ def _check_required_if(value, rule: Rule, record: Optional[dict] = None) -> Opti
 def _check_allowed_values(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if not rule.allowed_values:
         return None
-    if value is None:
-        return None
+    if _is_field_absent(value):
+        return None  # D6: blank is absent — presence rules are the single catcher
     allowed = [str(v) for v in rule.allowed_values]
     if str(value) not in allowed:
         return rule.error_message
@@ -915,8 +927,8 @@ def _check_lookup(value, rule: Rule, record: Optional[dict] = None) -> Optional[
     if not rule.lookup_file:
         logger.warning("lookup rule '%s' missing lookup_file", rule.name)
         return None
-    if value is None:
-        return None
+    if _is_field_absent(value):
+        return None  # D6: blank is absent — presence rules are the single catcher
     try:
         if rule.lookup_file.startswith("http://") or rule.lookup_file.startswith("https://"):
             ttl = rule.cache_ttl if rule.cache_ttl is not None else _HTTP_LOOKUP_DEFAULT_TTL
@@ -1004,8 +1016,8 @@ def _check_date_diff(value, rule: Rule, record: Optional[dict] = None) -> Option
     if not rule.date_diff_field:
         logger.warning("date_diff rule '%s' missing date_diff_field", rule.name)
         return None
-    if value is None:
-        return None  # field absent — skip date_diff; required check is a separate rule
+    if _is_field_absent(value):
+        return None  # field absent or blank (D6) — skip date_diff; required check is a separate rule
     other_val = (record or {}).get(rule.date_diff_field)
     if other_val is None:
         return rule.error_message
@@ -1942,7 +1954,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
         allowed = {str(v) for v in rule.allowed_values}
         for idx in range(len(df)):
             val = df[field].iloc[idx]
-            if val is not None and not (isinstance(val, float) and pd.isna(val)):
+            if not _batch_absent(val):  # D6: blank is absent
                 if str(val) not in allowed:
                     failing.add(idx)
 
@@ -1955,8 +1967,8 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
                 valid_values = _load_lookup_set(rule.lookup_file, rule.lookup_field or "")
             for idx in range(len(df)):
                 val = df[field].iloc[idx]
-                if val is None or (isinstance(val, float) and pd.isna(val)):
-                    # CRT170/J3: absent field — skip (not_empty is the catcher).
+                if _batch_absent(val):
+                    # CRT170/J3 + D6: absent or blank field — skip (not_empty is the catcher).
                     continue
                 elif rule.all_of and isinstance(val, list):
                     if any(str(item) not in valid_values for item in val):
@@ -2028,7 +2040,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
                 f'SELECT __idx__ FROM data '
                 f'WHERE CAST("{trigger_field}" AS VARCHAR) = $trigger_val '
                 f'AND "{field}" IS NOT NULL '
-                f'AND CAST("{field}" AS VARCHAR) != \'\''
+                f'AND TRIM(CAST("{field}" AS VARCHAR)) != \'\''
             )
             for r in con.execute(query, {"trigger_val": trigger_value}).fetchall():
                 failing.add(r[0])
@@ -2050,8 +2062,8 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
             for idx in range(len(df)):
                 val = df[field].iloc[idx]
                 other_val = df[rule.date_diff_field].iloc[idx]
-                if val is None or (isinstance(val, float) and pd.isna(val)):
-                    # CRT170/J3: target field absent — skip (not_empty is the catcher).
+                if _batch_absent(val):
+                    # CRT170/J3 + D6: target field absent or blank — skip (not_empty is the catcher).
                     continue
                 if other_val is None or (isinstance(other_val, float) and pd.isna(other_val)):
                     # Cross-field counterpart absent — fail (the diff cannot be computed).
