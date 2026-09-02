@@ -105,7 +105,7 @@ contract:
         assert "typeof row['email'] !== 'string'" in generate_code(rules, "snowflake")
         assert "typeof row['email'] !== 'string'" in generate_code(rules, "bigquery")
         assert "instanceof String" in generate_code(rules, "salesforce")
-        assert "typeof(email) != 'string'" in generate_code(rules, "spark")
+        assert "TRIM(CAST(email AS STRING)) = ''" in generate_code(rules, "spark")
 
     def test_odcs_projection_and_round_trip(self):
         from opendqv.core.importers import odcs

@@ -18,7 +18,7 @@ contract:
   name: payments_feed
   version: "1.0"
   strict_schema: true
-  fields: [trace_id]          # allowed without a rule of their own
+  allowed_fields: [trace_id]  # allowed without a rule of their own
   rules:
     - name: amount_required
       type: not_empty
@@ -44,7 +44,7 @@ A field is declared when:
   `ratio_denominator`, `geo_lon_field`, `dob_field`, every entry of
   `sum_fields` and `group_by`, and the `field` key of `required_if`,
   `forbidden_if` and `condition` — or
-- it is listed in the contract's `fields:` allow-list.
+- it is listed in the contract's `allowed_fields:` allow-list (`fields:` is accepted as a deprecated alias and the linter warns).
 
 The calendar sentinels `today` and `now` are not field names.
 
@@ -68,18 +68,18 @@ first; the declared set is computed from the resolved rules.
 
 ## Where it travels
 
-- **Audit chain.** `strict_schema` and `fields` are content: a contract that
+- **Audit chain.** `strict_schema` and `allowed_fields` are content: a contract that
   turns strict on gets a new `content_hash` / `entry_hash`, and a snapshot
   retrieved by hash restores both. Contracts that never set them keep their
   existing hashes byte-for-byte — the two values only join the canonical
   payload when set.
 - **JSON Schema export** emits `additionalProperties: false` for a strict
-  contract and a bare property entry for every `fields:` name.
+  contract and a bare property entry for every `allowed_fields:` name.
 - **ODCS export** carries both as custom properties (`opendqv.strict_schema`,
   `opendqv.fields`); ODCS import restores them. The standard has no native
   construct for "reject undeclared fields".
 - **Linter** rejects a non-boolean `strict_schema` or a non-string-list
-  `fields`, and warns when `fields` is set without `strict_schema`.
+  `allowed_fields`, warns when it is set without `strict_schema`, and warns on the deprecated `fields:` spelling.
 
 ## Why this exists
 

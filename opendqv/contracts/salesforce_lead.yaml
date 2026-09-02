@@ -51,7 +51,7 @@ contract:
     - name: email_not_personal
       field: Email
       type: regex
-      pattern: '@(gmail|yahoo|hotmail|outlook|aol|icloud)\.com$'
+      pattern: '.*@(gmail|yahoo|hotmail|outlook|aol|icloud)\.com$'
       negate: true
       severity: warning
       error_message: "Personal email detected — business email preferred for B2B leads."

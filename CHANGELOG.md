@@ -14,7 +14,7 @@ CRT180 — contract-format conformance across engines (see
   and batch paths agree; linter, JSON-Schema export (`type: string`, `minLength: 1`),
   explainer, the five push-down code generators and the ODCS projection
   (`required: true`) all know the type.
-- **New contract flag `strict_schema: true` + `fields:` allow-list** — reject
+- **New contract flag `strict_schema: true` + `allowed_fields:` allow-list** — reject
   records carrying any field the contract does not declare (JSON Schema's
   `additionalProperties: false`, enforced at the write boundary). One
   `OPENDQV_ADDITIONAL_PROPERTIES` error per record naming every unknown field;
@@ -35,6 +35,40 @@ CRT180 — contract-format conformance across engines (see
   unchanged, patterns now RE2-safe). Threshold, casing and format differences
   that are judgement calls are listed, not applied, in
   `docs/contract_conformance.md`.
+- **Review round 1 fixes.** `validate_batch` no longer skips a rule whose field
+  is absent from every record in the batch (K1 — a batch omitting a required
+  field validated clean). The Postgres contract-history backend persists
+  `strict_schema` / `allowed_fields` and hashes identically to SQLite. MCP and
+  GraphQL validate paths honour `strict_schema`; the REST draft fallback uses
+  the flags snapshotted at ACTIVE→DRAFT. `salesforce_lead.email_not_personal`
+  is now start-anchored (`.*@…`) so it actually fires under `re.match`.
+  `not_empty_string` emits the same typed message on both paths.
+- **`fields:` → `allowed_fields:`** on the strict-schema allow-list; the old key
+  is accepted as a deprecated alias (`FIELDS_KEY_DEPRECATED` lint warning) and
+  names are validated like rule fields. `Rule.optional` is accepted and
+  round-trips; semantics reserved (docs/contract_conformance.md, D2).
+- **Linter:** `STRICT_SCHEMA_NOT_BOOL`, `ALLOWED_FIELDS_NOT_STRING_LIST`,
+  `ALLOWED_FIELDS_WITHOUT_STRICT_SCHEMA`, `FIELDS_KEY_DEPRECATED`, and the
+  advisory `FORMAT_ONLY_FIELD_ACCEPTS_EMPTY` (new `info` severity — never fails
+  a lint) for fields with error-severity format rules and no presence rule.
+- **Conformance corpus + library manifest.** `tests/fixtures/conformance/*.jsonl`
+  now carry `{code, severity, message}` per finding, hand-written clean and
+  warning-only rows (`scripts/conformance_clean_rows.py`), and are verified on
+  the single path, as one-record batches and as a whole batch. The generator
+  fails if a rule type in the validator's handler table has no probe.
+  `library_manifest.json` (`scripts/library_manifest.py`, CI-checked) pins one
+  SHA-256 per bundled contract's rules for downstream mirrors.
+- **Engine-generated message wording** (cross-engine alignment): type names in
+  `OPENDQV_TYPE_MISMATCH` and `not_empty_string` messages are JSON type names
+  (`string`, `number`, `boolean`, `array`, `object`, `null`) instead of Python
+  names (`str`, …); `OPENDQV_ADDITIONAL_PROPERTIES` and `not_empty_string`
+  messages quote field names with double quotes. Codes, severities and
+  contract-authored messages are unchanged.
+- **JSON-Schema strict export with contexts** declares the union of every
+  context's rule targets instead of refusing `additionalProperties: false`.
+- **`strict_schema: true`** on `banking_transaction`, `dora_ict_incident`,
+  `financial_services_customer`, `financial_trade`, `mifid_transaction_report`,
+  `sox_control_test`.
 
 ## [2.4.0] - 2026-09-02
 

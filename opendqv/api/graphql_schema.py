@@ -209,7 +209,7 @@ class Mutation:
         context: Optional[str] = None,
         record_id: Optional[str] = None,
     ) -> ValidateResult:
-        from opendqv.core.validator import validate_record
+        from opendqv.core.validator import strict_schema_kwargs, validate_record
 
         start = time.monotonic()
         c = _registry.get(contract, version)
@@ -229,7 +229,7 @@ class Mutation:
             )
 
         rules = _registry.get_rules_with_context(c, context)
-        result = validate_record(record, rules)
+        result = validate_record(record, rules, **strict_schema_kwargs(c, rules))
 
         elapsed_ms = (time.monotonic() - start) * 1000
         logger.info("graphql validate: %s v%s valid=%s %.1fms", c.name, c.version, result["valid"], elapsed_ms)
@@ -251,6 +251,7 @@ class Mutation:
         version: str = "latest",
         context: Optional[str] = None,
     ) -> BatchValidateResult:
+        from opendqv.core.validator import strict_schema_kwargs
         from opendqv.core.validator import validate_batch as vb
 
         # DoS parity with REST POST /validate/batch: reject empty and
@@ -286,7 +287,7 @@ class Mutation:
             )
 
         rules = _registry.get_rules_with_context(c, context)
-        result = vb(records, rules)
+        result = vb(records, rules, **strict_schema_kwargs(c, rules))
 
         elapsed_ms = (time.monotonic() - start) * 1000
         logger.info("graphql validate_batch: %s v%s %d records %.1fms",

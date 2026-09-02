@@ -490,7 +490,7 @@ def cmd_export_odcs(args):
         owner=getattr(contract, "owner", "") or "",
         owner_email=getattr(contract, "owner_email", None),
         strict_schema=getattr(contract, "strict_schema", False),
-        fields=getattr(contract, "fields", None),
+        allowed_fields=getattr(contract, "allowed_fields", None),
     )
 
     if args.output:

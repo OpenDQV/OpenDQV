@@ -78,6 +78,12 @@ _KNOWN_RULE_TYPES = frozenset({
     "age_match",
 })
 
+_PRESENCE_RULE_TYPES = frozenset({"not_empty", "not_empty_string"})
+# Rule types for which an empty string counts as "absent" (validator._is_field_absent):
+_FORMAT_RULE_TYPES = frozenset({
+    "regex", "date_format", "min_length", "max_length", "allowed_values", "lookup", "checksum",
+})
+
 _KNOWN_CHECKSUM_ALGORITHMS = frozenset({
     "mod10_gs1",
     "iban_mod97",
@@ -105,7 +111,7 @@ _KNOWN_COMPARE_OPS = frozenset({
 @dataclass
 class LintIssue:
     """A single linting finding."""
-    severity: str          # "error" | "warning"
+    severity: str          # "error" | "warning" | "info" (advisory; never fails a lint)
     rule_name: Optional[str]  # None for contract-level issues
     code: str              # short identifier, e.g. "DUPLICATE_RULE_NAME"
     message: str
@@ -215,18 +221,56 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
                 severity="error", rule_name=None, code="STRICT_SCHEMA_NOT_BOOL",
                 message=f"contract.strict_schema must be true or false, got {_strict!r}.",
             ))
-        _fields = contract_node.get("fields")
+        if "fields" in contract_node and "allowed_fields" not in contract_node:
+            result.issues.append(LintIssue(
+                severity="warning", rule_name=None, code="FIELDS_KEY_DEPRECATED",
+                message="contract.fields is a deprecated alias — rename it to allowed_fields.",
+            ))
+        _fields = contract_node.get("allowed_fields", contract_node.get("fields"))
         if _fields is not None and (
             not isinstance(_fields, list) or not all(isinstance(f, str) and f for f in _fields)
         ):
             result.issues.append(LintIssue(
-                severity="error", rule_name=None, code="FIELDS_NOT_STRING_LIST",
-                message="contract.fields must be a list of non-empty field names.",
+                severity="error", rule_name=None, code="ALLOWED_FIELDS_NOT_STRING_LIST",
+                message="contract.allowed_fields must be a list of non-empty field names.",
             ))
         elif _fields and not _strict:
             result.issues.append(LintIssue(
-                severity="warning", rule_name=None, code="FIELDS_WITHOUT_STRICT_SCHEMA",
-                message="contract.fields has no effect unless strict_schema: true.",
+                severity="warning", rule_name=None, code="ALLOWED_FIELDS_WITHOUT_STRICT_SCHEMA",
+                message="contract.allowed_fields has no effect unless strict_schema: true.",
+            ))
+
+    # ── D6 (docs/contract_conformance.md): format-only fields accept "" ───────
+    # Core treats an empty string as absent for every non-presence rule, so a
+    # field that carries error-severity format rules but no not_empty /
+    # not_empty_string rule accepts "". Advisory (info): optional-when-present
+    # fields are a legitimate design, so this must never fail a lint or dirty
+    # the bundled library; it exists so an author who meant "required" sees it.
+    _rules_node = contract_node.get("rules") if isinstance(contract_node, dict) else None
+    if not isinstance(_rules_node, list):
+        _rules_node = data.get("rules") if isinstance(data.get("rules"), list) else []
+    _presence_fields = {
+        r.get("field") for r in _rules_node
+        if isinstance(r, dict) and r.get("type") in _PRESENCE_RULE_TYPES
+    }
+    _d6_seen: set = set()
+    for r in _rules_node:
+        if not isinstance(r, dict):
+            continue
+        _f = r.get("field")
+        if (
+            _f and _f not in _presence_fields and _f not in _d6_seen
+            and r.get("type") in _FORMAT_RULE_TYPES
+            and str(r.get("severity", "error")).lower() == "error"
+        ):
+            _d6_seen.add(_f)
+            result.issues.append(LintIssue(
+                severity="info", rule_name=r.get("name"), code="FORMAT_ONLY_FIELD_ACCEPTS_EMPTY",
+                message=(
+                    f"field '{_f}' has error-severity format rules but no presence rule: an empty "
+                    f"string is treated as absent and passes. Add a not_empty or not_empty_string "
+                    f"rule on '{_f}' if empty values must be rejected (docs/contract_conformance.md, D6)."
+                ),
             ))
 
     # ── Contract-level: owner_email present and well-shaped ──────────────────

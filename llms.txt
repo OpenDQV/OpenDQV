@@ -201,4 +201,4 @@ contract:
 - Full docs index: `docs/index.md`
 - Roadmap: `docs/roadmap.md`
 
-Strict schema (CRT180): a contract may set `strict_schema: true` (+ optional `fields:` allow-list) to reject records carrying undeclared fields — error code `OPENDQV_ADDITIONAL_PROPERTIES`, one per record naming every unknown field. Default is permissive. See docs/strict_schema.md.
+Strict schema (CRT180): a contract may set `strict_schema: true` (+ optional `allowed_fields:` allow-list) to reject records carrying undeclared fields — error code `OPENDQV_ADDITIONAL_PROPERTIES`, one per record naming every unknown field. Default is permissive. See docs/strict_schema.md.

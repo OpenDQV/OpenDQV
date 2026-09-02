@@ -499,7 +499,7 @@ async def export_to_odcs(
         description=getattr(contract, "description", "") or "",
         owner=getattr(contract, "owner", "") or "",
         strict_schema=getattr(contract, "strict_schema", False),
-        fields=getattr(contract, "fields", None),
+        allowed_fields=getattr(contract, "allowed_fields", None),
         owner_email=getattr(contract, "owner_email", None),
     )
     from fastapi.responses import Response

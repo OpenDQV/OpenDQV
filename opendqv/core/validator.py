@@ -159,7 +159,7 @@ def declared_field_set(rules: list, extra_fields: list | None = None) -> set[str
     fields (compare_to, date_diff_field, cross_min/max_field, ratio
     numerator/denominator, geo_lon_field, dob_field, sum_fields, group_by,
     or the `field` key of required_if / forbidden_if / condition), or when
-    it is listed in the contract's `fields:` allow-list. The calendar
+    it is listed in the contract's `allowed_fields:` allow-list. The calendar
     sentinels `today` / `now` are not field names.
     """
     declared: set[str] = set()
@@ -193,7 +193,7 @@ def strict_schema_kwargs(contract, rules: list) -> dict:
         return {}
     return {
         "strict_schema": True,
-        "declared_fields": declared_field_set(rules, getattr(contract, "fields", None)),
+        "declared_fields": declared_field_set(rules, getattr(contract, "allowed_fields", None)),
     }
 
 
@@ -201,8 +201,11 @@ def _additional_properties_error(record: dict, declared_fields: set | None) -> d
     unknown = sorted(k for k in record if k not in (declared_fields or set()))
     if not unknown:
         return None
-    quoted = ", ".join(f"'{u}'" for u in unknown)
-    return FieldError(
+    shown = unknown[:10]
+    quoted = ", ".join(f'"{u}"' for u in shown)
+    if len(unknown) > len(shown):
+        quoted += f" and {len(unknown) - len(shown)} more"
+    entry = FieldError(
         field="",
         rule="additional_properties",
         message=(
@@ -211,6 +214,8 @@ def _additional_properties_error(record: dict, declared_fields: set | None) -> d
         severity=Severity.ERROR.value,
         error_code="OPENDQV_ADDITIONAL_PROPERTIES",
     ).to_dict()
+    entry["unknown_fields"] = unknown  # full list, structured (review S2)
+    return entry
 
 
 def validate_record(
@@ -573,17 +578,28 @@ def _check_not_empty_string(value, rule: Rule, record: dict | None = None) -> st
         # the type guard IS this rule's assertion, so the code stays routable
         # to the rule — matches the managed engine, which shipped this type
         # first (cross-engine fixture run, CRT180).
-        return (
-            f"field '{rule.field}' must be a JSON string, got {_json_type_name(value)} — "
-            "send the value as a quoted string to preserve canonical form "
-            "(e.g. leading zeros: \"00012345\", not 12345)"
-        )
+        return _not_empty_string_type_message(rule.field, value)
     if value.strip() == "":
         return rule.error_message
     return None
 
 
+def _not_empty_string_type_message(field: str, value) -> str:
+    return (
+        f'field "{field}" must be a JSON string, got {_json_type_name(value)} — '
+        "send the value as a quoted string to preserve canonical form "
+        "(e.g. leading zeros: \"00012345\", not 12345)"
+    )
+
+
 def _json_type_name(value) -> str:
+    """JSON type name of a Python value (string/number/boolean/array/object/null).
+
+    Engine-generated messages name the JSON type, never the Python type, so
+    the wording is the same whichever engine produced it.
+    """
+    if isinstance(value, str):
+        return "string"
     if isinstance(value, bool):
         return "boolean"
     if isinstance(value, (int, float)):
@@ -647,7 +663,7 @@ def _type_mismatch_msg(rule: Rule, value) -> str:
     return (
         f"{_TYPE_MISMATCH_PREFIX}"
         f"{rule.type} rule on field '{rule.field}' expected numeric "
-        f"value, got {type(value).__name__}"
+        f"value, got {_json_type_name(value)}"
     )
 
 
@@ -1512,6 +1528,14 @@ def validate_batch(
 
     total = len(records)
     df = pd.DataFrame(records)
+    # CRT180 review B6 (K1): a rule whose field no record carries used to be
+    # skipped entirely — a batch that omitted a required field validated
+    # clean while each record single-validated was rejected. Materialise the
+    # column as NULL so every rule sees exactly what validate_record sees:
+    # presence-class rules fail, format-class rules skip the absent value.
+    for _f in {r.field for r in rules if r.field}:
+        if _f not in df.columns:
+            df[_f] = None
     df["__idx__"] = range(total)
 
     con = duckdb.connect()
@@ -1536,10 +1560,11 @@ def validate_batch(
             # v2.3.23 outside-review #3: type-mismatch indices populated
             # by min/max/range branches of _batch_check_rule.
             failing_type_mismatches: dict[int, str] = {}
+            failing_messages: dict[int, str] = {}
             try:
                 failing_indices = _batch_check_rule(
                     con, df, rule, failing_type_mismatches=failing_type_mismatches,
-                    records=records,
+                    records=records, failing_messages=failing_messages,
                 )
             except Exception as e:
                 # Log only rule metadata — never include record field values.
@@ -1589,6 +1614,8 @@ def validate_batch(
                         "severity": rule.severity.value,
                         "error_code": "OPENDQV_TYPE_MISMATCH",
                     }
+                elif idx in failing_messages:
+                    row_entry = {**entry_template, "message": failing_messages[idx]}
                 else:
                     row_entry = entry_template
                 if rule.severity == Severity.ERROR:
@@ -1650,7 +1677,7 @@ def validate_batch(
     }
 
 
-def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches: Optional[dict] = None, records: Optional[list[dict]] = None) -> set[int]:
+def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches: dict | None = None, records: list[dict] | None = None, failing_messages: dict | None = None) -> set[int]:
     """Run a single rule against the batch via DuckDB. Returns set of failing row indices.
 
     v2.3.23 outside-review #3 (Sonnet aec401d0381905d97): for numeric
@@ -1672,6 +1699,8 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
     failing = set()
     if failing_type_mismatches is None:
         failing_type_mismatches = {}
+    if failing_messages is None:
+        failing_messages = {}
 
     def _orig_val(idx):
         # Numeric branches read the raw record value so a missing key
@@ -1751,7 +1780,9 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
             if val is None or (isinstance(val, float) and pd.isna(val)):
                 failing.add(idx)
             elif not isinstance(val, str):
-                failing.add(idx)  # rule's own code, see _check_not_empty_string
+                failing.add(idx)
+                # rule's own code, typed message — identical to the single path (review B5)
+                failing_messages[idx] = _not_empty_string_type_message(field, val)
             elif val.strip() == "":
                 failing.add(idx)
 

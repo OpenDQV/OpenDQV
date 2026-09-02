@@ -16,7 +16,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from .rule_parser import Rule, Severity, ContractStatus
 
 
@@ -151,7 +151,7 @@ _HASH_DOMAIN_CONTENT_FIELDS = (
     # canonical payload ONLY when set, so every pre-CRT180 contract keeps its
     # v2 hashes byte-for-byte (no domain bump); a contract that turns strict
     # on gets a new hash, which is correct — it is new enforcement content.
-    "strict_schema", "fields",
+    "strict_schema", "allowed_fields",
 )
 
 
@@ -173,7 +173,7 @@ def _content_payload_parts(
     asset_id: Optional[str], description: str,
     downstream_consumers: list,
     rules, contexts,
-    strict_schema: bool = False, fields: Optional[list] = None,
+    strict_schema: bool = False, allowed_fields: list | None = None,
 ) -> list[str]:
     """Canonical JSON parts for content fields, in fixed order.
 
@@ -194,8 +194,8 @@ def _content_payload_parts(
         _canonical_json(rules),
         _canonical_json(contexts),
     ]
-    if strict_schema or fields:
-        parts.append(_canonical_json({"strict_schema": bool(strict_schema), "fields": sorted(fields or [])}))
+    if strict_schema or allowed_fields:
+        parts.append(_canonical_json({"strict_schema": bool(strict_schema), "allowed_fields": sorted(allowed_fields or [])}))
     return parts
 
 
@@ -239,7 +239,7 @@ def _compute_content_hash(
     asset_id: Optional[str], description: str,
     downstream_consumers: list,
     rules, contexts,
-    strict_schema: bool = False, fields: Optional[list] = None,
+    strict_schema: bool = False, allowed_fields: list | None = None,
 ) -> str:
     """SHA-256 over content fields only — excludes prev_hash, node_id, updated_at.
 
@@ -250,7 +250,7 @@ def _compute_content_hash(
     parts = _content_payload_parts(
         contract_name, version, status, owner, owner_email, owner_team,
         asset_id, description, downstream_consumers, rules, contexts,
-        strict_schema=strict_schema, fields=fields,
+        strict_schema=strict_schema, allowed_fields=allowed_fields,
     )
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
 
@@ -262,7 +262,7 @@ def _compute_entry_hash(
     downstream_consumers: list,
     rules, contexts,
     opendqv_node_id: str, updated_at: str,
-    strict_schema: bool = False, fields: Optional[list] = None,
+    strict_schema: bool = False, allowed_fields: list | None = None,
 ) -> str:
     """SHA-256 over the v2 canonical payload for a history entry.
 
@@ -274,7 +274,7 @@ def _compute_entry_hash(
     parts.extend(_content_payload_parts(
         contract_name, version, status, owner, owner_email, owner_team,
         asset_id, description, downstream_consumers, rules, contexts,
-        strict_schema=strict_schema, fields=fields,
+        strict_schema=strict_schema, allowed_fields=allowed_fields,
     ))
     parts.append(_canonical_json(opendqv_node_id))
     parts.append(_canonical_json(updated_at))
@@ -294,11 +294,24 @@ class DataContract(BaseModel):
     # CRT180 — strict_schema: reject records carrying fields the contract does
     # not declare (JSON Schema's `additionalProperties: false`, enforced at the
     # write boundary). Declared = every field a rule references (including
-    # cross-field references) plus `fields`, the allow-list for extra fields a
-    # strict contract accepts without a rule on them. Default off — existing
-    # contracts are unaffected.
+    # cross-field references) plus `allowed_fields`, the allow-list for extra
+    # fields a strict contract accepts without a rule on them. Default off —
+    # existing contracts are unaffected. Entries are validated with the
+    # SEC-004 field-name charset (they become SQL identifiers downstream).
     strict_schema: bool = False
-    fields: list[str] = []
+    allowed_fields: list[str] = []
+
+    @field_validator("allowed_fields")
+    @classmethod
+    def _allowed_fields_safe(cls, v: list[str]) -> list[str]:
+        from opendqv.core.rule_parser import _UNSAFE_FIELD_CHARS
+        for name in v or []:
+            if not isinstance(name, str) or not name or _UNSAFE_FIELD_CHARS.search(name):
+                raise ValueError(
+                    f"allowed_fields entry {name!r} is not a safe field name "
+                    "(double-quote, backslash, semicolon or control characters are not permitted)."
+                )
+        return list(v or [])
     asset_id: Optional[str] = None  # catalog asset identifier (e.g. Collibra, Atlan, DataHub)
     downstream_consumers: list[str] = []  # Marmot MRNs of downstream consumers
     catalog_visible: bool = True  # Set False to hide from Marmot discover_data
@@ -315,6 +328,11 @@ class DataContract(BaseModel):
     # last_active_snapshot — captured when a contract transitions from ACTIVE to DRAFT.
     # Used by STRICT_DRAFT_VALIDATION mode to serve the last-known-good ruleset.
     last_active_snapshot: Optional[list] = None
+    # CRT180 review B3: the snapshot's own strict-schema settings, captured
+    # with it. The draft fallback must serve the ACTIVE contract's semantics,
+    # not whatever the unapproved draft has flipped strict_schema to.
+    last_active_strict_schema: bool | None = None
+    last_active_fields: list | None = None
 
     owner_team: Optional[str] = None    # ACT-038-06: team identifier for BCBS 239 audit
     owner_email: Optional[str] = None   # ACT-038-06: contact email
@@ -371,7 +389,7 @@ def _contract_from_snapshot(name: str, snap: dict) -> "DataContract":
         rules=rules,
         contexts=snap.get("contexts") or {},
         strict_schema=bool(snap.get("strict_schema", False)),
-        fields=list(snap.get("fields") or []),
+        allowed_fields=list(snap.get("allowed_fields") or []),
     )
     # Attach the snapshot's own hashes for the validate-response echo.
     object.__setattr__(contract, "_snap_entry_hash", snap.get("entry_hash"))
@@ -470,7 +488,7 @@ class ContractHistory(ContractHistoryBackend):
                 pass
         # CRT180: strict-schema flag + declared-field allow-list (nullable /
         # defaulted so pre-CRT180 rows read back as non-strict).
-        for col_def in ("strict_schema INTEGER NOT NULL DEFAULT 0", "declared_fields TEXT"):
+        for col_def in ("strict_schema INTEGER NOT NULL DEFAULT 0", "allowed_fields TEXT"):
             try:
                 conn.execute(f"ALTER TABLE contract_history ADD COLUMN {col_def}")
             except sqlite3.OperationalError:
@@ -524,7 +542,7 @@ class ContractHistory(ContractHistoryBackend):
         contexts_json = json.dumps(contexts, sort_keys=True)
         downstream_consumers = list(contract.downstream_consumers or [])
         downstream_json = json.dumps(downstream_consumers, sort_keys=True)
-        fields_json = json.dumps(sorted(contract.fields or []))  # CRT180
+        fields_json = json.dumps(sorted(contract.allowed_fields or []))  # CRT180
 
         # Don't record duplicate consecutive snapshots for the same version
         # unless something actually changed. Compare-tuple covers every field
@@ -537,7 +555,7 @@ class ContractHistory(ContractHistoryBackend):
             row = conn.execute(
                 "SELECT version, status, description, owner, owner_email, "
                 "owner_team, asset_id, downstream_consumers, rules, contexts, "
-                "strict_schema, declared_fields, entry_hash "
+                "strict_schema, allowed_fields, entry_hash "
                 "FROM contract_history WHERE contract_name = ? ORDER BY id DESC LIMIT 1",
                 (contract.name,),
             ).fetchone()
@@ -591,14 +609,14 @@ class ContractHistory(ContractHistoryBackend):
                 contract.asset_id, contract.description, downstream_consumers,
                 rules, contexts,
                 config.OPENDQV_NODE_ID, updated_at,
-                strict_schema=contract.strict_schema, fields=contract.fields,
+                strict_schema=contract.strict_schema, allowed_fields=contract.allowed_fields,
             )
             content_hash = _compute_content_hash(
                 contract.name, contract.version, contract.status.value,
                 contract.owner, contract.owner_email, contract.owner_team,
                 contract.asset_id, contract.description, downstream_consumers,
                 rules, contexts,
-                strict_schema=contract.strict_schema, fields=contract.fields,
+                strict_schema=contract.strict_schema, allowed_fields=contract.allowed_fields,
             )
 
             # v2.3.17 F-C: at-most-one-active invariant. Before inserting an
@@ -638,7 +656,7 @@ class ContractHistory(ContractHistoryBackend):
                 " rules, contexts, opendqv_node_id, updated_at, "
                 " prev_hash, entry_hash, content_hash, domain_version, "
                 " approved_by, approved_at, proposed_by, proposed_at, "
-                " strict_schema, declared_fields) "
+                " strict_schema, allowed_fields) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (contract.name, contract.version, contract.status.value,
                  contract.description, contract.owner,
@@ -673,7 +691,7 @@ class ContractHistory(ContractHistoryBackend):
                 "SELECT version, status, description, owner, "
                 "owner_email, owner_team, asset_id, downstream_consumers, "
                 "rules, contexts, opendqv_node_id, updated_at, "
-                "strict_schema, declared_fields "
+                "strict_schema, allowed_fields "
                 "FROM contract_history "
                 "WHERE contract_name = ? AND updated_at <= ? "
                 "ORDER BY id DESC LIMIT 1",
@@ -700,7 +718,7 @@ class ContractHistory(ContractHistoryBackend):
             "rules": json.loads(rules_json),
             "contexts": json.loads(contexts_json),
             "strict_schema": bool(strict_schema),
-            "fields": json.loads(declared_fields_json) if declared_fields_json else [],
+            "allowed_fields": json.loads(declared_fields_json) if declared_fields_json else [],
             "opendqv_node_id": opendqv_node_id,
             "updated_at": updated_at,
         }
@@ -717,7 +735,7 @@ class ContractHistory(ContractHistoryBackend):
                 "prev_hash, entry_hash, content_hash, domain_version, approved_by, "
                 "approved_at, "
                 "proposed_by, proposed_at, rejected_by, rejected_at, rejection_reason, "
-                "strict_schema, declared_fields "
+                "strict_schema, allowed_fields "
                 "FROM contract_history WHERE contract_name = ? ORDER BY id",
                 (contract_name,),
             ).fetchall()
@@ -757,7 +775,7 @@ class ContractHistory(ContractHistoryBackend):
                 "rejected_at": rejected_at,
                 "rejection_reason": rejection_reason,
                 "strict_schema": bool(strict_schema),
-                "fields": json.loads(declared_fields_json) if declared_fields_json else [],
+                "allowed_fields": json.loads(declared_fields_json) if declared_fields_json else [],
             })
         return history
 
@@ -987,7 +1005,8 @@ class ContractRegistry:
             rules=rules,
             contexts=c.get("contexts", {}),
             strict_schema=bool(c.get("strict_schema", False)),
-            fields=list(c.get("fields") or []),
+            # `fields:` accepted as a deprecated alias (review S3 rename); the linter warns.
+            allowed_fields=list(c.get("allowed_fields") or c.get("fields") or []),
             asset_id=c.get("asset_id"),
             downstream_consumers=c.get("downstream_consumers", []),
             catalog_visible=c.get("catalog_visible", True),
@@ -1167,6 +1186,8 @@ class ContractRegistry:
         # Capture snapshot when transitioning TO draft from active
         if status == ContractStatus.DRAFT and contract.status == ContractStatus.ACTIVE:
             contract.last_active_snapshot = copy.deepcopy([r.model_dump(by_alias=True) for r in contract.rules])
+            contract.last_active_strict_schema = bool(contract.strict_schema)
+            contract.last_active_fields = list(contract.allowed_fields or [])
         contract.status = status
         self.history.record_version(contract)
         logger.info("Contract %s v%s status changed to %s", name, contract.version, status.value)
@@ -1345,8 +1366,8 @@ class ContractRegistry:
             data["contract"]["catalog_visible"] = False
         if contract.strict_schema:
             data["contract"]["strict_schema"] = True
-        if contract.fields:
-            data["contract"]["fields"] = list(contract.fields)
+        if contract.allowed_fields:
+            data["contract"]["allowed_fields"] = list(contract.allowed_fields)
         return yaml.dump(data, default_flow_style=False, sort_keys=False, allow_unicode=True)
 
     def contract_as_of(self, name: str, timestamp: str) -> Optional["DataContract"]:

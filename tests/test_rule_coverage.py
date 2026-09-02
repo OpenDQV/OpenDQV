@@ -866,12 +866,16 @@ class TestBatchValidation:
         result = validate_batch(records, [rule], contract_name="test")
         assert result["summary"]["failed"] == 1
 
-    def test_field_not_in_data_skipped(self):
-        """Rule field absent from records → skipped (no crash, no failures)."""
+    def test_field_not_in_data_fails_like_single_path(self):
+        """Rule field absent from every record → the presence rule fails on each
+        record, exactly as validate_record does (CRT180 review B6 / K1). The
+        old behaviour — skip the rule, report the batch clean — let a batch
+        that omitted a required field validate green."""
         rule = _rule(type="not_empty", field="ghost_field")
         records = [{"value": "x"}]
         result = validate_batch(records, [rule], contract_name="test")
-        assert result["summary"]["failed"] == 0
+        assert result["summary"]["failed"] == 1
+        assert result["results"][0]["valid"] is validate_record(records[0], [rule])["valid"] is False
 
     def test_multiple_rules_mixed(self):
         """Multiple rules — one passes, one fails per record."""

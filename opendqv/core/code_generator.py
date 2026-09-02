@@ -314,7 +314,10 @@ def _spark_case_when(rule: dict):
     if rtype == "not_empty":
         return case(f"{field} IS NULL OR TRIM(CAST({field} AS STRING)) = ''")
     elif rtype == "not_empty_string":
-        return case(f"{field} IS NULL OR typeof({field}) != 'string' OR TRIM(CAST({field} AS STRING)) = ''")
+        # Spark columns are typed per column, not per value (typeof() would be
+        # vacuous): the string-type guard is the DataFrame schema's job; the
+        # push-down keeps the presence half.
+        return case(f"{field} IS NULL OR TRIM(CAST({field} AS STRING)) = ''")
     elif rtype == "regex" and rule.get("pattern"):
         pat = _escape_sql(rule["pattern"])
         return case(f"NOT regexp_like(CAST({field} AS STRING), '{pat}')")

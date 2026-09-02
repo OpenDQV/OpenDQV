@@ -43,10 +43,23 @@ def contract_to_jsonschema(contract, strict: bool = None) -> dict:
     # `allOf` when conditional rules exist.
     all_of: list[dict[str, Any]] = []
 
-    # CRT180: fields allowed by a strict contract without a rule get a bare
-    # property entry so additionalProperties: false does not reject them.
-    for extra in getattr(contract, "fields", None) or []:
-        properties.setdefault(extra, {})
+    # CRT180 (review S1): a strict export must accept exactly what the engine
+    # accepts — every declared field (rule targets, cross-field references,
+    # the allow-list) gets a property entry so additionalProperties: false
+    # does not reject a record the engine passes.
+    if strict:
+        from opendqv.core.validator import declared_field_set
+        for declared in sorted(declared_field_set(contract.rules, getattr(contract, "allowed_fields", None))):
+            properties.setdefault(declared, {})
+        # Contexts may add fields; a single context-free strict schema must
+        # accept anything ANY context accepts, so declare the union of every
+        # context's rule targets too (additionalProperties: false then rejects
+        # only fields no context declares).
+        for _ctx_rules in (getattr(contract, "contexts", None) or {}).values():
+            for _d in _ctx_rules or []:
+                _f = _d.get("field") if isinstance(_d, dict) else getattr(_d, "field", None)
+                if _f:
+                    properties.setdefault(_f, {})
 
     for rule in contract.rules:
         field = rule.field

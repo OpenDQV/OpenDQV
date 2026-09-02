@@ -89,7 +89,7 @@ except ImportError:
 
 import opendqv.config as config
 from opendqv.core.contracts import ContractRegistry
-from opendqv.core.validator import validate_record as _validate_record, validate_batch as _validate_batch
+from opendqv.core.validator import validate_record as _validate_record, validate_batch as _validate_batch, strict_schema_kwargs
 from opendqv.core.explainer import explain_rule
 from opendqv.core.rule_parser import ContractStatus, Rule as _Rule
 from opendqv.monitoring import stats as _stats
@@ -1003,7 +1003,7 @@ async def _tool_validate_record(args: dict) -> list[types.TextContent]:
     )
 
     from opendqv.core.contracts import _compute_effective_rule_hash
-    result = _validate_record(record, rules, contract_name)
+    result = _validate_record(record, rules, contract_name, **strict_schema_kwargs(contract, rules))
     result["contract"] = contract_name
     result["version"] = contract.version
     result["effective_rule_hash"] = _compute_effective_rule_hash(rules)
@@ -1100,7 +1100,7 @@ async def _tool_validate_batch(args: dict) -> list[types.TextContent]:
     )
 
     from opendqv.core.contracts import _compute_effective_rule_hash
-    result = _validate_batch(records, rules, contract_name)
+    result = _validate_batch(records, rules, contract_name, **strict_schema_kwargs(contract, rules))
     result["contract"] = contract_name
     result["version"] = contract.version
     result["effective_rule_hash"] = _compute_effective_rule_hash(rules)

@@ -126,7 +126,9 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
             rejected_by     TEXT,
             rejected_at     TEXT,
             rejection_reason TEXT,
-            sensitive_fields TEXT
+            sensitive_fields TEXT,
+            strict_schema   INTEGER     NOT NULL DEFAULT 0,
+            allowed_fields  TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_contract_history_name
             ON contract_history(contract_name);
@@ -140,6 +142,9 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
         "ALTER TABLE contract_history ADD COLUMN IF NOT EXISTS downstream_consumers TEXT",
         "ALTER TABLE contract_history ADD COLUMN IF NOT EXISTS content_hash TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE contract_history ADD COLUMN IF NOT EXISTS domain_version INTEGER NOT NULL DEFAULT 1",
+        # CRT180: strict-schema flag + allow-list (review B4 — must mirror SQLite or hashes diverge by backend)
+        "ALTER TABLE contract_history ADD COLUMN IF NOT EXISTS strict_schema INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE contract_history ADD COLUMN IF NOT EXISTS allowed_fields TEXT",
     )
 
     def __init__(self, db_url: str):
@@ -195,6 +200,9 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
         contexts_json = json.dumps(contexts, sort_keys=True)
         downstream_consumers = list(contract.downstream_consumers or [])
         downstream_json = json.dumps(downstream_consumers, sort_keys=True)
+        strict_schema = bool(getattr(contract, "strict_schema", False))
+        allowed_fields = list(getattr(contract, "allowed_fields", None) or [])
+        allowed_fields_json = json.dumps(sorted(allowed_fields))
 
         conn = self._connect()
         try:
@@ -203,7 +211,7 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
                     cur.execute(
                         "SELECT version, status, description, owner, owner_email, "
                         "owner_team, asset_id, downstream_consumers, rules, contexts, "
-                        "entry_hash "
+                        "strict_schema, allowed_fields, entry_hash "
                         "FROM contract_history WHERE contract_name = %s "
                         "ORDER BY id DESC LIMIT 1",
                         (contract.name,),
@@ -221,7 +229,7 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
                         (last_version, last_status, last_desc, last_owner,
                          last_owner_email, last_owner_team, last_asset_id,
                          last_downstream, last_rules, last_contexts,
-                         last_entry_hash) = row
+                         last_strict, last_allowed, last_entry_hash) = row
                         if (last_version == contract.version
                                 and last_status == contract.status.value
                                 and last_rules == rules_json
@@ -231,7 +239,9 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
                                 and last_owner_email == contract.owner_email
                                 and last_owner_team == contract.owner_team
                                 and last_asset_id == contract.asset_id
-                                and (last_downstream or "[]") == downstream_json):
+                                and (last_downstream or "[]") == downstream_json
+                                and bool(last_strict) == strict_schema
+                                and (last_allowed or "[]") == allowed_fields_json):
                             return  # no change — skip duplicate snapshot
                         prev_hash = last_entry_hash or _GENESIS_HASH
 
@@ -241,12 +251,14 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
                         contract.asset_id, contract.description, downstream_consumers,
                         rules, contexts,
                         config.OPENDQV_NODE_ID, updated_at,
+                        strict_schema=strict_schema, allowed_fields=allowed_fields,
                     )
                     content_hash = _compute_content_hash(
                         contract.name, contract.version, contract.status.value,
                         contract.owner, contract.owner_email, contract.owner_team,
                         contract.asset_id, contract.description, downstream_consumers,
                         rules, contexts,
+                        strict_schema=strict_schema, allowed_fields=allowed_fields,
                     )
 
                     cur.execute(
@@ -254,15 +266,16 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
                         "(contract_name, version, status, description, owner, "
                         " owner_email, owner_team, asset_id, downstream_consumers, "
                         " rules, contexts, opendqv_node_id, updated_at, "
-                        " prev_hash, entry_hash, content_hash, domain_version, approved_by) "
-                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                        " prev_hash, entry_hash, content_hash, domain_version, approved_by, "
+                        " strict_schema, allowed_fields) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                         (contract.name, contract.version, contract.status.value,
                          contract.description, contract.owner,
                          contract.owner_email, contract.owner_team, contract.asset_id,
                          downstream_json, rules_json, contexts_json,
                          config.OPENDQV_NODE_ID, updated_at,
                          prev_hash, entry_hash, content_hash, _HASH_DOMAIN_VERSION,
-                         approved_by),
+                         approved_by, 1 if strict_schema else 0, allowed_fields_json),
                     )
         finally:
             conn.close()
@@ -277,7 +290,8 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
                 cur.execute(
                     "SELECT version, status, description, owner, "
                     "       owner_email, owner_team, asset_id, downstream_consumers, "
-                    "       rules, contexts, opendqv_node_id, updated_at "
+                    "       rules, contexts, opendqv_node_id, updated_at, "
+                    "       strict_schema, allowed_fields "
                     "FROM contract_history "
                     "WHERE contract_name = %s AND updated_at <= %s "
                     "ORDER BY id DESC LIMIT 1",
@@ -291,7 +305,7 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
             return None
         (version, status, description, owner, owner_email, owner_team,
          asset_id, downstream_json, rules_json, contexts_json,
-         opendqv_node_id, updated_at) = row
+         opendqv_node_id, updated_at, strict_schema, allowed_fields_json) = row
         return {
             "version": version,
             "status": status,
@@ -303,6 +317,8 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
             "downstream_consumers": json.loads(downstream_json) if downstream_json else [],
             "rules": json.loads(rules_json),
             "contexts": json.loads(contexts_json),
+            "strict_schema": bool(strict_schema),
+            "allowed_fields": json.loads(allowed_fields_json) if allowed_fields_json else [],
             "opendqv_node_id": opendqv_node_id,
             "updated_at": updated_at,
         }
@@ -319,7 +335,8 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
                     "       owner_email, owner_team, asset_id, downstream_consumers, "
                     "       rules, contexts, opendqv_node_id, updated_at, "
                     "       prev_hash, entry_hash, content_hash, domain_version, approved_by, "
-                    "       proposed_by, proposed_at, rejected_by, rejected_at, rejection_reason "
+                    "       proposed_by, proposed_at, rejected_by, rejected_at, rejection_reason, "
+                    "       strict_schema, allowed_fields "
                     "FROM contract_history WHERE contract_name = %s ORDER BY id",
                     (contract_name,),
                 )
@@ -332,7 +349,8 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
              asset_id, downstream_json, rules_json, contexts_json,
              opendqv_node_id, updated_at, prev_hash, entry_hash, content_hash,
              domain_version, approved_by, proposed_by, proposed_at,
-             rejected_by, rejected_at, rejection_reason) in rows:
+             rejected_by, rejected_at, rejection_reason,
+             strict_schema, allowed_fields_json) in rows:
             history.append({
                 "version": version,
                 "status": status,
@@ -356,6 +374,8 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
                 "rejected_by": rejected_by,
                 "rejected_at": rejected_at,
                 "rejection_reason": rejection_reason,
+                "strict_schema": bool(strict_schema),
+                "allowed_fields": json.loads(allowed_fields_json) if allowed_fields_json else [],
             })
         return history
 

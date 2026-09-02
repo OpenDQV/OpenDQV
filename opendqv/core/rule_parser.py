@@ -7,8 +7,10 @@ Field aliases let YAML use 'min'/'max' which map to min_value/max_value.
 Supported rule types:
   not_empty         — field must be present and non-empty
   not_empty_string  — field must be present, be a string, and be non-empty;
-                      a non-string value (0, false, [], {}) is a type
-                      mismatch (OPENDQV_TYPE_MISMATCH), never coerced
+                      a non-string value (0, false, [], {}) fails under the
+                      rule's own code with a typed message, never coerced.
+                      Closed set of one: further type guards go through a
+                      qualifier, never a not_empty_<type> rule type.
   regex             — field must match a regular expression pattern
                       set negate: true to require the field does NOT match
   min               — numeric field must be >= min_value
@@ -125,6 +127,17 @@ class Rule(BaseModel):
     format: Optional[str] = None
     severity: Severity = Severity.ERROR
     error_message: str = "Validation failed"
+
+    # CRT180 (review D2): `optional` is part of the contract format so that a
+    # contract authored for the managed engine round-trips byte-for-byte
+    # (including through the ODCS custom twin). SEMANTICS RESERVED in Core:
+    # the managed engine treats an error-severity single-field rule as
+    # implying the field is present and `optional: true` opts out
+    # (implicit-required); Core skips format-class rules on absent fields
+    # today, so the key has no runtime effect here until loud-by-default
+    # lands. Never a silent no-op that later becomes load-bearing: this
+    # comment and docs/contract_conformance.md D2 are the notice.
+    optional: bool = False
 
     # Cross-field comparison — compare this field's value against another field.
     # type: compare  compare_to: other_field  compare_op: gt|lt|gte|lte|eq|neq

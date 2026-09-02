@@ -59,11 +59,11 @@ class TestSingleRecord:
         assert err["error_code"] == "OPENDQV_ADDITIONAL_PROPERTIES"
         assert err["rule"] == "additional_properties"
         assert err["field"] == ""
-        assert "'card_pan', 'notes'" in err["message"]
+        assert '"card_pan", "notes"' in err["message"]
         assert "2 unknown field(s)" in err["message"]
 
     def test_cross_field_references_and_allow_list_count_as_declared(self):
-        dc = DataContract(name="c", rules=_rules(), strict_schema=True, fields=["trace_id"])
+        dc = DataContract(name="c", rules=_rules(), strict_schema=True, allowed_fields=["trace_id"])
         kw = strict_schema_kwargs(dc, dc.rules)
         rec = {"amount": 1, "settled_at": "2026-01-02", "booked_at": "2026-01-01", "channel": "cash",
                "ref": "r1", "warehouse": "LON", "gross": 0, "net": 0, "vat": 0, "trace_id": "t"}
@@ -90,24 +90,24 @@ class TestPersistence:
     def test_hash_unchanged_when_unset_and_changes_when_set(self):
         args = ("c", "1.0", "active", "o", None, None, None, "", [], [], {})
         base = _compute_content_hash(*args)
-        assert _compute_content_hash(*args, strict_schema=False, fields=[]) == base
+        assert _compute_content_hash(*args, strict_schema=False, allowed_fields=[]) == base
         assert _compute_content_hash(*args, strict_schema=True) != base
-        assert _compute_content_hash(*args, fields=["x"]) != base
+        assert _compute_content_hash(*args, allowed_fields=["x"]) != base
 
     def test_history_round_trip(self):
         history = ContractHistory(db_path=":memory:")
         dc = DataContract(name="strict_probe", version="1.0", rules=_rules(),
-                          strict_schema=True, fields=["trace_id"])
+                          strict_schema=True, allowed_fields=["trace_id"])
         history.record_version(dc)
         entry = history.get_history("strict_probe")[-1]
         assert entry["strict_schema"] is True
-        assert entry["fields"] == ["trace_id"]
+        assert entry["allowed_fields"] == ["trace_id"]
         rebuilt = _contract_from_snapshot("strict_probe", entry)
-        assert rebuilt.strict_schema is True and rebuilt.fields == ["trace_id"]
+        assert rebuilt.strict_schema is True and rebuilt.allowed_fields == ["trace_id"]
         # a second identical record is deduped; flipping strict off is a new entry
         history.record_version(dc)
         assert len(history.get_history("strict_probe")) == 1
-        dc2 = dc.model_copy(update={"strict_schema": False, "fields": []})
+        dc2 = dc.model_copy(update={"strict_schema": False, "allowed_fields": []})
         history.record_version(dc2)
         assert len(history.get_history("strict_probe")) == 2
         assert history.get_history("strict_probe")[-1]["strict_schema"] is False
@@ -115,22 +115,22 @@ class TestPersistence:
     def test_yaml_round_trip_through_registry(self, tmp_path):
         from opendqv.core.contracts import ContractRegistry
         (tmp_path / "strict_probe.yaml").write_text(yaml.safe_dump({"contract": {
-            "name": "strict_probe", "version": "1.0", "strict_schema": True, "fields": ["trace_id"],
+            "name": "strict_probe", "version": "1.0", "strict_schema": True, "allowed_fields": ["trace_id"],
             "rules": [{"name": "a", "type": "not_empty", "field": "amount"}],
         }}), encoding="utf-8")
         reg = ContractRegistry(tmp_path)
         dc = reg.get("strict_probe")
-        assert dc.strict_schema is True and dc.fields == ["trace_id"]
+        assert dc.strict_schema is True and dc.allowed_fields == ["trace_id"]
         out = yaml.safe_load(reg._contract_to_yaml(dc))["contract"]
-        assert out["strict_schema"] is True and out["fields"] == ["trace_id"]
-        permissive = reg._contract_to_yaml(dc.model_copy(update={"strict_schema": False, "fields": []}))
+        assert out["strict_schema"] is True and out["allowed_fields"] == ["trace_id"]
+        permissive = reg._contract_to_yaml(dc.model_copy(update={"strict_schema": False, "allowed_fields": []}))
         assert "strict_schema" not in permissive
 
 
 class TestExports:
     def test_jsonschema_additional_properties_false_and_fields_declared(self):
         from opendqv.core.jsonschema import contract_to_jsonschema
-        dc = DataContract(name="c", rules=[_rules()[0]], strict_schema=True, fields=["trace_id"])
+        dc = DataContract(name="c", rules=[_rules()[0]], strict_schema=True, allowed_fields=["trace_id"])
         schema = contract_to_jsonschema(dc)
         assert schema["additionalProperties"] is False
         assert "trace_id" in schema["properties"]
@@ -138,16 +138,16 @@ class TestExports:
 
     def test_odcs_round_trip(self):
         from opendqv.core.importers import odcs
-        doc = odcs.export_odcs("c", [_rules()[0]], strict_schema=True, fields=["trace_id"])
+        doc = odcs.export_odcs("c", [_rules()[0]], strict_schema=True, allowed_fields=["trace_id"])
         props = {cp["property"]: cp["value"] for cp in doc["customProperties"]}
-        assert props["opendqv.strict_schema"] is True and props["opendqv.fields"] == ["trace_id"]
+        assert props["opendqv.strict_schema"] is True and props["opendqv.allowed_fields"] == ["trace_id"]
         back = odcs.import_odcs(doc)["contract"]
-        assert back["strict_schema"] is True and back["fields"] == ["trace_id"]
+        assert back["strict_schema"] is True and back["allowed_fields"] == ["trace_id"]
 
     def test_linter_shapes(self):
         from opendqv.core.linter import lint_contract_yaml
-        bad = "contract:\n  name: c\n  version: '1.0'\n  strict_schema: yes_please\n  fields: [1]\n  rules:\n    - {name: a, type: not_empty, field: amount}\n"
+        bad = "contract:\n  name: c\n  version: '1.0'\n  strict_schema: yes_please\n  allowed_fields: [1]\n  rules:\n    - {name: a, type: not_empty, field: amount}\n"
         codes = {i.code for i in lint_contract_yaml(bad, "c").issues}
-        assert {"STRICT_SCHEMA_NOT_BOOL", "FIELDS_NOT_STRING_LIST"} <= codes
-        warn = "contract:\n  name: c\n  version: '1.0'\n  fields: [trace_id]\n  rules:\n    - {name: a, type: not_empty, field: amount}\n"
-        assert "FIELDS_WITHOUT_STRICT_SCHEMA" in {i.code for i in lint_contract_yaml(warn, "c").issues}
+        assert {"STRICT_SCHEMA_NOT_BOOL", "ALLOWED_FIELDS_NOT_STRING_LIST"} <= codes
+        warn = "contract:\n  name: c\n  version: '1.0'\n  allowed_fields: [trace_id]\n  rules:\n    - {name: a, type: not_empty, field: amount}\n"
+        assert "ALLOWED_FIELDS_WITHOUT_STRICT_SCHEMA" in {i.code for i in lint_contract_yaml(warn, "c").issues}
