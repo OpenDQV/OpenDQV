@@ -52,6 +52,7 @@ _UNIQUE_SCOPE_HINT_WORDS = frozenset({
 
 _KNOWN_RULE_TYPES = frozenset({
     "not_empty",
+    "not_empty_string",
     "regex",
     "min",
     "max",

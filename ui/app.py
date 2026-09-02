@@ -740,11 +740,12 @@ if section == "Contracts":
                                 "Use **Fork to new version** below to create a new draft with modified rules."
                             )
                         _RULE_TYPES = [
-                            "not_empty", "regex", "min_length", "max_length",
+                            "not_empty", "not_empty_string", "regex", "min_length", "max_length",
                             "range", "lookup", "date_format", "email", "url",
                         ]
                         _RULE_TYPE_HELP = {
                             "not_empty": "Field must not be null or empty",
+                            "not_empty_string": "Field must be a non-empty string (numbers/booleans are a type mismatch)",
                             "regex": "Field must match a regular expression",
                             "min_length": "Field must have at least N characters",
                             "max_length": "Field must have at most N characters",
@@ -1281,7 +1282,7 @@ if section == "Integration Guide":
                         sample_fields[field] = "sample_value"
                     elif rtype in ("min", "max", "range"):
                         sample_fields[field] = 25
-                    elif rtype == "not_empty":
+                    elif rtype in ("not_empty", "not_empty_string"):
                         sample_fields[field] = "Sample Value"
                     elif rtype == "min_length":
                         sample_fields[field] = "abcdefgh"

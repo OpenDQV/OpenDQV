@@ -118,7 +118,7 @@ MCP responses add `governance_tip` (always) and `draft_notice` (only for DRAFT c
 
 ## Rule types
 
-`not_empty`, `regex`, `min`, `max`, `range`, `min_length`, `max_length`, `date_format`, `unique` (batch), `min_age`, `max_age`, `compare` (cross-field), `required_if` (conditional), `lookup` (file or HTTP reference list), `checksum`, `cross_field_range`, `field_sum`, `forbidden_if`, `conditional_value`, `date_diff`, `ratio_check`, `conditional_lookup`, `geospatial_bounds`, `age_match`
+`not_empty`, `not_empty_string` (type-guarded), `regex`, `min`, `max`, `range`, `min_length`, `max_length`, `date_format`, `unique` (batch), `min_age`, `max_age`, `compare` (cross-field), `required_if` (conditional), `lookup` (file or HTTP reference list), `checksum`, `cross_field_range`, `field_sum`, `forbidden_if`, `conditional_value`, `date_diff`, `ratio_check`, `conditional_lookup`, `geospatial_bounds`, `age_match`
 
 ## Ecosystem position
 

@@ -36,6 +36,7 @@ Short visual walkthroughs of OpenDQV in action across the integrations it suppor
 | Type | Description |
 |------|-------------|
 | `not_empty` | Field must be present and non-empty |
+| `not_empty_string` | Field must be present, a string, and non-empty — non-strings are a type mismatch, never coerced |
 | `regex` | Field must match a regular expression |
 | `min` / `max` | Numeric field bounds |
 | `range` | Numeric field between min and max |

@@ -6,6 +6,9 @@ Field aliases let YAML use 'min'/'max' which map to min_value/max_value.
 
 Supported rule types:
   not_empty         — field must be present and non-empty
+  not_empty_string  — field must be present, be a string, and be non-empty;
+                      a non-string value (0, false, [], {}) is a type
+                      mismatch (OPENDQV_TYPE_MISMATCH), never coerced
   regex             — field must match a regular expression pattern
                       set negate: true to require the field does NOT match
   min               — numeric field must be >= min_value

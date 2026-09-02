@@ -199,6 +199,7 @@ The `customer` contract ships pre-seeded if you want to skip step 1. The [quicks
 | Type | What it checks |
 |------|----------------|
 | `not_empty` | Field is present and non-empty |
+| `not_empty_string` | Field is present, a string, and non-empty (non-strings rejected as a type mismatch) |
 | `regex` | Field matches (or does not match) a pattern. Built-ins: `builtin:email`, `builtin:uuid`, `builtin:ipv4`, `builtin:url` |
 | `min` / `max` / `range` | Numeric bounds |
 | `min_length` / `max_length` | String length |

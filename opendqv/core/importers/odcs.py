@@ -100,6 +100,7 @@ _STATUS_FROM_ODCS = {
 
 _DIMENSION: dict[str, str] = {
     "not_empty": "completeness",
+    "not_empty_string": "completeness",
     "required_if": "completeness",
     "unique": "uniqueness",
     "regex": "conformity",
@@ -618,7 +619,7 @@ def _project_native(prop: dict, ltype: str, rule: dict) -> None:
         return
     rtype = rule["type"]
     opts: dict = prop.setdefault("logicalTypeOptions", {})
-    if rtype == "not_empty":
+    if rtype in ("not_empty", "not_empty_string"):
         prop["required"] = True
     elif rtype == "unique":
         if not rule.get("group_by"):

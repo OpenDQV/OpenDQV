@@ -461,7 +461,7 @@ def _semver_tuple(v):
 # date_format, compare, checksum, lookup, geospatial_bounds, age_match,
 # cross_field_range, conditional_lookup) skip when the field is absent
 # (None or whitespace-only string). The presence-class rules (not_empty,
-# required_if) are the single catcher for absence — this prevents
+# not_empty_string, required_if) are the single catcher for absence — this prevents
 # double-firing on missing fields.
 
 def _is_field_absent(value) -> bool:
@@ -475,6 +475,23 @@ def _is_field_absent(value) -> bool:
 
 def _check_not_empty(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if _is_field_absent(value):
+        return rule.error_message
+    return None
+
+
+def _check_not_empty_string(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    """Presence + JSON-string type guard (CRT180 contract-format conformance).
+
+    Unlike not_empty, a non-string value is never coerced: 0, false, [] and
+    {} are rejected as OPENDQV_TYPE_MISMATCH rather than silently
+    stringified into "0" / "False" / "[]" and passed. Absent, null and
+    whitespace-only values fail with the rule's own message.
+    """
+    if value is None:
+        return rule.error_message
+    if not isinstance(value, str):
+        return _TYPE_MISMATCH_PREFIX + f"{rule.field} must be a string; got {type(value).__name__}"
+    if value.strip() == "":
         return rule.error_message
     return None
 
@@ -997,6 +1014,7 @@ def _check_age_match(value, rule: Rule, record: Optional[dict] = None) -> Option
 # ── Dispatch table — single source of truth for known rule types ────────
 _RULE_HANDLERS: dict[str, Callable] = {
     "not_empty": _check_not_empty,
+    "not_empty_string": _check_not_empty_string,
     "regex": _check_regex,
     "min": _check_min,
     "max": _check_max,
@@ -1615,6 +1633,23 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
         query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NULL OR TRIM(CAST("{field}" AS VARCHAR)) = ''"""
         for r in con.execute(query).fetchall():
             failing.add(r[0])
+
+    elif rule.type == "not_empty_string":
+        # CRT180: presence + string-type guard. Read the raw record value —
+        # pandas collapses types inside object columns — and mark non-string,
+        # non-null values as type mismatches so the caller swaps the
+        # error_code to OPENDQV_TYPE_MISMATCH (single-record parity).
+        for idx in range(len(df)):
+            val = _orig_val(idx)
+            if val is None or (isinstance(val, float) and pd.isna(val)):
+                failing.add(idx)
+            elif not isinstance(val, str):
+                failing.add(idx)
+                failing_type_mismatches[idx] = (
+                    _TYPE_MISMATCH_PREFIX + f"{field} must be a string; got {type(val).__name__}"
+                )
+            elif val.strip() == "":
+                failing.add(idx)
 
     elif rule.type == "min_length" and rule.min_length is not None:
         query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != '' AND LENGTH(CAST("{field}" AS VARCHAR)) < {rule.min_length}"""

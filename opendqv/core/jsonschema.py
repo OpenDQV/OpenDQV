@@ -156,7 +156,7 @@ def _build_conditional_block(rule, field: str, unmapped: list) -> dict | None:
 def _apply_rule(prop: dict, rule, field: str, required: list, unmapped: list) -> None:
     rt = rule.type
 
-    if rt == "not_empty":
+    if rt in ("not_empty", "not_empty_string"):
         if field not in required:
             required.append(field)
         # v2.3.22 Cluster K (N-9): emit minLength: 1 so downstream

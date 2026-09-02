@@ -2,6 +2,18 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [Unreleased]
+
+CRT180 — contract-format conformance across engines (see
+`docs/contract_conformance.md`).
+
+- **New rule type `not_empty_string`** — presence plus a JSON-string type guard.
+  Unlike `not_empty`, a non-string value (`0`, `false`, `[]`, `{}`) is rejected as
+  `OPENDQV_TYPE_MISMATCH` instead of being stringified and passed. Single-record
+  and batch paths agree; linter, JSON-Schema export (`type: string`, `minLength: 1`),
+  explainer, the five push-down code generators and the ODCS projection
+  (`required: true`) all know the type.
+
 ## [2.4.0] - 2026-09-02
 
 ODCS compliance release (CRT179, minor tier — **breaking wire-format change**

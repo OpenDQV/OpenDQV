@@ -140,6 +140,8 @@ def _generate_salesforce(rules: list, contract_name: str = "", contract_version:
             code += f"            if (row.get('{field}') != null) {{ Decimal val_{field} = (Decimal)row.get('{field}'); if (val_{field} < {rule['min_value']} || val_{field} > {rule['max_value']}) {target_list}.add('{error}'); }}\n"
         elif rtype == "not_empty":
             code += f"            if (row.get('{field}') == null || String.valueOf(row.get('{field}')).trim() == '') {target_list}.add('{error}');\n"
+        elif rtype == "not_empty_string":
+            code += f"            if (!(row.get('{field}') instanceof String) || String.valueOf(row.get('{field}')).trim() == '') {target_list}.add('{error}');\n"
         elif rtype == "min_length" and rule.get("min_length") is not None:
             code += f"            if (((String)row.get('{field}')).length() < {rule['min_length']}) {target_list}.add('{error}');\n"
         elif rtype == "date_format":
@@ -229,6 +231,8 @@ def _js_rule_check(rule: dict, indent: str = "    ", age_checked: set = None) ->
         )
     elif rtype == "not_empty":
         snippet += f"{indent}if (!row['{field}'] || row['{field}'].toString().trim() === '') errors.push('{error}');\n"
+    elif rtype == "not_empty_string":
+        snippet += f"{indent}if (typeof row['{field}'] !== 'string' || row['{field}'].trim() === '') errors.push('{error}');\n"
     elif rtype == "min_length" and rule.get("min_length") is not None:
         snippet += f"{indent}if (!row['{field}'] || row['{field}'].toString().length < {rule['min_length']}) errors.push('{error}');\n"
     elif rtype == "max_length" and rule.get("max_length") is not None:
@@ -309,6 +313,8 @@ def _spark_case_when(rule: dict):
 
     if rtype == "not_empty":
         return case(f"{field} IS NULL OR TRIM(CAST({field} AS STRING)) = ''")
+    elif rtype == "not_empty_string":
+        return case(f"{field} IS NULL OR typeof({field}) != 'string' OR TRIM(CAST({field} AS STRING)) = ''")
     elif rtype == "regex" and rule.get("pattern"):
         pat = _escape_sql(rule["pattern"])
         return case(f"NOT regexp_like(CAST({field} AS STRING), '{pat}')")
