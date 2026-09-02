@@ -288,6 +288,39 @@ drops the `contexts:` block from Core's `customer` contract before parsing
 (it would be refused otherwise) — the same one-transformation rule as the
 envelope wrapper.
 
+## Explicit presence in the library (CRT181) and the fourth run
+
+D2 / Class A was the last verdict-level divergence: a field with an
+error-severity format rule and no presence rule is "required" to an engine
+with implicit-required and "optional when present" here. Rather than add a
+contract-level switch both engines would have to interpret identically
+forever, the ambiguity was removed from the data. Both engines already agree
+on any field where the YAML says which it is — `not_empty` is "required" on
+both, `optional: true` on a format rule is "optional" on both — so every such
+field in the bundled library now says which: 109 `<field>_required` rules
+across 27 contracts, one `optional: true` (`customer.loyalty_tier`, "when
+provided"). `tests/test_library_presence_explicit.py` keeps it that way: the
+advisory `FORMAT_ONLY_FIELD_ACCEPTS_EMPTY` lint is an error for the library.
+The managed engine mirrored the same pass on its starters.
+
+**Fourth cross-engine run (2026-09-02, both libraries explicit):**
+
+| Fixture | Rows | Identical (verdict + code + severity) | … incl. messages | Verdict |
+|---|---|---|---|---|
+| banking_transaction (strict) | 24 | 24 | 23 | 24/24 |
+| hr_employee | 26 | 26 | 26 | 26/26 |
+| customer | 24 | 24 | 24 | 24/24 |
+| dora_ict_incident (strict) | 41 | 41 | 41 | 41/41 |
+| nhs_dsp_patient | 27 | 27 | 27 | 27/27 |
+| **total** | **142** | **142** | **141** | **142/142** |
+
+Class A is closed. The only difference left on the whole corpus is **D9**
+(one message: length rule on a number). For contracts *outside* the bundled
+library the question D2 asks is still open — the lint names the ambiguous
+field, and the managed engine is moving its implicit-required check from
+the validator to the authoring boundary so a customer's YAML means the same
+thing on both engines.
+
 ## Known issues
 
 **K1 — batch skipped absent fields (FIXED, review B6).** `validate_batch`
