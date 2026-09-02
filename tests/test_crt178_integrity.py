@@ -131,3 +131,59 @@ class TestFormatSqlInjection:
 
     def test_sec004_still_allows_normal_references(self):
         Rule(name="r", field="f", type="required_if", required_if={"field": "other field.name-1", "value": "y"})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. REVIEW-state contracts must be frozen
+# ─────────────────────────────────────────────────────────────────────────────
+
+RULE = {"name": "extra", "type": "not_empty", "field": "g", "error_message": "g required"}
+
+
+def _seed(registry, name, status):
+    """Create a DRAFT via the registry and move it to the requested state (no rate-limited routes)."""
+    c = registry.create_draft(name=name, description="d", owner="o", created_by="alice",
+                              rules_data=[{"name": "r", "type": "not_empty", "field": "f"}])
+    if status in (ContractStatus.REVIEW, ContractStatus.ACTIVE):
+        registry.submit_for_review(name, c.version, "alice")
+    if status == ContractStatus.ACTIVE:
+        registry.approve_contract(name, c.version, "bob")
+    return registry.get(name)
+
+
+class TestReviewStateFrozen:
+    def test_registry_blocks_all_three_mutations_in_review(self, reg):
+        from opendqv.core.contracts import ContractImmutableError
+        c = _seed(reg, "MCP_rev1", ContractStatus.REVIEW)
+        path = reg.contracts_dir / "MCP_rev1.yaml"
+        before = path.read_bytes()
+        for call in (lambda: reg.add_rule("MCP_rev1", RULE),
+                     lambda: reg.update_rule("MCP_rev1", "r", {**RULE, "name": "r"}),
+                     lambda: reg.delete_rule("MCP_rev1", "r")):
+            with pytest.raises(ContractImmutableError, match="REVIEW"):
+                call()
+        assert path.read_bytes() == before
+        assert [r.name for r in c.rules] == ["r"]
+
+    def test_registry_blocks_active_too(self, reg):
+        from opendqv.core.contracts import ContractImmutableError
+        _seed(reg, "MCP_act1", ContractStatus.ACTIVE)
+        with pytest.raises(ContractImmutableError, match="ACTIVE"):
+            reg.add_rule("MCP_act1", RULE)
+
+    def test_draft_still_mutable_and_reject_reopens_editing(self, reg):
+        _seed(reg, "MCP_rev2", ContractStatus.REVIEW)
+        reg.reject_contract("MCP_rev2", reg.get("MCP_rev2").version, "bob", "needs work")
+        c = reg.add_rule("MCP_rev2", RULE)
+        assert [r.name for r in c.rules] == ["r", "extra"]
+
+    def test_rest_returns_409_for_review(self, client, editor_headers):
+        from opendqv.api import deps as _d
+        _seed(_d.registry, "MCP_rev3", ContractStatus.REVIEW)
+        r = client.post("/api/v1/contracts/MCP_rev3/rules", json=RULE, headers=editor_headers)
+        assert r.status_code == 409 and "REVIEW" in r.json()["detail"] and "reject" in r.json()["detail"]
+        r = client.put("/api/v1/contracts/MCP_rev3/rules/r", json={**RULE, "name": "r"}, headers=editor_headers)
+        assert r.status_code == 409
+        r = client.delete("/api/v1/contracts/MCP_rev3/rules/r", headers=editor_headers)
+        assert r.status_code == 409
+        assert [x.name for x in _d.registry.get("MCP_rev3").rules] == ["r"]

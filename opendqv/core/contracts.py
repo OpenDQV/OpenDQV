@@ -49,6 +49,10 @@ def _read_meta(raw: dict) -> dict:
     return out
 
 
+class ContractImmutableError(ValueError):
+    """Rule mutation attempted on a contract whose state forbids it (ACTIVE or REVIEW)."""
+
+
 class ContractPersistenceError(RuntimeError):
     """Raised when a lifecycle transition could not be written to the contract's YAML file.
 
@@ -1453,12 +1457,34 @@ class ContractRegistry:
                 pass
         return f"{version}-draft.1"
 
+    _IMMUTABLE_STATES = frozenset({ContractStatus.ACTIVE, ContractStatus.REVIEW})
+
+    def _assert_rules_mutable(self, contract: "DataContract") -> None:
+        """Registry-level gate: rules may only change while a contract is DRAFT or ARCHIVED.
+
+        CRT178 #6: the REST layer blocked ACTIVE only, and the registry blocked
+        nothing — a contract under REVIEW could be edited after the reviewer
+        looked at it (maker-checker TOCTOU), and any non-REST caller could edit
+        anything. Enforced here so every caller inherits it.
+        """
+        if contract.status in self._IMMUTABLE_STATES:
+            state = contract.status.value
+            hint = (
+                "reject it back to DRAFT (or approve it) before editing"
+                if contract.status == ContractStatus.REVIEW
+                else "create a new draft version to modify rules"
+            )
+            raise ContractImmutableError(
+                f"Contract '{contract.name}' is {state.upper()}: rule mutations are not permitted — {hint}."
+            )
+
     def add_rule(self, name: str, rule_dict: dict) -> "DataContract":
         """Add a new rule to a contract. Validates, writes YAML atomically, triggers reload, records history."""
         from .rule_parser import Rule
         contract = self.get(name)
         if not contract:
             raise ValueError(f"Contract '{name}' not found")
+        self._assert_rules_mutable(contract)
         # Validate rule
         rule = Rule(**rule_dict)
         if any(r.name == rule.name for r in contract.rules):
@@ -1478,6 +1504,7 @@ class ContractRegistry:
         contract = self.get(name)
         if not contract:
             raise ValueError(f"Contract '{name}' not found")
+        self._assert_rules_mutable(contract)
         idx = next((i for i, r in enumerate(contract.rules) if r.name == rule_name), None)
         if idx is None:
             raise ValueError(f"Rule '{rule_name}' not found in contract '{name}'")
@@ -1504,6 +1531,7 @@ class ContractRegistry:
         contract = self.get(name)
         if not contract:
             raise ValueError(f"Contract '{name}' not found")
+        self._assert_rules_mutable(contract)
         before = len(contract.rules)
         contract.rules = [r for r in contract.rules if r.name != rule_name]
         if len(contract.rules) == before:
