@@ -25,7 +25,7 @@ contract:
 
     - name: account_number_required
       field: account_number
-      type: not_empty
+      type: not_empty_string
       severity: error
       error_message: "account_number is required"
 

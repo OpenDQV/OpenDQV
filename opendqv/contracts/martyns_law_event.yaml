@@ -284,3 +284,34 @@ contract:
       type: date_format
       severity: error
       error_message: "compliance_review_date must be a valid date (YYYY-MM-DD)"
+    - name: communication_procedure_documented_required
+      field: communication_procedure_documented
+      type: not_empty
+      severity: error
+      error_message: communication_procedure_documented must be declared (true or false) — procedures for providing information to individuals at the event are the fourth public protection procedure type (s.5(3)(d))
+    - name: communication_procedure_documented_valid
+      field: communication_procedure_documented
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: communication_procedure_documented must be 'true' or 'false'
+    - name: senior_responsible_person_required
+      field: senior_responsible_person
+      type: not_empty
+      severity: error
+      error_message: senior_responsible_person is required — Martyn's Law mandates a named designated senior individual for qualifying events with an expected attendance of 800+; the Act's term is 'designated senior individual' (s.10)
+    - name: senior_responsible_person_role_required
+      field: senior_responsible_person_role
+      type: not_empty
+      severity: error
+      error_message: senior_responsible_person_role is required — record the organisational role of the designated senior individual (s.10)
+    - name: sia_notification_reference_required
+      field: sia_notification_reference
+      type: not_empty
+      severity: error
+      error_message: sia_notification_reference is required — qualifying events with 800+ expected attendance must notify the Security Industry Authority (SIA); record the notification reference
+    - name: terrorism_protection_plan_documented_required
+      field: terrorism_protection_plan_documented
+      type: not_empty
+      severity: error
+      error_message: terrorism_protection_plan_documented is required — documented public protection procedures and measures for the event, per ss.5–7, are mandated for qualifying events with 800+ expected attendance

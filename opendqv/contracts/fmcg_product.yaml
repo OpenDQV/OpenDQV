@@ -174,3 +174,10 @@ contract:
       severity: warning
       error_message: "country_of_origin must be a 2-letter ISO 3166-1 alpha-2 country
         code (e.g. GB, DE, FR, US) — required for UK/EU food labelling regulations"
+    - name: product_code_gtin_valid
+      description: "GS1 Mod-10 check-digit verification on the GTIN. The final digit is computed (GS1 algorithm), not shape-matched — a mistyped or fabricated product code fails at the point of write. Complements product_code_gtin_format, which gates the GTIN length classes."
+      field: product_code
+      type: checksum
+      checksum_algorithm: mod10_gs1
+      severity: error
+      error_message: 'product_code has an invalid GS1 check digit (e.g. valid: 9521234567899, GS1 demonstration prefix 952) — full check-digit verification (was: shape-only format check)'

@@ -23,6 +23,17 @@ CRT180 — contract-format conformance across engines (see
   persist on `contract_history`, restore from snapshots, round-trip through
   YAML, JSON-Schema export (`additionalProperties: false`) and ODCS custom
   properties. Linter checks the shapes. Docs: `docs/strict_schema.md`.
+- **Bundled contracts synced with the managed engine's starter library** — 22
+  rules added across nine contracts (check-digit rules `vin_check_digit`,
+  `instrument_id_isin_valid`, `product_code_gtin_valid`, `barcode_gtin_valid`,
+  `nhs_number_valid`; DORA 4h/24h/72h notification timing; Martyn's Law
+  required-field and SIA-reference rules; `ni_number_not_reserved_prefix`), two
+  `not_empty` → `not_empty_string` upgrades (`account_number_required` in
+  banking_transaction and financial_services_customer), and two regex rewrites
+  from positive lookahead to the portable `negate: true` form (semantics
+  unchanged, patterns now RE2-safe). Threshold, casing and format differences
+  that are judgement calls are listed, not applied, in
+  `docs/contract_conformance.md`.
 
 ## [2.4.0] - 2026-09-02
 

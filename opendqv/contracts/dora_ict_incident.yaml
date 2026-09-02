@@ -246,3 +246,61 @@ contract:
       type: date_format
       severity: error
       error_message: "review_date must be a valid date (YYYY-MM-DD)"
+    - name: initial_notification_within_24h_of_awareness
+      field: initial_notification_timestamp
+      type: date_diff
+      date_diff_field: detection_timestamp
+      date_diff_unit: days
+      min: 0
+      max: 1
+      severity: error
+      error_message: initial_notification_timestamp must be no later than 24 hours from becoming aware of the incident (detection_timestamp is this contract's awareness proxy) — CDR (EU) 2025/301 Art 5(1)(a); where classification as major occurs later, Art 5(2) applies via the 4-hour rule
+    - name: major_classification_timestamp_required_if_major
+      field: major_classification_timestamp
+      type: required_if
+      required_if:
+        field: incident_classification
+        value: major
+      severity: error
+      error_message: major_classification_timestamp is required for major incidents — the CDR (EU) 2025/301 Art 5(1)(a) 4-hour clock runs from classification as major; without this timestamp the deadline cannot be verified
+    - name: major_classification_timestamp_format
+      field: major_classification_timestamp
+      type: regex
+      pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$
+      condition:
+        field: incident_classification
+        value: major
+      severity: error
+      error_message: major_classification_timestamp must be a full ISO 8601 datetime with timezone (YYYY-MM-DDThh:mm:ssZ) — the 4-hour clock cannot be evidenced by a date-only value
+    - name: initial_notification_within_4h_of_classification
+      field: initial_notification_timestamp
+      type: date_diff
+      date_diff_field: major_classification_timestamp
+      date_diff_unit: days
+      min: 0
+      max: 0.16667
+      condition:
+        field: incident_classification
+        value: major
+      severity: error
+      error_message: initial_notification_timestamp must be within 4 hours of classification of the incident as major — CDR (EU) 2025/301 Art 5(1)(a) and 5(2)
+    - name: intermediate_report_timestamp_required
+      field: intermediate_report_timestamp
+      type: not_empty
+      severity: error
+      error_message: intermediate_report_timestamp is required — Article 19(4)(b) DORA intermediate report; due within 72 hours of submission of the initial notification (CDR (EU) 2025/301 Art 5(1)(b)), even where status or handling have not changed
+    - name: intermediate_report_timestamp_format
+      field: intermediate_report_timestamp
+      type: regex
+      pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$
+      severity: error
+      error_message: intermediate_report_timestamp must be a full ISO 8601 datetime with timezone (YYYY-MM-DDThh:mm:ssZ) — the 72-hour deadline cannot be evidenced by a date-only value
+    - name: intermediate_report_within_72h_of_initial
+      field: intermediate_report_timestamp
+      type: date_diff
+      date_diff_field: initial_notification_timestamp
+      date_diff_unit: days
+      min: 0
+      max: 3
+      severity: error
+      error_message: intermediate_report_timestamp must be within 72 hours of SUBMISSION OF THE INITIAL NOTIFICATION (not detection) — CDR (EU) 2025/301 Art 5(1)(b)

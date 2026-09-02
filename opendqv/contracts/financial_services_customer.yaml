@@ -44,7 +44,7 @@ contract:
   rules:
     - name: account_number_required
       description: Account number must not be empty
-      type: not_empty
+      type: not_empty_string
       field: account_number
       severity: error
       error_message: "Account number is required"

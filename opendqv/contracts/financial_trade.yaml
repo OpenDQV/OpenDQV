@@ -186,3 +186,10 @@ contract:
       severity: warning
       error_message: "settlement_status must be one of: pending, affirmed, matched,
         settled, partially_settled, failed, cancelled, on_hold"
+    - name: instrument_id_isin_valid
+      description: 'ISO 6166 ISIN check-digit verification (Luhn-style mod-10 over expanded numeric encoding). The check digit is computed, not shape-matched — a mistyped ISIN fails at the point of write. Complements instrument_id_isin_format, which gates the country-code shape. Required for all exchange-listed securities under MiFID II RTS 22.'
+      field: instrument_id
+      type: checksum
+      checksum_algorithm: isin_luhn
+      severity: warning
+      error_message: 'instrument_id is not a valid ISIN (ISO 6166: 12 characters ending in a correct check digit, e.g. GB0002162385) — full check-digit verification (was: shape-only). Verify if using CUSIP, SEDOL, or internal identifier'
