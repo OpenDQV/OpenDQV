@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from opendqv.core.contracts import CONTRACT_NAME_RE, ContractRegistry
-from opendqv.core.rule_parser import ContractStatus
+from opendqv.core.rule_parser import ContractStatus, Rule
 
 BUNDLED = Path(__file__).resolve().parent.parent / "opendqv" / "contracts"
 
@@ -76,3 +76,58 @@ class TestCreateDraftNameTraversal:
         err = body.get("error", body)
         assert err.get("error_code") == "INVALID_CONTRACT_NAME"
         assert _snapshot(tmp_path) == before
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. `format` (and every other field reference) reaching DuckDB SQL
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestFormatSqlInjection:
+    RECORDS = [{"d": "2026-01-02"}, {"d": "not a date"}, {"d": "2026-13-45"}]
+
+    def _run(self, fmt: str):
+        from opendqv.core.validator import validate_batch
+        rule = Rule(name="fmt", type="date_format", field="d", format=fmt, error_message="bad date")
+        return validate_batch(self.RECORDS, [rule], contract_name="t")
+
+    @pytest.mark.parametrize("fmt", [
+        "%Y-%m-%d') OR 1=1 --",
+        "%Y'",
+        "%Y-%m-%d\") OR (1=1",
+        "%Y-%m-%d'; COPY data TO '/tmp/x.csv'; --",
+    ])
+    def test_hostile_format_is_a_bound_value_not_sql(self, fmt):
+        """On v2.4.0 the first two raise a DuckDB parser error (500) and the injection
+        variants change the WHERE clause. Now: no exception, and the format is simply a
+        format that nothing matches — every record fails the rule, none false-pass."""
+        out = self._run(fmt)
+        assert out["summary"]["failed"] == 3
+        assert all(not r["valid"] for r in out["results"])
+
+    def test_legit_format_still_works(self):
+        out = self._run("%Y-%m-%d")
+        assert [r["valid"] for r in out["results"]] == [True, False, False]
+
+    def test_query_text_binds_fmt(self):
+        """Guard against someone re-inlining the format into the query string."""
+        import inspect
+        from opendqv.core import validator
+        src = inspect.getsource(validator._batch_check_rule)
+        assert "$fmt" in src
+        assert "'{strptime_fmt}'" not in src
+
+    @pytest.mark.parametrize("kwargs", [
+        {"type": "required_if", "required_if": {"field": 'x" OR 1=1--', "value": "y"}},
+        {"type": "forbidden_if", "forbidden_if": {"field": 'x"; DROP TABLE data; --', "value": "y"}},
+        {"type": "min", "min_value": 0, "condition": {"field": 'a"b', "value": "y"}},
+        {"type": "compare", "compare_to": 'b"c', "compare_op": "gt"},
+        {"type": "cross_field_range", "cross_min_field": 'lo"', "cross_max_field": "hi"},
+        {"type": "date_diff", "date_diff_field": 'd";', "date_diff_unit": "days"},
+    ])
+    def test_sec004_covers_every_field_reference(self, kwargs):
+        """Sonnet blocker: SEC-004 only inspected rule.field; trigger fields were quoted identifiers too."""
+        with pytest.raises(ValueError, match="not permitted in a SQL identifier"):
+            Rule(name="r", field="f", **kwargs)
+
+    def test_sec004_still_allows_normal_references(self):
+        Rule(name="r", field="f", type="required_if", required_if={"field": "other field.name-1", "value": "y"})
