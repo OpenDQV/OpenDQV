@@ -62,7 +62,9 @@ class TestSingleRecordTypeMismatch:
         msg = type_mismatch_err["message"]
         # Field name and type name must be in message; value must NOT.
         assert "price" in msg, msg
-        assert type(non_numeric).__name__ in msg, msg
+        # CRT180: engine messages name the JSON type (string/array/object/…), not the Python type.
+        from opendqv.core.validator import _json_type_name
+        assert _json_type_name(non_numeric) in msg, msg
         # Must not echo the offending value.
         if isinstance(non_numeric, str):
             assert non_numeric not in msg, (
