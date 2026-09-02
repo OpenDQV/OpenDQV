@@ -138,24 +138,20 @@ class TestCLIValidate:
 SAMPLE_ODCS = {
     "apiVersion": "v3.1.0",
     "kind": "DataContract",
-    "info": {
-        "title": "CLI Test Contract",
-        "version": "1.0",
-        "status": "active",
-        "description": "Created by CLI test",
-        "owner": "test-team",
-    },
+    "id": "cli-test-contract",
+    "name": "CLI Test Contract",
+    "version": "1.0",
+    "status": "active",
+    "description": {"purpose": "Created by CLI test"},
+    "team": {"name": "test-team"},
     "schema": [
         {
             "name": "records",
+            "logicalType": "object",
             "properties": [
-                {"name": "email", "required": True, "unique": True},
-                {
-                    "name": "age",
-                    "quality": [
-                        {"type": "range", "min": 0, "max": 120, "mustBeSatisfied": True}
-                    ],
-                },
+                {"name": "email", "logicalType": "string", "required": True, "unique": True},
+                {"name": "age", "logicalType": "integer",
+                 "logicalTypeOptions": {"minimum": 0, "maximum": 120}},
             ],
         }
     ],

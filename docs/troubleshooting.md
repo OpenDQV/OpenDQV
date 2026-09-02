@@ -105,7 +105,7 @@ python -c "import yaml; yaml.safe_load(open('contracts/mycontract.yaml'))"
 - The input file contains a rule type the importer does not recognise
 - The YAML/JSON is structurally valid but semantically incomplete
 
-**Fix:** Inspect the error message — it will name the specific field or issue. For GX suites: GX 0.x suites use `expectation_suite_name`; GX 1.x suites use `name`. Both are accepted on import. The export endpoint emits GX 1.x format (`name`). For dbt schemas, ensure at least one model has `columns:` defined. For ODCS, ensure `apiVersion` and `kind` are present.
+**Fix:** Inspect the error message — it will name the specific field or issue. For GX suites: GX 0.x suites use `expectation_suite_name`; GX 1.x suites use `name`. Both are accepted on import. The export endpoint emits GX 1.x format (`name`). For dbt schemas, ensure at least one model has `columns:` defined. For ODCS, the document must be ODCS v3.x: `apiVersion` (v3.0.0–v3.1.0), `kind: DataContract`, `id`, `version`, `status` and a `schema` list. The pre-v2.4.0 `info:` / `mustBeSatisfied` shape is not ODCS and is rejected with 422.
 
 ---
 

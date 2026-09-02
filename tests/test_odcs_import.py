@@ -1,587 +1,555 @@
-"""Tests for ODCS 3.1 importer and exporter.
-
-Covers:
-  - import_odcs: field shortcuts, quality checks, dedup, skipped types
-  - odcs_to_yaml: returns (name, yaml_string) tuple
-  - export_odcs: produces valid ODCS 3.1 dict
-  - contract_to_odcs_yaml: produces valid YAML string
-  - POST /import/odcs API endpoint
-  - GET /export/odcs/{name} API endpoint
 """
+ODCS v3.1.0 importer / exporter tests (CRT179, v2.4.0).
 
+Two oracles:
+  * the official ODCS v3.1.0 JSON schema, vendored at tests/fixtures/ — every
+    export must validate against it;
+  * datacontract-cli (`datacontract lint`), when installed — same documents.
+
+Plus: round-trip idempotence on every bundled contract, the spec's own
+full example on import, and the import-path safety controls from the
+Sonnet pre-implementation review (denied fields, fail-closed on bad rules,
+duplicate-field reporting, 422 at the API).
+"""
+from __future__ import annotations
+
+import copy
+import json
+import os
+import shutil
+import subprocess
+from pathlib import Path
+
+import jsonschema
+import pytest
 import yaml
 
 from opendqv.core.importers.odcs import (
+    ODCS_API_VERSION,
+    _from_jdk_format,
+    _to_jdk_format,
+    contract_to_odcs_yaml,
+    export_odcs,
     import_odcs,
     odcs_to_yaml,
-    export_odcs,
-    contract_to_odcs_yaml,
 )
+from opendqv.core.rule_parser import Rule
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+SCHEMA = json.loads((FIXTURES / "odcs-json-schema-v3.1.0.json").read_text(encoding="utf-8"))
+VALIDATOR = jsonschema.Draft202012Validator(SCHEMA)
+FULL_EXAMPLE = yaml.safe_load((FIXTURES / "odcs-full-example-v3.1.0.yaml").read_text(encoding="utf-8"))
+BUNDLED_DIR = Path(__file__).resolve().parent.parent / "opendqv" / "contracts"
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+def _schema_errors(doc: dict) -> list[str]:
+    return [f"{'/'.join(str(p) for p in e.path)}: {e.message}" for e in VALIDATOR.iter_errors(doc)]
 
-MINIMAL_CONTRACT = {
+
+def _rules(*dicts) -> list[Rule]:
+    return [Rule(**d) for d in dicts]
+
+
+def _bundled_contract_names() -> list[str]:
+    return sorted(p.stem for p in BUNDLED_DIR.glob("*.yaml"))
+
+
+def _load_bundled(name: str) -> dict:
+    return yaml.safe_load((BUNDLED_DIR / f"{name}.yaml").read_text(encoding="utf-8"))["contract"]
+
+
+def _export_bundled(name: str) -> dict:
+    c = _load_bundled(name)
+    return export_odcs(c["name"], [Rule(**r) for r in c.get("rules", [])],
+                       version=str(c.get("version", "1.0")), status=c.get("status", "active"),
+                       description=c.get("description", ""), owner=c.get("owner", ""),
+                       owner_email=c.get("owner_email"))
+
+
+# A minimal, schema-valid ODCS v3.1.0 document using only native constraints.
+NATIVE_ODCS = {
     "apiVersion": "v3.1.0",
     "kind": "DataContract",
-    "info": {
-        "title": "Customer Contract",
-        "version": "2.0",
-        "status": "active",
-        "description": "Test contract",
-        "owner": "data-team",
-    },
-    "schema": [
-        {
-            "name": "customers",
-            "properties": [
-                {"name": "email", "required": True, "unique": True},
-                {"name": "name", "required": True},
-            ],
-        }
-    ],
-}
-
-FULL_QUALITY_CONTRACT = {
-    "apiVersion": "v3.1.0",
-    "kind": "DataContract",
-    "info": {"title": "full_quality", "version": "1.0"},
+    "id": "customer-orders",
+    "name": "Customer Orders",
+    "version": "2.0",
+    "status": "active",
+    "description": {"purpose": "Orders placed by customers"},
+    "team": {"name": "data-team", "members": [{"username": "owner@example.com", "role": "owner"}]},
     "schema": [
         {
             "name": "orders",
+            "logicalType": "object",
             "properties": [
-                {
-                    "name": "email",
-                    "quality": [
-                        {"type": "not_null", "mustBeSatisfied": True},
-                        {"type": "regex", "pattern": r"^[\w.]+@[\w.]+$", "mustBeSatisfied": True},
-                    ],
-                },
-                {
-                    "name": "age",
-                    "quality": [
-                        {"type": "range", "min": 0, "max": 120, "mustBeSatisfied": False},
-                    ],
-                },
-                {
-                    "name": "score",
-                    "quality": [
-                        {"type": "min", "min": 0, "mustBeSatisfied": True},
-                        {"type": "max", "max": 100, "mustBeSatisfied": True},
-                    ],
-                },
-                {
-                    "name": "code",
-                    "minLength": 3,
-                    "maxLength": 10,
-                    "quality": [
-                        {"type": "min_length", "minLength": 3, "mustBeSatisfied": False},
-                        {"type": "date_format", "format": "%Y-%m-%d", "mustBeSatisfied": False},
-                    ],
-                },
+                {"name": "order_id", "logicalType": "string", "required": True, "unique": True,
+                 "logicalTypeOptions": {"pattern": "^ORD-[0-9]{6}$", "minLength": 10, "maxLength": 10}},
+                {"name": "amount", "logicalType": "number",
+                 "logicalTypeOptions": {"minimum": 0, "maximum": 10000}},
+                {"name": "qty", "logicalType": "integer", "logicalTypeOptions": {"exclusiveMinimum": 0}},
+                {"name": "order_date", "logicalType": "date", "logicalTypeOptions": {"format": "yyyy-MM-dd"}},
+                {"name": "country", "logicalType": "string", "quality": [
+                    {"type": "library", "metric": "invalidValues", "arguments": {"validValues": ["GB", "IE"]},
+                     "mustBe": 0, "severity": "error"},
+                    {"type": "library", "metric": "nullValues", "mustBeLessThan": 5, "unit": "percent"},
+                    {"type": "text", "description": "Country should follow ISO 3166-1 alpha-2"},
+                ]},
+                {"name": "email", "logicalType": "string", "quality": [
+                    {"type": "library", "metric": "nullValues", "mustBe": 0, "severity": "warning"},
+                    {"type": "library", "metric": "duplicateValues", "mustBe": 0},
+                    {"type": "sql", "query": "SELECT COUNT(*) FROM orders WHERE email IS NULL", "mustBe": 0},
+                ]},
             ],
         }
     ],
 }
 
 
-# ---------------------------------------------------------------------------
-# TestImportODCSBasic
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
+# Export: schema validity
+# ─────────────────────────────────────────────────────────────────────────────
 
-class TestImportODCSBasic:
-    """Basic import_odcs functionality."""
+class TestExportIsValidODCS:
+    def test_native_fixture_is_itself_valid(self):
+        assert _schema_errors(NATIVE_ODCS) == []
 
-    def test_returns_contract_key(self):
-        result = import_odcs(MINIMAL_CONTRACT)
-        assert "contract" in result
-
-    def test_contract_name_from_title(self):
-        result = import_odcs(MINIMAL_CONTRACT)
-        assert result["contract"]["name"] == "customer_contract"
-
-    def test_name_sanitised_lowercase(self):
-        c = {"info": {"title": "My Contract-2"}, "schema": []}
-        result = import_odcs(c)
-        assert result["contract"]["name"] == "my_contract_2"
-
-    def test_version_extracted(self):
-        result = import_odcs(MINIMAL_CONTRACT)
-        assert result["contract"]["version"] == "2.0"
-
-    def test_status_extracted(self):
-        result = import_odcs(MINIMAL_CONTRACT)
-        assert result["contract"]["status"] == "active"
-
-    def test_description_extracted(self):
-        result = import_odcs(MINIMAL_CONTRACT)
-        assert result["contract"]["description"] == "Test contract"
-
-    def test_owner_extracted(self):
-        result = import_odcs(MINIMAL_CONTRACT)
-        assert result["contract"]["owner"] == "data-team"
-
-    def test_rule_count_in_result(self):
-        result = import_odcs(MINIMAL_CONTRACT)
-        assert result["rule_count"] == len(result["contract"]["rules"])
-
-    def test_skipped_checks_list(self):
-        result = import_odcs(MINIMAL_CONTRACT)
-        assert "skipped_checks" in result
-        assert isinstance(result["skipped_checks"], list)
-
-    def test_empty_schema_produces_no_rules(self):
-        c = {"info": {"title": "empty"}, "schema": []}
-        result = import_odcs(c)
-        assert result["contract"]["rules"] == []
-
-    def test_missing_info_uses_defaults(self):
-        c = {"schema": []}
-        result = import_odcs(c)
-        assert result["contract"]["name"] == "imported_contract"
-        assert result["contract"]["version"] == "1.0"
-        assert result["contract"]["status"] == "active"
-
-
-# ---------------------------------------------------------------------------
-# TestFieldShortcuts
-# ---------------------------------------------------------------------------
-
-class TestFieldShortcuts:
-    """Field-level shortcut attributes → rules."""
-
-    def _rules(self, contract):
-        return import_odcs(contract)["contract"]["rules"]
-
-    def test_required_produces_not_empty_rule(self):
-        rules = self._rules(MINIMAL_CONTRACT)
-        types = [r["type"] for r in rules if r["field"] == "email"]
-        assert "not_empty" in types
-
-    def test_required_rule_is_error_severity(self):
-        rules = self._rules(MINIMAL_CONTRACT)
-        r = next(r for r in rules if r["field"] == "email" and r["type"] == "not_empty")
-        assert r["severity"] == "error"
-
-    def test_unique_produces_unique_rule(self):
-        rules = self._rules(MINIMAL_CONTRACT)
-        types = [r["type"] for r in rules if r["field"] == "email"]
-        assert "unique" in types
-
-    def test_min_length_shortcut(self):
-        c = {
-            "info": {"title": "t"},
-            "schema": [{"name": "t", "properties": [{"name": "code", "minLength": 5}]}],
-        }
-        rules = self._rules(c)
-        r = next(r for r in rules if r["type"] == "min_length")
-        assert r["min_length"] == 5
-
-    def test_max_length_shortcut(self):
-        c = {
-            "info": {"title": "t"},
-            "schema": [{"name": "t", "properties": [{"name": "code", "maxLength": 20}]}],
-        }
-        rules = self._rules(c)
-        r = next(r for r in rules if r["type"] == "max_length")
-        assert r["max_length"] == 20
-
-
-# ---------------------------------------------------------------------------
-# TestQualityChecks
-# ---------------------------------------------------------------------------
-
-class TestQualityChecks:
-    """Inline quality[] checks → rules."""
-
-    def _rules(self):
-        return import_odcs(FULL_QUALITY_CONTRACT)["contract"]["rules"]
-
-    def test_not_null_maps_to_not_empty(self):
-        rules = self._rules()
-        types = [r["type"] for r in rules if r["field"] == "email"]
-        assert "not_empty" in types
-
-    def test_must_be_satisfied_true_is_error(self):
-        rules = self._rules()
-        r = next(r for r in rules if r["field"] == "email" and r["type"] == "not_empty")
-        assert r["severity"] == "error"
-
-    def test_must_be_satisfied_false_is_warning(self):
-        rules = self._rules()
-        r = next(r for r in rules if r["field"] == "age" and r["type"] == "range")
-        assert r["severity"] == "warning"
-
-    def test_regex_pattern_captured(self):
-        rules = self._rules()
-        r = next(r for r in rules if r["type"] == "regex")
-        assert r["pattern"] == r"^[\w.]+@[\w.]+$"
-
-    def test_range_min_max(self):
-        rules = self._rules()
-        r = next(r for r in rules if r["field"] == "age" and r["type"] == "range")
-        assert r["min_value"] == 0.0
-        assert r["max_value"] == 120.0
-
-    def test_min_rule(self):
-        rules = self._rules()
-        r = next(r for r in rules if r["field"] == "score" and r["type"] == "min")
-        assert r["min_value"] == 0.0
-
-    def test_max_rule(self):
-        rules = self._rules()
-        r = next(r for r in rules if r["field"] == "score" and r["type"] == "max")
-        assert r["max_value"] == 100.0
-
-    def test_min_length_quality(self):
-        rules = self._rules()
-        # Dedup by (type, field): shortcut "code_min_length" wins over quality "code_min_length_0"
-        r = next(r for r in rules if r["field"] == "code" and r["type"] == "min_length")
-        assert r["min_length"] == 3
-
-    def test_date_format_quality(self):
-        rules = self._rules()
-        r = next(r for r in rules if r["type"] == "date_format")
-        assert r["format"] == "%Y-%m-%d"
-
-    def test_unsupported_type_skipped(self):
-        c = {
-            "info": {"title": "t"},
-            "schema": [{
-                "name": "t",
-                "properties": [{"name": "f", "quality": [{"type": "custom_check"}]}],
-            }],
-        }
-        result = import_odcs(c)
-        assert "f.custom_check" in result["skipped_checks"]
-
-    def test_regex_without_pattern_skipped(self):
-        c = {
-            "info": {"title": "t"},
-            "schema": [{
-                "name": "t",
-                "properties": [{"name": "f", "quality": [{"type": "regex"}]}],
-            }],
-        }
-        result = import_odcs(c)
-        assert result["contract"]["rules"] == []
-
-
-# ---------------------------------------------------------------------------
-# TestDeduplication
-# ---------------------------------------------------------------------------
-
-class TestDeduplication:
-    """Shortcut + quality duplicates are deduplicated."""
-
-    def test_required_plus_not_null_quality_deduped(self):
-        c = {
-            "info": {"title": "t"},
-            "schema": [{
-                "name": "t",
-                "properties": [{
-                    "name": "email",
-                    "required": True,
-                    "quality": [{"type": "not_null", "mustBeSatisfied": True}],
-                }],
-            }],
-        }
-        result = import_odcs(c)
-        not_empty_rules = [r for r in result["contract"]["rules"] if r["type"] == "not_empty"]
-        # Dedup by (type, field): shortcut "email_not_empty" added first, quality check dropped.
-        assert len(not_empty_rules) == 1
-
-
-# ---------------------------------------------------------------------------
-# TestOdcsToYaml
-# ---------------------------------------------------------------------------
-
-class TestOdcsToYaml:
-    """odcs_to_yaml() returns (name, yaml_string)."""
-
-    def test_returns_tuple(self):
-        result = odcs_to_yaml(MINIMAL_CONTRACT)
-        assert isinstance(result, tuple)
-        assert len(result) == 2
-
-    def test_name_matches_title(self):
-        name, _ = odcs_to_yaml(MINIMAL_CONTRACT)
-        assert name == "customer_contract"
-
-    def test_name_override(self):
-        name, _ = odcs_to_yaml(MINIMAL_CONTRACT, contract_name="override_name")
-        assert name == "override_name"
-
-    def test_yaml_is_valid(self):
-        _, yaml_str = odcs_to_yaml(MINIMAL_CONTRACT)
-        parsed = yaml.safe_load(yaml_str)
-        assert "contract" in parsed
-
-    def test_yaml_has_rules(self):
-        _, yaml_str = odcs_to_yaml(MINIMAL_CONTRACT)
-        parsed = yaml.safe_load(yaml_str)
-        assert isinstance(parsed["contract"]["rules"], list)
-
-
-# ---------------------------------------------------------------------------
-# TestExportODCS
-# ---------------------------------------------------------------------------
-
-class TestExportODCS:
-    """export_odcs() produces valid ODCS 3.1 dict."""
-
-    def _make_rules(self):
-        return [
-            {"field": "email", "type": "not_empty", "severity": "error", "error_message": "required"},
-            {"field": "email", "type": "regex", "severity": "error", "pattern": r"^.+@.+$",
-             "error_message": "bad email"},
-            {"field": "age", "type": "range", "severity": "warning", "min_value": 0, "max_value": 120,
-             "error_message": "out of range"},
-            {"field": "name", "type": "min_length", "severity": "error", "min_length": 2,
-             "error_message": "too short"},
-            {"field": "code", "type": "max_length", "severity": "error", "max_length": 10,
-             "error_message": "too long"},
-        ]
-
-    def test_api_version(self):
-        doc = export_odcs("test", self._make_rules())
-        assert doc["apiVersion"] == "v3.1.0"
-
-    def test_kind_is_data_contract(self):
-        doc = export_odcs("test", self._make_rules())
+    def test_required_top_level_fields_present(self):
+        doc = export_odcs("t", _rules({"name": "r", "type": "not_empty", "field": "a"}))
+        for key in ("apiVersion", "kind", "id", "version", "status"):
+            assert key in doc
+        assert doc["apiVersion"] == ODCS_API_VERSION == "v3.1.0"
         assert doc["kind"] == "DataContract"
+        assert "info" not in doc
 
-    def test_info_title(self):
-        doc = export_odcs("mycontract", self._make_rules())
-        assert doc["info"]["title"] == "mycontract"
+    def test_empty_contract_is_valid(self):
+        doc = export_odcs("empty", [], status="draft")
+        assert _schema_errors(doc) == []
 
-    def test_info_version(self):
-        doc = export_odcs("test", self._make_rules(), version="3.0")
-        assert doc["info"]["version"] == "3.0"
+    @pytest.mark.parametrize("name", _bundled_contract_names())
+    def test_every_bundled_contract_exports_valid_odcs(self, name):
+        assert _schema_errors(_export_bundled(name)) == []
 
-    def test_info_status(self):
-        doc = export_odcs("test", self._make_rules(), status="draft")
-        assert doc["info"]["status"] == "draft"
+    def test_status_mapping_to_odcs_vocabulary(self):
+        for opendqv_status, odcs_status in (("draft", "draft"), ("review", "proposed"),
+                                            ("active", "active"), ("archived", "deprecated")):
+            doc = export_odcs("t", [], status=opendqv_status)
+            assert doc["status"] == odcs_status
+            assert {"property": "opendqv.status", "value": opendqv_status} in doc["customProperties"]
 
-    def test_schema_has_properties(self):
-        doc = export_odcs("test", self._make_rules())
-        assert len(doc["schema"]) == 1
-        props = doc["schema"][0]["properties"]
-        assert len(props) > 0
+    def test_description_and_team_shape(self):
+        doc = export_odcs("t", [], description="purpose text", owner="Team X", owner_email="x@example.com")
+        assert doc["description"] == {"purpose": "purpose text"}
+        assert doc["team"] == {"name": "Team X", "members": [{"username": "x@example.com", "role": "owner"}]}
+        assert _schema_errors(doc) == []
 
-    def test_not_empty_maps_to_not_null(self):
-        doc = export_odcs("test", self._make_rules())
-        email_prop = next(p for p in doc["schema"][0]["properties"] if p["name"] == "email")
-        types = [q["type"] for q in email_prop["quality"]]
-        assert "not_null" in types
+    def test_no_description_or_team_when_empty(self):
+        doc = export_odcs("t", [])
+        assert "description" not in doc and "team" not in doc
 
-    def test_must_be_satisfied_for_error(self):
-        doc = export_odcs("test", self._make_rules())
-        email_prop = next(p for p in doc["schema"][0]["properties"] if p["name"] == "email")
-        nn = next(q for q in email_prop["quality"] if q["type"] == "not_null")
-        assert nn["mustBeSatisfied"] is True
-
-    def test_must_be_satisfied_false_for_warning(self):
-        doc = export_odcs("test", self._make_rules())
-        age_prop = next(p for p in doc["schema"][0]["properties"] if p["name"] == "age")
-        r = next(q for q in age_prop["quality"] if q["type"] == "range")
-        assert r["mustBeSatisfied"] is False
-
-    def test_regex_pattern_exported(self):
-        doc = export_odcs("test", self._make_rules())
-        email_prop = next(p for p in doc["schema"][0]["properties"] if p["name"] == "email")
-        rx = next(q for q in email_prop["quality"] if q["type"] == "regex")
-        assert "pattern" in rx
-
-    def test_min_length_exported(self):
-        doc = export_odcs("test", self._make_rules())
-        name_prop = next(p for p in doc["schema"][0]["properties"] if p["name"] == "name")
-        ml = next(q for q in name_prop["quality"] if q["type"] == "min_length")
-        assert ml["minLength"] == 2
-
-    def test_max_length_exported(self):
-        doc = export_odcs("test", self._make_rules())
-        code_prop = next(p for p in doc["schema"][0]["properties"] if p["name"] == "code")
-        ml = next(q for q in code_prop["quality"] if q["type"] == "max_length")
-        assert ml["maxLength"] == 10
-
-    def test_description_in_quality(self):
-        doc = export_odcs("test", self._make_rules())
-        email_prop = next(p for p in doc["schema"][0]["properties"] if p["name"] == "email")
-        nn = next(q for q in email_prop["quality"] if q["type"] == "not_null")
-        assert nn["description"] == "required"
+    def test_yaml_helper_round_trips_to_same_dict(self):
+        rules = _rules({"name": "r", "type": "regex", "field": "a", "pattern": "^x$"})
+        assert yaml.safe_load(contract_to_odcs_yaml("t", rules)) == export_odcs("t", rules)
 
 
-# ---------------------------------------------------------------------------
-# TestContractToOdcsYaml
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
+# Export: native projection rules
+# ─────────────────────────────────────────────────────────────────────────────
 
-class TestContractToOdcsYaml:
-    """contract_to_odcs_yaml() returns a valid YAML string."""
-
-    def test_returns_string(self):
-        result = contract_to_odcs_yaml("test", [])
-        assert isinstance(result, str)
-
-    def test_valid_yaml(self):
-        rules = [{"field": "x", "type": "not_empty", "severity": "error", "error_message": "e"}]
-        yaml_str = contract_to_odcs_yaml("test", rules)
-        parsed = yaml.safe_load(yaml_str)
-        assert parsed["apiVersion"] == "v3.1.0"
-
-    def test_empty_rules_produces_empty_properties(self):
-        yaml_str = contract_to_odcs_yaml("test", [])
-        parsed = yaml.safe_load(yaml_str)
-        assert parsed["schema"][0]["properties"] == []
+def _prop(doc: dict, field: str) -> dict:
+    return next(p for p in doc["schema"][0]["properties"] if p["name"] == field)
 
 
-# ---------------------------------------------------------------------------
-# TestODCSAPIEndpoints
-# ---------------------------------------------------------------------------
+class TestExportNativeProjection:
+    def test_error_not_empty_and_unique_project_to_flags(self):
+        doc = export_odcs("t", _rules({"name": "a", "type": "not_empty", "field": "f"},
+                                      {"name": "b", "type": "unique", "field": "f"}))
+        p = _prop(doc, "f")
+        assert p["required"] is True and p["unique"] is True
 
-class TestImportODCSEndpoint:
-    """POST /api/v1/import/odcs"""
+    def test_warning_rules_are_not_projected(self):
+        doc = export_odcs("t", _rules(
+            {"name": "a", "type": "not_empty", "field": "f", "severity": "warning"},
+            {"name": "b", "type": "max", "field": "n", "max_value": 150, "severity": "warning"},
+            {"name": "c", "type": "regex", "field": "s", "pattern": "^x$", "severity": "warning"}))
+        assert "required" not in _prop(doc, "f")
+        assert "logicalTypeOptions" not in _prop(doc, "n")
+        assert "logicalTypeOptions" not in _prop(doc, "s")
+        # …but every rule is still carried as a custom entry with its severity
+        for field in ("f", "n", "s"):
+            assert _prop(doc, field)["quality"][0]["severity"] == "warning"
 
-    def test_requires_auth(self, client):
-        r = client.post("/api/v1/import/odcs", json=MINIMAL_CONTRACT)
-        assert r.status_code == 401
+    def test_string_options(self):
+        doc = export_odcs("t", _rules(
+            {"name": "a", "type": "regex", "field": "s", "pattern": "^x$"},
+            {"name": "b", "type": "min_length", "field": "s", "min_length": 2},
+            {"name": "c", "type": "max_length", "field": "s", "max_length": 5}))
+        p = _prop(doc, "s")
+        assert p["logicalType"] == "string"
+        assert p["logicalTypeOptions"] == {"pattern": "^x$", "minLength": 2, "maxLength": 5}
 
-    def test_returns_200_with_auth(self, client, editor_headers):
-        r = client.post("/api/v1/import/odcs", json=MINIMAL_CONTRACT, headers=editor_headers)
-        assert r.status_code == 200
+    def test_number_options_from_min_max_range(self):
+        doc = export_odcs("t", _rules(
+            {"name": "a", "type": "range", "field": "n", "min": 1, "max": 9},
+            {"name": "b", "type": "min", "field": "m", "min_value": 0},
+            {"name": "c", "type": "max", "field": "k", "max_value": 100}))
+        assert _prop(doc, "n")["logicalTypeOptions"] == {"minimum": 1.0, "maximum": 9.0}
+        assert _prop(doc, "m")["logicalTypeOptions"] == {"minimum": 0.0}
+        assert _prop(doc, "k")["logicalTypeOptions"] == {"maximum": 100.0}
+        assert _prop(doc, "n")["logicalType"] == "number"
 
-    def test_response_has_contract(self, client, editor_headers):
-        r = client.post("/api/v1/import/odcs", json=MINIMAL_CONTRACT, headers=editor_headers)
-        data = r.json()
-        assert "contract" in data
+    def test_date_format_projects_jdk_pattern(self):
+        doc = export_odcs("t", _rules({"name": "a", "type": "date_format", "field": "d", "format": "%Y-%m-%d"}))
+        p = _prop(doc, "d")
+        assert p["logicalType"] == "date"
+        assert p["logicalTypeOptions"] == {"format": "yyyy-MM-dd"}
 
-    def test_response_has_rule_count(self, client, editor_headers):
-        r = client.post("/api/v1/import/odcs", json=MINIMAL_CONTRACT, headers=editor_headers)
-        data = r.json()
-        assert "rule_count" in data
-        assert data["rule_count"] >= 2  # email: not_empty + unique; name: not_empty
+    def test_unrepresentable_date_format_not_projected(self):
+        doc = export_odcs("t", _rules({"name": "a", "type": "date_format", "field": "d", "format": "%d %b %Y"}))
+        assert "logicalTypeOptions" not in _prop(doc, "d")
+        assert _schema_errors(doc) == []
 
-    def test_response_has_skipped_checks(self, client, editor_headers):
-        r = client.post("/api/v1/import/odcs", json=MINIMAL_CONTRACT, headers=editor_headers)
-        assert "skipped_checks" in r.json()
+    def test_conflicting_types_on_one_field_stay_schema_valid(self):
+        """regex + min on the same field: number wins, pattern is custom-only (Sonnet blocker #2)."""
+        doc = export_odcs("t", _rules(
+            {"name": "a", "type": "regex", "field": "f", "pattern": "^[0-9]+$"},
+            {"name": "b", "type": "min", "field": "f", "min_value": 0}))
+        p = _prop(doc, "f")
+        assert p["logicalType"] == "number"
+        assert p["logicalTypeOptions"] == {"minimum": 0.0}
+        assert _schema_errors(doc) == []
+        assert {q["name"] for q in p["quality"]} == {"a", "b"}
 
-    def test_rules_have_correct_fields(self, client, editor_headers):
-        r = client.post("/api/v1/import/odcs", json=MINIMAL_CONTRACT, headers=editor_headers)
-        rules = r.json()["contract"]["rules"]
-        for rule in rules:
-            assert "name" in rule
-            assert "type" in rule
-            assert "field" in rule
-            assert "severity" in rule
+    def test_lookup_allowed_values_emits_library_invalid_values(self):
+        doc = export_odcs("t", _rules({"name": "a", "type": "lookup", "field": "c", "allowed_values": ["GB", "IE"]}))
+        lib = [q for q in _prop(doc, "c")["quality"] if q["type"] == "library"]
+        assert lib == [{"type": "library", "metric": "invalidValues", "arguments": {"validValues": ["GB", "IE"]},
+                        "mustBe": 0, "severity": "error", "dimension": "conformity",
+                        "description": "Validation failed"}]
+
+    def test_custom_entry_shape(self):
+        doc = export_odcs("t", _rules({"name": "cmp", "type": "compare", "field": "end", "compare_to": "start",
+                                       "compare_op": "gte", "error_message": "end before start"}))
+        q = _prop(doc, "end")["quality"][0]
+        assert q["type"] == "custom" and q["engine"] == "opendqv"
+        assert q["name"] == "cmp" and q["severity"] == "error" and q["dimension"] == "consistency"
+        assert q["description"] == "end before start"
+        assert q["implementation"]["type"] == "compare"
+        assert q["implementation"]["compare_to"] == "start"
+        assert "min" not in q["implementation"] and "inherited" not in q["implementation"]
+
+    def test_every_rule_becomes_exactly_one_custom_entry(self):
+        for name in ("customer", "sox_control_test", "hipaa_disclosure_accounting"):
+            c = _load_bundled(name)
+            doc = _export_bundled(name)
+            custom = [q for p in doc["schema"][0]["properties"] for q in p["quality"] if q["type"] == "custom"]
+            assert len(custom) == len(c["rules"])
+            assert [q["name"] for q in custom] == [r["name"] for r in c["rules"]]
+
+    def test_export_is_deterministic(self):
+        assert _export_bundled("customer") == _export_bundled("customer")
 
 
-class TestExportODCSEndpoint:
-    """GET /api/v1/export/odcs/{contract_name}"""
+# ─────────────────────────────────────────────────────────────────────────────
+# Round trip
+# ─────────────────────────────────────────────────────────────────────────────
 
-    def test_requires_auth(self, client):
-        r = client.get("/api/v1/export/odcs/customer")
-        assert r.status_code == 401
+class TestRoundTrip:
+    @pytest.mark.parametrize("name", _bundled_contract_names())
+    def test_export_import_export_is_idempotent(self, name):
+        c = _load_bundled(name)
+        doc = _export_bundled(name)
+        imported = import_odcs(yaml.safe_load(yaml.dump(doc, sort_keys=False, allow_unicode=True)))
+        ic = imported["contract"]
+        assert len(ic["rules"]) == len(c.get("rules", []))
+        assert imported["skipped_checks"] == []
+        doc2 = export_odcs(ic["name"], [Rule(**r) for r in ic["rules"]], ic["version"], ic["status"],
+                           ic["description"], ic["owner"], ic.get("owner_email"))
+        assert doc2 == doc
 
-    def test_returns_200_for_known_contract(self, client, auth_headers):
+    def test_severity_and_message_survive(self):
+        rules = _rules({"name": "a", "type": "max", "field": "age", "max_value": 150,
+                        "severity": "warning", "error_message": "Age seems high"})
+        back = import_odcs(export_odcs("t", rules))["contract"]["rules"]
+        assert back == [{"name": "a", "type": "max", "field": "age", "severity": "warning",
+                         "error_message": "Age seems high", "max_value": 150.0}]
+
+    def test_status_round_trips_via_custom_property(self):
+        for s in ("draft", "review", "active", "archived"):
+            assert import_odcs(export_odcs("t", [], status=s))["contract"]["status"] == s
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Import: real ODCS documents
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestImportNative:
+    def test_full_example_from_spec(self):
+        r = import_odcs(FULL_EXAMPLE)
+        c = r["contract"]
+        assert c["version"] == "1.1.0"
+        assert c["status"] == "active"
+        assert c["owner"] == "my-team"
+        types = {(x["type"], x["field"]) for x in c["rules"]}
+        assert ("not_empty", "id") in types
+        assert ("unique", "id") in types
+        assert ("not_empty", "rcvr_cntry_code") in types
+        assert any("rowCount" in s for s in r["skipped_checks"])
+
+    def test_top_level_metadata(self):
+        c = import_odcs(NATIVE_ODCS)["contract"]
+        assert c["name"] == "customer_orders"
+        assert c["version"] == "2.0"
+        assert c["status"] == "active"
+        assert c["description"] == "Orders placed by customers"
+        assert c["owner"] == "data-team"
+        assert c["owner_email"] == "owner@example.com"
+
+    def test_name_falls_back_to_id_then_default(self):
+        base = {"apiVersion": "v3.1.0", "kind": "DataContract", "version": "1", "status": "draft", "schema": []}
+        assert import_odcs({**base, "id": "My-ID 7"})["contract"]["name"] == "my_id_7"
+        assert import_odcs(base)["contract"]["name"] == "imported_contract"
+
+    def test_status_vocabulary_mapping(self):
+        base = {"apiVersion": "v3.1.0", "kind": "DataContract", "id": "x", "version": "1", "schema": []}
+        for odcs, ours in (("proposed", "review"), ("deprecated", "archived"), ("retired", "archived"),
+                           ("draft", "draft"), ("active", "active"), ("weird", "draft")):
+            assert import_odcs({**base, "status": odcs})["contract"]["status"] == ours
+
+    def _by(self, result, rtype, field):
+        return next(r for r in result["contract"]["rules"] if r["type"] == rtype and r["field"] == field)
+
+    def test_flags_and_string_options(self):
+        r = import_odcs(NATIVE_ODCS)
+        assert self._by(r, "not_empty", "order_id")["severity"] == "error"
+        assert self._by(r, "unique", "order_id")
+        assert self._by(r, "regex", "order_id")["pattern"] == "^ORD-[0-9]{6}$"
+        assert self._by(r, "min_length", "order_id")["min_length"] == 10
+        assert self._by(r, "max_length", "order_id")["max_length"] == 10
+
+    def test_number_options(self):
+        r = import_odcs(NATIVE_ODCS)
+        rng = self._by(r, "range", "amount")
+        assert rng["min_value"] == 0.0 and rng["max_value"] == 10000.0
+        assert self._by(r, "min", "qty")["min_value"] == 0.0
+        assert any("qty.exclusiveMinimum" in s for s in r["skipped_checks"])
+
+    def test_date_format_jdk_to_strftime(self):
+        r = import_odcs(NATIVE_ODCS)
+        assert self._by(r, "date_format", "order_date")["format"] == "%Y-%m-%d"
+
+    def test_library_metrics(self):
+        r = import_odcs(NATIVE_ODCS)
+        assert self._by(r, "lookup", "country")["allowed_values"] == ["GB", "IE"]
+        assert self._by(r, "not_empty", "email")["severity"] == "warning"
+        assert self._by(r, "unique", "email")["severity"] == "error"
+
+    def test_dataset_level_and_text_sql_are_skipped_with_reason(self):
+        r = import_odcs(NATIVE_ODCS)
+        joined = " | ".join(r["skipped_checks"])
+        assert "country.nullValues" in joined      # percent threshold → dataset-level
+        assert "country.text" in joined
+        assert "email.sql" in joined
+
+    def test_deprecated_rule_key_accepted(self):
+        doc = copy.deepcopy(NATIVE_ODCS)
+        doc["schema"][0]["properties"] = [{"name": "f", "quality": [{"type": "library", "rule": "nullValues", "mustBe": 0}]}]
+        assert self._by(import_odcs(doc), "not_empty", "f")
+
+    def test_v3_0_accepted(self):
+        doc = {**copy.deepcopy(NATIVE_ODCS), "apiVersion": "v3.0.0"}
+        assert import_odcs(doc)["rule_count"] > 0
+
+    def test_v3_0_team_list_form(self):
+        doc = {**copy.deepcopy(NATIVE_ODCS), "apiVersion": "v3.0.0",
+               "team": [{"username": "a@example.com", "role": "owner"}]}
+        c = import_odcs(doc)["contract"]
+        assert c["owner"] == "a@example.com" and c["owner_email"] == "a@example.com"
+
+    def test_rule_names_unique_across_objects_and_flatten_is_reported(self):
+        doc = copy.deepcopy(NATIVE_ODCS)
+        doc["schema"].append({"name": "second", "properties": [
+            {"name": "order_id", "required": True},        # duplicate of orders.order_id
+            {"name": "note", "required": True},
+        ]})
+        r = import_odcs(doc)
+        names = [x["name"] for x in r["contract"]["rules"]]
+        assert len(names) == len(set(names))
+        assert any("second.order_id (duplicate of orders.order_id" in s for s in r["skipped_checks"])
+        assert self._by(r, "not_empty", "note")
+
+    def test_native_flag_and_library_entry_not_double_counted(self):
+        doc = copy.deepcopy(NATIVE_ODCS)
+        doc["schema"][0]["properties"] = [{"name": "f", "required": True,
+                                           "quality": [{"type": "library", "metric": "nullValues", "mustBe": 0}]}]
+        r = import_odcs(doc)
+        assert [x["type"] for x in r["contract"]["rules"]] == ["not_empty"]
+
+    def test_passthrough_metadata(self):
+        r = import_odcs(FULL_EXAMPLE)
+        assert "servers" in r["_odcs_metadata"]
+        assert "schema" not in r["_odcs_metadata"]
+
+    def test_odcs_to_yaml_override_name(self):
+        name, text = odcs_to_yaml(NATIVE_ODCS, "override")
+        assert name == "override"
+        assert yaml.safe_load(text)["contract"]["name"] == "override"
+
+
+class TestImportCustomOpenDQV:
+    def _doc(self, quality, **prop):
+        return {"apiVersion": "v3.1.0", "kind": "DataContract", "id": "x", "version": "1", "status": "draft",
+                "schema": [{"name": "o", "properties": [{"name": "f", **prop, "quality": quality}]}]}
+
+    def test_custom_overrides_native_projection(self):
+        doc = self._doc([{"type": "custom", "engine": "opendqv",
+                          "implementation": {"name": "only", "type": "min", "field": "f", "min": 3,
+                                             "severity": "warning", "error_message": "m"}}],
+                        required=True, logicalTypeOptions={"pattern": "^x$"})
+        rules = import_odcs(doc)["contract"]["rules"]
+        assert rules == [{"name": "only", "type": "min", "field": "f", "severity": "warning",
+                          "error_message": "m", "min_value": 3.0}]
+
+    def test_field_defaults_to_property_name(self):
+        doc = self._doc([{"type": "custom", "engine": "opendqv", "implementation": {"type": "not_empty"}}])
+        r = import_odcs(doc)["contract"]["rules"][0]
+        assert r["field"] == "f" and r["name"] == "f_not_empty"
+
+    def test_other_engine_is_skipped(self):
+        doc = self._doc([{"type": "custom", "engine": "soda", "implementation": "checks: []"}])
+        r = import_odcs(doc)
+        assert r["contract"]["rules"] == [] and "f.custom (engine 'soda')" in r["skipped_checks"]
+
+    @pytest.mark.parametrize("field,value", [
+        ("inherited", True),
+        ("federation_tier", "REGULATORY"),
+        ("provenance", {"authority_node": "evil", "lsn": 1}),
+        ("severity_floor", "error"),
+        ("lookup_auth_header", "Bearer ${OPENDQV_LOOKUP_TOKEN}"),
+    ])
+    def test_denied_fields_fail_closed(self, field, value):
+        """Sonnet blocker #1: an import must not mint authority/provenance/credential fields."""
+        doc = self._doc([{"type": "custom", "engine": "opendqv",
+                          "implementation": {"type": "not_empty", field: value}}])
+        with pytest.raises(ValueError, match="may not be set by an ODCS import"):
+            import_odcs(doc)
+
+    def test_unknown_field_fails_closed(self):
+        doc = self._doc([{"type": "custom", "engine": "opendqv",
+                          "implementation": {"type": "not_empty", "bogus": 1}}])
+        with pytest.raises(ValueError, match="unknown rule field"):
+            import_odcs(doc)
+
+    def test_invalid_rule_fails_closed_without_stack_detail(self):
+        doc = self._doc([{"type": "custom", "engine": "opendqv",
+                          "implementation": {"type": "regex", "pattern": 123}}])
+        with pytest.raises(ValueError) as exc:
+            import_odcs(doc)
+        assert "invalid rule" in str(exc.value) and "Traceback" not in str(exc.value)
+
+    def test_non_dict_implementation_rejected(self):
+        doc = self._doc([{"type": "custom", "engine": "opendqv", "implementation": "SELECT 1"}])
+        with pytest.raises(ValueError, match="must be an object"):
+            import_odcs(doc)
+
+
+class TestImportRejectsNonODCS3:
+    @pytest.mark.parametrize("doc,msg", [
+        ({"kind": "DataContract"}, "Unsupported apiVersion"),
+        ({"apiVersion": "v2.2.2", "kind": "DataContract"}, "Unsupported apiVersion"),
+        ({"apiVersion": "v3.1.0", "kind": "DataProduct"}, "kind must be"),
+        ({"apiVersion": "v3.1.0", "kind": "DataContract", "schema": {"not": "a list"}}, "schema must be a list"),
+        ("not a mapping", "must be a mapping"),
+    ])
+    def test_rejected(self, doc, msg):
+        with pytest.raises(ValueError, match=msg):
+            import_odcs(doc)
+
+    def test_legacy_invented_shape_is_rejected_not_silently_empty(self):
+        """The pre-v2.4.0 `info:` + `mustBeSatisfied` shape must not import as a valid-looking empty contract."""
+        legacy = {"apiVersion": "v3.1.0", "kind": "DataContract",
+                  "info": {"title": "x", "version": "1.0"},
+                  "schema": [{"name": "t", "properties": [{"name": "f", "quality": [
+                      {"type": "not_null", "mustBeSatisfied": True}]}]}]}
+        r = import_odcs(legacy)
+        assert r["contract"]["rules"] == []
+        assert any("unknown quality type" in s for s in r["skipped_checks"])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Date-format helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestDateFormatConversion:
+    @pytest.mark.parametrize("ours,jdk", [
+        ("%Y-%m-%d", "yyyy-MM-dd"),
+        ("%Y-%m-%dT%H:%M:%S", "yyyy-MM-dd'T'HH:mm:ss".replace("'T'", "T")),
+        ("YYYY-MM-DD", "yyyy-MM-dd"),
+        ("YYYY-MM-DD HH:MM:SS", "yyyy-MM-dd HH:mm:ss"),
+        ("DD/MM/YYYY", "dd/MM/yyyy"),
+    ])
+    def test_to_jdk(self, ours, jdk):
+        assert _to_jdk_format(ours) == jdk
+
+    def test_to_jdk_unsupported_returns_none(self):
+        assert _to_jdk_format("%d %b %Y") is None
+        assert _to_jdk_format("") is None
+
+    @pytest.mark.parametrize("jdk,strf", [
+        ("yyyy-MM-dd", "%Y-%m-%d"),
+        ("yyyy-MM-dd HH:mm:ss", "%Y-%m-%d %H:%M:%S"),
+        ("dd/MM/yyyy", "%d/%m/%Y"),
+    ])
+    def test_from_jdk(self, jdk, strf):
+        assert _from_jdk_format(jdk) == strf
+
+    def test_from_jdk_unsupported_returns_none(self):
+        assert _from_jdk_format("EEE, dd MMM yyyy") is None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# API surface
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestODCSAPI:
+    def test_export_endpoint_is_schema_valid(self, client, auth_headers):
         r = client.get("/api/v1/export/odcs/customer", headers=auth_headers)
         assert r.status_code == 200
+        assert _schema_errors(yaml.safe_load(r.text)) == []
 
-    def test_returns_404_for_unknown_contract(self, client, auth_headers):
-        r = client.get("/api/v1/export/odcs/nonexistent_zzz", headers=auth_headers)
-        assert r.status_code == 404
+    def test_import_native_document(self, client, editor_headers):
+        r = client.post("/api/v1/import/odcs", json=NATIVE_ODCS, headers=editor_headers)
+        assert r.status_code == 200
+        body = r.json()
+        assert body["rule_count"] > 0
+        assert body["contract"]["status"] == "draft"
 
-    def test_content_type_is_yaml(self, client, auth_headers):
-        r = client.get("/api/v1/export/odcs/customer", headers=auth_headers)
-        assert "yaml" in r.headers.get("content-type", "")
+    def test_import_non_odcs_returns_422(self, client, editor_headers):
+        r = client.post("/api/v1/import/odcs", json={"info": {"title": "x"}}, headers=editor_headers)
+        assert r.status_code == 422
+        assert "Unsupported apiVersion" in r.json()["detail"]
 
-    def test_response_is_valid_yaml(self, client, auth_headers):
-        r = client.get("/api/v1/export/odcs/customer", headers=auth_headers)
-        parsed = yaml.safe_load(r.text)
-        assert parsed is not None
-
-    def test_api_version_in_response(self, client, auth_headers):
-        r = client.get("/api/v1/export/odcs/customer", headers=auth_headers)
-        parsed = yaml.safe_load(r.text)
-        assert parsed["apiVersion"] == "v3.1.0"
-
-    def test_kind_is_data_contract(self, client, auth_headers):
-        r = client.get("/api/v1/export/odcs/customer", headers=auth_headers)
-        parsed = yaml.safe_load(r.text)
-        assert parsed["kind"] == "DataContract"
-
-    def test_schema_has_properties(self, client, auth_headers):
-        r = client.get("/api/v1/export/odcs/customer", headers=auth_headers)
-        parsed = yaml.safe_load(r.text)
-        assert len(parsed["schema"][0]["properties"]) > 0
+    def test_import_denied_field_returns_422(self, client, editor_headers):
+        doc = {"apiVersion": "v3.1.0", "kind": "DataContract", "id": "x", "version": "1", "status": "draft",
+               "schema": [{"name": "o", "properties": [{"name": "f", "quality": [
+                   {"type": "custom", "engine": "opendqv",
+                    "implementation": {"type": "not_empty", "inherited": True}}]}]}]}
+        r = client.post("/api/v1/import/odcs", json=doc, headers=editor_headers)
+        assert r.status_code == 422
+        assert "may not be set" in r.json()["detail"]
 
 
-# ---------------------------------------------------------------------------
-# C1/C2 — _odcs_metadata passthrough tests
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
+# Optional external oracle: datacontract-cli
+# ─────────────────────────────────────────────────────────────────────────────
 
-class TestOdcsMetadataPassthrough:
-    """Tests for preserving unknown top-level ODCS sections (C1/C2)."""
+_DATACONTRACT = shutil.which("datacontract") or os.environ.get("OPENDQV_DATACONTRACT_BIN")
 
-    _CONTRACT_WITH_EXTRA = {
-        "apiVersion": "v3.1.0",
-        "kind": "DataContract",
-        "info": {
-            "title": "Order Contract",
-            "version": "1.0",
-            "status": "active",
-        },
-        "schema": [
-            {
-                "name": "orders",
-                "properties": [
-                    {
-                        "name": "order_id",
-                        "required": True,
-                    }
-                ],
-            }
-        ],
-        "sla": {
-            "responseTime": "100ms",
-            "availability": "99.9%",
-        },
-        "semantics": {
-            "description": "Order domain ontology",
-        },
-    }
 
-    def test_passthrough_import_preserves_sla(self):
-        result = import_odcs(self._CONTRACT_WITH_EXTRA)
-        assert "_odcs_metadata" in result
-        assert "sla" in result["_odcs_metadata"]
-        assert result["_odcs_metadata"]["sla"]["availability"] == "99.9%"
-
-    def test_passthrough_import_rules_unaffected(self):
-        result = import_odcs(self._CONTRACT_WITH_EXTRA)
-        assert result["rule_count"] == 1
-        assert result["contract"]["rules"][0]["type"] == "not_empty"
-
-    def test_clean_import_has_empty_odcs_metadata(self):
-        clean = {
-            "apiVersion": "v3.1.0",
-            "kind": "DataContract",
-            "info": {"title": "Clean", "version": "1.0"},
-            "schema": [],
-        }
-        result = import_odcs(clean)
-        assert "_odcs_metadata" in result
-        assert result["_odcs_metadata"] == {}
-
-    def test_round_trip_preserves_sla_and_semantics(self):
-        imported = import_odcs(self._CONTRACT_WITH_EXTRA)
-        exported = export_odcs(
-            contract_name=imported["contract"]["name"],
-            rules=imported["contract"]["rules"],
-            odcs_metadata=imported["_odcs_metadata"],
-        )
-        assert "sla" in exported
-        assert exported["sla"]["responseTime"] == "100ms"
-        assert "semantics" in exported
-        assert exported["semantics"]["description"] == "Order domain ontology"
+@pytest.mark.skipif(not _DATACONTRACT, reason="datacontract-cli not installed")
+class TestDatacontractCliLint:
+    @pytest.mark.parametrize("name", ["customer", "sox_control_test", "hipaa_disclosure_accounting"])
+    def test_export_passes_datacontract_lint(self, name, tmp_path):
+        out = tmp_path / f"{name}.odcs.yaml"
+        out.write_text(yaml.dump(_export_bundled(name), sort_keys=False, allow_unicode=True), encoding="utf-8")
+        proc = subprocess.run([_DATACONTRACT, "lint", str(out)], capture_output=True, text=True, timeout=120)
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        assert "data contract is valid" in proc.stdout

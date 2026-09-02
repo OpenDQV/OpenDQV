@@ -2,6 +2,60 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.4.0] - 2026-09-02
+
+ODCS compliance release (CRT179, minor tier — **breaking wire-format change**
+on `export-odcs` / `GET /export/odcs/{name}` and `import-odcs` / `POST /import/odcs`).
+
+**What was wrong.** Since v1.0 the ODCS importer/exporter claimed "ODCS 3.1" but
+emitted and consumed an invented shape: an `info:` block (ODCS 3 has none —
+`id`, `version`, `status` are required top-level fields), quality entries typed
+`not_null` / `regex` / `min` / … (the ODCS enum is `text | library | sql | custom`)
+and a `mustBeSatisfied` flag that does not exist in the standard. Verified against
+the official ODCS v3.1.0 JSON schema and `datacontract lint` (datacontract-cli
+1.1.2): every export failed on the first check, and a real ODCS document imported
+as an empty contract named `imported_contract`.
+
+**Export (now ODCS v3.1.0, schema-valid).** Top-level `id`/`name`/`version`/`status`
+(lifecycle mapped to the ODCS vocabulary, original kept in
+`customProperties[opendqv.status]`), `description.purpose`, `team` for owner.
+Every rule is carried losslessly as a `quality` entry of `type: custom, engine:
+opendqv` (severity, error_message and all cross-field parameters survive a round
+trip). Error-severity rules are additionally projected onto the native fields
+other tools read — `required`, `unique`, `logicalTypeOptions` (`pattern`,
+`minLength`/`maxLength`, `minimum`/`maximum`, JDK date `format`) and a
+`library invalidValues` metric for `allowed_values` lookups. Warning-severity
+rules are deliberately never projected: a native ODCS constraint is a hard
+constraint to every downstream consumer. One `logicalType` per field (numeric >
+date > string); incompatible rules stay custom-only so the document remains valid.
+
+**Import (ODCS v3.0.x / v3.1.0).** Reads real ODCS: top-level fields, `team` (3.1
+object or 3.0 member list), `required`/`unique`, `logicalTypeOptions`, record-level
+library metrics (`nullValues` / `duplicateValues` / `invalidValues` with `mustBe: 0`,
+deprecated `rule:` spelling accepted) and `custom/opendqv` entries (authoritative —
+native projections on that property are ignored). Everything dataset-level or
+inexpressible (`text`, `sql`, other engines, object-level checks, `rowCount`,
+percentage thresholds, `multipleOf`, date bounds, exclusive bounds treated as
+inclusive, duplicate fields across flattened schema objects) is reported in
+`skipped_checks` — nothing is dropped silently. Non-ODCS-3 documents (including
+the old invented shape) and invalid rules return **HTTP 422** instead of 200/500.
+
+**Import safety (Sonnet pre-implementation review).** A `custom/opendqv`
+implementation is allow-listed against the `Rule` model and may not set
+`inherited`, `federation_tier`, `provenance`, `severity_floor` or
+`lookup_auth_header` — an import must not mint federation authority, audit
+provenance or outbound-credential intent. Invalid rules fail the whole import.
+
+**Verification gate (new, permanent).** `tests/test_odcs_import.py` validates every
+bundled contract's export against the vendored official schema
+(`tests/fixtures/odcs-json-schema-v3.1.0.json`), proves export → import → export
+is idempotent on all 41 bundled contracts with zero skipped checks, imports the
+spec's own `full-example.odcs.yaml`, and — when `datacontract` is on PATH or
+`OPENDQV_DATACONTRACT_BIN` is set — runs `datacontract lint` on the output.
+
+Docs: `importers.md` (full export/import mapping tables), `cli.md`,
+`api_reference.md`, `troubleshooting.md`, UI import placeholder.
+
 ## [2.3.30] - 2026-08-06
 
 Contract-governance release (CRT177 Tier 2, patch tier). Closes four paths that
