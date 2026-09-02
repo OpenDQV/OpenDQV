@@ -130,7 +130,8 @@ contract:
         error_message: "LeadSource must be set for web form leads (e.g. 'Web', 'Landing Page')."
       Email:
         type: regex
-        pattern: "^(?!.*@(mailinator|guerrillamail|tempmail|throwaway)\\.com$).*$"
+        pattern: ".*@(mailinator|guerrillamail|tempmail|throwaway)\\.com$"
+        negate: true
         error_message: "Disposable email addresses are not allowed from web forms."
 
     trade_show:

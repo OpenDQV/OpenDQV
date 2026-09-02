@@ -98,7 +98,7 @@ what the format documents.
 | dora_ict_incident | `final_report_timeline` | `date_diff` vs detection, max 30 | vs intermediate report, 0–31 | different reading of the reporting clock |
 | dora_ict_incident | `detection_timestamp_format`, `initial_notification_timestamp_format` | `date_format` | `regex` ISO-8601 with offset | regex is stricter (requires an offset) |
 | insurance_claim | `claimed_amount_min` | `min: 0` | `min: 0.01` | zero-value claims: reject or allow? |
-| martyns_law_event | `expected_attendance_minimum` | `min: 200` | `min: 800` | 200 is the standard-tier threshold; 800 the enhanced tier — the managed copy looks wrong for an events contract |
+| martyns_law_event | `expected_attendance_minimum` | `min: 200` | `min: 800` | **Correction (review round 1):** the managed copy is right and this row was wrong. Terrorism (Protection of Premises) Act 2025 (c. 10) s.3(1)(d): a qualifying *event* requires "800 or more individuals"; the 200 threshold is s.2(2)(c) for *premises*. Core's 200 should become 800 — filed as an issue rather than changed here |
 | martyns_law_event | `duty_tier_valid` | `ref/martyns_law_duty_tiers.txt` | `ref/martyns_law_event_duty_tiers.txt` | reference-file naming |
 | mifid_transaction_report | `quantity_min`, `price_min` | `min: 0` | `min: 1` / `min: 0.01` | zero quantity/price |
 | mifid_transaction_report | `execution_timestamp_format` | exactly 6 fractional digits | 1–6 optional | RTS 25 precision reading |
