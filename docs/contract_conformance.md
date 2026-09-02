@@ -39,7 +39,7 @@ Conformance therefore has to be engineered:
 | Layer | Core | Managed engine | Status after CRT180 |
 |---|---|---|---|
 | Rule type `not_empty_string` | absent — a contract using it loaded and the rule silently passed (unknown type) | shipped | **closed** — added in 1/4 |
-| Contract flag `strict_schema` + `fields` | absent — the key was dropped on parse and undeclared fields passed | shipped | **closed** — added in 2/4 |
+| Contract flag `strict_schema` + `allowed_fields` | absent — the key was dropped on parse and undeclared fields passed | shipped | **closed** — added in 2/4 |
 | `contexts:` block | implemented (five bundled contracts use it) | not implemented — refused at validate time with an explicit error | **open** — decision D1 below |
 | Rule key `optional` | not in the Rule model (ignored) | implemented (opts a field out of implicit-required semantics) | **open** — decision D2 |
 | Envelope | bundled files use the `contract:` wrapper; loader accepts wrapped and flat | flat only; wrapper rejected | **open** — decision D3 |
@@ -124,17 +124,38 @@ its build fails if the mirror differs from the tag.
 `tests/fixtures/conformance/<contract>.jsonl` — one JSON object per line:
 
 ```json
-{"record": {...}, "expect": {"valid": false, "error_codes": ["OPENDQV_NOT_EMPTY_AMOUNT_REQUIRED"], "warning_codes": []}}
+{"kind": "probe",
+ "record": {...},
+ "expect": {"valid": false,
+            "errors":   [{"code": "OPENDQV_NOT_EMPTY_AMOUNT_REQUIRED", "severity": "error", "message": "amount is required"}],
+            "warnings": []}}
 ```
 
-Probe records are synthesised by `scripts/conformance_fixtures.py` from the
-contract's own rules (an empty record, one violating record per rule, an
-all-strings record, and one with an undeclared field), and the expectation
-is Core's single-record verdict. `tests/test_conformance_fixtures.py` proves
-Core reproduces its own fixtures on every run. The other engine runs the
-same files from a pinned tag of this repository; a disagreement is filed
-here as a spec question. Hand-crafted clean rows per contract are the next
-improvement — a synthesised record is rarely clean.
+Three kinds of line. `probe` records are synthesised by
+`scripts/conformance_fixtures.py` from the contract's own rules (an empty
+record, one violating record per rule, an all-strings record, and one with
+an undeclared field). `clean` and `warning_only` records are hand-written in
+`scripts/conformance_clean_rows.py` so the corpus proves *acceptance* as
+well as rejection — every fixture carries at least one clean row, and a
+warning-only row wherever the contract has a warning-severity rule.
+
+The expectation is Core's verdict — code, severity and message — computed
+on **both** validate paths. The generator refuses to emit a corpus in which
+`validate_record` and `validate_batch` disagree, in which a clean row is not
+clean, or in which a rule type in the validator's handler table has no
+violation probe. `tests/test_conformance_fixtures.py` proves Core reproduces
+its own fixtures on every run: each line on the single path, each line as a
+one-record batch, and the whole corpus as a single batch (where only
+`unique`, whose scope is the batch by definition, may differ). Two of the
+five fixture contracts (`banking_transaction`, `dora_ict_incident`) are
+`strict_schema: true`, so the undeclared-field probe is a rejection there.
+
+The other engine runs the same files from a pinned tag of this repository;
+a disagreement is filed here as a spec question. `library_manifest.json`
+(`scripts/library_manifest.py`, CI-checked) names the library version that
+engine mirrored: one SHA-256 per contract's rules and one for the whole
+library, so "which contracts changed since the tag we synced" is a diff of
+two small JSON files.
 
 Error codes are deterministic and engine-independent: `OPENDQV_<RULE_TYPE>_<RULE_NAME>`
 upper-cased, plus `OPENDQV_TYPE_MISMATCH`, `OPENDQV_REQUIRED_FIELD_MISSING`
@@ -154,6 +175,9 @@ same synced contracts (wrapper removed — the only transformation).
 | dora_ict_incident | 40 | 35 | 5 |
 | nhs_dsp_patient | 20 | 18 | 2 |
 | **total** | **111** | **100** | **11** |
+
+(First run, on the original code-only corpus. The second run, on the
+rebuilt corpus after review round 1, follows this section.)
 
 Every one of the 111 probes gets the **same `valid` verdict** on both
 engines. The 11 differences are in which error codes accompany an invalid
@@ -183,14 +207,137 @@ A third class existed for one run and is gone: the first cut of
 first) reports it under the rule's own code. The fixtures caught it within
 minutes; Core now matches. That is the mechanism working.
 
+## Second cross-engine run (2026-09-02, after review round 1)
+
+Same method, rebuilt corpus: 120 rows across the five fixtures, each
+expectation now `{code, severity, message}` per finding, with the
+hand-written clean and warning-only rows. The managed engine's probe
+compares the verdict, the sorted code+severity set, and — separately — the
+messages.
+
+| Fixture | Rows | Identical (verdict + code + severity) | … incl. messages | Verdict | Clean | Warning-only |
+|---|---|---|---|---|---|---|
+| banking_transaction (strict) | 18 | 17 | 16 | 18/18 | 1/1 | 1/1 |
+| hr_employee | 22 | 20 | 20 | 22/22 | 1/1 | 1/1 |
+| customer | 17 | 16 | 16 | 17/17 | 1/1 | 1/1 |
+| dora_ict_incident (strict) | 41 | 36 | 36 | 41/41 | 1/1 | — |
+| nhs_dsp_patient | 22 | 20 | 20 | 22/22 | 1/1 | 1/1 |
+| **total** | **120** | **109** | **108** | **120/120** | **5/5** | **4/4** |
+
+**Every row gets the same verdict on both engines, every clean row is clean
+on both, every warning-only row is warning-only on both, and both strict
+contracts reject the undeclared-field probe identically.** The 11 rows that
+differ in codes are exactly the two classes already on the register:
+
+- **Class A — implicit-required, 4 rows** (the `{}` probe in banking, hr,
+  customer, nhs): the managed engine adds `OPENDQV_REQUIRED_FIELD_MISSING`
+  per absent error-severity format field. → D2.
+- **Class B — empty string, 7 rows** (hr 1, dora 5, nhs 1): the managed
+  engine fires the format rule on `""` as well as `not_empty`. → D6, now
+  normative here; the managed engine adopts Core's reading.
+
+Messages: 108 of the 109 code-identical rows also match message-for-message
+after two wording alignments made in this round — engine-generated messages
+now name the **JSON type** (`got string`, not `got str`) and quote field
+names the same way on both sides. The one remaining difference is a
+behaviour question, not wording:
+
+- **D9 — `min_length` / `max_length` on a non-string (new).** Given
+  `account_number: 42`, Core coerces to `"42"` and reports the contract's
+  own message ("must be at least 6 characters"); the managed engine refuses
+  to coerce and reports a typed message under the same code ("length rule
+  … expects a JSON string, got number"). Same code, same severity, same
+  verdict, different reason. Recommendation: the managed engine's reading —
+  the same no-coercion rule `not_empty_string` already follows — so a
+  length rule never measures the decimal rendering of a number. Not applied
+  here; a maintainer decision.
+
+Two things the run taught about the *harness*, not the engines: the
+managed engine resolves relative `lookup_file:` paths against its
+configured lookup directory (the first run of the rebuilt corpus reported
+three lookup failures until the directory was pointed at `ref/`), and the
+`lookup`-backed clean rows are the only rows whose verdict depends on files
+outside the contract. Both are now noted in the probe procedure.
+
 ## Known issues
 
-**K1 — batch skips absent fields.** `validate_batch` logs "Skipping rule —
-field not in data" and skips the rule when no record in the batch carries the
-field; `validate_record` on each of those records rejects it (`not_empty`).
-A batch of records that all omit a required field validates clean. Pinned by
-`test_k1_batch_skips_rule_when_field_absent_from_every_record` (strict xfail)
-so the fix flips it to a pass deliberately.
+**K1 — batch skipped absent fields (FIXED, review B6).** `validate_batch`
+used to skip a rule when no record in the batch carried the field, so a batch
+of records that all omit a required field validated clean while
+`validate_record` rejected each of them. The batch path now materialises
+every rule field the frame lacks as an all-null column before evaluation,
+so absence is judged by the same presence-class rules on both paths. Pinned
+by `test_k1_batch_matches_single_when_field_absent_from_every_record` and by
+the corpus itself (every line is checked as a one-record batch).
+
+## Review round 1 (2026-09-02) — what the maintainer review changed
+
+Blockers, all fixed on this branch:
+
+- **B1 — dead negated pattern.** Core matches `regex` from the start of the
+  value (`re.match`), so `salesforce_lead.email_not_personal`'s
+  `@(gmail|…)\.com$` could never match and the warning never fired. Now
+  `.*@(gmail|…)\.com$`; regression test pins gmail → warns, corporate → clean,
+  `x@gmail.com.evil` → clean. See **D7** below — this is a spec question the
+  run had not yet reached.
+- **B2 — MCP and GraphQL bypassed `strict_schema`.** Both now splat
+  `strict_schema_kwargs(...)`. A source-level test walks every
+  `validate_record` / `validate_batch` call in `opendqv/` and fails if one
+  omits it, so no surface can regress silently.
+- **B3 — draft fallback read live flags.** The REST STRICT_DRAFT path now
+  reads `last_active_strict_schema` / `last_active_fields`, snapshotted at
+  ACTIVE→DRAFT alongside the rule snapshot.
+- **B4 — Postgres history backend.** DDL, migrations, dedupe, hash inputs,
+  INSERT, `get_as_of`, `get_history` mirror SQLite; test asserts the content
+  hash of a strict contract is identical on both backends.
+- **B5 — batch message parity.** The batch path emits the same typed
+  `not_empty_string` message as the single path (per-row message override).
+- **B6 — K1.** Fixed as above.
+
+Shoulds: `fields:` → `allowed_fields:` everywhere (the old key is accepted
+as a deprecated alias with a `FIELDS_KEY_DEPRECATED` lint warning; allow-list
+names are validated against the same unsafe-character rule as rule fields);
+`OPENDQV_ADDITIONAL_PROPERTIES` names at most ten unknown fields in the
+message ("… and N more") while `unknown_fields` on the entry carries them
+all; `strict_schema: true` set on the six regulated bundled contracts the
+managed library already treats as strict (`banking_transaction`,
+`dora_ict_incident`, `financial_services_customer`, `financial_trade`,
+`mifid_transaction_report`, `sox_control_test`); corpus rebuilt in the
+richer shape with clean and warning-only rows, both paths, and a
+handler-table coverage check (above); `not_empty_string` documented as a
+closed set of one — the format takes no other typed-presence rule without a
+decision here.
+
+Decisions this round settled or opened:
+
+- **D2 — `optional`.** Added to the `Rule` model so the key round-trips.
+  Semantics deliberately **reserved**: Core does not implement
+  implicit-required, so `optional` has no effect here until the format says
+  what a format-only rule on an absent field means. The managed engine's
+  reading (absent + error-severity format rule → `OPENDQV_REQUIRED_FIELD_MISSING`)
+  stays on the register as Class A.
+- **D6 — an empty string is absent. Normative.** For every rule that is
+  not presence-class (`not_empty`, `not_empty_string`, `required_if`), a
+  value of `None` or a whitespace-only string is treated as *absent* and the
+  rule does not fire. Presence is judged only by presence-class rules. A
+  field that carries error-severity format rules and no presence rule
+  therefore accepts `""`; the linter says so with the advisory
+  `FORMAT_ONLY_FIELD_ACCEPTS_EMPTY` (severity `info`, never a failure —
+  optional-when-present is a legitimate design). The managed engine adopts
+  this reading; the Class B rows in the run above flip to identical.
+- **D7 — regex anchoring (new).** Core evaluates `regex` with
+  start-anchored semantics: the pattern must describe the value from its
+  first character; `$` pins the end; a leading `.*` permits a prefix. An
+  engine that *searches* must anchor at the start to conform. Every pattern
+  in the bundled library is now either `^`-anchored or begins with `.*`, so
+  the two readings agree on the library; the format should state one, and
+  this document recommends Core's.
+- **D8 — `date_format` vs. ISO regex in `dora_ict_incident` (new, D4
+  list).** The contract's `date_format` fields accept `YYYY-MM-DD` or
+  `YYYY-MM-DDTHH:MM:SS` with no zone designator, while its two regex-only
+  timestamp fields *require* one. Each field is self-consistent; the
+  contract is not. A judgement call for the library owners, listed with the
+  other D4 rows, not applied.
 
 ## ODCS is the interchange, not the conformance
 

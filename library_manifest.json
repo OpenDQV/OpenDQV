@@ -1,0 +1,334 @@
+{
+  "contracts": [
+    {
+      "file": "agriculture_batch.yaml",
+      "name": "agriculture_batch",
+      "rule_count": 13,
+      "rules_sha256": "b4279557eb8ae6bba17de1bcb36588957a9b1d60be24f21bcf315fa746d262f3",
+      "strict_schema": false,
+      "version": "1.1"
+    },
+    {
+      "file": "automotive_vehicle.yaml",
+      "name": "automotive_vehicle",
+      "rule_count": 16,
+      "rules_sha256": "34597f3f636154101a1cf76b071c0f9acb2eb03e53d029bc55371eb41dda4076",
+      "strict_schema": false,
+      "version": "1.1"
+    },
+    {
+      "file": "banking_transaction.yaml",
+      "name": "banking_transaction",
+      "rule_count": 13,
+      "rules_sha256": "9464a3a58518e958f9309f3e7f75ca8e17e2022db43c8a77782437720c0f2904",
+      "strict_schema": true,
+      "version": "1.1"
+    },
+    {
+      "file": "building_safety_golden_thread.yaml",
+      "name": "building_safety_golden_thread",
+      "rule_count": 26,
+      "rules_sha256": "b190c8c4dbea188879f64d79c3aacb655ecc60de60f4b413a89811f36d3d2020",
+      "strict_schema": false,
+      "version": "1.0"
+    },
+    {
+      "file": "companies_house_filing.yaml",
+      "name": "companies_house_filing",
+      "rule_count": 17,
+      "rules_sha256": "5a762bc140a8c18cf5cc5ab92b5285bd5406021d15694138d58d0b6dcae23bf0",
+      "strict_schema": false,
+      "version": "1.0"
+    },
+    {
+      "file": "customer.yaml",
+      "name": "customer",
+      "rule_count": 12,
+      "rules_sha256": "8526152076163817421ad4a723a6d0223b1978c34a8e3fd7e9d4c323ed059423",
+      "strict_schema": false,
+      "version": "1.0"
+    },
+    {
+      "file": "dora_ict_incident.yaml",
+      "name": "dora_ict_incident",
+      "rule_count": 37,
+      "rules_sha256": "efd7631658b39173e9e51948c8d6db0a5e0e3b092ff091167faec1aa7fc5ae6a",
+      "strict_schema": true,
+      "version": "1.0"
+    },
+    {
+      "file": "education_student.yaml",
+      "name": "education_student",
+      "rule_count": 9,
+      "rules_sha256": "0163288f9b1924aba340540605621cde2537d768c4463451866297cfe02f2ef8",
+      "strict_schema": false,
+      "version": "1.0"
+    },
+    {
+      "file": "eu_gdpr_dsar_request.yaml",
+      "name": "eu_gdpr_dsar_request",
+      "rule_count": 31,
+      "rules_sha256": "f9ad83de37e766a5f13b04d1afa40c65275867b1c6529f4d89fd4dfd052b9861",
+      "strict_schema": false,
+      "version": "1.0"
+    },
+    {
+      "file": "eu_gdpr_processing_record.yaml",
+      "name": "eu_gdpr_processing_record",
+      "rule_count": 31,
+      "rules_sha256": "32ad21cf323e52e90b9c000847ba9f0dce72d6321e9833400ee8c5ffd0f04c84",
+      "strict_schema": false,
+      "version": "1.0"
+    },
+    {
+      "file": "financial_services_customer.yaml",
+      "name": "financial_services_customer",
+      "rule_count": 11,
+      "rules_sha256": "ad9c4f63422ae4d48579b40cbd6a9e4e714c6621caeb6c3b5154289fc1014daf",
+      "strict_schema": true,
+      "version": "1.0"
+    },
+    {
+      "file": "financial_trade.yaml",
+      "name": "financial_trade",
+      "rule_count": 17,
+      "rules_sha256": "154ecc45d1841f7a24d875a3f40e99af2432c00a8137fd5df3a4ee644aec8d10",
+      "strict_schema": true,
+      "version": "1.1"
+    },
+    {
+      "file": "fmcg_product.yaml",
+      "name": "fmcg_product",
+      "rule_count": 15,
+      "rules_sha256": "964007aa44345dcc88414ecc283ec4de8d1041d28030539f3cc73cf76348d98c",
+      "strict_schema": false,
+      "version": "1.1"
+    },
+    {
+      "file": "gdpr_dsar_request.yaml",
+      "name": "gdpr_dsar_request",
+      "rule_count": 31,
+      "rules_sha256": "0c6f2bf302c9b34c1475f21ce5ce16a1086fdf042d0740b7906b5b38226a40e4",
+      "strict_schema": false,
+      "version": "1.0"
+    },
+    {
+      "file": "gdpr_processing_record.yaml",
+      "name": "gdpr_processing_record",
+      "rule_count": 29,
+      "rules_sha256": "c335674e4f66ceb3e23251ff0be441d75bdad3ccdb42ce85db35b98a20bbef09",
+      "strict_schema": false,
+      "version": "1.0"
+    },
+    {
+      "file": "hipaa_disclosure_accounting.yaml",
+      "name": "hipaa_disclosure_accounting",
+      "rule_count": 26,
+      "rules_sha256": "877c6d2619f43002a7eec60c5f2e25f80a3fa8d5eb07ba8e49b7db79fef5762e",
+      "strict_schema": false,
+      "version": "1.0"
+    },
+    {
+      "file": "hr_employee.yaml",
+      "name": "hr_employee",
+      "rule_count": 17,
+      "rules_sha256": "a4548390074d1d91419f8827ea8f2abb504c305cea342d4e75c69aa4bff7cc9a",
+      "strict_schema": false,
+      "version": "1.1"
+    },
+    {
+      "file": "insurance_claim.yaml",
+      "name": "insurance_claim",
+      "rule_count": 15,
+      "rules_sha256": "286a5a37111f9f368016f7d4d1b629da922cfb73f0e4db6c808cfbc066cf6a73",
+      "strict_schema": false,
+      "version": "1.1"
+    },
+    {
+      "file": "logistics_shipment.yaml",
+      "name": "logistics_shipment",
+      "rule_count": 20,
+      "rules_sha256": "7c6ad91c7061c7f6fed317879f701415c323ef5cecfd6ab02264c30f7f3a9642",
+      "strict_schema": false,
+      "version": "1.1"
+    },
+    {
+      "file": "manufacturing_iot.yaml",
+      "name": "manufacturing_iot",
+      "rule_count": 17,
+      "rules_sha256": "1ea61cdd38a07f02511a1655e24fb5b9c73ec565ff3a6653de67a4e334c51cfa",
+      "strict_schema": false,
+      "version": "1.1"
+    },
+    {
+      "file": "martyns_law_event.yaml",
+      "name": "martyns_law_event",
+      "rule_count": 40,
+      "rules_sha256": "3f61891c6c1ee5afcedae9e225ce5e65dce6fdae1f7a31b9ab255ef355182898",
+      "strict_schema": false,
+      "version": "1.0"
+    },
+    {
+      "file": "martyns_law_venue.yaml",
+      "name": "martyns_law_venue",
+      "rule_count": 32,
+      "rules_sha256": "e6998c34e125f2cc7d7ad3a23955efd572f2c3f169903e28b0d0ed4be7e1b4d1",
+      "strict_schema": false,
+      "version": "1.0"
+    },
+    {
+      "file": "media_content.yaml",
+      "name": "media_content",
+      "rule_count": 14,
+      "rules_sha256": "e815fbbc79b71e4a448f72f6d827561559050b4791dd2c31ffb86a920dda43b5",
+      "strict_schema": false,
+      "version": "1.1"
+    },
+    {
+      "file": "mifid_transaction_report.yaml",
+      "name": "mifid_transaction_report",
+      "rule_count": 36,
+      "rules_sha256": "72376db298bb7c773cde7536a91643ef7c9db3efa41fb2acb5c3e24e588b36b2",
+      "strict_schema": true,
+      "version": "1.0"
+    },
+    {
+      "file": "nhs_dsp_patient.yaml",
+      "name": "nhs_dsp_patient",
+      "rule_count": 17,
+      "rules_sha256": "f47e9a9da4d236506d918680d1fa3fcc4643f95e8c1a03f989bbee53ab51a87b",
+      "strict_schema": false,
+      "version": "1.1"
+    },
+    {
+      "file": "ofgem_meter_reading.yaml",
+      "name": "ofgem_meter_reading",
+      "rule_count": 16,
+      "rules_sha256": "add4975b0837e3ba788806cd59d2ee9518e4a80bfd3d7dfb3d794dc9c0183a0b",
+      "strict_schema": false,
+      "version": "1.1"
+    },
+    {
+      "file": "ofwat_meter_reading.yaml",
+      "name": "ofwat_meter_reading",
+      "rule_count": 12,
+      "rules_sha256": "7773293985fcf4160aad7d9ebc06aa72af4033ce68eea15c6936af8e8c74920e",
+      "strict_schema": false,
+      "version": "1.1"
+    },
+    {
+      "file": "pharma_clinical_trial.yaml",
+      "name": "pharma_clinical_trial",
+      "rule_count": 17,
+      "rules_sha256": "2ba15ce0df924d74218e363e25ef9e57af063d07721b0b9c71de4dde96428313",
+      "strict_schema": false,
+      "version": "1.1"
+    },
+    {
+      "file": "ppds_menu_item.yaml",
+      "name": "ppds_menu_item",
+      "rule_count": 45,
+      "rules_sha256": "3c3c5889db41d3bd461fb05153907b4ce121fb93092312a72fac2d4f8d6e66f2",
+      "strict_schema": false,
+      "version": "1.1"
+    },
+    {
+      "file": "proof_of_play.yaml",
+      "name": "proof_of_play",
+      "rule_count": 18,
+      "rules_sha256": "75039e5483a7343bbb87d60eee4d497ad5cad68b0e69b1f0cba50452813fb99c",
+      "strict_schema": false,
+      "version": "1.0"
+    },
+    {
+      "file": "public_sector_service.yaml",
+      "name": "public_sector_service",
+      "rule_count": 9,
+      "rules_sha256": "c3076631ed40a884bbf52da0967008f7378b8f8a243add92ee7afe1859184016",
+      "strict_schema": false,
+      "version": "1.0"
+    },
+    {
+      "file": "real_estate_property.yaml",
+      "name": "real_estate_property",
+      "rule_count": 15,
+      "rules_sha256": "5b964dd0180c5213baa2ff63de1cf6c472b4d28b3a363f79b2031dbbe6b9e8bc",
+      "strict_schema": false,
+      "version": "1.1"
+    },
+    {
+      "file": "retail_product.yaml",
+      "name": "retail_product",
+      "rule_count": 14,
+      "rules_sha256": "169c2f7cc00204935d1d2d95221bb43b48cfb2a9cceba66f62449807c83f5130",
+      "strict_schema": false,
+      "version": "1.1"
+    },
+    {
+      "file": "salesforce_contact.yaml",
+      "name": "salesforce_contact",
+      "rule_count": 18,
+      "rules_sha256": "1513766adeacdc8e8dd49bf539865a73dfe033452cbd4d7cdc48ad1aa73b16c6",
+      "strict_schema": false,
+      "version": "1.0"
+    },
+    {
+      "file": "salesforce_lead.yaml",
+      "name": "salesforce_lead",
+      "rule_count": 16,
+      "rules_sha256": "c8c500d8c931e8d8f4d361123d1f9071117fdaf0de3e7135c60d582430ef0b7f",
+      "strict_schema": false,
+      "version": "1.0"
+    },
+    {
+      "file": "social_media_age_compliance.yaml",
+      "name": "social_media_age_compliance",
+      "rule_count": 14,
+      "rules_sha256": "244dfe9f09cd263ff54f851b0d883037a220c34505d33d90a34b4643e9860d7c",
+      "strict_schema": false,
+      "version": "1.0"
+    },
+    {
+      "file": "sox_control_test.yaml",
+      "name": "sox_control_test",
+      "rule_count": 34,
+      "rules_sha256": "ce8370d1c8d7f9014365e6f2f0c274e4d2bbf9774a119417aee60b4e20b840ed",
+      "strict_schema": true,
+      "version": "1.0"
+    },
+    {
+      "file": "technology_event.yaml",
+      "name": "technology_event",
+      "rule_count": 13,
+      "rules_sha256": "12ab725b467f9bd72bb8c3b27f728be3f2f764223e7223c9395e311f5f4e39be",
+      "strict_schema": false,
+      "version": "1.1"
+    },
+    {
+      "file": "telecoms_cdr.yaml",
+      "name": "telecoms_cdr",
+      "rule_count": 15,
+      "rules_sha256": "edc706249bbe1e2e4fd3e1a48a36be8c1832b4cf60e09c8f9d361cb9f594e320",
+      "strict_schema": false,
+      "version": "1.1"
+    },
+    {
+      "file": "travel_booking.yaml",
+      "name": "travel_booking",
+      "rule_count": 10,
+      "rules_sha256": "d3a1134c4f2b5ee70ca879f28b93e6333bb6e76123cff3a6cc1953f787fd7f10",
+      "strict_schema": false,
+      "version": "1.0"
+    },
+    {
+      "file": "universal_benchmark.yaml",
+      "name": "universal_benchmark",
+      "rule_count": 14,
+      "rules_sha256": "51012f829367b289bb43021a4e2c5c80759a04135d7123fa508213717e3f0cbc",
+      "strict_schema": false,
+      "version": "1.0"
+    }
+  ],
+  "library_sha256": "1a9d78acf358e6f79974fb37ac76d4c3973420188e47505a42d9445bb593b2e1",
+  "manifest_version": 1
+}
