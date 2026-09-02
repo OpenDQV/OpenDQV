@@ -2,3 +2,23 @@
 # No upstream fix exists. At runtime python-jose[cryptography] routes all ECDSA operations
 # through the `cryptography` package — ecdsa is installed but never called.
 CVE-2024-23342
+
+# GHSA-6v7p-g79w-8964: msgpack Unpacker out-of-bounds read (High). The flagged
+# copy is pip's *vendored* msgpack (pip/_vendor, used only by pip's CacheControl
+# HTTP cache while `pip install` runs at image-build time). It is not an OpenDQV
+# dependency (absent from poetry.lock / requirements.txt) and pip is never
+# invoked at container runtime (entrypoint is gunicorn). Verified 2026-09-02:
+# every released pip through 26.2.1 vendors msgpack 1.1.2; the 1.2.1 bump is
+# only on pip's main branch. Re-evaluate when the next pip release ships
+# vendor.txt msgpack>=1.2.1 — then bump the Dockerfile `pip>=` pin and delete
+# this entry.
+GHSA-6v7p-g79w-8964
+
+# CVE-2025-47273: setuptools PackageIndex path traversal (High). Same shape as
+# the msgpack entry above: the flagged 70.3.0 is pip's *vendored* setuptools
+# slice (pip/_vendor/vendor.txt pins setuptools==70.3.0 and ships only
+# pkg_resources — PackageIndex is not present). The real site-packages
+# setuptools is upgraded to >=82 in the Dockerfile. Verified 2026-09-02: pip's
+# main branch still vendors 70.3.0, so no pip release can clear it yet.
+# Re-evaluate when pip's vendor.txt moves setuptools past 78.1.1.
+CVE-2025-47273
