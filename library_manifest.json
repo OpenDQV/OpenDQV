@@ -43,8 +43,8 @@
     {
       "file": "customer.yaml",
       "name": "customer",
-      "rule_count": 19,
-      "rules_sha256": "47bc0c12653d93ad6f9724eb1d7343ab0fef6e8eb5597d11e8abe048ec53520d",
+      "rule_count": 14,
+      "rules_sha256": "35ec40d8844e8a2d507e1b152b2dfe7a9888f284efd9371f6ce460f32e538683",
       "strict_schema": false,
       "version": "1.0"
     },
@@ -329,6 +329,6 @@
       "version": "1.0"
     }
   ],
-  "library_sha256": "25f46ef7fe92fb39b295ad7fda5dda1aa3a5220a8a63f2ff8a684ddc2bdf1022",
+  "library_sha256": "c0f3b5e84648e58947ba4300ab9fb45ab91b49ae0036534a373050276cc3833b",
   "manifest_version": 1
 }

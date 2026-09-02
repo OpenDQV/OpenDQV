@@ -75,14 +75,10 @@ contract:
     inherited: false
     negate: false
     all_of: false
-  - name: phone_required
-    field: phone
-    type: not_empty
-    severity: error
-    error_message: phone is required
   - name: valid_phone
     description: Phone must be E.164 format
     type: regex
+    optional: true
     field: phone
     pattern: ^\+?[1-9]\d{1,14}$
     severity: error
@@ -99,14 +95,10 @@ contract:
     inherited: false
     negate: false
     all_of: false
-  - name: score_required
-    field: score
-    type: not_empty
-    severity: error
-    error_message: score is required
   - name: score_range
     description: Score must be between 0 and 100
     type: range
+    optional: true
     field: score
     min: 0.0
     max: 100.0
@@ -115,14 +107,10 @@ contract:
     inherited: false
     negate: false
     all_of: false
-  - name: date_required
-    field: date
-    type: not_empty
-    severity: error
-    error_message: date is required
   - name: valid_date
     description: Date must be valid format
     type: date_format
+    optional: true
     field: date
     format: YYYY-MM-DD
     severity: error
@@ -130,14 +118,10 @@ contract:
     inherited: false
     negate: false
     all_of: false
-  - name: username_required
-    field: username
-    type: not_empty
-    severity: error
-    error_message: username is required
   - name: username_format
     description: Username must be alphanumeric/underscore only
     type: regex
+    optional: true
     field: username
     pattern: ^[a-zA-Z0-9_]+$
     severity: error
@@ -145,14 +129,10 @@ contract:
     inherited: false
     negate: false
     all_of: false
-  - name: password_required
-    field: password
-    type: not_empty
-    severity: error
-    error_message: password is required
   - name: password_length
     description: Password must be at least 8 characters
     type: min_length
+    optional: true
     field: password
     min_length: 8
     severity: error
