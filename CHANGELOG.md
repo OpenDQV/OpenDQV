@@ -53,8 +53,23 @@ is idempotent on all 41 bundled contracts with zero skipped checks, imports the
 spec's own `full-example.odcs.yaml`, and — when `datacontract` is on PATH or
 `OPENDQV_DATACONTRACT_BIN` is set — runs `datacontract lint` on the output.
 
-Docs: `importers.md` (full export/import mapping tables), `cli.md`,
-`api_reference.md`, `troubleshooting.md`, UI import placeholder.
+**Reference-implementation hardening (Mac Claude review, verified with
+`datacontract test` on CSV fixtures).** Regex patterns with lookaround /
+backreferences are not projected natively (RE2 consumers abort); built-in
+pattern aliases are expanded; `allowed_values` (a distinct rule type the old
+exporter never mapped) → `library invalidValues` with string-quoted values;
+datetime formats → `logicalType: timestamp`; `unique` + `group_by` →
+object-level `duplicateValues`; exclusive bounds are skipped rather than
+loosened; `missingValues [null, '']` → `not_empty`; `text` entries carrying a
+metric are executed as library; native-derived rules are validated through the
+`Rule` model so a non-compiling pattern fails the import; `import_notes` reports
+semantic caveats (e.g. `required` → `not_empty` is stricter). The clean CSV
+fixture passes all 20 checks the reference implementation generates from the
+projection; the bad fixture fails exactly the 8 planted fields.
+
+Docs: `importers.md` (full export/import mapping tables, loss ledger,
+verification recipe), `cli.md`, `api_reference.md`, `troubleshooting.md`, UI
+import placeholder.
 
 ## [2.3.30] - 2026-08-06
 

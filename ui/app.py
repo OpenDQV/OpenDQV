@@ -2050,6 +2050,8 @@ if section == "Import Rules":
                             st.success(f"Imported {rule_count} rules" + (f", skipped {len(skipped)}" if skipped else ""))
                             if skipped:
                                 st.warning(f"Skipped unsupported checks: {', '.join(skipped)}")
+                            if data.get("import_notes"):
+                                st.info("Notes: " + "; ".join(data["import_notes"]))
                             if data.get("saved_to"):
                                 st.info(f"Saved to: {data['saved_to']}")
                             st.markdown("**Generated contract YAML preview:**")

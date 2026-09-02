@@ -451,6 +451,7 @@ def cmd_import_odcs(args):
     _validate_contract_name(contract_name)
     rule_count = result["rule_count"]
     skipped = result["skipped_checks"]
+    notes = result.get("import_notes", [])
 
     CONTRACTS_DIR.mkdir(parents=True, exist_ok=True)
     out_path = CONTRACTS_DIR / f"{contract_name}.yaml"
@@ -463,6 +464,10 @@ def cmd_import_odcs(args):
         print(f"Skipped checks: {len(skipped)}")
         for s in skipped:
             print(f"  - {s}")
+    if notes:
+        print(f"Notes: {len(notes)}")
+        for n in notes:
+            print(f"  - {n}")
 
 
 def cmd_export_odcs(args):

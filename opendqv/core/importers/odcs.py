@@ -70,7 +70,7 @@ from typing import Any, Optional
 import yaml
 from pydantic import ValidationError
 
-from opendqv.core.rule_parser import Rule
+from opendqv.core.rule_parser import _BUILTIN_PATTERNS, Rule
 
 ODCS_API_VERSION = "v3.1.0"
 ODCS_ENGINE = "opendqv"
@@ -108,6 +108,7 @@ _DIMENSION: dict[str, str] = {
     "date_format": "conformity",
     "checksum": "conformity",
     "lookup": "conformity",
+    "allowed_values": "conformity",
     "min": "accuracy",
     "max": "accuracy",
     "range": "accuracy",
@@ -130,6 +131,25 @@ def _infer_logical_type(rule_types: set[str]) -> str:
     if rule_types & _DATE_TYPES:
         return "date"
     return "string"
+
+
+# Constructs outside RE2 / ECMA-262-portable regex: lookahead, lookbehind,
+# atomic groups, backreferences. The ODCS reference implementation executes
+# `pattern` with RE2 and a single lookahead aborts every check on the object,
+# so such patterns stay custom-only (the OpenDQV engine still enforces them).
+_NON_PORTABLE_RE = re.compile(r"\(\?[=!<>]|\\[1-9]")
+
+
+def _portable_pattern(pattern: str) -> Optional[str]:
+    expanded = _BUILTIN_PATTERNS.get(pattern, pattern)
+    return None if _NON_PORTABLE_RE.search(expanded) else expanded
+
+
+_TIME_MARKERS = ("%H", "%M", "%S", "%f", "HH", "mm", "ss")
+
+
+def _has_time(fmt: Optional[str]) -> bool:
+    return bool(fmt) and any(m in fmt for m in _TIME_MARKERS)
 
 
 # ---------------------------------------------------------------------------
@@ -271,13 +291,19 @@ def _sanitise_rule_dict(field: str, impl: dict) -> dict:
         clean[canon] = v
     clean.setdefault("field", field)
     clean.setdefault("name", f"{field}_{clean.get('type', 'rule')}")
+    return _rule_to_dict(_validate_rule(field, clean))
+
+
+def _validate_rule(field: str, d: dict) -> Rule:
+    """Construct a Rule, converting any failure (schema or regex compile) to a clean ValueError."""
     try:
-        validated = Rule(**clean)
+        return Rule(**d)
     except ValidationError as exc:
         # One line per error, no stack detail — this reaches API clients as 422.
         msgs = "; ".join(f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors())
         raise ValueError(f"{field}: invalid rule — {msgs}") from None
-    return _rule_to_dict(validated)
+    except Exception as exc:  # e.g. regex.error from pattern pre-compile
+        raise ValueError(f"{field}: invalid rule — {type(exc).__name__}: {exc}") from None
 
 
 # ---------------------------------------------------------------------------
@@ -298,11 +324,12 @@ def _rule(field: str, rtype: str, severity: str = "error", message: str = "", **
     return d
 
 
-def _native_rules(field: str, prop: dict, skipped: list[str]) -> list[dict]:
+def _native_rules(field: str, prop: dict, skipped: list[str], notes: list[str]) -> list[dict]:
     """Rules from required / unique / logicalTypeOptions."""
     rules: list[dict] = []
     if prop.get("required") is True:
         rules.append(_rule(field, "not_empty", message=f"{field} is required"))
+        notes.append(f"{field}.required → not_empty (stricter: ODCS `required` allows empty strings)")
     if prop.get("unique") is True:
         rules.append(_rule(field, "unique", message=f"{field} must be unique"))
 
@@ -323,12 +350,11 @@ def _native_rules(field: str, prop: dict, skipped: list[str]) -> list[dict]:
     if ltype in ("number", "integer"):
         lo = _num(opts.get("minimum"))
         hi = _num(opts.get("maximum"))
-        if opts.get("exclusiveMinimum") is not None and lo is None:
-            lo = _num(opts["exclusiveMinimum"])
-            skipped.append(f"{field}.exclusiveMinimum (treated as inclusive minimum)")
-        if opts.get("exclusiveMaximum") is not None and hi is None:
-            hi = _num(opts["exclusiveMaximum"])
-            skipped.append(f"{field}.exclusiveMaximum (treated as inclusive maximum)")
+        # Exclusive bounds have no OpenDQV equivalent. Loosening them to
+        # inclusive would pass a value the document rejects — skip, never loosen.
+        for k in ("exclusiveMinimum", "exclusiveMaximum"):
+            if opts.get(k) is not None:
+                skipped.append(f"{field}.{k} (no strict-bound rule in OpenDQV; not loosened to inclusive)")
         if lo is not None and hi is not None:
             rules.append(_rule(field, "range", message=f"{field} must be between {lo:g} and {hi:g}",
                                min_value=lo, max_value=hi))
@@ -367,15 +393,25 @@ def _library_rule(field: str, q: dict, skipped: list[str]) -> Optional[dict]:
         args = q.get("arguments") or {}
         values = args.get("validValues") if isinstance(args, dict) else None
         if isinstance(values, list) and values:
-            return _rule(field, "lookup", severity, message or f"{field} must be one of the valid values",
+            return _rule(field, "allowed_values", severity, message or f"{field} must be one of the valid values",
                          allowed_values=[str(v) for v in values])
-        skipped.append(f"{field}.invalidValues (no validValues argument)")
+        if isinstance(args, dict) and args.get("pattern"):
+            return _rule(field, "regex", severity, message or f"{field} must match pattern",
+                         pattern=str(args["pattern"]))
+        skipped.append(f"{field}.invalidValues (no validValues / pattern argument)")
+        return None
+    if metric == "missingValues" and must_be_zero:
+        args = q.get("arguments") or {}
+        sentinels = args.get("missingValues") if isinstance(args, dict) else None
+        if isinstance(sentinels, list) and all(v is None or v == "" for v in sentinels):
+            return _rule(field, "not_empty", severity, message or f"{field} must not be null or empty")
+        skipped.append(f"{field}.missingValues (sentinels beyond null/'' cannot be honoured by not_empty)")
         return None
     skipped.append(f"{field}.{metric or '?'} (dataset-level metric, no record-level equivalent)")
     return None
 
 
-def _quality_rules(field: str, quality: list, skipped: list[str]) -> tuple[list[dict], bool]:
+def _quality_rules(field: str, quality: list, skipped: list[str]) -> tuple[list[dict], bool]:  # noqa: D401
     """Return (rules, had_opendqv_custom). Custom/opendqv entries take precedence."""
     custom: list[dict] = []
     other: list[dict] = []
@@ -388,7 +424,9 @@ def _quality_rules(field: str, quality: list, skipped: list[str]) -> tuple[list[
                 custom.append(_sanitise_rule_dict(field, q.get("implementation")))
             else:
                 skipped.append(f"{field}.custom (engine '{q.get('engine', '?')}')")
-        elif qtype == "library" or q.get("metric") or q.get("rule"):
+        elif qtype in ("library", "") or (qtype == "text" and (q.get("metric") or q.get("rule"))):
+            # `library` is the ODCS default type; a `text` entry carrying a metric
+            # is executed by the reference implementation, so treat it as library.
             r = _library_rule(field, q, skipped)
             if r:
                 other.append(r)
@@ -452,6 +490,7 @@ def import_odcs(contract_data: dict) -> dict:
 
     rules: list[dict] = []
     skipped: list[str] = []
+    notes: list[str] = []
     seen_fields: dict[str, str] = {}
 
     schema = contract_data.get("schema") or []
@@ -479,10 +518,11 @@ def import_odcs(contract_data: dict) -> dict:
             # Native-derived rules: one per (type) per field — `required: true`
             # and a `nullValues mustBe 0` entry describe the same constraint.
             seen_types: set[str] = set()
-            for r in _native_rules(field, prop, skipped) + q_rules:
+            for r in _native_rules(field, prop, skipped, notes) + q_rules:
                 if r["type"] in seen_types:
                     continue
                 seen_types.add(r["type"])
+                _validate_rule(field, r)     # fail closed (e.g. a pattern that does not compile)
                 rules.append(r)
 
     deduped = rules
@@ -518,6 +558,7 @@ def import_odcs(contract_data: dict) -> dict:
     return {
         "contract": contract,
         "skipped_checks": skipped,
+        "import_notes": notes,
         "rule_count": len(deduped),
         "_odcs_metadata": passthrough,   # preserved for the API response, not evaluated
     }
@@ -547,7 +588,9 @@ def _project_native(prop: dict, ltype: str, rule: dict) -> None:
         prop["unique"] = True
     elif ltype == "string":
         if rtype == "regex" and rule.get("pattern"):
-            opts["pattern"] = rule["pattern"]
+            portable = _portable_pattern(rule["pattern"])
+            if portable:
+                opts["pattern"] = portable
         elif rtype == "min_length" and rule.get("min_length") is not None:
             opts["minLength"] = int(rule["min_length"])
         elif rtype == "max_length" and rule.get("max_length") is not None:
@@ -557,7 +600,7 @@ def _project_native(prop: dict, ltype: str, rule: dict) -> None:
             opts["minimum"] = rule["min_value"]
         if rtype in ("max", "range") and rule.get("max_value") is not None:
             opts["maximum"] = rule["max_value"]
-    elif ltype == "date":
+    elif ltype in ("date", "timestamp"):
         if rtype == "date_format":
             jdk = _to_jdk_format(rule.get("format") or "%Y-%m-%d")
             if jdk:
@@ -597,18 +640,32 @@ def export_odcs(
         by_field.setdefault(r["field"], []).append(r)
 
     properties: list[dict] = []
+    object_quality: list[dict] = []
     for field, field_rules in by_field.items():
         ltype = _infer_logical_type({r["type"] for r in field_rules})
+        if ltype == "date" and any(r["type"] == "date_format" and _has_time(r.get("format")) for r in field_rules):
+            ltype = "timestamp"
         prop: dict[str, Any] = {"name": field, "logicalType": ltype}
         quality: list[dict] = []
         for r in field_rules:
             if r.get("severity", "error") == "error":
                 _project_native(prop, ltype, r)
-                if r["type"] == "lookup" and r.get("allowed_values"):
+                if r["type"] in ("allowed_values", "lookup") and r.get("allowed_values"):
+                    # Values are quoted strings: the engine compares str(value),
+                    # and a bare true/1.0 raises a CAST error in the reference implementation.
                     quality.append({
                         "type": "library", "metric": "invalidValues",
-                        "arguments": {"validValues": list(r["allowed_values"])},
+                        "arguments": {"validValues": [str(v) for v in r["allowed_values"]]},
                         "mustBe": 0, "severity": "error", "dimension": "conformity",
+                        **({"description": r["error_message"]} if r.get("error_message") else {}),
+                    })
+                if r["type"] == "unique" and r.get("group_by") and not object_quality:
+                    # Compound uniqueness is object-level in ODCS. At most one per
+                    # object — the reference implementation mis-reports a second.
+                    object_quality.append({
+                        "type": "library", "metric": "duplicateValues",
+                        "arguments": {"properties": [field, *[str(g) for g in r["group_by"]]]},
+                        "mustBe": 0, "severity": "error", "dimension": "uniqueness",
                         **({"description": r["error_message"]} if r.get("error_message") else {}),
                     })
             quality.append(_custom_entry(r))
@@ -634,7 +691,10 @@ def export_odcs(
         {"property": "opendqv.status", "value": str(status).lower()},
         {"property": "opendqv.engine", "value": "opendqv"},
     ]
-    doc["schema"] = [{"name": contract_name, "logicalType": "object", "properties": properties}]
+    schema_obj: dict[str, Any] = {"name": contract_name, "logicalType": "object", "properties": properties}
+    if object_quality:
+        schema_obj["quality"] = object_quality
+    doc["schema"] = [schema_obj]
     if odcs_metadata:
         for k, v in odcs_metadata.items():
             if k not in doc:

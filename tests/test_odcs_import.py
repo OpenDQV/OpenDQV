@@ -16,6 +16,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -37,7 +38,7 @@ from opendqv.core.rule_parser import Rule
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 SCHEMA = json.loads((FIXTURES / "odcs-json-schema-v3.1.0.json").read_text(encoding="utf-8"))
-VALIDATOR = jsonschema.Draft202012Validator(SCHEMA)
+VALIDATOR = jsonschema.Draft201909Validator(SCHEMA)  # the schema declares draft 2019-09
 FULL_EXAMPLE = yaml.safe_load((FIXTURES / "odcs-full-example-v3.1.0.yaml").read_text(encoding="utf-8"))
 BUNDLED_DIR = Path(__file__).resolve().parent.parent / "opendqv" / "contracts"
 
@@ -218,12 +219,45 @@ class TestExportNativeProjection:
         assert _schema_errors(doc) == []
         assert {q["name"] for q in p["quality"]} == {"a", "b"}
 
-    def test_lookup_allowed_values_emits_library_invalid_values(self):
-        doc = export_odcs("t", _rules({"name": "a", "type": "lookup", "field": "c", "allowed_values": ["GB", "IE"]}))
+    def test_allowed_values_emits_library_invalid_values_as_strings(self):
+        doc = export_odcs("t", _rules({"name": "a", "type": "allowed_values", "field": "c",
+                                       "allowed_values": [True, 1.0, "pending"]}))
         lib = [q for q in _prop(doc, "c")["quality"] if q["type"] == "library"]
-        assert lib == [{"type": "library", "metric": "invalidValues", "arguments": {"validValues": ["GB", "IE"]},
+        assert lib == [{"type": "library", "metric": "invalidValues",
+                        "arguments": {"validValues": ["True", "1.0", "pending"]},
                         "mustBe": 0, "severity": "error", "dimension": "conformity",
                         "description": "Validation failed"}]
+        assert _schema_errors(doc) == []
+
+    def test_non_portable_regex_is_not_projected(self):
+        """Lookahead/lookbehind/backreferences crash RE2-based consumers — custom-only."""
+        for pat in (r"^(?!BG|GB)[A-Z]{2}$", r"(?<=x)y", r"^(a)\1$", r"(?>ab)c"):
+            doc = export_odcs("t", _rules({"name": "a", "type": "regex", "field": "s", "pattern": pat}))
+            assert "logicalTypeOptions" not in _prop(doc, "s"), pat
+            assert _prop(doc, "s")["quality"][0]["implementation"]["pattern"] == pat
+
+    def test_builtin_pattern_alias_is_expanded_on_projection(self):
+        from opendqv.core.rule_parser import _BUILTIN_PATTERNS
+        alias, expanded = next(iter(_BUILTIN_PATTERNS.items()))
+        doc = export_odcs("t", _rules({"name": "a", "type": "regex", "field": "s", "pattern": alias}))
+        projected = _prop(doc, "s").get("logicalTypeOptions", {}).get("pattern")
+        assert projected in (expanded, None)   # None only if the builtin itself is non-portable
+        assert projected != alias
+
+    def test_datetime_format_uses_timestamp_logical_type(self):
+        doc = export_odcs("t", _rules({"name": "a", "type": "date_format", "field": "ts", "format": "%Y-%m-%dT%H:%M:%S"}))
+        p = _prop(doc, "ts")
+        assert p["logicalType"] == "timestamp"
+        assert p["logicalTypeOptions"] == {"format": "yyyy-MM-ddTHH:mm:ss"}
+        assert _schema_errors(doc) == []
+
+    def test_unique_with_group_by_becomes_object_level_duplicate_values(self):
+        doc = export_odcs("t", _rules({"name": "a", "type": "unique", "field": "sku", "group_by": ["store"]},
+                                      {"name": "b", "type": "unique", "field": "line", "group_by": ["order"]}))
+        oq = doc["schema"][0]["quality"]
+        assert len(oq) == 1   # at most one per object
+        assert oq[0]["metric"] == "duplicateValues" and oq[0]["arguments"] == {"properties": ["sku", "store"]}
+        assert _schema_errors(doc) == []
 
     def test_custom_entry_shape(self):
         doc = export_odcs("t", _rules({"name": "cmp", "type": "compare", "field": "end", "compare_to": "start",
@@ -329,8 +363,9 @@ class TestImportNative:
         r = import_odcs(NATIVE_ODCS)
         rng = self._by(r, "range", "amount")
         assert rng["min_value"] == 0.0 and rng["max_value"] == 10000.0
-        assert self._by(r, "min", "qty")["min_value"] == 0.0
-        assert any("qty.exclusiveMinimum" in s for s in r["skipped_checks"])
+        # Exclusive bounds are skipped, never loosened to inclusive (that would pass a value the document rejects).
+        assert not any(x["field"] == "qty" for x in r["contract"]["rules"])
+        assert any("qty.exclusiveMinimum" in s and "not loosened" in s for s in r["skipped_checks"])
 
     def test_date_format_jdk_to_strftime(self):
         r = import_odcs(NATIVE_ODCS)
@@ -338,7 +373,7 @@ class TestImportNative:
 
     def test_library_metrics(self):
         r = import_odcs(NATIVE_ODCS)
-        assert self._by(r, "lookup", "country")["allowed_values"] == ["GB", "IE"]
+        assert self._by(r, "allowed_values", "country")["allowed_values"] == ["GB", "IE"]
         assert self._by(r, "not_empty", "email")["severity"] == "warning"
         assert self._by(r, "unique", "email")["severity"] == "error"
 
@@ -348,6 +383,47 @@ class TestImportNative:
         assert "country.nullValues" in joined      # percent threshold → dataset-level
         assert "country.text" in joined
         assert "email.sql" in joined
+
+    def test_required_note_is_reported(self):
+        r = import_odcs(NATIVE_ODCS)
+        assert any(n.startswith("order_id.required") and "stricter" in n for n in r["import_notes"])
+
+    def test_missing_values_null_and_empty_maps_to_not_empty(self):
+        doc = copy.deepcopy(NATIVE_ODCS)
+        doc["schema"][0]["properties"] = [
+            {"name": "f", "quality": [{"type": "library", "metric": "missingValues",
+                                       "arguments": {"missingValues": [None, ""]}, "mustBe": 0}]},
+            {"name": "g", "quality": [{"type": "library", "metric": "missingValues",
+                                       "arguments": {"missingValues": [None, "", "N/A"]}, "mustBe": 0}]},
+        ]
+        r = import_odcs(doc)
+        assert self._by(r, "not_empty", "f")
+        assert not any(x["field"] == "g" for x in r["contract"]["rules"])
+        assert any("g.missingValues" in s and "N/A" not in s for s in r["skipped_checks"])
+
+    def test_invalid_values_pattern_argument_maps_to_regex(self):
+        doc = copy.deepcopy(NATIVE_ODCS)
+        doc["schema"][0]["properties"] = [{"name": "f", "quality": [
+            {"type": "library", "metric": "invalidValues", "arguments": {"pattern": "^[A-Z]+$"}, "mustBe": 0}]}]
+        assert self._by(import_odcs(doc), "regex", "f")["pattern"] == "^[A-Z]+$"
+
+    def test_text_entry_with_metric_is_treated_as_library(self):
+        doc = copy.deepcopy(NATIVE_ODCS)
+        doc["schema"][0]["properties"] = [{"name": "f", "quality": [
+            {"type": "text", "metric": "nullValues", "mustBe": 0, "description": "no nulls"}]}]
+        assert self._by(import_odcs(doc), "not_empty", "f")["error_message"] == "no nulls"
+
+    def test_default_quality_type_is_library(self):
+        doc = copy.deepcopy(NATIVE_ODCS)
+        doc["schema"][0]["properties"] = [{"name": "f", "quality": [{"metric": "duplicateValues", "mustBe": 0}]}]
+        assert self._by(import_odcs(doc), "unique", "f")
+
+    def test_native_pattern_that_does_not_compile_fails_closed(self):
+        doc = copy.deepcopy(NATIVE_ODCS)
+        doc["schema"][0]["properties"] = [{"name": "f", "logicalType": "string",
+                                           "logicalTypeOptions": {"pattern": "(unclosed"}}]
+        with pytest.raises(ValueError, match="f: invalid rule"):
+            import_odcs(doc)
 
     def test_deprecated_rule_key_accepted(self):
         doc = copy.deepcopy(NATIVE_ODCS)
@@ -542,6 +618,11 @@ class TestODCSAPI:
 # ─────────────────────────────────────────────────────────────────────────────
 
 _DATACONTRACT = shutil.which("datacontract") or os.environ.get("OPENDQV_DATACONTRACT_BIN")
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(text: str) -> str:
+    return _ANSI.sub("", text)
 
 
 @pytest.mark.skipif(not _DATACONTRACT, reason="datacontract-cli not installed")
@@ -553,3 +634,26 @@ class TestDatacontractCliLint:
         proc = subprocess.run([_DATACONTRACT, "lint", str(out)], capture_output=True, text=True, timeout=120)
         assert proc.returncode == 0, proc.stdout + proc.stderr
         assert "data contract is valid" in proc.stdout
+
+    @pytest.mark.parametrize("csv_name,expect_ok,expected_failing_fields", [
+        ("odcs_customer_clean.csv", True, set()),
+        ("odcs_customer_bad.csv", False, {"age", "email", "id", "name", "password", "phone", "score", "username"}),
+    ])
+    def test_reference_implementation_executes_projections(self, tmp_path, csv_name, expect_ok, expected_failing_fields):
+        """`datacontract test` runs the projected required/unique/logicalTypeOptions checks against a CSV.
+
+        Requires the [duckdb] extra; skipped when the local server type is unavailable.
+        """
+        doc = _export_bundled("customer")
+        csv_path = tmp_path / "rows.csv"
+        shutil.copy(FIXTURES / csv_name, csv_path)
+        doc["servers"] = [{"server": "local", "type": "local", "path": str(csv_path), "format": "csv"}]
+        out = tmp_path / "customer.odcs.yaml"
+        out.write_text(yaml.dump(doc, sort_keys=False, allow_unicode=True), encoding="utf-8")
+        proc = subprocess.run([_DATACONTRACT, "test", str(out)], capture_output=True, text=True, timeout=300)
+        text = _strip_ansi(proc.stdout + proc.stderr)
+        if "duckdb" in text.lower() and "No module" in text:
+            pytest.skip("datacontract-cli installed without the duckdb extra")
+        assert ("data contract is valid" in text) is expect_ok, text
+        failing = {m.group(1) for m in re.finditer(r"│ failed │[^│]*│ (\w+)\s*│", text)}
+        assert failing == expected_failing_fields, text

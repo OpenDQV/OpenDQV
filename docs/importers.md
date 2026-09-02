@@ -107,10 +107,11 @@ the test suite on all bundled contracts.
 | every rule | one `quality` entry: `type: custom`, `engine: opendqv`, `implementation: <rule>`, plus `name`, `severity`, `dimension`, `description` (= `error_message`) |
 | `not_empty` (error) | `required: true` |
 | `unique` (error) | `unique: true` |
-| `regex` / `min_length` / `max_length` (error, string field) | `logicalTypeOptions.pattern` / `minLength` / `maxLength` |
+| `regex` / `min_length` / `max_length` (error, string field) | `logicalTypeOptions.pattern` / `minLength` / `maxLength`. Built-in pattern aliases are expanded. Patterns using lookahead, lookbehind, atomic groups or backreferences are **not** projected (RE2-based consumers abort on them) and travel custom-only |
 | `min` / `max` / `range` (error, numeric field) | `logicalTypeOptions.minimum` / `maximum`; `logicalType: number` |
-| `date_format` (error) | `logicalType: date`, `logicalTypeOptions.format` as a JDK pattern (`yyyy-MM-dd`) |
-| `lookup` with `allowed_values` (error) | `quality: {type: library, metric: invalidValues, arguments.validValues, mustBe: 0}` |
+| `date_format` (error) | `logicalType: date` (or `timestamp` when the format has a time part), `logicalTypeOptions.format` as a JDK pattern (`yyyy-MM-dd`); omitted when the format has no JDK equivalent |
+| `allowed_values` (error) | `quality: {type: library, metric: invalidValues, arguments.validValues, mustBe: 0}` — values emitted as strings (the engine compares `str(value)`; a bare `true`/`1.0` is a CAST error in the reference implementation) |
+| `unique` with `group_by` (error) | object-level `quality: {type: library, metric: duplicateValues, arguments.properties: [field, …group_by]}` — at most one per object |
 
 Two deliberate choices:
 
@@ -121,6 +122,37 @@ Two deliberate choices:
 - **A field has one `logicalType`** (numeric wins over date wins over string). Only rules
   compatible with it are projected natively — the schema forbids e.g. `pattern` on a
   number. Nothing is lost: the `custom` entry always carries the full rule.
+
+### What other tools see (the loss ledger)
+
+The `custom/opendqv` entry is lossless, but only OpenDQV reads it. A native-only consumer
+(datacontract-cli's SodaCL / JSON-schema / dbt exporters, OpenMetadata) sees exactly the
+projected fields and nothing else. Deliberately absent from the native projection:
+
+| OpenDQV rule | Native ODCS | Why |
+|---|---|---|
+| any warning-severity rule | nothing | a native constraint is hard downstream |
+| `regex` with lookaround / backreference | nothing | RE2 consumers abort on the whole object |
+| `regex` on a numeric/date field | nothing | `pattern` is only valid under `logicalType: string` |
+| `not_empty` | `required: true` | ODCS `required` allows empty strings; OpenDQV does not — no double-count with `missingValues` |
+| `min_age` / `max_age` / `age_match` / `date_diff` | `logicalType: date` only | no ODCS calendar arithmetic |
+| `compare`, `required_if`, `forbidden_if`, `conditional_value`, `cross_field_range`, `field_sum`, `ratio_check`, `geospatial_bounds`, `checksum`, `lookup` (file / URL), `conditional_lookup` | nothing | cross-field / reference-data / algorithmic rules have no declarative ODCS form |
+
+`tests/test_odcs_import.py` pins this ledger: changing what projects is a deliberate edit.
+
+### Verification recipe
+
+```bash
+pip install 'datacontract-cli[duckdb]'
+opendqv export-odcs customer -o customer.odcs.yaml
+datacontract lint customer.odcs.yaml            # official schema
+# add  servers: [{server: local, type: local, path: rows.csv, format: csv}]  then:
+datacontract test customer.odcs.yaml            # executes required/unique/lengths/bounds/pattern/library metrics
+```
+
+The test suite runs both automatically when `datacontract` is on PATH (or `OPENDQV_DATACONTRACT_BIN`
+is set): on the bundled `customer` contract, a clean CSV passes all 20 generated checks and a
+CSV with 8 planted violations fails exactly those 8 fields.
 
 ### Import mapping
 
@@ -133,16 +165,20 @@ Two deliberate choices:
 | `quality: {type: custom, engine: opendqv, implementation}` | the rule itself — authoritative; native projections on that property are ignored |
 | `required: true` / `unique: true` | `not_empty` / `unique` (error) |
 | `logicalTypeOptions.pattern` / `minLength` / `maxLength` | `regex` / `min_length` / `max_length` |
-| `logicalTypeOptions.minimum` + `maximum` (number, integer) | `range`; one of them → `min` / `max`. `exclusiveMinimum` / `exclusiveMaximum` are treated as inclusive and reported in `skipped_checks` |
+| `logicalTypeOptions.minimum` + `maximum` (number, integer) | `range`; one of them → `min` / `max`. `exclusiveMinimum` / `exclusiveMaximum` have no strict-bound rule and are **skipped, never loosened** to inclusive (that would pass a value the document rejects) |
 | `logicalTypeOptions.format` (date) | `date_format` (JDK pattern → strftime; unsupported letters are reported) |
 | `library` `nullValues` / `duplicateValues` `mustBe: 0` | `not_empty` / `unique` (severity from the entry) |
-| `library` `invalidValues` + `arguments.validValues` `mustBe: 0` | `lookup` with `allowed_values` |
+| `library` `invalidValues` + `arguments.validValues` (or `arguments.pattern`) `mustBe: 0` | `allowed_values` (or `regex`) |
+| `library` `missingValues` with `arguments.missingValues` ⊆ `[null, '']` `mustBe: 0` | `not_empty`; any other sentinel (e.g. `'N/A'`) cannot be honoured and is skipped |
+| `text` entry carrying a `metric` | treated as `library` (the reference implementation executes it) |
 
 Everything else — `text` and `sql` checks, `custom` checks for other engines, object-level
 checks, `rowCount` / `missingValues`, percentage thresholds, `multipleOf`, date bounds — is
 dataset-level or not expressible at the record boundary and is listed in `skipped_checks`.
 Nothing is dropped silently. Multiple schema objects are flattened into one record contract;
-a field defined twice is reported and the first definition kept.
+a field defined twice is reported and the first definition kept. `import_notes` carries semantic
+caveats that are not skips — e.g. `required: true` becomes `not_empty`, which is stricter than
+ODCS `required` (ODCS allows empty strings). The CLI and UI print both lists.
 
 **Import safety.** A `custom/opendqv` implementation is allow-listed against the `Rule`
 model. It may not set `inherited`, `federation_tier`, `provenance`, `severity_floor` or
