@@ -947,7 +947,10 @@ class ContractRegistry:
     def __init__(self, contracts_dir: Path):
         self.contracts_dir = contracts_dir
         self._contracts: dict[str, dict[str, DataContract]] = {}  # name -> {version -> contract}
-        self._contract_paths: dict[str, Path] = {}               # name -> source YAML path
+        # name -> {version -> source YAML path}. Mirrors _contracts (CRT178:
+        # a name-only index stamped one version's approval into another
+        # version's file when a contract was stored one-file-per-version).
+        self._contract_paths: dict[str, dict[str, Path]] = {}
         import opendqv.config as config
         self.history = ContractHistory(config.DB_PATH)
         self.reload()
@@ -967,7 +970,7 @@ class ContractRegistry:
                     if contract.name not in self._contracts:
                         self._contracts[contract.name] = {}
                     self._contracts[contract.name][contract.version] = contract
-                    self._contract_paths[contract.name] = path
+                    self._contract_paths.setdefault(contract.name, {})[contract.version] = path
                     self.history.record_version(contract)
                     logger.info("Loaded contract: %s v%s (%d rules)",
                                 contract.name, contract.version, len(contract.rules))
@@ -1334,7 +1337,7 @@ class ContractRegistry:
         if name not in self._contracts:
             self._contracts[name] = {}
         self._contracts[name][contract.version] = contract
-        self._contract_paths[name] = path
+        self._contract_paths.setdefault(name, {})[contract.version] = path
 
         self.history.record_version(contract)
         logger.info(
@@ -1342,6 +1345,71 @@ class ContractRegistry:
             name, created_by, len(rules),
         )
         return contract
+
+    _VERSION_RE = _re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,49}$")
+
+    def create_version(self, name: str, from_version: str, new_version: str) -> DataContract:
+        """Create ``new_version`` of ``name`` as a NEW, DRAFT contract object with its own file.
+
+        CRT178 #2: the old route mutated the fetched ACTIVE object in place and
+        stored the same object under the new key, so the live version read
+        DRAFT/new_version for every concurrent /validate, and nothing reached
+        disk — the next reload erased the bump. Now: deep copy, strip the
+        approval trail (a still-DRAFT version must not read as approved after
+        a reload), write ``{name}_v{new_version}.yaml`` atomically from the
+        base file's raw YAML (lossless: rules, contexts and every other key
+        carry over), and index both maps.
+        """
+        base = self.get(name, from_version)
+        if not base:
+            raise ValueError(f"Contract '{name}' v{from_version} not found")
+        if not isinstance(new_version, str) or not self._VERSION_RE.match(new_version):
+            raise ValueError(
+                f"Invalid version '{new_version}': letters, digits, '.', '_' and '-' only (max 50 chars)."
+            )
+        if new_version == base.version or new_version in self._contracts.get(name, {}):
+            raise ValueError(f"Contract '{name}' already has a version '{new_version}'.")
+
+        new = copy.deepcopy(base)
+        new.version = new_version
+        new.status = ContractStatus.DRAFT
+        for f in ("approved_by", "approved_at", "proposed_by", "proposed_at",
+                  "rejected_by", "rejected_at", "rejection_reason"):
+            setattr(new, f, None)
+
+        # Build the file from the base file's raw YAML so nothing is lost.
+        try:
+            base_path = self._path_for(name, base.version)
+        except KeyError:
+            base_path = None
+        raw: dict = {}
+        if base_path and base_path.exists():
+            raw = yaml.safe_load(base_path.read_text(encoding="utf-8")) or {}
+        block = raw["contract"] if isinstance(raw.get("contract"), dict) else raw
+        if not block:
+            block = {"name": name, "rules": [r.model_dump(by_alias=True, exclude_none=True, mode="json") for r in new.rules]}
+            raw = {"contract": block}
+        block["name"] = name
+        block["version"] = new_version
+        block["status"] = ContractStatus.DRAFT.value
+        for f in ("approved_by", "approved_at", "proposed_by", "proposed_at",
+                  "rejected_by", "rejected_at", "rejection_reason"):
+            block.pop(f, None)
+
+        path = self.contracts_dir / f"{name}_v{new_version}.yaml"
+        if path.resolve().parent != self.contracts_dir.resolve():
+            raise ValueError(f"Version path escapes the contracts directory: {new_version}")
+        if path.exists():
+            raise ValueError(f"A file for '{name}' v{new_version} already exists: {path.name}")
+        tmp = path.with_suffix(".yaml.tmp")
+        tmp.write_text(yaml.safe_dump(raw, default_flow_style=False, allow_unicode=True, sort_keys=False), encoding="utf-8")
+        tmp.replace(path)
+
+        self._contracts.setdefault(name, {})[new_version] = new
+        self._contract_paths.setdefault(name, {})[new_version] = path
+        self.history.record_version(new)
+        logger.info("create_version contract=%s from=%s new=%s status=draft file=%s", name, base.version, new_version, path.name)
+        return new
 
     def _contract_to_yaml(self, contract: DataContract) -> str:
         """Serialize a DataContract to canonical YAML for disk storage."""
@@ -1490,10 +1558,11 @@ class ContractRegistry:
         if any(r.name == rule.name for r in contract.rules):
             raise ValueError(f"Rule '{rule.name}' already exists in contract '{name}'")
         contract.rules.append(rule)
+        prev_version = contract.version
         # ACT-047-02: Auto-increment draft patch counter while contract is in DRAFT.
         if contract.status == ContractStatus.DRAFT:
             contract.version = self._bump_draft_patch_counter(contract.version)
-        self._write_contract_yaml(name, contract)
+        self._write_contract_yaml(name, contract, previous_version=prev_version)
         self.history.record_version(contract)
         logger.info("add_rule contract=%s rule=%s version=%s", name, rule.name, contract.version)
         return contract
@@ -1518,10 +1587,11 @@ class ContractRegistry:
             if getattr(old_rule, f) is not None or getattr(new_rule, f) is not None
         )
         contract.rules[idx] = new_rule
+        prev_version = contract.version
         # ACT-047-02: Auto-increment draft patch counter while contract is in DRAFT.
         if contract.status == ContractStatus.DRAFT:
             contract.version = self._bump_draft_patch_counter(contract.version)
-        self._write_contract_yaml(name, contract)
+        self._write_contract_yaml(name, contract, previous_version=prev_version)
         self.history.record_version(contract)
         logger.info("update_rule contract=%s rule=%s breaking=%s version=%s", name, rule_name, breaking, contract.version)
         return contract, breaking
@@ -1536,10 +1606,11 @@ class ContractRegistry:
         contract.rules = [r for r in contract.rules if r.name != rule_name]
         if len(contract.rules) == before:
             raise ValueError(f"Rule '{rule_name}' not found in contract '{name}'")
+        prev_version = contract.version
         # ACT-047-02: Auto-increment draft patch counter while contract is in DRAFT.
         if contract.status == ContractStatus.DRAFT:
             contract.version = self._bump_draft_patch_counter(contract.version)
-        self._write_contract_yaml(name, contract)
+        self._write_contract_yaml(name, contract, previous_version=prev_version)
         self.history.record_version(contract)
         logger.info("delete_rule contract=%s rule=%s version=%s", name, rule_name, contract.version)
         return contract
@@ -1578,7 +1649,10 @@ class ContractRegistry:
         reverts to the on-disk status. That silent divergence is the exact
         defect this method exists to fix, so it must not be swallowed here.
         """
-        path = self._contract_paths.get(name)
+        try:
+            path = self._path_for(name, contract.version)
+        except KeyError:
+            path = None
         if not path or not path.exists():
             logger.debug("No YAML file for contract %s — nothing to persist", name)
             return
@@ -1591,14 +1665,59 @@ class ContractRegistry:
                 f"change could not be written to disk; it will revert on the next reload."
             ) from exc
 
-    def _write_contract_yaml(self, name: str, contract: "DataContract", include_rules: bool = True) -> None:
+    def _path_for(self, name: str, version: str) -> Path:
+        """Resolve the YAML file that holds (name, version).
+
+        Exact (name, version) match wins. If the name maps to exactly one
+        distinct file, that file is the answer regardless of the version key —
+        the draft patch counter rewrites ``contract.version`` in place on a
+        single-file contract, and the re-keying in ``_write_contract_yaml``
+        keeps the index current after each write. If the name maps to more than
+        one file and the version is not indexed, refuse: guessing is exactly
+        the cross-version write-back this index exists to prevent.
+
+        Raises KeyError when nothing is indexed for the name (in-memory only),
+        RuntimeError when the target is ambiguous.
+        """
+        versions = self._contract_paths.get(name) or {}
+        if version in versions:
+            return versions[version]
+        distinct = {p.resolve() for p in versions.values()}
+        if not distinct:
+            raise KeyError(name)
+        if len(distinct) == 1:
+            return next(iter(versions.values()))
+        raise RuntimeError(
+            f"Contract '{name}' v{version} is not mapped to a file and the name is stored across "
+            f"{len(distinct)} files — refusing to guess which one to write."
+        )
+
+    def _rekey_path(self, name: str, version: str, path: Path) -> None:
+        """After a write, make (name, version) → path the only key for that file."""
+        versions = self._contract_paths.setdefault(name, {})
+        for v in [v for v, p in versions.items() if p.resolve() == path.resolve()]:
+            del versions[v]
+        versions[version] = path
+
+    def _write_contract_yaml(
+        self,
+        name: str,
+        contract: "DataContract",
+        include_rules: bool = True,
+        previous_version: Optional[str] = None,
+    ) -> None:
         """Write contract state back to the YAML file atomically.
 
         Always persists lifecycle status + provenance; rules and version are
         written only when ``include_rules`` (the lifecycle transitions do not
-        touch rules).
+        touch rules). ``previous_version`` is the version the file is indexed
+        under when the caller has just advanced ``contract.version`` (draft
+        patch counter); the index is re-keyed to the new version after the write.
         """
-        path = self._contract_paths.get(name)
+        try:
+            path = self._path_for(name, previous_version or contract.version)
+        except KeyError:
+            path = None
         if not path or not path.exists():
             raise RuntimeError(f"No YAML path found for contract '{name}'")
         # Read existing YAML — safe_load only, no fallback to full_load.
@@ -1634,6 +1753,7 @@ class ContractRegistry:
         tmp = path.with_suffix(".yaml.tmp")
         tmp.write_text(yaml.safe_dump(raw, default_flow_style=False, allow_unicode=True, sort_keys=False), encoding="utf-8")
         tmp.replace(path)
+        self._rekey_path(name, contract.version, path)
 
     def get_rules_with_context(self, contract: DataContract, context: Optional[str] = None) -> list[Rule]:
         """

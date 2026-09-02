@@ -635,7 +635,7 @@ class TestXAuthModeHeader:
         path = registry.contracts_dir / f"{self._NAME}.yaml"
         path.write_text(registry._contract_to_yaml(contract))
         registry._contracts.setdefault(self._NAME, {})[contract.version] = contract
-        registry._contract_paths[self._NAME] = path
+        registry._contract_paths.setdefault(self._NAME, {})[contract.version] = path
         new_rule = {
             "name": "xauth_extra_rule",
             "field": "extra_field",

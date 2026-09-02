@@ -924,15 +924,13 @@ async def bump_contract_version(
     if old_version == new_version:
         raise HTTPException(status_code=400, detail=f"New version must differ from current version '{old_version}'.")
 
+    # CRT178 #2: the base object is never touched — create_version deep-copies,
+    # strips the approval trail, writes its own file and indexes it.
     _d.registry.history.record_version(contract)
-
-    contract.version = new_version
-    contract.status = ContractStatus.DRAFT
-
-    if name in _d.registry._contracts:
-        _d.registry._contracts[name][new_version] = contract
-
-    _d.registry.history.record_version(contract)
+    try:
+        _d.registry.create_version(name, old_version, new_version)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     logger.info(
         "version_bump caller=%s contract=%s old_version=%s new_version=%s status=draft",

@@ -10,11 +10,13 @@ One class per fix. Each test fails on v2.4.0 and passes after the fix:
 """
 from __future__ import annotations
 
+import copy
 import json
 import shutil
 from pathlib import Path
 
 import pytest
+import yaml
 
 from opendqv.core.contracts import CONTRACT_NAME_RE, ContractRegistry
 from opendqv.core.rule_parser import ContractStatus, Rule
@@ -140,6 +142,14 @@ class TestFormatSqlInjection:
 RULE = {"name": "extra", "type": "not_empty", "field": "g", "error_message": "g required"}
 
 
+def _teardown(registry, name):
+    """Remove a contract seeded into the LIVE registry so later tests never see it."""
+    for p in list(registry.contracts_dir.glob(f"{name}*.yaml")):
+        p.unlink()
+    registry._contracts.pop(name, None)
+    registry._contract_paths.pop(name, None)
+
+
 def _seed(registry, name, status):
     """Create a DRAFT via the registry and move it to the requested state (no rate-limited routes)."""
     c = registry.create_draft(name=name, description="d", owner="o", created_by="alice",
@@ -180,10 +190,154 @@ class TestReviewStateFrozen:
     def test_rest_returns_409_for_review(self, client, editor_headers):
         from opendqv.api import deps as _d
         _seed(_d.registry, "MCP_rev3", ContractStatus.REVIEW)
-        r = client.post("/api/v1/contracts/MCP_rev3/rules", json=RULE, headers=editor_headers)
-        assert r.status_code == 409 and "REVIEW" in r.json()["detail"] and "reject" in r.json()["detail"]
-        r = client.put("/api/v1/contracts/MCP_rev3/rules/r", json={**RULE, "name": "r"}, headers=editor_headers)
-        assert r.status_code == 409
-        r = client.delete("/api/v1/contracts/MCP_rev3/rules/r", headers=editor_headers)
-        assert r.status_code == 409
-        assert [x.name for x in _d.registry.get("MCP_rev3").rules] == ["r"]
+        try:
+            r = client.post("/api/v1/contracts/MCP_rev3/rules", json=RULE, headers=editor_headers)
+            assert r.status_code == 409 and "REVIEW" in r.json()["detail"] and "reject" in r.json()["detail"]
+            r = client.put("/api/v1/contracts/MCP_rev3/rules/r", json={**RULE, "name": "r"}, headers=editor_headers)
+            assert r.status_code == 409
+            r = client.delete("/api/v1/contracts/MCP_rev3/rules/r", headers=editor_headers)
+            assert r.status_code == 409
+            assert [x.name for x in _d.registry.get("MCP_rev3").rules] == ["r"]
+        finally:
+            _teardown(_d.registry, "MCP_rev3")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. Cross-version approval forgery — path index keyed by (name, version)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _write_version_file(d: Path, name: str, version: str, status: str) -> Path:
+    p = d / f"{name}_v{version}.yaml"
+    p.write_text(yaml.safe_dump({"contract": {
+        "name": name, "version": version, "status": status, "description": "d", "owner": "o",
+        "rules": [{"name": f"r{version.replace('.', '_')}", "type": "not_empty", "field": "f", "error_message": "m"}],
+    }}, sort_keys=False), encoding="utf-8")
+    return p
+
+
+class TestCrossVersionWriteBack:
+    @pytest.fixture
+    def two_files(self, tmp_path):
+        d = tmp_path / "c"
+        d.mkdir()
+        v1 = _write_version_file(d, "t", "1.0", "active")
+        v2 = _write_version_file(d, "t", "2.0", "draft")
+        return ContractRegistry(d), v1, v2
+
+    def test_index_is_two_level(self, two_files):
+        reg, v1, v2 = two_files
+        assert reg._contract_paths["t"] == {"1.0": v1, "2.0": v2}
+
+    def test_approving_v2_never_touches_v1_file(self, two_files):
+        reg, v1, v2 = two_files
+        v1_before = v1.read_bytes()
+        reg.submit_for_review("t", "2.0", "alice")
+        reg.approve_contract("t", "2.0", "bob")
+        assert v1.read_bytes() == v1_before                       # forgery vector closed
+        on_disk = yaml.safe_load(v2.read_text(encoding="utf-8"))["contract"]
+        assert on_disk["status"] == "active" and on_disk["approved_by"] == "bob"
+
+    def test_demoting_v1_never_touches_v2_file(self, two_files):
+        reg, v1, v2 = two_files
+        v2_before = v2.read_bytes()
+        reg.set_status("t", "1.0", ContractStatus.DRAFT)
+        assert v2.read_bytes() == v2_before
+        assert yaml.safe_load(v1.read_text(encoding="utf-8"))["contract"]["status"] == "draft"
+
+    def test_rule_mutation_writes_only_the_matching_file(self, two_files):
+        reg, v1, v2 = two_files
+        v1_before = v1.read_bytes()
+        reg.add_rule("t", RULE)                                  # latest = 2.0 (draft)
+        assert v1.read_bytes() == v1_before
+        names = [r["name"] for r in yaml.safe_load(v2.read_text(encoding="utf-8"))["contract"]["rules"]]
+        assert names == ["r2_0", "extra"]
+
+    def test_draft_patch_counter_rekeys_and_keeps_writing(self, two_files):
+        reg, v1, v2 = two_files
+        c = reg.add_rule("t", RULE)                              # 2.0 -> 2.0-draft.1
+        assert c.version == "2.0-draft.1"
+        assert reg._contract_paths["t"] == {"1.0": v1, "2.0-draft.1": v2}
+        c = reg.add_rule("t", {**RULE, "name": "extra2"})        # -> 2.0-draft.2 via re-keyed index
+        assert c.version == "2.0-draft.2"
+        assert yaml.safe_load(v2.read_text(encoding="utf-8"))["contract"]["version"] == "2.0-draft.2"
+
+    def test_ambiguous_target_refuses_and_writes_nothing(self, two_files, tmp_path):
+        reg, v1, v2 = two_files
+        # An in-memory version nobody indexed, on a name stored across two files.
+        ghost = copy.deepcopy(reg.get("t", "1.0"))
+        ghost.version = "9.9"
+        reg._contracts["t"]["9.9"] = ghost
+        before = _snapshot(tmp_path)
+        with pytest.raises(RuntimeError, match="refusing to guess"):
+            reg._write_contract_yaml("t", ghost)
+        assert _snapshot(tmp_path) == before
+
+    def test_single_file_contract_unversioned_key_still_resolves(self, reg):
+        c = reg.get("customer")
+        c2 = reg.add_rule("customer", RULE) if c.status == ContractStatus.DRAFT else None
+        # customer is ACTIVE in the bundle; exercise the fallback via _path_for directly
+        assert reg._path_for("customer", "not-indexed") == reg.contracts_dir / "customer.yaml"
+        assert c2 is None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. bump_contract_version must not alias or mutate the live object
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestCreateVersion:
+    def test_base_object_untouched_and_new_version_is_its_own_object(self, reg):
+        base = reg.get("customer", "1.0")
+        base_rules = [r.name for r in base.rules]
+        new = reg.create_version("customer", "1.0", "2.0")
+        assert new is not base and new.rules is not base.rules
+        assert base.status == ContractStatus.ACTIVE and base.version == "1.0"
+        assert reg.get("customer", "1.0") is base
+        assert new.status == ContractStatus.DRAFT and new.version == "2.0"
+        assert [r.name for r in new.rules] == base_rules
+
+    def test_new_version_carries_no_approval_trail(self, reg):
+        base = reg.get("customer", "1.0")
+        base.approved_by, base.approved_at, base.proposed_by = "bob", "2026-01-01T00:00:00+00:00", "alice"
+        new = reg.create_version("customer", "1.0", "2.0")
+        assert new.approved_by is None and new.approved_at is None and new.proposed_by is None
+        on_disk = yaml.safe_load((reg.contracts_dir / "customer_v2.0.yaml").read_text(encoding="utf-8"))["contract"]
+        assert on_disk["status"] == "draft" and "approved_by" not in on_disk
+
+    def test_persisted_and_survives_reload_with_both_versions(self, reg):
+        reg.create_version("customer", "1.0", "2.0")
+        reg.reload()
+        assert reg.get("customer", "1.0").status == ContractStatus.ACTIVE
+        assert reg.get("customer", "2.0").status == ContractStatus.DRAFT
+        assert reg.get("customer").version == "2.0"
+        assert reg._contract_paths["customer"]["2.0"].name == "customer_v2.0.yaml"
+
+    def test_lossless_copy_of_base_file(self, reg):
+        base_raw = yaml.safe_load((reg.contracts_dir / "customer.yaml").read_text(encoding="utf-8"))["contract"]
+        reg.create_version("customer", "1.0", "2.0")
+        new_raw = yaml.safe_load((reg.contracts_dir / "customer_v2.0.yaml").read_text(encoding="utf-8"))["contract"]
+        assert new_raw["rules"] == base_raw["rules"]
+        assert new_raw.get("contexts") == base_raw.get("contexts")
+
+    @pytest.mark.parametrize("bad", ["1.0", "../x", "a/b", "", "x" * 51])
+    def test_rejects_duplicate_and_unsafe_versions(self, reg, tmp_path, bad):
+        before = _snapshot(tmp_path)
+        with pytest.raises(ValueError):
+            reg.create_version("customer", "1.0", bad)
+        assert _snapshot(tmp_path) == before
+
+    def test_route_keeps_response_shape_and_does_not_mutate_base(self, client, approver_headers):
+        from opendqv.api import deps as _d
+        _seed(_d.registry, "MCP_bump1", ContractStatus.ACTIVE)
+        try:
+            base = _d.registry.get("MCP_bump1", "1.0")
+            r = client.post("/api/v1/contracts/MCP_bump1/version", params={"new_version": "2.0"}, headers=approver_headers)
+            assert r.status_code == 200
+            body = r.json()
+            assert body["new_version"] == "2.0" and body["status"] == "draft" and "diff" in body
+            assert base.status == ContractStatus.ACTIVE and base.version == "1.0"
+            assert _d.registry.get("MCP_bump1", "2.0") is not base
+            assert (_d.registry.contracts_dir / "MCP_bump1_v2.0.yaml").exists()
+            r2 = client.post("/api/v1/contracts/MCP_bump1/version", params={"new_version": "2.0"}, headers=approver_headers)
+            assert r2.status_code == 400
+        finally:
+            _teardown(_d.registry, "MCP_bump1")
