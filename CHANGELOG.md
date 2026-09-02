@@ -65,7 +65,7 @@ CRT180 — contract-format conformance across engines (see
   counts as a presence decision and an `optional: true` or conditional rule
   raises no `FORMAT_ONLY_FIELD_ACCEPTS_EMPTY`. Batch path: every non-presence
   block treats a blank as absent (`checksum` did not). Fourth cross-engine run:
-  142/142 identical on verdict, code and severity.
+  137/137 identical on verdict, code and severity.
 - **D6 closed on Core's own handlers:** `allowed_values`, `lookup` and `date_diff`
   no longer fire on a blank / whitespace-only value (they already skipped
   `None`); batch path aligned (`_batch_absent`), `forbidden_if` batch SQL trims

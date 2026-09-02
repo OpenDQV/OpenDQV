@@ -313,10 +313,10 @@ The managed engine mirrored the same pass on its starters.
 |---|---|---|---|---|
 | banking_transaction (strict) | 24 | 24 | 23 | 24/24 |
 | hr_employee | 26 | 26 | 26 | 26/26 |
-| customer | 24 | 24 | 24 | 24/24 |
+| customer | 19 | 19 | 19 | 19/19 |
 | dora_ict_incident (strict) | 41 | 41 | 41 | 41/41 |
 | nhs_dsp_patient | 27 | 27 | 27 | 27/27 |
-| **total** | **142** | **142** | **141** | **142/142** |
+| **total** | **137** | **137** | **136** | **137/137** |
 
 Class A is closed. The only difference left on the whole corpus is **D9**
 (one message: length rule on a number). For contracts *outside* the bundled
