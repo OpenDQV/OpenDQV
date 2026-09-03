@@ -115,3 +115,42 @@ contract:
         pattern: ^[A-CEGHJ-PR-TW-Z]{1}[A-CEGHJ-NPR-TW-Z]{1}[0-9]{6}[A-D]{1}$
         severity: error
         error_message: Invalid UK National Insurance number format (e.g. AB123456C)
+  contexts:
+    retail_kyc:
+      # Stricter context: used by the live KYC onboarding pipeline.
+      # All plausibility failures block customer onboarding (severity: error).
+      date_of_birth:
+        type: regex
+        pattern: "^(19[0-9][5-9]|19[1-9][0-9]|20[0-9][0-9])-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+        severity: error
+        error_message: "DOB fails plausibility check in retail KYC context — record blocked pending CDD remediation"
+      ni_number:
+        type: regex
+        pattern: "^[A-CEGHJ-PR-TW-Z]{1}[A-CEGHJ-NPR-TW-Z]{1}[0-9]{6}[A-D]{1}$"
+        severity: error
+        error_message: "NI number is required and must be valid for retail KYC onboarding"
+      postcode:
+        type: regex
+        pattern: "^[A-Z]{1,2}[0-9][0-9A-Z]?\\s?[0-9][A-Z]{2}$"
+        severity: error
+        error_message: "Valid UK postcode is required for retail KYC onboarding"
+
+    internal_review:
+      # Relaxed context: used by data-quality monitoring and AML lookback
+      # triage dashboards. Failures raise warnings only so analysts can
+      # investigate without blocking upstream processes.
+      date_of_birth:
+        type: regex
+        pattern: "^(19[0-9][5-9]|19[1-9][0-9]|20[0-9][0-9])-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+        severity: warning
+        error_message: "DOB may be a sentinel/placeholder value — flag for CDD review"
+      ni_number:
+        type: regex
+        pattern: "^[A-CEGHJ-PR-TW-Z]{1}[A-CEGHJ-NPR-TW-Z]{1}[0-9]{6}[A-D]{1}$"
+        severity: warning
+        error_message: "NI number format issue detected — review recommended"
+      postcode:
+        type: regex
+        pattern: "^[A-Z]{1,2}[0-9][0-9A-Z]?\\s?[0-9][A-Z]{2}$"
+        severity: warning
+        error_message: "Postcode format issue detected — review recommended"

@@ -117,6 +117,16 @@ All 43 checks must pass before the `ALL SMOKE TESTS PASSED` line appears.
 - **Keep it simple:** Only add what's needed. Don't over-engineer.
 - **Write tests:** New features need tests. Bug fixes need a regression test.
 - **Contracts are YAML:** Rule definitions live in `contracts/*.yaml`, not in Python code.
+- **Starter contracts have one owner, and contributions are still welcome here.**
+  Since 2.7.0 `opendqv/contracts/` is a mirror of the golden OpenDQV Cloud
+  starter library (`library_manifest.json` records the export in its `source`
+  block). A pull request that changes a starter or a `ref/` list is reviewed
+  in this repository as usual; when it is accepted, the maintainer applies it
+  to the golden copy and re-exports, and the next `library_manifest.json`
+  shows it landed (`source.export_ref`, `library_version`). Do not expect a
+  starter PR to be merged into `opendqv/contracts/` directly — the digest
+  check on the managed side would fail the build — expect it to land through
+  the export within the next release.
 
 ### Project Conventions
 

@@ -40,7 +40,7 @@ Conformance therefore has to be engineered:
 |---|---|---|---|
 | Rule type `not_empty_string` | absent — a contract using it loaded and the rule silently passed (unknown type) | shipped | **closed** — added in 1/4 |
 | Contract flag `strict_schema` + `allowed_fields` | absent — the key was dropped on parse and undeclared fields passed | shipped | **closed** — added in 2/4 |
-| `contexts:` block | implemented (five bundled contracts use it) | not implemented — refused at validate time with an explicit error | **open** — decision D1 below |
+| `contexts:` block | implemented; since 2.7.0 no bundled contract declares one (worked example in `examples/contexts/`) | not implemented — refused at load time with an explicit error (D39) | **ruled** — D1 below, round 4 |
 | Rule key `optional` | not in the Rule model (ignored) | implemented (opts a field out of implicit-required semantics) | **open** — decision D2 |
 | Envelope | bundled files use the `contract:` wrapper; loader accepts wrapped and flat | flat only; wrapper rejected | **open** — decision D3 |
 | Starter library, 40 shared contracts | 23 identical; 11 rules only here; 22 only there; 24 same-name rules with different config | | **partly closed** — 3/4 applied the mechanical classes; the rest is D4 |
@@ -74,6 +74,13 @@ refuse a contract that declares them at load time (today the managed engine
 refuses at validate time, which is later than ideal); (b) drop contexts from
 the format; (c) the managed engine implements them. Recommendation: (a)
 now, (c) when a customer needs a context on that engine.
+*Ruled 2026-09-03 (round 4): (a) for the feature — Core keeps contexts and
+the managed engine refuses the block at load time (its D39) — and (b) for
+the bundled library, which is mirrored from the golden copy and therefore
+declares none. The worked example the docs walk through ships as
+`examples/contexts/*.yaml`; the docs, MCP tool descriptions and UI default
+no longer name contexts the bundled contracts do not declare, because an
+undeclared context falls back to the base rules silently (CRT173).*
 
 **D2 — `optional`.** The managed engine treats an error-severity single-field
 rule as implying the field is present (an absent field fails) and `optional:
@@ -118,6 +125,9 @@ what the format documents.
 had drifted for months. Proposal: this repository is the source of record for
 the starter library; the managed engine mirrors it from a tagged release and
 its build fails if the mirror differs from the tag.
+*Ruled 2026-09-03 the other way round (see review round 4): the managed
+engine's library is the golden copy and this repository mirrors it; the
+build-time digest check runs on the managed side, the manifest check here.*
 
 ## The conformance fixtures
 
@@ -427,6 +437,53 @@ code, severity and message.** The run also caught one managed-engine gap:
 its implicit-required catcher fired on a field whose presence the contract
 decides *conditionally* (`required_if`); it now stays silent for any field
 carrying a presence-class rule, as Core reads it.
+
+## Review round 4 (2026-09-03) — the library has one owner, and it is the managed engine
+
+**Ruling (product owner, 2026-09-03):** the managed OpenDQV Cloud starter
+library is the golden copy; this repository carries a mirror of it. This
+reverses D5's direction (which had this repository as source of record for
+one day, 2.6.0) after the first tagged sync exposed how far the two copies
+had drifted and which readings were right.
+
+**Mechanism.** Cloud exports its templates into this repository
+(`opendqv/contracts/*.yaml` in this envelope — `contract:` wrapper, this
+repository's version numbers bumped on content change, no `contexts:`
+blocks — plus `ref/`), then regenerates `library_manifest.json` here with
+`scripts/library_manifest.py`. Cloud's build recomputes every digest in that
+manifest from its own templates and fails if any differs; this repository's
+`scripts/library_manifest.py --check` guards the committed file. So a rule
+change can only enter through the golden copy, and neither side can lag
+silently. Two deliberate differences remain and are named on both sides:
+`opendqv_cloud_customer_profile` (Cloud's dogfood contract, never exported)
+and `universal_benchmark` (this repository's benchmark fixture, never
+imported).
+
+**What changed in the library (verdict-bearing; wording changes omitted):**
+see the 2.7.0 CHANGELOG entry — DORA's reporting clock (CDR (EU) 2025/301),
+zone-designated timestamps and `major` / `non_major`; Martyn's Law events
+always enhanced-tier; RTS 22 identifier codes and ISO 20022 side codes in
+MiFID; strictly positive minimums; `merchant_id` conditional on `channel`;
+`pharma_clinical_trial` `"yes"` quoted (#158, closed); #159's observations
+adopted or ruled. `contexts:` blocks are gone from the five samples that
+carried them; the feature is unchanged and its tests now run against
+`tests/fixtures/contracts_overlay/customer.yaml` (the golden `customer` plus
+the `kids_app` / `financial` contexts), which `tests/conftest.py` overlays
+onto the test copy of the library only.
+
+**Detector housekeeping.** `scripts/freeze_minimal_clean.py` re-freezes the
+minimal-clean rows from the clean rows, the existing frozen rows and the
+sample records (greedy shrink until every key is load-bearing);
+`tests/fixtures/conformance/frozen/accepted_breaks.json` lists the
+contracts whose deliberate verdict changes the replay detector must not
+gate on, each tied to the CHANGELOG version that documents it — the file is
+meant to be emptied at the next release, not to accumulate.
+
+**Fourth cross-engine run:** the corpus was regenerated from the golden
+library (319 rows over the same five contracts) and the managed engine
+reproduces it row for row, messages included; the 30 frozen minimal-clean
+records (29 seeded here + `universal_benchmark`, which it does not seed) are
+all accepted by the managed engine. Two engines, one library, zero residue.
 
 ## Known issues
 

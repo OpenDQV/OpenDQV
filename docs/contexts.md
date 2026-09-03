@@ -1,6 +1,16 @@
 # Contexts
 
-> Last reviewed: 2026-03-17
+> Last reviewed: 2026-09-03
+
+> **Since 2.7.0 the bundled starter library declares no `contexts:` blocks** — the
+> library is mirrored from the golden OpenDQV Cloud library, and the managed
+> engine refuses the block. Contexts remain a Core feature. The worked example
+> this page walks through ships as `examples/contexts/customer.yaml` (with
+> `financial_services_customer`, `proof_of_play`, `salesforce_contact` and
+> `salesforce_lead` alongside): copy it into your contracts directory to follow
+> along, or add a `contexts:` block to your own contract. A context name the
+> contract does not declare falls back to the base rules — check
+> `effective_rule_hash` if you expected an override to apply.
 
 Contexts are named sets of rule overrides that apply on top of a base contract. A single YAML contract can serve multiple source systems, tenants, or regulatory regimes — each with their own rule adjustments — without duplicating the contract.
 
@@ -63,7 +73,7 @@ Both base `age` rules (`age_minimum` and `age_reasonable`) are replaced by the s
 
 Contexts are defined in a `contexts:` block at the end of the contract, after the `rules:` list. Each key under `contexts:` is a context name; each key under that is a field name whose rules are overridden.
 
-The following is the exact `contexts:` block from `contracts/customer.yaml`:
+The following is the exact `contexts:` block from `examples/contexts/customer.yaml`:
 
 ```yaml
   contexts:
@@ -306,4 +316,4 @@ curl -s -X DELETE "http://localhost:8000/api/v1/quality/stats?context=demo" \
 ## See also
 
 - [docs/naming_conventions.md](naming_conventions.md) — naming conventions for contracts, rules, and fields
-- [contracts/customer.yaml](../contracts/customer.yaml) — the reference contract with live `contexts:` examples
+- [contracts/customer.yaml](../examples/contexts/customer.yaml) — the reference contract with live `contexts:` examples

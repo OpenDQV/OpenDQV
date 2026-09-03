@@ -18,8 +18,10 @@ Fix:
 - `record_version` now writes `proposed_by`, `proposed_at`,
   `approved_by`, `approved_at` to history (was only writing approved_by
   via explicit param).
-- All 41 bundled YAMLs declare `proposed_by: opendqv-core-team` and
-  `approved_by: opendqv-core-team` with timestamps.
+- All bundled YAMLs declare `proposed_by` and `approved_by` with timestamps.
+  Since 2.7.0 the library is mirrored from the golden OpenDQV Cloud library:
+  `proposed_by: opendqv-cloud-team` (the owner), `approved_by: opendqv-core-team`
+  (this repository, which mirrors it).
 - New `approved_at` column added to contract_history schema migration.
 
 Recurrence: list_versions for any bundled contract returns populated
@@ -40,7 +42,7 @@ class TestBundledContractAttestation:
         active = [v for v in versions if v.get("status") == "active"]
         assert active, f"no active version: {versions}"
         latest = active[-1]
-        assert latest.get("proposed_by") == "opendqv-core-team", (
+        assert latest.get("proposed_by") == "opendqv-cloud-team", (
             f"v2.3.20 P1.4 regression: customer.proposed_by null on bundled "
             f"exemplar. Got: {latest.get('proposed_by')!r}"
         )
@@ -60,7 +62,7 @@ class TestBundledContractAttestation:
         active = [v for v in versions if v.get("status") == "active"]
         assert active
         latest = active[-1]
-        assert latest.get("proposed_by") == "opendqv-core-team"
+        assert latest.get("proposed_by") == "opendqv-cloud-team"
         assert latest.get("approved_by") == "opendqv-core-team"
 
     def test_all_bundled_yamls_carry_template_attestation(self):

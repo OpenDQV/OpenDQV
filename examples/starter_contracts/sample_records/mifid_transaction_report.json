@@ -15,7 +15,7 @@
     "price_type": "monetary",
     "quantity": 500,
     "currency": "GBP",
-    "transaction_type": "buy",
+    "transaction_type": "BUYI",
     "trade_date": "2026-03-25",
     "reviewed_by": "Regulatory Reporting Analyst",
     "review_date": "2026-03-25"
@@ -28,7 +28,7 @@
     "executing_entity_lei": "549300MLUDYVRQOOXS22",
     "venue_mic": "XEUR",
     "instrument_isin": "DE0005140008",
-    "buyer_id_type": "national_client_identifier",
+    "buyer_id_type": "NIDN",
     "buyer_id": "DEAT-12345678",
     "seller_id_type": "LEI",
     "seller_id": "549300MLUDYVRQOOXS22",
@@ -36,7 +36,7 @@
     "price_type": "monetary",
     "quantity": 10000,
     "currency": "EUR",
-    "transaction_type": "sell",
+    "transaction_type": "SELL",
     "trade_date": "2026-03-25",
     "reviewed_by": "Regulatory Reporting Analyst",
     "review_date": "2026-03-25"
@@ -49,7 +49,7 @@
     "executing_entity_lei": "213800WSGIIZCXF1P572",
     "venue_mic": "XNAS",
     "instrument_isin": "US0231351067",
-    "buyer_id_type": "aggregated",
+    "buyer_id_type": "INTC",
     "buyer_id": "AGGREGATED",
     "seller_id_type": "LEI",
     "seller_id": "HWUPKR0MPOU8FGXBT394",
@@ -57,7 +57,7 @@
     "price_type": "percentage",
     "quantity": 250000,
     "currency": "USD",
-    "transaction_type": "buy",
+    "transaction_type": "BUYI",
     "trade_date": "2026-03-25",
     "reviewed_by": "Head of Regulatory Reporting",
     "review_date": "2026-03-25"
@@ -78,7 +78,7 @@
     "price_type": "monetary",
     "quantity": 200,
     "currency": "GBP",
-    "transaction_type": "buy",
+    "transaction_type": "BUYI",
     "trade_date": "2026-03-25",
     "reviewed_by": "Regulatory Reporting Analyst",
     "review_date": "2026-03-25"
@@ -99,7 +99,7 @@
     "price_type": "monetary",
     "quantity": 1000,
     "currency": "GBP",
-    "transaction_type": "sell",
+    "transaction_type": "SELL",
     "trade_date": "2026-03-25",
     "reviewed_by": "Regulatory Reporting Analyst",
     "review_date": "2026-03-25"

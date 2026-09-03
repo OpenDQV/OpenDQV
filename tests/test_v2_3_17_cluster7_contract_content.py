@@ -40,14 +40,17 @@ class TestMifidTimestampFormat:
         format_errs = [e for e in errors if e.get("rule") == "execution_timestamp_format"]
         assert not format_errs, f"RTS 25 µs UTC must pass format rule: {format_errs}"
 
-    def test_seconds_only_rejected(self, client, auth_headers):
+    def test_seconds_only_accepted(self, client, auth_headers):
+        # 2.7.0 (golden library): RTS 25 Art. 3 requires microsecond granularity
+        # for HFT / venue activity only; one-second granularity is compliant for
+        # activity outside a venue, so whole seconds pass the format rule.
         body = self._happy_record()
         body["record"]["execution_timestamp"] = "2026-04-27T14:30:15Z"
         r = client.post("/api/v1/validate?allow_draft=true", json=body, headers=auth_headers)
         body_json = r.json()
         format_errs = [e for e in body_json.get("errors", []) if e.get("rule") == "execution_timestamp_format"]
-        assert format_errs, \
-            f"v2.3.17 Q13: seconds-only timestamp must fail RTS 25 µs format. Got errors: {body_json.get('errors')}"
+        assert not format_errs, \
+            f"RTS 25 second granularity must pass the format rule. Got errors: {body_json.get('errors')}"
 
     def test_date_only_rejected(self, client, auth_headers):
         body = self._happy_record()
@@ -56,12 +59,21 @@ class TestMifidTimestampFormat:
         format_errs = [e for e in r.json().get("errors", []) if e.get("rule") == "execution_timestamp_format"]
         assert format_errs, "date-only must fail RTS 25 µs format"
 
-    def test_milliseconds_rejected(self, client, auth_headers):
+    def test_milliseconds_accepted(self, client, auth_headers):
+        # Millisecond granularity is the RTS 25 requirement for non-HFT venue
+        # activity — accepted (0–6 fractional digits).
         body = self._happy_record()
         body["record"]["execution_timestamp"] = "2026-04-27T14:30:15.123Z"
         r = client.post("/api/v1/validate?allow_draft=true", json=body, headers=auth_headers)
         format_errs = [e for e in r.json().get("errors", []) if e.get("rule") == "execution_timestamp_format"]
-        assert format_errs, "millisecond precision must fail RTS 25 µs format (need 6 fractional digits)"
+        assert not format_errs, "millisecond precision is RTS 25 compliant for non-HFT activity and must pass"
+
+    def test_seven_fractional_digits_rejected(self, client, auth_headers):
+        body = self._happy_record()
+        body["record"]["execution_timestamp"] = "2026-04-27T14:30:15.1234567Z"
+        r = client.post("/api/v1/validate?allow_draft=true", json=body, headers=auth_headers)
+        format_errs = [e for e in r.json().get("errors", []) if e.get("rule") == "execution_timestamp_format"]
+        assert format_errs, "more than six fractional digits is not an RTS 25 timestamp"
 
     def test_offset_not_z_rejected(self, client, auth_headers):
         body = self._happy_record()

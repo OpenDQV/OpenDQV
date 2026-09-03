@@ -18,38 +18,42 @@ customers must tailor for their actual ARM submission codes.
 
 
 class TestMifidTemplateRulesAreHonest:
-    def test_buyer_id_type_states_starter_taxonomy(self, client, auth_headers):
+    # 2.7.0 (golden library): the identifier-type taxonomy IS the RTS 22
+    # Annex I code list (LEI, NIDN, CCPT, CONCAT, MIC, INTC), so the honesty
+    # property is now "the message cites the regulation's own field", not
+    # "the message admits the list is a placeholder".
+    def test_buyer_id_type_cites_rts22_field(self, client, auth_headers):
         r = client.get("/api/v1/contracts/mifid_transaction_report", headers=auth_headers)
         assert r.status_code == 200
         rule = next(
             rr for rr in r.json()["rules"] if rr["name"] == "buyer_id_type_valid"
         )
         msg = rule["error_message"]
-        assert "starter taxonomy" in msg, (
-            f"buyer_id_type_valid error_message must admit it's a starter taxonomy "
-            f"and that real RTS 22 uses different codes; got: {msg!r}"
+        assert "RTS 22" in msg and "Annex I" in msg and "Field 7" in msg, (
+            f"buyer_id_type_valid error_message must cite RTS 22 Annex I Table 2 Field 7; got: {msg!r}"
         )
 
-    def test_seller_id_type_states_starter_taxonomy(self, client, auth_headers):
+    def test_seller_id_type_cites_rts22_field(self, client, auth_headers):
         r = client.get("/api/v1/contracts/mifid_transaction_report", headers=auth_headers)
         rule = next(
             rr for rr in r.json()["rules"] if rr["name"] == "seller_id_type_valid"
         )
-        assert "starter taxonomy" in rule["error_message"]
+        msg = rule["error_message"]
+        assert "RTS 22" in msg and "Annex I" in msg and "Field 16" in msg
 
-    def test_transaction_type_states_starter_taxonomy(self, client, auth_headers):
+    def test_transaction_type_states_template_level(self, client, auth_headers):
         r = client.get("/api/v1/contracts/mifid_transaction_report", headers=auth_headers)
         rule = next(
             rr for rr in r.json()["rules"] if rr["name"] == "transaction_type_valid"
         )
         msg = rule["error_message"]
-        assert "starter taxonomy" in msg
-        # Specifically must point customers at buy_sell_indicator as the
-        # RTS 22 code field (so a customer reading this rule's failure
-        # knows the platform is consistent with itself, not contradicting).
-        assert "buy_sell_indicator" in msg, (
-            f"transaction_type error_message should point to the RTS 22 "
-            f"buy_sell_indicator field as the proper-code surface; got: {msg!r}"
+        # transaction_type is a template-level direction field: the message
+        # must say so and must not claim it is an RTS 22 field.
+        assert "template-level" in msg, (
+            f"transaction_type error_message must say the field is template-level; got: {msg!r}"
+        )
+        assert "RTS 22 has no buy/sell field" in msg, (
+            f"transaction_type error_message must say RTS 22 has no buy/sell field; got: {msg!r}"
         )
 
     def test_reviewed_by_states_template_level(self, client, auth_headers):

@@ -1,310 +1,243 @@
 contract:
   name: dora_ict_incident
-  # v2.3.20 P1.4: template-level attestation. The OpenDQV core
-  # team proposed and reviewed this template; customers forking
-  # this contract overwrite these fields with their own
-  # organizational attestation when they go through their
-  # regulated approve workflow.
-  proposed_by: opendqv-core-team
-  proposed_at: "2026-04-27T00:00:00+00:00"
-  approved_by: opendqv-core-team
-  approved_at: "2026-04-27T00:00:00+00:00"
-  version: "1.0"
-  strict_schema: true
-  description: >
-    Digital Operational Resilience Act (DORA) — Regulation (EU) 2022/2554, Article 17–19.
-    ICT-related incident report compliance contract for financial entities operating in the EU.
-    DORA requires financial entities to classify, record, and report ICT incidents to competent
-    authorities within strict timelines: early warning within 24 hours, initial notification
-    within 72 hours, and final report within one month. This contract enforces completeness
-    at the point of write: entity type, incident classification, detection timestamp, reporting
-    timelines, root cause for major/significant incidents, and remediation tracking.
-    The omission failure mode: an ICT incident is recorded without classification, detection
-    timestamp, or notification timestamp. The entity misses the statutory reporting window.
-    Competent authority imposes administrative penalties under Article 50. For critical ICT
-    third-party providers, authorisation may be withdrawn under Article 35.
-  owner: "ICT Risk Management Team"
+  # Template-level attestation: proposed by the OpenDQV Cloud team (the golden
+  # starter library) and approved by the OpenDQV core team, which mirrors it.
+  # A customer forking this contract overwrites these fields with their own
+  # organisational attestation through their approve workflow.
   owner_email: opendqv@bgmsconsultants.com
+  proposed_by: opendqv-cloud-team
+  proposed_at: "2026-09-03T00:00:00+00:00"
+  approved_by: opendqv-core-team
+  approved_at: "2026-09-03T00:00:00+00:00"
+  version: "1.2"
+  description: |
+      OpenDQV Cloud starter template (v0.1) — your tenant inherits this baseline. First customer edit creates v1.0 in your audit trail; pin by yaml_hash for replay.
+
+      Digital Operational Resilience Act (DORA) — Regulation (EU) 2022/2554, Article 17–19. ICT-related incident report compliance contract for financial entities operating in the EU. DORA requires financial entities to classify and record ICT incidents and to report major ICT incidents in three stages (Article 19(4)): initial notification (within 4 hours of classification as major, no later than 24 hours from becoming aware), intermediate report (within 72 hours of submission of the initial notification), and final report (within one month of the intermediate report) — time limits per Commission Delegated Regulation (EU) 2025/301 Art 5. This contract enforces completeness at the point of write: entity type, incident classification (major / non_major — 'significant' is DORA vocabulary for cyber threats, Art 18(2), not an incident class), detection timestamp, the three reporting clocks anchored per CDR 2025/301 (awareness, classification-as-major, initial-notification submission, intermediate report), root cause for major incidents, and remediation tracking. Encoded limitation, stated honestly: Art 5(4)'s weekend/bank-holiday extension (and its Art 5(5) carve-outs) cannot be expressed in a stateless rule — the deadlines here are the strict base windows. The omission failure mode: an ICT incident is recorded without classification, detection timestamp, or notification timestamp. The entity misses the statutory reporting window. Competent authority imposes administrative penalties under Article 50. For critical ICT third-party providers, competent authorities may, as a last resort, require financial entities to suspend or terminate use of the provider's services under Article 42(6).
+  owner: ICT Risk Management Team
   status: active
   asset_id: urn:opendqv:dora_ict_incident
-
+  strict_schema: true
   rules:
-
-    # ── INCIDENT IDENTITY ────────────────────────────────────────────────────
-    - name: incident_id_required
-      field: incident_id
-      type: not_empty
-      severity: error
-      error_message: "incident_id is required — every ICT incident must be uniquely identifiable per Article 17(1) DORA"
-
-    - name: incident_id_unique
-      field: incident_id
-      type: unique
-      severity: error
-      error_message: "incident_id must be unique within this batch — duplicate incident identifiers compromise the incident register per Article 17(1) DORA. Note: OpenDQV validates uniqueness within the input payload only; cross-batch uniqueness against the firm's incident register is the responsibility of the upstream system."
-
-    - name: incident_title_required
-      field: incident_title
-      type: not_empty
-      severity: error
-      error_message: "incident_title is required — a descriptive title is needed for the incident register per Article 17(1) DORA"
-
-    # ── REPORTING ENTITY ─────────────────────────────────────────────────────
-    - name: entity_name_required
-      field: entity_name
-      type: not_empty
-      severity: error
-      error_message: "entity_name is required — Article 19(1) DORA requires the reporting entity to be identified in the incident notification"
-
-    - name: entity_type_required
-      field: entity_type
-      type: not_empty
-      severity: error
-      error_message: "entity_type is required — Article 2 DORA defines the financial entities in scope; the entity type must be recorded"
-
-    - name: entity_type_valid
-      field: entity_type
-      type: lookup
-      lookup_file: ref/dora_entity_types.txt
-      severity: error
-      error_message: "entity_type must be one of the Article 2 DORA entity types: credit_institution, investment_firm, payment_institution, electronic_money_institution, crypto_asset_service_provider, central_counterparty, central_securities_depository, trade_repository, insurance_undertaking, reinsurance_undertaking, management_company, alternative_investment_fund_manager, ict_third_party_service_provider, other"
-
-    # ── INCIDENT CLASSIFICATION (Article 18) ─────────────────────────────────
-    - name: incident_classification_required
-      field: incident_classification
-      type: not_empty
-      severity: error
-      error_message: "incident_classification is required — Article 18(1) DORA requires ICT incidents to be classified as major, significant, or minor"
-
-    - name: incident_classification_valid
-      field: incident_classification
-      type: lookup
-      lookup_file: ref/dora_incident_classification.txt
-      severity: error
-      error_message: "incident_classification must be one of: major, significant, minor — per Article 18(1) DORA classification criteria"
-
-    - name: incident_description_required
-      field: incident_description
-      type: not_empty
-      severity: error
-      error_message: "incident_description is required — Article 19(4) DORA requires a description of the incident including the nature and impact"
-
-    - name: affected_services_required
-      field: affected_services
-      type: not_empty
-      severity: error
-      error_message: "affected_services is required — Article 18(1)(a) DORA requires identification of critical or important functions affected"
-
-    # ── DETECTION AND REPORTING TIMELINES (Article 19) ───────────────────────
-    - name: detection_timestamp_required
-      field: detection_timestamp
-      type: not_empty
-      severity: error
-      error_message: "detection_timestamp is required — Article 19(4)(a) DORA requires the date and time the ICT incident was detected"
-
-    - name: detection_timestamp_format
-      field: detection_timestamp
-      type: date_format
-      severity: error
-      error_message: "detection_timestamp must be a valid datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS) — Article 19(4)(a) DORA"
-
-    - name: early_warning_timestamp_required
-      field: early_warning_timestamp
-      type: not_empty
-      severity: error
-      error_message: "early_warning_timestamp is required — Article 19(4)(a) DORA requires an early warning within 24 hours of becoming aware of the incident"
-
-    - name: early_warning_timestamp_format
-      field: early_warning_timestamp
-      type: date_format
-      severity: error
-      error_message: "early_warning_timestamp must be a valid datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)"
-
-    - name: early_warning_timeline
-      field: early_warning_timestamp
-      type: date_diff
-      date_diff_field: detection_timestamp
-      date_diff_unit: days
-      max: 1
-      severity: error
-      error_message: "early_warning_timestamp must be within 1 day (24 hours) of detection_timestamp — Article 19(4)(a) DORA requires early warning without undue delay and within 24 hours"
-
-    - name: initial_notification_timestamp_required
-      field: initial_notification_timestamp
-      type: not_empty
-      severity: error
-      error_message: "initial_notification_timestamp is required — Article 19(4)(b) DORA requires an initial notification within 72 hours of becoming aware"
-
-    - name: initial_notification_timestamp_format
-      field: initial_notification_timestamp
-      type: date_format
-      severity: error
-      error_message: "initial_notification_timestamp must be a valid datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)"
-
-    - name: initial_notification_timeline
-      field: initial_notification_timestamp
-      type: date_diff
-      date_diff_field: detection_timestamp
-      date_diff_unit: days
-      max: 3
-      severity: error
-      error_message: "initial_notification_timestamp must be within 3 days (72 hours) of detection_timestamp — Article 19(4)(b) DORA requires initial notification within 72 hours"
-
-    # ── ROOT CAUSE (required for major/significant) ──────────────────────────
-    - name: root_cause_required_if_major
-      field: root_cause
-      type: required_if
-      required_if:
+      - name: incident_id_required
+        field: incident_id
+        type: not_empty
+        severity: error
+        error_message: incident_id is required — every ICT incident must be uniquely identifiable per Article 17(2) DORA (financial entities shall record all ICT-related incidents)
+      - name: incident_id_unique
+        field: incident_id
+        type: unique
+        severity: error
+        error_message: "incident_id must be unique within this batch — duplicate incident identifiers compromise the incident register per Article 17(2) DORA (financial entities shall record all ICT-related incidents). Note: OpenDQV validates uniqueness within the input payload only; cross-batch uniqueness against the firm's incident register is the responsibility of the upstream system."
+      - name: incident_title_required
+        field: incident_title
+        type: not_empty
+        severity: error
+        error_message: incident_title is required — a descriptive title is needed for the incident register per Article 17(2) DORA (financial entities shall record all ICT-related incidents)
+      - name: entity_name_required
+        field: entity_name
+        type: not_empty
+        severity: error
+        error_message: entity_name is required — Article 19(1) DORA requires the reporting entity to be identified in the incident notification
+      - name: entity_type_required
+        field: entity_type
+        type: not_empty
+        severity: error
+        error_message: entity_type is required — Article 2 DORA defines the financial entities in scope; the entity type must be recorded
+      - name: entity_type_valid
+        field: entity_type
+        type: lookup
+        lookup_file: ref/dora_entity_types.txt
+        severity: error
+        error_message: 'entity_type must be one of the Article 2 DORA entity types: credit_institution, investment_firm, payment_institution, electronic_money_institution, crypto_asset_service_provider, central_counterparty, central_securities_depository, trade_repository, insurance_undertaking, reinsurance_undertaking, management_company, alternative_investment_fund_manager, ict_third_party_service_provider, other'
+      - name: incident_classification_required
         field: incident_classification
-        value: "major"
-      severity: error
-      error_message: "root_cause is required when incident_classification is major — Article 19(4)(e) DORA requires root cause analysis for major ICT incidents"
-
-    - name: root_cause_required_if_significant
-      field: root_cause
-      type: required_if
-      required_if:
+        type: not_empty
+        severity: error
+        error_message: incident_classification is required — ICT incidents are classified per the Article 18(1) criteria (clients affected, duration, geographical spread, data losses, criticality, economic impact); 'major' is determined against the RTS materiality thresholds (Article 18(3)); this template's severity enum is template-level
+      - name: incident_classification_valid
         field: incident_classification
-        value: "significant"
-      severity: error
-      error_message: "root_cause is required when incident_classification is significant — Article 19(4)(e) DORA requires root cause analysis for significant ICT incidents"
-
-    # ── FINAL REPORT (required for post-incident review) ─────────────────────
-    - name: final_report_date_required_if_post_review
-      field: final_report_date
-      type: required_if
-      required_if:
+        type: lookup
+        lookup_file: ref/dora_incident_classification.txt
+        severity: error
+        error_message: 'incident_classification must be one of: major, non_major — DORA classifies ICT-related incidents against the Article 18(1) criteria, with "major" determined by the RTS materiality thresholds (Article 18(3)(a)); only major incidents trigger Article 19(1) reporting. "Significant" is DORA vocabulary for CYBER THREATS (Article 18(2)), whose notification is voluntary (Article 19(2)) — it is not an incident class'
+      - name: incident_description_required
+        field: incident_description
+        type: not_empty
+        severity: error
+        error_message: incident_description is required — Article 19(4) DORA requires a description of the incident including the nature and impact
+      - name: affected_services_required
+        field: affected_services
+        type: not_empty
+        severity: error
+        error_message: affected_services is required — Article 18(1)(e) DORA (criticality of the services affected) requires identification of critical or important functions affected
+      - name: detection_timestamp_required
+        field: detection_timestamp
+        type: not_empty
+        severity: error
+        error_message: detection_timestamp is required — Article 19(4)(a) DORA requires the date and time the ICT incident was detected
+      - name: detection_timestamp_format
+        field: detection_timestamp
+        type: regex
+        pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$
+        severity: error
+        error_message: detection_timestamp must be a full ISO 8601 datetime with timezone (YYYY-MM-DDThh:mm:ssZ) — the CDR (EU) 2025/301 Art 5 deadlines are measured in hours; a date-only value cannot evidence a 4- or 24-hour window
+      - name: initial_notification_timestamp_required_if_major
+        field: initial_notification_timestamp
+        type: required_if
+        required_if:
+          field: incident_classification
+          value: major
+        severity: error
+        error_message: initial_notification_timestamp is required — the initial notification per Article 19(4)(a) DORA; due no later than 24 hours from becoming aware, or within 4 hours of classification as major (CDR (EU) 2025/301 Art 5(1)(a))
+      - name: initial_notification_timestamp_format
+        field: initial_notification_timestamp
+        type: regex
+        pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$
+        severity: error
+        error_message: initial_notification_timestamp must be a full ISO 8601 datetime with timezone (YYYY-MM-DDThh:mm:ssZ) — hour-measured deadlines cannot be evidenced by a date-only value
+      - name: initial_notification_within_24h_of_awareness
+        field: initial_notification_timestamp
+        type: date_diff
+        date_diff_field: detection_timestamp
+        date_diff_unit: days
+        min: 0
+        max: 1
+        condition:
+          field: incident_classification
+          value: major
+        severity: error
+        error_message: initial_notification_timestamp must be no later than 24 hours from becoming aware of the incident (detection_timestamp is this contract's awareness proxy) — CDR (EU) 2025/301 Art 5(1)(a); where classification as major occurs later, Art 5(2) applies via the 4-hour rule
+      - name: major_classification_timestamp_required_if_major
+        field: major_classification_timestamp
+        type: required_if
+        required_if:
+          field: incident_classification
+          value: major
+        severity: error
+        error_message: major_classification_timestamp is required for major incidents — the CDR (EU) 2025/301 Art 5(1)(a) 4-hour clock runs from classification as major; without this timestamp the deadline cannot be verified
+      - name: major_classification_timestamp_format
+        field: major_classification_timestamp
+        type: regex
+        pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$
+        condition:
+          field: incident_classification
+          value: major
+        severity: error
+        error_message: major_classification_timestamp must be a full ISO 8601 datetime with timezone (YYYY-MM-DDThh:mm:ssZ) — the 4-hour clock cannot be evidenced by a date-only value
+      - name: initial_notification_within_4h_of_classification
+        field: initial_notification_timestamp
+        type: date_diff
+        date_diff_field: major_classification_timestamp
+        date_diff_unit: days
+        min: 0
+        max: 0.16667
+        condition:
+          field: incident_classification
+          value: major
+        severity: error
+        error_message: initial_notification_timestamp must be within 4 hours of classification of the incident as major — CDR (EU) 2025/301 Art 5(1)(a) and 5(2)
+      - name: intermediate_report_timestamp_required_if_major
+        field: intermediate_report_timestamp
+        type: required_if
+        required_if:
+          field: incident_classification
+          value: major
+        severity: error
+        error_message: intermediate_report_timestamp is required for major ICT-related incidents — DORA Article 19(4)(b) intermediate report
+      - name: intermediate_report_timestamp_format
+        field: intermediate_report_timestamp
+        type: regex
+        pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$
+        severity: error
+        error_message: intermediate_report_timestamp must be a full ISO 8601 datetime with timezone (YYYY-MM-DDThh:mm:ssZ) — the 72-hour deadline cannot be evidenced by a date-only value
+      - name: intermediate_report_within_72h_of_initial
+        field: intermediate_report_timestamp
+        type: date_diff
+        date_diff_field: initial_notification_timestamp
+        date_diff_unit: days
+        min: 0
+        max: 3
+        condition:
+          field: incident_classification
+          value: major
+        severity: error
+        error_message: intermediate_report_timestamp must be within 72 hours of SUBMISSION OF THE INITIAL NOTIFICATION (not detection) — CDR (EU) 2025/301 Art 5(1)(b)
+      - name: root_cause_required_if_major
+        field: root_cause
+        type: required_if
+        required_if:
+          field: incident_classification
+          value: major
+        severity: error
+        error_message: root_cause is required when incident_classification is major — Article 19(4)(c) DORA (final report follows completion of root cause analysis)
+      - name: final_report_date_required_if_post_review
+        field: final_report_date
+        type: required_if
+        required_if:
+          field: remediation_status
+          value: post_incident_review
+        severity: error
+        error_message: final_report_date is required when remediation_status is post_incident_review — Article 19(4)(c) DORA; due within one month of the intermediate report (CDR (EU) 2025/301 Art 5(1)(c))
+      - name: final_report_date_format
+        field: final_report_date
+        type: date_format
+        condition:
+          field: remediation_status
+          value: post_incident_review
+        severity: error
+        error_message: final_report_date must be a valid date (YYYY-MM-DD)
+      - name: final_report_timeline
+        field: final_report_date
+        type: date_diff
+        date_diff_field: intermediate_report_timestamp
+        date_diff_unit: days
+        min: 0
+        max: 31
+        condition:
+          field: incident_classification
+          value: major
+        severity: error
+        error_message: final_report_date must be no later than one month after submission of the intermediate report (or the latest updated intermediate report) — CDR (EU) 2025/301 Art 5(1)(c). The engine has no calendar-month unit; 31 days is the outer bound of one month (never false-rejects; may pass by up to 3 days in short months — review borderline cases manually)
+      - name: remediation_status_required
         field: remediation_status
-        value: "post_incident_review"
-      severity: error
-      error_message: "final_report_date is required when remediation_status is post_incident_review — Article 19(4)(f) DORA requires the final report within one month"
-
-    - name: final_report_date_format
-      field: final_report_date
-      type: date_format
-      condition:
+        type: not_empty
+        severity: error
+        error_message: remediation_status is required — track the current state of incident remediation per Article 17(3) DORA
+      - name: remediation_status_valid
         field: remediation_status
-        value: "post_incident_review"
-      severity: error
-      error_message: "final_report_date must be a valid date (YYYY-MM-DD)"
-
-    - name: final_report_timeline
-      field: final_report_date
-      type: date_diff
-      date_diff_field: detection_timestamp
-      date_diff_unit: days
-      max: 30
-      severity: error
-      error_message: "final_report_date must be within 30 days of detection_timestamp — Article 19(4)(f) DORA requires the final report within one month"
-
-    # ── REMEDIATION ──────────────────────────────────────────────────────────
-    - name: remediation_status_required
-      field: remediation_status
-      type: not_empty
-      severity: error
-      error_message: "remediation_status is required — track the current state of incident remediation per Article 17(3) DORA"
-
-    - name: remediation_status_valid
-      field: remediation_status
-      type: lookup
-      lookup_file: ref/dora_remediation_status.txt
-      severity: error
-      error_message: "remediation_status must be one of: investigating, contained, resolved, post_incident_review"
-
-    - name: remediation_date_required_if_resolved
-      field: remediation_date
-      type: required_if
-      required_if:
-        field: remediation_status
-        value: "resolved"
-      severity: error
-      error_message: "remediation_date is required when remediation_status is resolved — record when the incident was resolved per Article 17(3) DORA"
-
-    - name: remediation_date_format
-      field: remediation_date
-      type: date_format
-      condition:
-        field: remediation_status
-        value: "resolved"
-      severity: error
-      error_message: "remediation_date must be a valid date (YYYY-MM-DD)"
-
-    # ── COMPLIANCE AUDIT TRAIL ───────────────────────────────────────────────
-    - name: reviewed_by_required
-      field: reviewed_by
-      type: not_empty
-      severity: error
-      error_message: "reviewed_by is required — record who reviewed this incident report for DORA compliance"
-
-    - name: review_date_required
-      field: review_date
-      type: not_empty
-      severity: error
-      error_message: "review_date is required"
-
-    - name: review_date_format
-      field: review_date
-      type: date_format
-      severity: error
-      error_message: "review_date must be a valid date (YYYY-MM-DD)"
-    - name: initial_notification_within_24h_of_awareness
-      field: initial_notification_timestamp
-      type: date_diff
-      date_diff_field: detection_timestamp
-      date_diff_unit: days
-      min: 0
-      max: 1
-      severity: error
-      error_message: initial_notification_timestamp must be no later than 24 hours from becoming aware of the incident (detection_timestamp is this contract's awareness proxy) — CDR (EU) 2025/301 Art 5(1)(a); where classification as major occurs later, Art 5(2) applies via the 4-hour rule
-    - name: major_classification_timestamp_required_if_major
-      field: major_classification_timestamp
-      type: required_if
-      required_if:
-        field: incident_classification
-        value: major
-      severity: error
-      error_message: major_classification_timestamp is required for major incidents — the CDR (EU) 2025/301 Art 5(1)(a) 4-hour clock runs from classification as major; without this timestamp the deadline cannot be verified
-    - name: major_classification_timestamp_format
-      field: major_classification_timestamp
-      type: regex
-      pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$
-      condition:
-        field: incident_classification
-        value: major
-      severity: error
-      error_message: major_classification_timestamp must be a full ISO 8601 datetime with timezone (YYYY-MM-DDThh:mm:ssZ) — the 4-hour clock cannot be evidenced by a date-only value
-    - name: initial_notification_within_4h_of_classification
-      field: initial_notification_timestamp
-      type: date_diff
-      date_diff_field: major_classification_timestamp
-      date_diff_unit: days
-      min: 0
-      max: 0.16667
-      condition:
-        field: incident_classification
-        value: major
-      severity: error
-      error_message: initial_notification_timestamp must be within 4 hours of classification of the incident as major — CDR (EU) 2025/301 Art 5(1)(a) and 5(2)
-    - name: intermediate_report_timestamp_required_if_major
-      field: intermediate_report_timestamp
-      type: required_if
-      required_if:
-        field: incident_classification
-        value: major
-      severity: error
-      error_message: intermediate_report_timestamp is required for major ICT-related incidents — DORA Article 19(4)(b) intermediate report
-    - name: intermediate_report_timestamp_format
-      field: intermediate_report_timestamp
-      type: regex
-      pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$
-      severity: error
-      error_message: intermediate_report_timestamp must be a full ISO 8601 datetime with timezone (YYYY-MM-DDThh:mm:ssZ) — the 72-hour deadline cannot be evidenced by a date-only value
-    - name: intermediate_report_within_72h_of_initial
-      field: intermediate_report_timestamp
-      type: date_diff
-      date_diff_field: initial_notification_timestamp
-      date_diff_unit: days
-      min: 0
-      max: 3
-      severity: error
-      error_message: intermediate_report_timestamp must be within 72 hours of SUBMISSION OF THE INITIAL NOTIFICATION (not detection) — CDR (EU) 2025/301 Art 5(1)(b)
+        type: lookup
+        lookup_file: ref/dora_remediation_status.txt
+        severity: error
+        error_message: 'remediation_status must be one of: investigating, contained, resolved, post_incident_review'
+      - name: remediation_date_required_if_resolved
+        field: remediation_date
+        type: required_if
+        required_if:
+          field: remediation_status
+          value: resolved
+        severity: error
+        error_message: remediation_date is required when remediation_status is resolved — record when the incident was resolved per Article 17(3) DORA
+      - name: remediation_date_format
+        field: remediation_date
+        type: date_format
+        condition:
+          field: remediation_status
+          value: resolved
+        severity: error
+        error_message: remediation_date must be a valid date (YYYY-MM-DD)
+      - name: reviewed_by_required
+        field: reviewed_by
+        type: not_empty
+        severity: error
+        error_message: reviewed_by is required — record who reviewed this incident report for DORA compliance
+      - name: review_date_required
+        field: review_date
+        type: not_empty
+        severity: error
+        error_message: review_date is required
+      - name: review_date_format
+        field: review_date
+        type: date_format
+        severity: error
+        error_message: review_date must be a valid date (YYYY-MM-DD)

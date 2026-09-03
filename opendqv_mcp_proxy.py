@@ -269,7 +269,7 @@ TOOLS = [
             "properties": {
                 "contract": {"type": "string", "description": "Contract name (e.g. 'customer', 'media_content'). Use list_contracts to discover available names."},
                 "record": {"type": "object", "description": "The data record to validate as a JSON object."},
-                "context": {"type": "string", "description": "Optional per-system context override (e.g. 'billing', 'kids_app'). Omit for default rules."},
+                "context": {"type": "string", "description": "Optional per-system context override (a name declared in the contract's contexts block). Omit for default rules."},
                 "agent_id": {"type": "string", "description": "Your agent name or service identity."},
                 "hash": {"type": "string", "description": "Optional content_hash from list_versions to pin validation to a historical contract version. Returns 404 if no matching history entry."},
                 "record_id": {"type": "string", "description": "v2.3.17 F-Q: optional caller correlation ID echoed in the response."},
@@ -316,7 +316,7 @@ TOOLS = [
             "Get full contract details including all field rules, valid value constraints, and owner. "
             "Pass `hash` (the contract_hash from a prior validate response) to retrieve the exact "
             "historical version that produced that hash — for point-in-time audit retrieval. "
-            "Pass `context` (e.g. 'salesforce', 'kids_app') to return the effective rule set "
+            "Pass `context` (a name declared in the contract's contexts block) to return the effective rule set "
             "with that context's overrides resolved."
         ),
         "inputSchema": {
@@ -325,7 +325,7 @@ TOOLS = [
                 "name": {"type": "string", "description": "Contract name."},
                 "version": {"type": "string", "description": "Contract version or 'latest' (default).", "default": "latest"},
                 "hash": {"type": "string", "description": "Contract hash (from a prior validate response). Takes precedence over version."},
-                "context": {"type": "string", "description": "Optional context to apply (e.g. 'salesforce', 'kids_app'). Returns the effective rule set with overrides resolved."},
+                "context": {"type": "string", "description": "Optional context to apply (a name declared in the contract's contexts block). Returns the effective rule set with overrides resolved."},
             },
             "required": ["name"],
         },
@@ -563,7 +563,7 @@ TOOLS = [
             "properties": {
                 "contract": {"type": "string", "description": "Filter by contract name."},
                 "contract_version": {"type": "string", "description": "Filter by contract version."},
-                "context": {"type": "string", "description": "Filter by context override (e.g. 'salesforce')."},
+                "context": {"type": "string", "description": "Filter by context override (a name declared in the contract's contexts block)."},
                 "since": {"type": "string", "description": "ISO 8601 UTC start of window (inclusive). Defaults to 24h ago."},
                 "until": {"type": "string", "description": "ISO 8601 UTC end of window (exclusive)."},
                 "agent_id": {"type": "string", "description": "Filter by caller-asserted agent_id."},

@@ -11,17 +11,18 @@ Motivation: a bug where customer.yaml valid_email rule had no pattern, silently
 accepting all values including invalid emails. 1,000+ tests passed; the bug
 shipped. A linter at load time would have caught it.
 """
-import os
 import datetime
 import pytest
 import yaml
 from pathlib import Path
 
-# Use the contracts dir from environment (points at temp copy during normal test runs,
-# but points at live contracts/ when run standalone — both are valid for linting).
-_contracts_dir = Path(
-    os.environ.get("OPENDQV_CONTRACTS_DIR", Path(__file__).parent.parent / "opendqv" / "contracts")
-)
+# Lint the SHIPPED library, never the test copy: since 2.7.0 conftest overlays
+# five contexts-carrying fixtures onto the temp copy for the contexts tests,
+# so reading OPENDQV_CONTRACTS_DIR here would leave the real committed
+# customer / financial_services_customer / proof_of_play / salesforce_*
+# files unlinted — the exact bug class this file exists to catch (VBP-5 seat
+# finding, 2026-09-03).
+_contracts_dir = Path(__file__).parent.parent / "opendqv" / "contracts"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 

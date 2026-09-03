@@ -111,14 +111,34 @@ _COMPARE_OPS = {
 
 
 def _parse_date(v):
-    """Parse a date string into a date object. Supports ISO-8601 variants."""
+    """Parse an ISO-8601 date or datetime into a timezone-aware datetime (UTC
+    assumed when the value carries no zone; a bare date is midnight UTC).
+
+    2.7.0 (round 4, found by the regulatory-claims fixture): this used to
+    return a *date*, so every ``date_diff`` was whole-day granular and a
+    sub-day window (DORA's 4-hour initial-notification clock) could never
+    fire here while it fired on the managed engine, and a timestamp with a
+    zone offset (``+01:00``) or fractional seconds could not be parsed at
+    all. Accepted shapes now match the managed engine's: date; datetime
+    without zone; ``Z``; ``±hh:mm``; fractional seconds with either. Because
+    this is ``datetime.fromisoformat`` (3.11+), a space-separated datetime
+    (``2026-01-10 08:00:00``) and a basic-format date (``20260110``) parse
+    too — a superset of the managed engine's layouts, harmless for parity
+    since a bundled contract's ``regex`` format rule decides the shape first.
+    """
     s = str(v).strip()
-    for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%SZ"):
-        try:
-            return datetime.strptime(s, fmt).date()
-        except ValueError:
-            continue
-    raise ValueError(f"Cannot parse date: {v!r}")
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError(f"Cannot parse date: {v!r}") from None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _delta_days(d1, d2) -> float:
+    """Signed difference d1 − d2 in fractional days (both paths use this)."""
+    return (d1 - d2).total_seconds() / 86400.0
 
 
 def _sanitise_record_keys(record: dict) -> dict:
@@ -1092,13 +1112,16 @@ def _check_date_diff(value, rule: Rule, record: Optional[dict] = None) -> Option
     try:
         d1 = _parse_date(value)
         d2 = _parse_date(other_val)
-        delta = (d1 - d2).days  # signed: positive if d1 is later
+        delta = _delta_days(d1, d2)  # signed, fractional: positive if d1 is later
 
         unit = rule.date_diff_unit or "days"
         if unit == "years":
-            diff = abs(delta) / 365.25
+            # Signed in BOTH units (2.7.0, matching the managed engine's
+            # 2026-06-12 reading): "end must be ≥ 1 year after start" must fail
+            # when end is years BEFORE start; abs() used to hide that.
+            diff = delta / 365.25
         else:
-            diff = float(delta)
+            diff = delta
 
         if rule.min_value is not None and diff < rule.min_value:
             return rule.error_message
@@ -2285,8 +2308,8 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                 try:
                     d1 = _parse_date(val)
                     d2 = _parse_date(other_val)
-                    delta = (d1 - d2).days
-                    diff = abs(delta) / 365.25 if unit == "years" else float(delta)
+                    delta = _delta_days(d1, d2)  # signed, fractional — identical to the single path
+                    diff = delta / 365.25 if unit == "years" else delta
                     fail = False
                     if rule.min_value is not None and diff < rule.min_value:
                         fail = True

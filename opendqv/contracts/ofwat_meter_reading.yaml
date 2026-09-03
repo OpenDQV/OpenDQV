@@ -1,169 +1,124 @@
 contract:
   name: ofwat_meter_reading
-  # v2.3.20 P1.4: template-level attestation. The OpenDQV core
-  # team proposed and reviewed this template; customers forking
-  # this contract overwrite these fields with their own
-  # organizational attestation when they go through their
-  # regulated approve workflow.
-  proposed_by: opendqv-core-team
-  proposed_at: "2026-04-27T00:00:00+00:00"
-  approved_by: opendqv-core-team
-  approved_at: "2026-04-27T00:00:00+00:00"
-  version: "1.1"
-  description: >
-    Water utility meter reading validation. Enforces Ofwat data quality requirements
-    for meter reading records in the UK Open Water market. Validates read type
-    classification (actual/estimated/customer/smart) per Market Operator Services
-    Limited (MOSL) standards, meter status lifecycle values, anomaly detection on
-    consumption volumes (readings > 1,000 m3 in a single period are likely data
-    entry errors or leak indicators requiring investigation), and monotonic meter
-    progression (current cumulative reading must be >= previous reading). Prevents
-    erroneous readings from triggering incorrect billing, false leak alerts, or
-    water efficiency misreporting under Environment Agency obligations.
-  owner: "Water Utility Data Team"
+  # Template-level attestation: proposed by the OpenDQV Cloud team (the golden
+  # starter library) and approved by the OpenDQV core team, which mirrors it.
+  # A customer forking this contract overwrites these fields with their own
+  # organisational attestation through their approve workflow.
   owner_email: opendqv@bgmsconsultants.com
+  proposed_by: opendqv-cloud-team
+  proposed_at: "2026-09-03T00:00:00+00:00"
+  approved_by: opendqv-core-team
+  approved_at: "2026-09-03T00:00:00+00:00"
+  version: "1.1"
+  description: |
+      OpenDQV Cloud starter template (v0.1) — your tenant inherits this baseline. First customer edit creates v1.0 in your audit trail; pin by yaml_hash for replay.
+
+      Water utility meter reading validation. Enforces Ofwat data quality requirements for meter reading records in the UK Open Water market. Validates read type classification (actual/estimated/customer/smart) per Market Operator Services Limited (MOSL) standards, meter status lifecycle values, anomaly detection on consumption volumes (readings > 1,000 m3 in a single period are likely data entry errors or leak indicators requiring investigation), and monotonic meter progression (current cumulative reading must be >= previous reading). Prevents erroneous readings from triggering incorrect billing, false leak alerts, or water efficiency misreporting under Environment Agency obligations.
+  owner: "Water Utility Data Team"
   status: active
   asset_id: urn:opendqv:ofwat_meter_reading
-
   rules:
-    - name: meter_id_required
-      field: meter_id
-      type: not_empty
-      severity: error
-      error_message: "meter_id is required"
-
-    - name: reading_date_required
-      field: reading_date
-      type: not_empty
-      severity: error
-      error_message: reading_date is required
-
-    - name: reading_date_format
-      field: reading_date
-      type: date_format
-      severity: error
-      error_message: "reading_date must be a valid date (YYYY-MM-DD)"
-
-    - name: consumption_m3_required
-      field: consumption_m3
-      type: not_empty
-      severity: error
-      error_message: consumption_m3 is required
-
-    - name: consumption_m3_min
-      field: consumption_m3
-      type: min
-      min: 0
-      severity: error
-      error_message: "consumption_m3 must be >= 0"
-
-    - name: consumption_m3_anomaly
-      description: "Consumption > 1,000 m3 in a single reading period is statistically
-        anomalous for all but the largest industrial customers and likely indicates
-        a data entry error, meter fault, or unreported leak. Ofwat's leakage reporting
-        framework (PR24) requires utilities to investigate and report anomalous
-        readings. Warning only — large commercial sites may legitimately exceed this."
-      field: consumption_m3
-      type: max
-      max: 1000.0
-      severity: warning
-      error_message: "consumption_m3 exceeds 1,000 m3 — verify meter reading for
-        data entry error, meter fault, or unreported leak (Ofwat PR24 leakage
-        reporting obligations apply)"
-
-    - name: customer_id_required
-      field: customer_id
-      type: not_empty
-      severity: error
-      error_message: "customer_id is required"
-
-    - name: site_id_required
-      field: site_id
-      type: not_empty
-      severity: error
-      error_message: "site_id is required"
-
-    - name: meter_status_required
-      field: meter_status
-      type: not_empty
-      severity: error
-      error_message: "meter_status is required"
-
-    - name: meter_status_values
-      description: "Meter lifecycle status values aligned with MOSL Market Domain
-        Data (MDD) meter asset standards. 'faulty' and 'replaced' statuses must
-        trigger a meter exchange workflow — consumption estimates only are valid
-        while meter is faulty."
-      field: meter_status
-      type: allowed_values
-      allowed_values:
-        - active
-        - inactive
-        - replaced
-        - faulty
-        - removed
-        - awaiting_installation
-        - decommissioned
-      severity: error
-      error_message: "meter_status must be one of: active, inactive, replaced,
-        faulty, removed, awaiting_installation, decommissioned (MOSL MDD meter
-        asset lifecycle values)"
-
-    - name: read_type_required
-      field: read_type
-      type: not_empty
-      severity: error
-      error_message: read_type is required
-
-    - name: read_type_values
-      description: "Read type classification per MOSL standards. 'estimated' reads
-        must not be used for billing disputes or leakage reporting. 'smart' reads
-        are interval data from AMR/AMI meters and carry higher evidential weight
-        under Ofwat's water efficiency reporting requirements."
-      field: read_type
-      type: allowed_values
-      allowed_values:
-        - actual
-        - estimated
-        - customer
-        - smart
-        - check
-        - final
-      severity: error
-      error_message: "read_type must be one of: actual, estimated, customer, smart,
-        check, final (MOSL read type classification — estimated reads are not valid
-        for billing disputes or leakage reporting)"
-
-    - name: tariff_zone_required
-      field: tariff_zone
-      type: not_empty
-      severity: error
-      error_message: "tariff_zone is required"
-
-    - name: previous_reading_m3_required
-      field: previous_reading_m3
-      type: not_empty
-      severity: error
-      error_message: previous_reading_m3 is required
-
-    - name: previous_reading_m3_min
-      field: previous_reading_m3
-      type: min
-      min: 0
-      severity: error
-      error_message: "previous_reading_m3 must be >= 0"
-
-    - name: current_reading_monotonic
-      description: "Meter readings must be monotonically non-decreasing: the current
-        cumulative register reading must be >= the previous reading. A lower current
-        reading indicates meter rollover (older mechanical meters roll at 99999),
-        meter replacement (use meter_status = replaced), or a data entry error.
-        Any of these require investigation before billing."
-      field: current_reading_m3
-      type: compare
-      compare_to: previous_reading_m3
-      compare_op: gte
-      severity: error
-      error_message: "current_reading_m3 must be >= previous_reading_m3 — a lower
-        current reading indicates meter rollover, meter replacement, or data entry
-        error. Set meter_status = replaced if meter was exchanged."
+      - name: meter_id_required
+        field: meter_id
+        type: not_empty
+        severity: error
+        error_message: "meter_id is required"
+      - name: reading_date_required
+        field: reading_date
+        type: not_empty
+        severity: error
+        error_message: reading_date is required
+      - name: reading_date_format
+        field: reading_date
+        type: date_format
+        severity: error
+        error_message: "reading_date must be a valid date (YYYY-MM-DD)"
+      - name: consumption_m3_required
+        field: consumption_m3
+        type: not_empty
+        severity: error
+        error_message: consumption_m3 is required
+      - name: consumption_m3_min
+        field: consumption_m3
+        type: min
+        min: 0
+        severity: error
+        error_message: "consumption_m3 must be >= 0"
+      - name: consumption_m3_anomaly
+        description: "Consumption > 1,000 m3 in a single reading period is statistically anomalous for all but the largest industrial customers and likely indicates a data entry error, meter fault, or unreported leak. Ofwat's leakage reporting framework (PR24) requires utilities to investigate and report anomalous readings. Warning only — large commercial sites may legitimately exceed this."
+        field: consumption_m3
+        type: max
+        max: 1000.0
+        severity: warning
+        error_message: "consumption_m3 exceeds 1,000 m3 — verify meter reading for data entry error, meter fault, or unreported leak (Ofwat PR24 leakage reporting obligations apply)"
+      - name: customer_id_required
+        field: customer_id
+        type: not_empty
+        severity: error
+        error_message: "customer_id is required"
+      - name: site_id_required
+        field: site_id
+        type: not_empty
+        severity: error
+        error_message: "site_id is required"
+      - name: meter_status_required
+        field: meter_status
+        type: not_empty
+        severity: error
+        error_message: "meter_status is required"
+      - name: meter_status_values
+        description: "Meter lifecycle status values aligned with MOSL Market Domain Data (MDD) meter asset standards. 'faulty' and 'replaced' statuses must trigger a meter exchange workflow — consumption estimates only are valid while meter is faulty."
+        field: meter_status
+        type: allowed_values
+        allowed_values:
+          - active
+          - inactive
+          - replaced
+          - faulty
+          - removed
+          - awaiting_installation
+          - decommissioned
+        severity: error
+        error_message: "meter_status must be one of: active, inactive, replaced, faulty, removed, awaiting_installation, decommissioned (MOSL MDD meter asset lifecycle values)"
+      - name: read_type_required
+        field: read_type
+        type: not_empty
+        severity: error
+        error_message: read_type is required
+      - name: read_type_values
+        description: "Read type classification per MOSL standards. 'estimated' reads must not be used for billing disputes or leakage reporting. 'smart' reads are interval data from AMR/AMI meters and carry higher evidential weight under Ofwat's water efficiency reporting requirements."
+        field: read_type
+        type: allowed_values
+        allowed_values:
+          - actual
+          - estimated
+          - customer
+          - smart
+          - check
+          - final
+        severity: error
+        error_message: "read_type must be one of: actual, estimated, customer, smart, check, final (MOSL read type classification — estimated reads are not valid for billing disputes or leakage reporting)"
+      - name: tariff_zone_required
+        field: tariff_zone
+        type: not_empty
+        severity: error
+        error_message: "tariff_zone is required"
+      - name: previous_reading_m3_required
+        field: previous_reading_m3
+        type: not_empty
+        severity: error
+        error_message: previous_reading_m3 is required
+      - name: previous_reading_m3_min
+        field: previous_reading_m3
+        type: min
+        min: 0
+        severity: error
+        error_message: "previous_reading_m3 must be >= 0"
+      - name: current_reading_monotonic
+        description: "Meter readings must be monotonically non-decreasing: the current cumulative register reading must be >= the previous reading. A lower current reading indicates meter rollover (older mechanical meters roll at 99999), meter replacement (use meter_status = replaced), or a data entry error. Any of these require investigation before billing."
+        field: current_reading_m3
+        type: compare
+        compare_to: previous_reading_m3
+        compare_op: gte
+        severity: error
+        error_message: "current_reading_m3 must be >= previous_reading_m3 — a lower current reading indicates meter rollover, meter replacement, or data entry error. Set meter_status = replaced if meter was exchanged."

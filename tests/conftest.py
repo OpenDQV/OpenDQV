@@ -32,6 +32,18 @@ print(f"\n[conftest] Test DB: {_db_path}", flush=True)
 _contracts_src = os.path.join(os.path.dirname(__file__), "..", "opendqv", "contracts")
 _tmp_contracts_root = tempfile.mkdtemp(prefix="opendqv_test_contracts_")
 shutil.copytree(_contracts_src, os.path.join(_tmp_contracts_root, "contracts"))
+# Test-only overlay (2.7.0): the bundled library is a mirror of the golden
+# OpenDQV Cloud library and carries NO `contexts:` blocks. The contexts
+# feature is still part of this engine, so its tests run against
+# examples/contexts/ — the golden contracts plus the contexts the suite has
+# always exercised (customer kids_app / financial, proof_of_play billing, …),
+# shipped as the worked example the docs point at. The overlay reaches only
+# this temp copy; the bundled library is untouched.
+_overlay_src = os.path.join(os.path.dirname(__file__), "..", "examples", "contexts")
+if os.path.isdir(_overlay_src):
+    for _name in os.listdir(_overlay_src):
+        if _name.endswith(".yaml"):
+            shutil.copy(os.path.join(_overlay_src, _name), os.path.join(_tmp_contracts_root, "contracts", _name))
 os.environ["OPENDQV_CONTRACTS_DIR"] = os.path.join(_tmp_contracts_root, "contracts")
 atexit.register(shutil.rmtree, _tmp_contracts_root, ignore_errors=True)
 

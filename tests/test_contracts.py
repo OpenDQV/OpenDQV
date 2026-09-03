@@ -10,8 +10,19 @@ from opendqv.core.rule_parser import Rule, ContractStatus
 
 @pytest.fixture
 def registry():
-    contracts_dir = Path(__file__).parent.parent / "opendqv" / "contracts"
+    # The test copy of the library (conftest overlays the contexts fixtures
+    # onto it — the bundled library itself carries no contexts since 2.7.0).
+    import os
+    contracts_dir = Path(os.environ["OPENDQV_CONTRACTS_DIR"])
     return ContractRegistry(contracts_dir)
+
+
+def _bundled_version(name: str) -> str:
+    """The version the bundled file declares — the library is mirrored from
+    the golden copy and bumps on content change, so tests read it."""
+    import yaml
+    path = Path(__file__).parent.parent / "opendqv" / "contracts" / f"{name}.yaml"
+    return str(yaml.safe_load(path.read_text(encoding="utf-8"))["contract"]["version"])
 
 
 class TestContractRegistry:
@@ -28,10 +39,10 @@ class TestContractRegistry:
     def test_get_latest_version(self, registry):
         c = registry.get("customer", "latest")
         assert c is not None
-        assert c.version == "1.0"
+        assert c.version == _bundled_version("customer")
 
     def test_get_specific_version(self, registry):
-        c = registry.get("customer", "1.0")
+        c = registry.get("customer", _bundled_version("customer"))
         assert c is not None
 
     def test_get_nonexistent(self, registry):

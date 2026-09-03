@@ -446,10 +446,44 @@ class TestBuildSampleRecordsFromRules:
         data = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
         rules = data["contract"]["rules"]
         valid, invalid = build_sample_records_from_rules(rules)
-        # blood_type and nhs_number should be valid examples, not "sample_value"
+        # blood_type and nhs_number should be valid examples, not "sample_value".
+        # nhs_number is gated by a Modulus 11 checksum (2.7.0 golden library):
+        # the example must be a real valid NHS number, not a regex-shaped one.
         assert valid["blood_type"] == "A+"
-        assert valid["nhs_number"] == "123-456-7890"
+        assert valid["nhs_number"] == "9434765919"
         assert invalid["blood_type"] == "INVALID"
+        from opendqv.core.rule_parser import Rule
+        from opendqv.core.validator import validate_record
+        nhs_rules = [Rule(**r) for r in rules if r.get("field") == "nhs_number"]
+        assert validate_record({"nhs_number": valid["nhs_number"]}, nhs_rules, "t")["valid"]
+        assert not validate_record({"nhs_number": invalid["nhs_number"]}, nhs_rules, "t")["valid"]
+
+    def test_checksum_unknown_algorithm_falls_back_to_name_inference(self):
+        """An algorithm with no known-valid example falls back to the name-based
+        sample (never an empty string), and its invalid twin is the generic marker."""
+        rules = [{"name": "x", "field": "email", "type": "checksum", "checksum_algorithm": "made_up_alg"}]
+        valid, invalid = build_sample_records_from_rules(rules)
+        assert valid["email"] and "@" in valid["email"]
+        assert invalid["email"] == "INVALID"
+
+    def test_checksum_outranks_regex_for_the_same_field(self):
+        """A check-digit rule wins the per-field priority over a shape regex."""
+        rules = [
+            {"name": "shape", "field": "nhs_number", "type": "regex", "pattern": r"^\d{10}$"},
+            {"name": "check", "field": "nhs_number", "type": "checksum", "checksum_algorithm": "nhs_mod11"},
+        ]
+        valid, _ = build_sample_records_from_rules(rules)
+        assert valid["nhs_number"] == "9434765919"
+
+    def test_checksum_examples_are_valid_under_the_engine(self):
+        """Every entry in _CHECKSUM_EXAMPLES passes/fails the engine's own checksum."""
+        from opendqv.core.onboarding import _CHECKSUM_EXAMPLES
+        from opendqv.core.rule_parser import Rule
+        from opendqv.core.validator import validate_record
+        for alg, (good, bad) in _CHECKSUM_EXAMPLES.items():
+            rule = Rule(name="c", type="checksum", field="f", checksum_algorithm=alg)
+            assert validate_record({"f": good}, [rule], "t")["valid"], (alg, good)
+            assert not validate_record({"f": bad}, [rule], "t")["valid"], (alg, bad)
 
     def test_build_valid_from_regex_extracts_eg(self):
         """_build_valid_from_regex extracts first 'e.g.' token (stops at space/comma/paren)."""

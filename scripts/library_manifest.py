@@ -71,7 +71,19 @@ def build_manifest() -> dict:
     whole = hashlib.sha256(
         json.dumps(entries, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
-    return {"manifest_version": 1, "contracts": entries, "library_sha256": whole}
+    manifest = {"manifest_version": 1, "contracts": entries, "library_sha256": whole}
+    # Export provenance (2.7.0, review S5): the golden copy writes
+    # contracts/library_source.json at export time — where the library came
+    # from, which ref it was exported at, when, and a library_version that
+    # bumps only when the content changed — so "where did this rule come
+    # from" is answerable from this repository alone.
+    source_path = CONTRACTS_DIR / "library_source.json"
+    if source_path.exists():
+        source = json.loads(source_path.read_text(encoding="utf-8"))
+        manifest["source"] = {k: source[k] for k in ("origin", "export_ref", "exported_at") if k in source}
+        if "library_version" in source:
+            manifest["library_version"] = source["library_version"]
+    return manifest
 
 
 def main(argv: list[str]) -> int:

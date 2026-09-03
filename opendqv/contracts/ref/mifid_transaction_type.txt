@@ -1,2 +1,2 @@
-buy
-sell
+BUYI
+SELL

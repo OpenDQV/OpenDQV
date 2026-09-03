@@ -257,6 +257,7 @@ _FIELD_EXAMPLES: dict[str, str] = {
 
 # Rule-type priority for multi-rule fields: lower number = wins (most restrictive)
 _RULE_PRIORITY = {
+    "checksum":   -1,  # a check-digit example must be a real valid identifier — strictest of all
     "regex":      0,
     "date_format": 1,
     "range":      2,
@@ -265,6 +266,20 @@ _RULE_PRIORITY = {
     "min_length": 5,
     "lookup":     6,
     "not_empty":  7,
+}
+
+# Known-valid (and known-invalid) identifiers per checksum algorithm, for the
+# wizard's sample records. Every valid value passes the engine's own checksum
+# rule; every invalid one fails it (tests/test_onboarding.py pins this).
+_CHECKSUM_EXAMPLES: dict[str, tuple[str, str]] = {
+    "nhs_mod11":  ("9434765919", "1234567890"),
+    "isin_luhn":  ("GB00B03MLX29", "GB00B03MLX28"),
+    "lei_mod97":  ("213800WSGIIZCXF1P572", "213800WSGIIZCXF1P573"),
+    "iban_mod97": ("GB82WEST12345698765432", "GB82WEST12345698765433"),
+    "mod10_gs1":  ("5012345678900", "5012345678901"),
+    "cpf_mod11":  ("52998224725", "52998224726"),
+    "vin_mod11":  ("1HGCM82633A004352", "1HGCM82633A004353"),
+    "isrc_luhn":  ("USRC17607839", "USRC1760783"),  # ISRC has no check digit; the shape check rejects 11 chars
 }
 
 # ── Template catalogue ─────────────────────────────────────────────────────────
@@ -474,6 +489,17 @@ def build_sample_records_from_rules(rules: list[dict]) -> tuple[dict, dict]:
             valid[f], invalid[f] = _v[f], ""
         elif rtype == "date_format":
             valid[f], invalid[f] = "1990-06-15", "not-a-date"
+        elif rtype == "checksum":
+            # A regex can be satisfied by construction; a check digit cannot.
+            # Each example below validates under the engine's own checksum
+            # implementation (pinned in tests). Unknown algorithms fall back
+            # to name inference.
+            ex = _CHECKSUM_EXAMPLES.get(rule.get("checksum_algorithm", ""))
+            if ex:
+                valid[f], invalid[f] = ex
+            else:
+                _v, _ = build_sample_records([f])
+                valid[f], invalid[f] = _v[f], "INVALID"
         elif rtype == "regex":
             valid[f] = _build_valid_from_regex(rule.get("pattern", ""), rule.get("error_message", ""))
             invalid[f] = "INVALID"
