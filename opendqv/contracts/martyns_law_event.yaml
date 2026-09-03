@@ -12,8 +12,8 @@ contract:
   version: "1.0"
   description: >
     Martyn's Law (Terrorism (Protection of Premises) Act 2025) compliance contract
-    for qualifying events — temporary or one-off events where 200 or more persons
-    are expected to attend, regardless of whether the venue is a permanent premises.
+    for qualifying events — temporary or one-off events where 800 or more persons
+    are expected to attend (2025 c.10 s.3(1)(d); the 200-person tier is for premises, s.2), regardless of whether the venue is a permanent premises.
     Distinct from martyns_law_venue: the responsible party is the event organiser
     (not a venue Accountable Person), the SIA obligation is notification (not
     registration), and all procedures are event-specific and time-bounded. Enhanced
@@ -67,14 +67,14 @@ contract:
       field: expected_attendance
       type: not_empty
       severity: error
-      error_message: "expected_attendance is required — Martyn's Law applies to qualifying events with an expected attendance of 200 or more"
+      error_message: "expected_attendance is required — Martyn's Law applies to qualifying events with an expected attendance of 800 or more (2025 c.10 s.3(1)(d))"
 
     - name: expected_attendance_minimum
       field: expected_attendance
       type: min
-      min: 200
+      min: 800
       severity: error
-      error_message: "expected_attendance must be >= 200 — Martyn's Law applies only to qualifying events with an expected attendance of 200 or more persons"
+      error_message: "expected_attendance must be >= 800 — a qualifying event requires 800 or more individuals (Terrorism (Protection of Premises) Act 2025 s.3(1)(d)); there is no 200-person tier for events"
 
     - name: event_start_date_required
       field: event_start_date

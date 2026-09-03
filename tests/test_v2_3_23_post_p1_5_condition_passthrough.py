@@ -9,7 +9,7 @@ Persona B inside-view 2026-04-28:
    contract's audit value."
 
 Verified: the mifid_transaction_report YAML has `condition: {field:
-buyer_id_type, value: "lei"}` on buyer_id_lei_format. The Rule
+buyer_id_type, value: "LEI"}` on buyer_id_lei_format. The Rule
 Pydantic model carries it (rule_parser.py:140). The runtime applies
 it (validator.py condition handling). But the API response strips
 it because RuleInfo (api/models.py:231-252) has no `condition`
@@ -51,11 +51,11 @@ class TestGetContractPassesThroughCondition:
         condition = target["condition"]
         assert condition is not None, (
             f"v2.3.23 P1-5: buyer_id_lei_valid YAML has condition "
-            f"{{field: buyer_id_type, value: 'lei'}}. Response carries None — "
+            f"{{field: buyer_id_type, value: 'LEI'}}. Response carries None — "
             f"serializer dropping the value. Got: {target}"
         )
         assert condition.get("field") == "buyer_id_type", condition
-        assert condition.get("value") == "lei", condition
+        assert condition.get("value") == "LEI", condition   # #140: canonical upper-case LEI (RTS 22 convention)
 
     def test_unconditional_rules_carry_null_condition(self, client):
         """Rules without a condition in YAML carry condition: null on

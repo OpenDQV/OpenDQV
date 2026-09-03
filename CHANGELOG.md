@@ -12,6 +12,17 @@ frozen (rule mutations return 409, as ACTIVE already did), and
 `POST /contracts/{name}/version` now writes a real `{name}_v{version}.yaml`
 file and refuses a version that already exists (400).
 
+- **Two starter-library corrections from the cross-engine diff (align-now ruling).**
+  #140 `mifid_transaction_report`: the LEI check-digit rules' `condition` compared
+  `buyer_id_type` / `seller_id_type` against lower-case `lei` while the managed
+  copy used `LEI`, so one copy never fired on real data; the canonical literal
+  is now upper-case `LEI` (RTS 22 convention) in the conditions, the
+  `ref/mifid_id_type.txt` taxonomy and the sample records. #141
+  `martyns_law_event`: `expected_attendance_minimum` was 200; the Terrorism
+  (Protection of Premises) Act 2025 s.3(1)(d) makes 800 the floor for a
+  qualifying *event* (200 is the s.2 premises tier) — now `min: 800` with the
+  citation in the message; the example record and the examples copy updated;
+  `library_manifest.json` regenerated (two contracts move).
 - **MCP `create_contract_draft` path-traversal (CRT178 #10).** The only check on
   an agent-supplied name was the `MCP_` prefix, and the name went straight into
   `contracts_dir / f"{name}.yaml"` — `MCP_../../x` wrote outside the contracts

@@ -178,7 +178,7 @@ contract:
       type: lookup
       lookup_file: ref/mifid_id_type.txt
       severity: error
-      error_message: "buyer_id_type must match the starter taxonomy in ref/mifid_id_type.txt (lei, national_client_identifier, mifid_client_identifier, aggregated, pending_allocation). Note: real RTS 22 Annex Field 4 uses ESMA short codes (LEI, NIDN, CCPT, CONCAT, etc). For actual ARM submission, customers must update the lookup file to the codes their ARM expects — the bundled list is a starter taxonomy, not an RTS 22 authority"
+      error_message: "buyer_id_type must match the starter taxonomy in ref/mifid_id_type.txt (LEI, national_client_identifier, mifid_client_identifier, aggregated, pending_allocation). Note: real RTS 22 Annex Field 4 uses ESMA short codes (LEI, NIDN, CCPT, CONCAT, etc). For actual ARM submission, customers must update the lookup file to the codes their ARM expects — the bundled list is a starter taxonomy, not an RTS 22 authority"
 
     - name: buyer_id_required
       field: buyer_id
@@ -192,9 +192,9 @@ contract:
       checksum_algorithm: lei_mod97
       condition:
         field: buyer_id_type
-        value: "lei"
+        value: "LEI"
       severity: error
-      error_message: "buyer_id must be a valid 20-character LEI per ISO 17442 when buyer_id_type is lei — shape AND mod-97-10 check digit. v2.3.23 round-3: full check-digit verification (was: shape-only regex)."
+      error_message: "buyer_id must be a valid 20-character LEI per ISO 17442 when buyer_id_type is LEI — shape AND mod-97-10 check digit. v2.3.23 round-3: full check-digit verification (was: shape-only regex)."
 
     # ── SELLER IDENTIFICATION ────────────────────────────────────────────────
     - name: seller_id_type_required
@@ -208,7 +208,7 @@ contract:
       type: lookup
       lookup_file: ref/mifid_id_type.txt
       severity: error
-      error_message: "seller_id_type must match the starter taxonomy in ref/mifid_id_type.txt (lei, national_client_identifier, mifid_client_identifier, aggregated, pending_allocation). Note: real RTS 22 Annex Field 4 uses ESMA short codes (LEI, NIDN, CCPT, CONCAT, etc). For actual ARM submission, customers must update the lookup file to the codes their ARM expects — the bundled list is a starter taxonomy, not an RTS 22 authority"
+      error_message: "seller_id_type must match the starter taxonomy in ref/mifid_id_type.txt (LEI, national_client_identifier, mifid_client_identifier, aggregated, pending_allocation). Note: real RTS 22 Annex Field 4 uses ESMA short codes (LEI, NIDN, CCPT, CONCAT, etc). For actual ARM submission, customers must update the lookup file to the codes their ARM expects — the bundled list is a starter taxonomy, not an RTS 22 authority"
 
     - name: seller_id_required
       field: seller_id
@@ -222,9 +222,9 @@ contract:
       checksum_algorithm: lei_mod97
       condition:
         field: seller_id_type
-        value: "lei"
+        value: "LEI"
       severity: error
-      error_message: "seller_id must be a valid 20-character LEI per ISO 17442 when seller_id_type is lei — shape AND mod-97-10 check digit. v2.3.23 round-3: full check-digit verification (was: shape-only regex)."
+      error_message: "seller_id must be a valid 20-character LEI per ISO 17442 when seller_id_type is LEI — shape AND mod-97-10 check digit. v2.3.23 round-3: full check-digit verification (was: shape-only regex)."
 
     # ── PRICE AND QUANTITY ───────────────────────────────────────────────────
     - name: price_required
