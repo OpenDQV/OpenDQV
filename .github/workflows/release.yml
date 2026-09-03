@@ -88,9 +88,14 @@ jobs:
 
       - name: Create GitHub release
         run: |
+          # library_manifest.json rides on every release: one SHA-256 per bundled
+          # contract's rules and one for the library — the machine-readable
+          # record of which starters changed (docs/contract_conformance.md, D5).
+          # Releases are immutable once published, so it must be attached here.
           gh release create v${{ steps.version.outputs.version }} \
             --title "v${{ steps.version.outputs.version }}" \
-            --notes-file release_notes.txt
+            --notes-file release_notes.txt \
+            library_manifest.json
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
