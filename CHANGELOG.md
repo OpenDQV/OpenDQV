@@ -2,7 +2,7 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [2.6.0] - Unreleased
+## [2.6.0] - 2026-09-03
 
 Backlog release: the six follow-ups from the Core↔Cloud conformance review
 (#144–#149), the Dependabot queue including the mcp 2 port, and the release
