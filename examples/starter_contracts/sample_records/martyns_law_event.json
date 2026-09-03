@@ -9,7 +9,6 @@
     "expected_attendance": 12000,
     "event_start_date": "2026-07-18",
     "event_end_date": "2026-07-19",
-    "duty_tier": "enhanced",
     "evacuation_procedure_documented": "true",
     "invacuation_procedure_documented": "true",
     "lockdown_procedure_documented": "true",
@@ -25,7 +24,7 @@
     "compliance_review_date": "2026-07-10"
   },
   {
-    "_comment": "Record 2 — INVALID. expected_attendance 500 is below the 800 floor for a qualifying event (s.3(1)(d)); duty_tier 'standard' is not a tier the Act defines for events; sia_notification_reference and senior_responsible_person are missing.",
+    "_comment": "Record 2 — INVALID. expected_attendance 500 is below the 800 floor for a qualifying event (s.3(1)(d)); senior_responsible_person is missing; sia_notification_reference is absent (advisory until the SIA has been notified).",
     "event_id": "EVT-2026-0002",
     "event_name": "Town Hall Concert",
     "event_location": "Town Hall, Example Town",
@@ -34,7 +33,6 @@
     "expected_attendance": 500,
     "event_start_date": "2026-09-05",
     "event_end_date": "2026-09-05",
-    "duty_tier": "standard",
     "evacuation_procedure_documented": "true",
     "invacuation_procedure_documented": "true",
     "lockdown_procedure_documented": "false",

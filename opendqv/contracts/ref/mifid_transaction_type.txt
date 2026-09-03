@@ -1,4 +1,2 @@
 BUYI
 SELL
-MLTF
-OTC

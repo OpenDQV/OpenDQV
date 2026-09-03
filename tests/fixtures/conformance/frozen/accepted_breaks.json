@@ -2,7 +2,7 @@
   {
     "contract": "dora_ict_incident",
     "changelog": "2.7.0",
-    "reason": "golden-library sync: CDR (EU) 2024/1773 reporting clock, zone-designated timestamps, major/non_major classification; early_warning_* (NIS2, not DORA) removed",
+    "reason": "golden-library sync: CDR (EU) 2025/301 reporting clock, zone-designated timestamps, major/non_major classification; early_warning_* (NIS2, not DORA) removed",
     "new_codes_allowed": [
       "OPENDQV_ADDITIONAL_PROPERTIES",
       "OPENDQV_LOOKUP_INCIDENT_CLASSIFICATION_VALID",
@@ -15,10 +15,8 @@
     "changelog": "2.7.0",
     "reason": "golden-library sync: a qualifying event (800+, 2025 c.10 s.3(1)(d)) is always enhanced-tier; SRP, role, SIA reference and protection-plan flag required outright",
     "new_codes_allowed": [
-      "OPENDQV_LOOKUP_DUTY_TIER_VALID",
       "OPENDQV_NOT_EMPTY_SENIOR_RESPONSIBLE_PERSON_REQUIRED",
       "OPENDQV_NOT_EMPTY_SENIOR_RESPONSIBLE_PERSON_ROLE_REQUIRED",
-      "OPENDQV_NOT_EMPTY_SIA_NOTIFICATION_REFERENCE_REQUIRED",
       "OPENDQV_NOT_EMPTY_TERRORISM_PROTECTION_PLAN_DOCUMENTED_REQUIRED"
     ]
   },

@@ -1555,7 +1555,7 @@ if section == "Code Export":
     with col2:
         target = st.selectbox("Target Platform", ["snowflake", "salesforce", "js"])
     with col3:
-        gen_context = st.text_input("Context (optional)", value="salesforce", key="gen_context")
+        gen_context = st.text_input("Context (optional)", value="", key="gen_context", help="A context name declared in the contract's contexts block; leave empty for the base rules")
 
     if st.button("Generate Code"):
         gen_params = {"contract_name": gen_contract, "target": target}

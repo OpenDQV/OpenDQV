@@ -52,9 +52,9 @@
       "file": "dora_ict_incident.yaml",
       "name": "dora_ict_incident",
       "rule_count": 32,
-      "rules_sha256": "6f09982fddc73815d47deb16cc5f7b1603d85d5816eaf382dfcc8717f2293f5c",
+      "rules_sha256": "c4cde7c37c75e09aba74ba4c35c1677ab1ec2faa084a9b50770463b4db2006cf",
       "strict_schema": true,
-      "version": "1.1"
+      "version": "1.2"
     },
     {
       "file": "education_student.yaml",
@@ -163,10 +163,10 @@
     {
       "file": "martyns_law_event.yaml",
       "name": "martyns_law_event",
-      "rule_count": 36,
-      "rules_sha256": "e574eda12b005b9fbaae3734f30d49e07ea543f05e8eb93b3849c39726c7e644",
+      "rule_count": 34,
+      "rules_sha256": "5f3a54262075e56b928c0845c648db663dd5b9f48dbcd2a6cff96079fb28d206",
       "strict_schema": false,
-      "version": "1.1"
+      "version": "1.2"
     },
     {
       "file": "martyns_law_venue.yaml",
@@ -188,9 +188,9 @@
       "file": "mifid_transaction_report.yaml",
       "name": "mifid_transaction_report",
       "rule_count": 38,
-      "rules_sha256": "93b664b7afd8107193013676dbed11fc88a846c194b48b4a4d432bebe1296e78",
+      "rules_sha256": "7159a4b654634f1c2cfc72ae4ccb0e8e209decf55d964aebe634e9407a9943a9",
       "strict_schema": true,
-      "version": "1.1"
+      "version": "1.2"
     },
     {
       "file": "nhs_dsp_patient.yaml",
@@ -329,6 +329,12 @@
       "version": "1.0"
     }
   ],
-  "library_sha256": "b38277c3654ab3f421b2b456026742c6ccb01e392d902b186d336ea9e4506df6",
-  "manifest_version": 1
+  "library_sha256": "6a33e7694c0ff0fe123a3587c1f80e9dacad460480adf559ce7eb533cbb6247e",
+  "library_version": "2026.09.03",
+  "manifest_version": 1,
+  "source": {
+    "export_ref": "library-golden-cloud",
+    "exported_at": "2026-09-03T15:27:36Z",
+    "origin": "OpenDQV Cloud starter library (golden copy; this directory is a mirror of it)"
+  }
 }

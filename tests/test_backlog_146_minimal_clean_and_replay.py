@@ -94,10 +94,18 @@ def test_previous_release_replay_reports_and_gates():
         f"a breaking change. Either fix it, or if deliberate, record it in the CHANGELOG BREAKING block, "
         f"list the contract in tests/fixtures/conformance/frozen/accepted_breaks.json with that CHANGELOG "
         f"version, and regenerate the corpus in the same PR.")
-    # Every accepted break must be owned by a CHANGELOG section that exists AND
-    # that names the contract — citing a real version number is not enough.
+    # Every accepted break must be owned by the CURRENT release's CHANGELOG
+    # section, and that section must name the contract. Waivers therefore
+    # expire by construction: at the next version bump a stale entry fails
+    # here until it is removed (review B4 — "empty it at the next release"
+    # is now enforced, not a comment).
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    import re as _re
+    current = _re.search(r'^version\s*=\s*"([^"]+)"', (ROOT / "pyproject.toml").read_text(encoding="utf-8"), _re.M).group(1)
     for item in rp.load_accepted_breaks().values():
+        assert item["changelog"] == current, (
+            f"accepted break for {item['contract']} cites CHANGELOG {item['changelog']} but the current version is "
+            f"{current} — the replay baseline has moved on; delete the entry")
         header = f"## [{item['changelog']}]"
         assert header in changelog, (
             f"accepted break for {item['contract']} cites CHANGELOG {item['changelog']}, which has no section")

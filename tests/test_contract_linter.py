@@ -11,7 +11,6 @@ Motivation: a bug where customer.yaml valid_email rule had no pattern, silently
 accepting all values including invalid emails. 1,000+ tests passed; the bug
 shipped. A linter at load time would have caught it.
 """
-import os
 import datetime
 import pytest
 import yaml

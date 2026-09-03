@@ -40,7 +40,7 @@ Conformance therefore has to be engineered:
 |---|---|---|---|
 | Rule type `not_empty_string` | absent — a contract using it loaded and the rule silently passed (unknown type) | shipped | **closed** — added in 1/4 |
 | Contract flag `strict_schema` + `allowed_fields` | absent — the key was dropped on parse and undeclared fields passed | shipped | **closed** — added in 2/4 |
-| `contexts:` block | implemented (five bundled contracts use it) | not implemented — refused at validate time with an explicit error | **open** — decision D1 below |
+| `contexts:` block | implemented; since 2.7.0 no bundled contract declares one (worked example in `examples/contexts/`) | not implemented — refused at load time with an explicit error (D39) | **ruled** — D1 below, round 4 |
 | Rule key `optional` | not in the Rule model (ignored) | implemented (opts a field out of implicit-required semantics) | **open** — decision D2 |
 | Envelope | bundled files use the `contract:` wrapper; loader accepts wrapped and flat | flat only; wrapper rejected | **open** — decision D3 |
 | Starter library, 40 shared contracts | 23 identical; 11 rules only here; 22 only there; 24 same-name rules with different config | | **partly closed** — 3/4 applied the mechanical classes; the rest is D4 |
@@ -74,6 +74,13 @@ refuse a contract that declares them at load time (today the managed engine
 refuses at validate time, which is later than ideal); (b) drop contexts from
 the format; (c) the managed engine implements them. Recommendation: (a)
 now, (c) when a customer needs a context on that engine.
+*Ruled 2026-09-03 (round 4): (a) for the feature — Core keeps contexts and
+the managed engine refuses the block at load time (its D39) — and (b) for
+the bundled library, which is mirrored from the golden copy and therefore
+declares none. The worked example the docs walk through ships as
+`examples/contexts/*.yaml`; the docs, MCP tool descriptions and UI default
+no longer name contexts the bundled contracts do not declare, because an
+undeclared context falls back to the base rules silently (CRT173).*
 
 **D2 — `optional`.** The managed engine treats an error-severity single-field
 rule as implying the field is present (an absent field fails) and `optional:
@@ -453,7 +460,7 @@ and `universal_benchmark` (this repository's benchmark fixture, never
 imported).
 
 **What changed in the library (verdict-bearing; wording changes omitted):**
-see the 2.7.0 CHANGELOG entry — DORA's reporting clock (CDR (EU) 2024/1773),
+see the 2.7.0 CHANGELOG entry — DORA's reporting clock (CDR (EU) 2025/301),
 zone-designated timestamps and `major` / `non_major`; Martyn's Law events
 always enhanced-tier; RTS 22 identifier codes and ISO 20022 side codes in
 MiFID; strictly positive minimums; `merchant_id` conditional on `channel`;

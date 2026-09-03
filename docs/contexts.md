@@ -1,6 +1,16 @@
 # Contexts
 
-> Last reviewed: 2026-03-17
+> Last reviewed: 2026-09-03
+
+> **Since 2.7.0 the bundled starter library declares no `contexts:` blocks** — the
+> library is mirrored from the golden OpenDQV Cloud library, and the managed
+> engine refuses the block. Contexts remain a Core feature. The worked example
+> this page walks through ships as `examples/contexts/customer.yaml` (with
+> `financial_services_customer`, `proof_of_play`, `salesforce_contact` and
+> `salesforce_lead` alongside): copy it into your contracts directory to follow
+> along, or add a `contexts:` block to your own contract. A context name the
+> contract does not declare falls back to the base rules — check
+> `effective_rule_hash` if you expected an override to apply.
 
 Contexts are named sets of rule overrides that apply on top of a base contract. A single YAML contract can serve multiple source systems, tenants, or regulatory regimes — each with their own rule adjustments — without duplicating the contract.
 

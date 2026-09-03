@@ -9,7 +9,7 @@ contract:
   proposed_at: "2026-09-03T00:00:00+00:00"
   approved_by: opendqv-core-team
   approved_at: "2026-09-03T00:00:00+00:00"
-  version: "1.1"
+  version: "1.2"
   description: |
       OpenDQV Cloud starter template (v0.1) — your tenant inherits this baseline. First customer edit creates v1.0 in your audit trail; pin by yaml_hash for replay.
 
@@ -82,9 +82,12 @@ contract:
         pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$
         severity: error
         error_message: detection_timestamp must be a full ISO 8601 datetime with timezone (YYYY-MM-DDThh:mm:ssZ) — the CDR (EU) 2025/301 Art 5 deadlines are measured in hours; a date-only value cannot evidence a 4- or 24-hour window
-      - name: initial_notification_timestamp_required
+      - name: initial_notification_timestamp_required_if_major
         field: initial_notification_timestamp
-        type: not_empty
+        type: required_if
+        required_if:
+          field: incident_classification
+          value: major
         severity: error
         error_message: initial_notification_timestamp is required — the initial notification per Article 19(4)(a) DORA; due no later than 24 hours from becoming aware, or within 4 hours of classification as major (CDR (EU) 2025/301 Art 5(1)(a))
       - name: initial_notification_timestamp_format
@@ -100,6 +103,9 @@ contract:
         date_diff_unit: days
         min: 0
         max: 1
+        condition:
+          field: incident_classification
+          value: major
         severity: error
         error_message: initial_notification_timestamp must be no later than 24 hours from becoming aware of the incident (detection_timestamp is this contract's awareness proxy) — CDR (EU) 2025/301 Art 5(1)(a); where classification as major occurs later, Art 5(2) applies via the 4-hour rule
       - name: major_classification_timestamp_required_if_major
@@ -152,6 +158,9 @@ contract:
         date_diff_unit: days
         min: 0
         max: 3
+        condition:
+          field: incident_classification
+          value: major
         severity: error
         error_message: intermediate_report_timestamp must be within 72 hours of SUBMISSION OF THE INITIAL NOTIFICATION (not detection) — CDR (EU) 2025/301 Art 5(1)(b)
       - name: root_cause_required_if_major
@@ -185,6 +194,9 @@ contract:
         date_diff_unit: days
         min: 0
         max: 31
+        condition:
+          field: incident_classification
+          value: major
         severity: error
         error_message: final_report_date must be no later than one month after submission of the intermediate report (or the latest updated intermediate report) — CDR (EU) 2025/301 Art 5(1)(c). The engine has no calendar-month unit; 31 days is the outer bound of one month (never false-rejects; may pass by up to 3 days in short months — review borderline cases manually)
       - name: remediation_status_required

@@ -9,7 +9,7 @@ contract:
   proposed_at: "2026-09-03T00:00:00+00:00"
   approved_by: opendqv-core-team
   approved_at: "2026-09-03T00:00:00+00:00"
-  version: "1.1"
+  version: "1.2"
   description: |
       OpenDQV Cloud starter template (v0.1) — your tenant inherits this baseline. First customer edit creates v1.0 in your audit trail; pin by yaml_hash for replay.
 
@@ -80,17 +80,6 @@ contract:
         type: date_format
         severity: error
         error_message: event_end_date must be a valid date (YYYY-MM-DD)
-      - name: duty_tier_required
-        field: duty_tier
-        type: not_empty
-        severity: error
-        error_message: duty_tier is required — template-level classification — the Act applies enhanced-level duties to all qualifying events (s.3); every qualifying event (800+ expected) carries these duties
-      - name: duty_tier_valid
-        field: duty_tier
-        type: lookup
-        lookup_file: ref/martyns_law_event_duty_tiers.txt
-        severity: error
-        error_message: duty_tier must be 'enhanced' — qualifying events (800+ expected, s.3(1)(d)) carry the enhanced-level requirements (ss.6–7); the Act defines no standard tier for events
       - name: evacuation_procedure_documented_required
         field: evacuation_procedure_documented
         type: not_empty
@@ -175,8 +164,8 @@ contract:
       - name: sia_notification_reference_required
         field: sia_notification_reference
         type: not_empty
-        severity: error
-        error_message: sia_notification_reference is required — qualifying events with 800+ expected attendance must notify the Security Industry Authority (SIA); record the notification reference
+        severity: warning
+        error_message: sia_notification_reference should be recorded once the Security Industry Authority has been notified — qualifying events (800+ expected attendance) must notify the SIA before the event; the reference cannot exist at the moment the record is first written, so this is advisory until it does
       - name: terrorism_protection_plan_documented_required
         field: terrorism_protection_plan_documented
         type: not_empty
@@ -186,9 +175,6 @@ contract:
         field: terrorism_protection_plan_documented
         type: lookup
         lookup_file: ref/allergen_boolean.txt
-        condition:
-          field: duty_tier
-          value: enhanced
         severity: error
         error_message: terrorism_protection_plan_documented must be 'true' or 'false'
       - name: terrorism_protection_plan_review_date_required_if_ttp_documented

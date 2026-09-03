@@ -115,7 +115,7 @@ python -c "import yaml; yaml.safe_load(open('contracts/mycontract.yaml'))"
 
 **Diagnosis steps:**
 1. Check which rule is firing: `opendqv validate <contract> '<json>' --context <ctx>` and read the error detail.
-2. Check if a context override is changing the rule: some contracts define stricter rules for specific contexts (e.g., `salesforce`, `kids_app`).
+2. Check if a context override is changing the rule: a contract may declare stricter rules for named contexts in its `contexts:` block (the bundled starters declare none; see `examples/contexts/` for a worked example). A context name the contract does not declare falls back to the base rules.
 3. Check for whitespace: `not_empty` passes but `regex` rules often fail on leading/trailing spaces.
 
 ---

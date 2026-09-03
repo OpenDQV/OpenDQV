@@ -32,7 +32,7 @@
     "review_date": "2026-03-25"
   },
   {
-    "_comment": "Record 3 — VALID. Major incident at an investment firm: classified 29 minutes after detection, initial notification 1 hour after classification (within 4 h, CDR (EU) 2024/1773 Art. 5), intermediate report 2 days after the initial (within 72 h), final report 15 days after the intermediate (within one month), root cause provided, post_incident_review stage.",
+    "_comment": "Record 3 — VALID. Major incident at an investment firm: classified 29 minutes after detection, initial notification 1 hour after classification (within 4 h, CDR (EU) 2025/301 Art. 5), intermediate report 2 days after the initial (within 72 h), final report 15 days after the intermediate (within one month), root cause provided, post_incident_review stage.",
     "incident_id": "INC-2026-0003",
     "incident_title": "Trading System Unavailability — Market Hours Impact",
     "entity_name": "ACME Investment Management",
@@ -67,7 +67,7 @@
     "review_date": "2026-03-25"
   },
   {
-    "_comment": "Record 5 — INVALID. incident_classification is 'major' but major_classification_timestamp, intermediate_report_timestamp and root_cause are missing (required_if rules violated), and the initial notification is two days after detection — the 24-hours-of-awareness window (CDR (EU) 2024/1773 Art. 5) is missed.",
+    "_comment": "Record 5 — INVALID. incident_classification is 'major' but major_classification_timestamp, intermediate_report_timestamp and root_cause are missing (required_if rules violated), and the initial notification is two days after detection — the 24-hours-of-awareness window (CDR (EU) 2025/301 Art. 5) is missed.",
     "incident_id": "INC-2026-0005",
     "incident_title": "Data Centre Network Failure",
     "entity_name": "ACME Clearing House",

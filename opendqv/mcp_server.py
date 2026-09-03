@@ -335,7 +335,7 @@ async def list_tools() -> list[types.Tool]:
                     },
                     "context": {
                         "type": "string",
-                        "description": "Optional per-system context override (e.g. 'salesforce', 'kids_app'). Omit for default rules.",
+                        "description": "Optional per-system context override (a name declared in the contract's contexts block). Omit for default rules.",
                     },
                     "agent_id": {
                         "type": "string",
@@ -425,7 +425,7 @@ async def list_tools() -> list[types.Tool]:
                 "or to generate type-safe data structures that match the contract. "
                 "Pass `hash` (the contract_hash from a prior validate response) to retrieve "
                 "the exact historical version that produced that hash — for point-in-time audit retrieval. "
-                "Pass `context` (e.g. 'salesforce', 'kids_app') to return the effective rule set "
+                "Pass `context` (a name declared in the contract's contexts block) to return the effective rule set "
                 "with that context's overrides already merged in — what validate_record(context=...) "
                 "would actually run."
             ),
@@ -447,7 +447,7 @@ async def list_tools() -> list[types.Tool]:
                     },
                     "context": {
                         "type": "string",
-                        "description": "Optional context (e.g. 'salesforce', 'kids_app'). When set, rules are returned with that context's overrides resolved.",
+                        "description": "Optional context (a name declared in the contract's contexts block). When set, rules are returned with that context's overrides resolved.",
                     },
                 },
                 "required": ["name"],
@@ -502,7 +502,7 @@ async def list_tools() -> list[types.Tool]:
                     "name": {"type": "string", "description": "Contract name."},
                     "context": {
                         "type": "string",
-                        "description": "Optional context to apply (e.g. 'salesforce', 'kids_app').",
+                        "description": "Optional context to apply (a name declared in the contract's contexts block).",
                     },
                     "strict": {
                         "type": "boolean",

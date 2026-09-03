@@ -19,7 +19,7 @@ changes are not listed. Twenty contracts bump a minor version.
 rejected; the replay detector lists the contracts in
 `tests/fixtures/conformance/frozen/accepted_breaks.json`, and the frozen
 minimal-clean rows were re-frozen with the new `scripts/freeze_minimal_clean.py`.
-- `dora_ict_incident`: the reporting clock follows CDR (EU) 2024/1773 —
+- `dora_ict_incident`: the reporting clock follows CDR (EU) 2025/301 —
   `major_classification_timestamp` (required if major), initial notification
   within 4 h of classification and 24 h of awareness, intermediate report
   within 72 h of the initial, final report within one month of the
@@ -55,6 +55,18 @@ minimal-clean rows were re-frozen with the new `scripts/freeze_minimal_clean.py`
   `salesforce_lead`, `proof_of_play`: the `contexts:` blocks are gone — the
   golden library has none (the managed engine refuses them, D39); the engine
   feature is unchanged.
+
+**Engine — `date_diff` is fractional and signed on both paths.** Found by
+the new regulatory-claims fixture: `_parse_date` returned a *date*, so every
+`date_diff` was whole-day granular — a sub-day window (DORA's 4-hour
+initial-notification clock) could never fire here while it fired on the
+managed engine — and a timestamp with a zone offset or fractional seconds
+could not be parsed at all. Timestamps now parse like the managed engine's
+(date; datetime; `Z`; `±hh:mm`; fractional seconds), the difference is
+`(d1 − d2)` in fractional days, and the `years` unit is signed like `days`
+(`abs()` used to hide "end before start"). Records with reversed dates under
+a `years` rule can now be rejected where they passed; listed in
+`accepted_breaks.json` only if the replay finds one.
 
 **Non-breaking.** Fuller `ref/universal_currency.txt` (ISO 4217) and
 `ref/iso_10383_mic_codes.txt` are kept from 2.6.0. `docs/contract_conformance.md`

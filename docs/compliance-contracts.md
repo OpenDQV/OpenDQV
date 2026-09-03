@@ -16,9 +16,9 @@ See [docs/community_use_cases.md](community_use_cases.md) for real-world example
 
 | Contract | Description | Contexts | Highlights |
 |----------|-------------|----------|-----------|
-| `customer` | General customer validation (email, age, name, phone, etc.) | `kids_app`, `financial` | — |
-| `salesforce_contact` | Salesforce Contact — 18 validation criteria, production-grade | `salesforce_prod`, `salesforce_sandbox`, `emea_region` | Sentinel date rejection |
-| `salesforce_lead` | Salesforce Lead — 16 validation criteria with lead-specific checks | `web_form`, `trade_show`, `partner_referral` | — |
+| `customer` | General customer validation (email, age, name, phone, etc.) | — (worked example with `kids_app` / `financial` in `examples/contexts/`) | — |
+| `salesforce_contact` | Salesforce Contact — 18 validation criteria, production-grade | — (example in `examples/contexts/`) | Sentinel date rejection |
+| `salesforce_lead` | Salesforce Lead — 16 validation criteria with lead-specific checks | — (example in `examples/contexts/`) | — |
 | `proof_of_play` | **Reference contract: OOH advertising impression validation** | `billing`, `operations` | Cross-field rules, conditional constraints, context-aware billing thresholds |
 | `social_media_age_compliance` | UK Online Safety Act / Ofcom age assurance — 13+ age gate, DOB consistency, identity verification audit trail | — | `age_match` rule, identity verification lookup, verification timestamp |
 | `ppds_menu_item` | Natasha's Law (PPDS) allergen compliance — all 14 major allergens must be explicitly declared before a QSR menu item is saved or labelled | — | 14 mandatory boolean fields, `required_if` for gluten/tree-nut type, sulphite threshold, audit trail |

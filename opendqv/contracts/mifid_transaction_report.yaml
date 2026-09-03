@@ -9,7 +9,7 @@ contract:
   proposed_at: "2026-09-03T00:00:00+00:00"
   approved_by: opendqv-core-team
   approved_at: "2026-09-03T00:00:00+00:00"
-  version: "1.1"
+  version: "1.2"
   description: |
       OpenDQV Cloud starter template (v0.1) — your tenant inherits this baseline. First customer edit creates v1.0 in your audit trail; pin by yaml_hash for replay.
 
@@ -163,9 +163,9 @@ contract:
       - name: price_min
         field: price
         type: min
-        min: 0.01
+        min: 0
         severity: error
-        error_message: price must be > 0 — MiFIR Article 26(3) requires the price of the transaction; a zero-priced trade is a transfer or reporting error, not a market transaction
+        error_message: price must be >= 0 — RTS 22 Annex I Table 2 Field 33 (price) is reported to the venue's tick precision (bonds as a percentage of par, FX, sub-cent units); zero is permitted for free-of-payment transfers; 'NOAP'/'PNDG' pending values are out of scope for this sample
       - name: price_type_required
         field: price_type
         type: not_empty
@@ -185,9 +185,9 @@ contract:
       - name: quantity_min
         field: quantity
         type: min
-        min: 1
+        min: 0.000001
         severity: error
-        error_message: quantity must be > 0 — MiFIR Article 26(3) requires the quantity of the transaction; a zero-quantity transaction report is defective and is the kind of item a regulator would query
+        error_message: quantity must be > 0 (floor 0.000001) — RTS 22 Annex I Table 2 Field 30 permits fractional units; a zero quantity is not a transaction
       - name: currency_required
         field: currency
         type: not_empty

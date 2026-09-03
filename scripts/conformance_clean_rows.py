@@ -15,7 +15,7 @@ Note on dora_ict_incident: since the golden-library sync (2.7.0) every DORA
 timestamp field requires a full ISO 8601 datetime WITH a zone designator, and
 the reporting clock runs classification → initial notification (≤4h) →
 intermediate report (≤72h of the initial) → final report (≤1 month of the
-intermediate) per CDR (EU) 2024/1773; the row below sits inside every window.
+intermediate) per CDR (EU) 2025/301; the row below sits inside every window.
 """
 
 from __future__ import annotations
