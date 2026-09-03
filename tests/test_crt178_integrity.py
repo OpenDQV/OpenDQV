@@ -114,7 +114,7 @@ class TestFormatSqlInjection:
         """Guard against someone re-inlining the format into the query string."""
         import inspect
         from opendqv.core import validator
-        src = inspect.getsource(validator._batch_check_rule)
+        src = inspect.getsource(validator._batch_check_rule_inner)
         assert "$fmt" in src
         assert "'{strptime_fmt}'" not in src
 
