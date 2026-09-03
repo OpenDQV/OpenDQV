@@ -341,3 +341,46 @@ class TestCreateVersion:
             assert r2.status_code == 400
         finally:
             _teardown(_d.registry, "MCP_bump1")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Library corrections shipped in 2.5.1 (#140, #141) — behavioural pins
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestLibraryCorrections:
+    def _rules(self, name):
+        c = yaml.safe_load((BUNDLED / f"{name}.yaml").read_text(encoding="utf-8"))["contract"]
+        return c, [Rule(**r) for r in c["rules"]]
+
+    def test_140_lei_literal_agrees_across_condition_taxonomy_and_sample(self):
+        c, rules = self._rules("mifid_transaction_report")
+        cond_values = {r.condition["field"]: r.condition["value"] for r in rules
+                       if r.name in ("buyer_id_lei_valid", "seller_id_lei_valid")}
+        assert cond_values == {"buyer_id_type": "LEI", "seller_id_type": "LEI"}
+        taxonomy = (BUNDLED / "ref" / "mifid_id_type.txt").read_text(encoding="utf-8").split()
+        assert "LEI" in taxonomy and "lei" not in taxonomy
+        import json
+        sample = json.loads((BUNDLED.parent.parent / "examples" / "starter_contracts" / "sample_records"
+                             / "mifid_transaction_report.json").read_text(encoding="utf-8"))
+        used = {r.get("buyer_id_type") for r in sample} | {r.get("seller_id_type") for r in sample}
+        assert "LEI" in used and "lei" not in used
+
+    def test_140_lei_checksum_rule_actually_fires(self):
+        from opendqv.core.validator import validate_record
+        _, rules = self._rules("mifid_transaction_report")
+        lei_rules = [r for r in rules if r.name == "buyer_id_lei_valid"]
+        bad = validate_record({"buyer_id_type": "LEI", "buyer_id": "NOTALEI0000000000000"}, lei_rules, "t")
+        assert not bad["valid"] and bad["errors"][0]["rule"] == "buyer_id_lei_valid"
+        # lower-case type no longer matches the condition — the rule stays silent (taxonomy rejects it elsewhere)
+        assert validate_record({"buyer_id_type": "lei", "buyer_id": "NOTALEI0000000000000"}, lei_rules, "t")["valid"]
+
+    @pytest.mark.parametrize("attendance,expect_valid", [(799, False), (800, True), (200, False)])
+    def test_141_martyns_law_event_floor_is_800(self, attendance, expect_valid):
+        from opendqv.core.validator import validate_record
+        _, rules = self._rules("martyns_law_event")
+        floor = [r for r in rules if r.name == "expected_attendance_minimum"]
+        assert floor and floor[0].min_value == 800
+        out = validate_record({"expected_attendance": attendance}, floor, "t")
+        assert out["valid"] is expect_valid
+        if not expect_valid:
+            assert "s.3(1)(d)" in out["errors"][0]["message"]
