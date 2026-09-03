@@ -1,6 +1,41 @@
 [
-  {"contract": "dora_ict_incident", "changelog": "2.7.0", "reason": "golden-library sync: CDR (EU) 2024/1773 reporting clock, zone-designated timestamps, major/non_major classification; early_warning_* (NIS2, not DORA) removed"},
-  {"contract": "martyns_law_event", "changelog": "2.7.0", "reason": "golden-library sync: a qualifying event (800+, 2025 c.10 s.3(1)(d)) is always enhanced-tier; SRP, role, SIA reference and protection-plan flag required outright"},
-  {"contract": "mifid_transaction_report", "changelog": "2.7.0", "reason": "golden-library sync: RTS 22 identifier-type codes, ISO 20022 side codes for transaction_type, price > 0, quantity >= 1"},
-  {"contract": "pharma_clinical_trial", "changelog": "2.7.0", "reason": "#158: informed_consent allowed value is the string \"yes\"; the previous frozen row carried the YAML-1.1 boolean true"}
+  {
+    "contract": "dora_ict_incident",
+    "changelog": "2.7.0",
+    "reason": "golden-library sync: CDR (EU) 2024/1773 reporting clock, zone-designated timestamps, major/non_major classification; early_warning_* (NIS2, not DORA) removed",
+    "new_codes_allowed": [
+      "OPENDQV_ADDITIONAL_PROPERTIES",
+      "OPENDQV_LOOKUP_INCIDENT_CLASSIFICATION_VALID",
+      "OPENDQV_REGEX_DETECTION_TIMESTAMP_FORMAT",
+      "OPENDQV_REGEX_INITIAL_NOTIFICATION_TIMESTAMP_FORMAT"
+    ]
+  },
+  {
+    "contract": "martyns_law_event",
+    "changelog": "2.7.0",
+    "reason": "golden-library sync: a qualifying event (800+, 2025 c.10 s.3(1)(d)) is always enhanced-tier; SRP, role, SIA reference and protection-plan flag required outright",
+    "new_codes_allowed": [
+      "OPENDQV_LOOKUP_DUTY_TIER_VALID",
+      "OPENDQV_NOT_EMPTY_SENIOR_RESPONSIBLE_PERSON_REQUIRED",
+      "OPENDQV_NOT_EMPTY_SENIOR_RESPONSIBLE_PERSON_ROLE_REQUIRED",
+      "OPENDQV_NOT_EMPTY_SIA_NOTIFICATION_REFERENCE_REQUIRED",
+      "OPENDQV_NOT_EMPTY_TERRORISM_PROTECTION_PLAN_DOCUMENTED_REQUIRED"
+    ]
+  },
+  {
+    "contract": "mifid_transaction_report",
+    "changelog": "2.7.0",
+    "reason": "golden-library sync: RTS 22 identifier-type codes, ISO 20022 side codes for transaction_type, price > 0, quantity >= 1",
+    "new_codes_allowed": [
+      "OPENDQV_LOOKUP_TRANSACTION_TYPE_VALID"
+    ]
+  },
+  {
+    "contract": "pharma_clinical_trial",
+    "changelog": "2.7.0",
+    "reason": "#158: informed_consent allowed value is the string \"yes\"; the previous frozen row carried the YAML-1.1 boolean true",
+    "new_codes_allowed": [
+      "OPENDQV_ALLOWED_VALUES_INFORMED_CONSENT_VALUES"
+    ]
+  }
 ]

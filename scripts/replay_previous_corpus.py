@@ -90,14 +90,17 @@ def replay(ref: str) -> dict:
                 flips.append({"contract": name, "kind": line.get("kind", "minimal_clean"),
                               "was_valid": old_valid, "now_valid": out["valid"],
                               "old_codes": old_codes, "new_codes": new_codes, "record": rec})
-    # Deliberate breaks: a contract listed in frozen/accepted_breaks.json with
-    # the CHANGELOG version that documents the change is reported but does not
-    # gate. The file is meant to be emptied at the next release (the replay
-    # baseline moves forward), never to accumulate.
+    # Deliberate breaks: a flip is accepted only when its contract is listed in
+    # frozen/accepted_breaks.json AND every error code the record now trips is
+    # one the entry names (`new_codes_allowed`) — a regression in the same
+    # contract that trips any other rule still gates. Accepted flips are
+    # reported, not swallowed. The file is meant to be emptied at the next
+    # release (the replay baseline moves forward), never to accumulate.
     accepted = load_accepted_breaks()
     for f in flips:
-        if f["contract"] in accepted:
-            f["accepted_break"] = accepted[f["contract"]]
+        entry = accepted.get(f["contract"])
+        if entry and set(f.get("new_codes") or []) <= set(entry["new_codes_allowed"]):
+            f["accepted_break"] = entry
     accepted_now_rejected = [f for f in flips if f.get("was_valid") and not f.get("now_valid") and "accepted_break" not in f]
     return {"ref": ref, "rows": rows, "flips": flips, "accepted_now_rejected": accepted_now_rejected}
 
@@ -106,15 +109,16 @@ ACCEPTED_BREAKS = ROOT / "tests" / "fixtures" / "conformance" / "frozen" / "acce
 
 
 def load_accepted_breaks() -> dict[str, dict]:
-    """{contract: {"changelog": "x.y.z", "reason": "..."}} — deliberate verdict
-    changes the release notes own. Absent file = nothing accepted."""
+    """{contract: {"changelog": "x.y.z", "reason": "...", "new_codes_allowed": [...]}}
+    — deliberate verdict changes the release notes own, scoped to the exact
+    error codes the change introduces. Absent file = nothing accepted."""
     if not ACCEPTED_BREAKS.exists():
         return {}
     data = json.loads(ACCEPTED_BREAKS.read_text(encoding="utf-8"))
     out = {}
     for item in data:
-        if not item.get("contract") or not item.get("changelog") or not item.get("reason"):
-            raise SystemExit("accepted_breaks.json: every entry needs contract, changelog and reason")
+        if not item.get("contract") or not item.get("changelog") or not item.get("reason") or not item.get("new_codes_allowed"):
+            raise SystemExit("accepted_breaks.json: every entry needs contract, changelog, reason and a non-empty new_codes_allowed list")
         out[item["contract"]] = item
     return out
 

@@ -94,8 +94,13 @@ def test_previous_release_replay_reports_and_gates():
         f"a breaking change. Either fix it, or if deliberate, record it in the CHANGELOG BREAKING block, "
         f"list the contract in tests/fixtures/conformance/frozen/accepted_breaks.json with that CHANGELOG "
         f"version, and regenerate the corpus in the same PR.")
-    # Every accepted break must be owned by a CHANGELOG section that exists.
+    # Every accepted break must be owned by a CHANGELOG section that exists AND
+    # that names the contract — citing a real version number is not enough.
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     for item in rp.load_accepted_breaks().values():
-        assert f"## [{item['changelog']}]" in changelog, (
+        header = f"## [{item['changelog']}]"
+        assert header in changelog, (
             f"accepted break for {item['contract']} cites CHANGELOG {item['changelog']}, which has no section")
+        section = changelog.split(header, 1)[1].split("\n## [", 1)[0]
+        assert item["contract"] in section, (
+            f"CHANGELOG {item['changelog']} does not mention {item['contract']}; a deliberate break must be documented")
