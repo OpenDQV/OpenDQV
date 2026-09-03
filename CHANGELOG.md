@@ -2,29 +2,59 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [Unreleased]
+## [3.0.0] - Unreleased
 
-### BREAKING — six regulated starters are now `strict_schema: true`
+**One aligned library and one aligned engine.** OpenDQV Core and the managed
+OpenDQV Cloud engine now produce the same verdict, code, severity and message
+on a shared 323-row conformance corpus (`docs/contract_conformance.md`).
+Getting there changed three engine semantics and the bundled starter library.
+There are no downstream users of either yet (project owner, 2026-09-03), so
+the break is taken now, in one release.
 
-`banking_transaction`, `dora_ict_incident`, `financial_services_customer`,
-`financial_trade`, `mifid_transaction_report`, `sox_control_test` now reject
-records that carry fields the contract does not declare
-(`OPENDQV_ADDITIONAL_PROPERTIES`). A record that validated against the
-previous release with an extra column (e.g. `merchant_category_code` on
-`banking_transaction`) fails under this one with no change to your file.
+### BREAKING
 
-**Migration:** either list the extra columns under `allowed_fields:` on your
-copy of the starter —
+1. **Regex rules use unanchored search** (was `re.match`, which silently
+   anchored the start). A pattern matches anywhere in the value — as ODCS
+   `pattern`, JSON Schema `pattern`, RE2 and the code generators read it.
+   Before: `pattern: "[a-z]+"` rejected `"1abc"`; now it accepts it (the
+   letters are found). Before: `negate: true` with `"@gmail\.com$"` could
+   never fire; now it does. **Upgrade step:** run `opendqv lint` — rule
+   `REGEX_NOT_START_ANCHORED` names every pattern that does not start with
+   `^`; add `^` (and `$`) where you meant the whole value.
+2. **A cross-field rule whose counterpart is absent or blank fails** (D10):
+   `compare`, `date_diff`, `age_match`, `cross_field_range`, `ratio_check`,
+   `field_sum`, `geospatial_bounds`, on both paths. `ratio_check` and
+   `field_sum` no longer silently treat a missing counterpart as `0`.
+3. **A blank or whitespace-only value is absent** for every rule outside the
+   presence class (`not_empty`, `not_empty_string`, `required_if`; plus
+   `conditional_value` and `unique`), on both paths (D6). A field that has
+   only format rules accepts `""` — say `not_empty` if it must not.
+4. **Explicit presence in the bundled library:** 110 `<field>_required`
+   not_empty rules across 29 starters, and `optional: true` on 8 format rules
+   whose text says the field is optional when present. A field's presence is
+   always declared; the library gate keeps it so. `customer` is the
+   hello-world and stays minimal: `name` required, everything else
+   optional-when-present — `validate customer '{"name":"Alice","age":30}'`
+   passes as documented.
+5. **`strict_schema: true` on the six regulated starters** —
+   `banking_transaction`, `dora_ict_incident`, `financial_services_customer`,
+   `financial_trade`, `mifid_transaction_report`, `sox_control_test` reject
+   undeclared fields (`OPENDQV_ADDITIONAL_PROPERTIES`). **Migration:** list
+   extra columns under `allowed_fields:` on your copy —
 
-```yaml
-strict_schema: true
-allowed_fields: [merchant_category_code, source_system]
-```
+   ```yaml
+   strict_schema: true
+   allowed_fields: [merchant_category_code, source_system]
+   ```
 
-— or fork the starter with `strict_schema: false`. Starters are samples you
-own; the flag is a starting posture, not a rule you cannot change. The
-managed OpenDQV Cloud library has carried these six as strict since 2026-04;
-this aligns the bundled copies with it.
+   — or fork the starter with `strict_schema: false`. Starters are samples you
+   own.
+
+`library_manifest.json` (one SHA-256 per contract's rules, one for the
+library) is the machine-readable record of exactly which starters changed;
+it ships as a release asset.
+
+### Added / changed
 
 CRT180 — contract-format conformance across engines (see
 `docs/contract_conformance.md`).
@@ -100,8 +130,6 @@ CRT180 — contract-format conformance across engines (see
   cross-field counterparts are materialised, `compare` fails on an absent
   counterpart like the single path, `unique` never fabricates duplicates on
   a field nobody sent, `not_empty`/`required_if` recognise tab/newline blanks.
-- **`strict_schema: true` is NOT switched on for any bundled starter** in
-  this release (deferred to a breaking-change release with a migration note).
 - **Explicit presence in the bundled library (CRT181):** 109 `<field>_required`
   not_empty rules across 27 contracts and one `optional: true`
   (`customer.loyalty_tier`), so a field's presence is always declared;
@@ -123,108 +151,6 @@ CRT180 — contract-format conformance across engines (see
   contract-authored messages are unchanged.
 - **JSON-Schema strict export with contexts** declares the union of every
   context's rule targets instead of refusing `additionalProperties: false`.
-- **`strict_schema: true`** on `banking_transaction`, `dora_ict_incident`,
-  `financial_services_customer`, `financial_trade`, `mifid_transaction_report`,
-  `sox_control_test`.
-
-## [2.4.0] - 2026-09-02
-
-ODCS compliance release (CRT179, minor tier — **breaking wire-format change**
-on `export-odcs` / `GET /export/odcs/{name}` and `import-odcs` / `POST /import/odcs`).
-
-**What was wrong.** Since v1.0 the ODCS importer/exporter claimed "ODCS 3.1" but
-emitted and consumed an invented shape: an `info:` block (ODCS 3 has none —
-`id`, `version`, `status` are required top-level fields), quality entries typed
-`not_null` / `regex` / `min` / … (the ODCS enum is `text | library | sql | custom`)
-and a `mustBeSatisfied` flag that does not exist in the standard. Verified against
-the official ODCS v3.1.0 JSON schema and `datacontract lint` (datacontract-cli
-1.1.2): every export failed on the first check, and a real ODCS document imported
-as an empty contract named `imported_contract`.
-
-**Export (now ODCS v3.1.0, schema-valid).** Top-level `id`/`name`/`version`/`status`
-(lifecycle mapped to the ODCS vocabulary, original kept in
-`customProperties[opendqv.status]`), `description.purpose`, `team` for owner.
-Every rule is carried losslessly as a `quality` entry of `type: custom, engine:
-opendqv` (severity, error_message and all cross-field parameters survive a round
-trip). Error-severity rules are additionally projected onto the native fields
-other tools read — `required`, `unique`, `logicalTypeOptions` (`pattern`,
-`minLength`/`maxLength`, `minimum`/`maximum`, JDK date `format`) and a
-`library invalidValues` metric for `allowed_values` lookups. Warning-severity
-rules are deliberately never projected: a native ODCS constraint is a hard
-constraint to every downstream consumer. One `logicalType` per field (numeric >
-date > string); incompatible rules stay custom-only so the document remains valid.
-
-**Import (ODCS v3.0.x / v3.1.0).** Reads real ODCS: top-level fields, `team` (3.1
-object or 3.0 member list), `required`/`unique`, `logicalTypeOptions`, record-level
-library metrics (`nullValues` / `duplicateValues` / `invalidValues` with `mustBe: 0`,
-deprecated `rule:` spelling accepted) and `custom/opendqv` entries (authoritative —
-native projections on that property are ignored). Everything dataset-level or
-inexpressible (`text`, `sql`, other engines, object-level checks, `rowCount`,
-percentage thresholds, `multipleOf`, date bounds, exclusive bounds treated as
-inclusive, duplicate fields across flattened schema objects) is reported in
-`skipped_checks` — nothing is dropped silently. Non-ODCS-3 documents (including
-the old invented shape) and invalid rules return **HTTP 422** instead of 200/500.
-
-**Import safety (Sonnet pre-implementation review).** A `custom/opendqv`
-implementation is allow-listed against the `Rule` model and may not set
-`inherited`, `federation_tier`, `provenance`, `severity_floor` or
-`lookup_auth_header` — an import must not mint federation authority, audit
-provenance or outbound-credential intent. Invalid rules fail the whole import.
-
-**Verification gate (new, permanent).** `tests/test_odcs_import.py` validates every
-bundled contract's export against the vendored official schema
-(`tests/fixtures/odcs-json-schema-v3.1.0.json`), proves export → import → export
-is idempotent on all 41 bundled contracts with zero skipped checks, imports the
-spec's own `full-example.odcs.yaml`, and — when `datacontract` is on PATH or
-`OPENDQV_DATACONTRACT_BIN` is set — runs `datacontract lint` on the output.
-
-**Reference-implementation hardening (Mac Claude review, verified with
-`datacontract test` on CSV fixtures).** Regex patterns with lookaround /
-backreferences are not projected natively (RE2 consumers abort); built-in
-pattern aliases are expanded; `allowed_values` (a distinct rule type the old
-exporter never mapped) → `library invalidValues` with string-quoted values;
-datetime formats → `logicalType: timestamp`; `unique` + `group_by` →
-object-level `duplicateValues`; exclusive bounds are skipped rather than
-loosened; `missingValues [null, '']` → `not_empty`; `text` entries carrying a
-metric are executed as library; native-derived rules are validated through the
-`Rule` model so a non-compiling pattern fails the import; `import_notes` reports
-semantic caveats (e.g. `required` → `not_empty` is stricter). The clean CSV
-fixture passes all 20 checks the reference implementation generates from the
-projection; the bad fixture fails exactly the 8 planted fields.
-
-**Ultrareview findings (2026-09-02, all three confirmed and fixed).** (1) Native
-projection ignored rule qualifiers: a rule with `condition:` (19 bundled
-error-severity rules), `regex` with `negate: true`, or `unique` with `group_by`
-projected as an unconditional / inverted / stricter native constraint —
-`datacontract test` would have rejected rows the OpenDQV engine legitimately
-passes. Qualified rules now stay custom-only; a ledger-guard test proves every
-projected native constraint on every bundled contract traces to an
-unconditional, un-negated, ungrouped error rule. (2) JDK date patterns now quote
-literal text (`yyyy-MM-dd'T'HH:mm:ss`), which Java consumers require, and the
-importer un-quotes it. (3) `severity_floor` leaked as a `!!python/object` YAML
-tag that `yaml.safe_load` rejects; the exporter now dumps in JSON mode and strips
-the engine-stamped federation/credential fields the importer refuses, so a
-federated rule round-trips.
-
-Docs: `importers.md` (full export/import mapping tables, loss ledger,
-verification recipe), `cli.md`, `api_reference.md`, `troubleshooting.md`, UI
-import placeholder.
-
-## [2.3.30] - 2026-08-06
-
-Contract-governance release (CRT177 Tier 2, patch tier). Closes four paths that
-bypassed ACTIVE-contract immutability, the maker-checker approval workflow, or
-both. Design reviewed before implementation. No public API change; no contract
-format change.
-
-**Behaviour change worth noting:** `POST /import/*?save=true` now genuinely
-persists as `draft`. The CSV and ODCS importers previously landed as `active`
-because the status stamp was written to the wrong level of the YAML document —
-the route already *documented* and *reported* `draft`, so this aligns disk with
-the documented contract rather than changing it.
-
-### Security
-
 - **Profiler contract-save was unguarded and destructive.** `POST /profile?save=true`
   and `POST /profile/file?save=true` had no role guard — every `/import/*`
   sibling requires `editor`/`admin` (SEC-010) — and wrote with a bare

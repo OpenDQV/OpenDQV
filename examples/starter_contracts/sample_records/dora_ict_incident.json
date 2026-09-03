@@ -50,7 +50,9 @@
     "remediation_date": "2026-03-10",
     "final_report_date": "2026-03-25",
     "reviewed_by": "Chief Risk Officer",
-    "review_date": "2026-03-25"
+    "review_date": "2026-03-25",
+    "major_classification_timestamp": "2026-03-10T09:00:00Z",
+    "intermediate_report_timestamp": "2026-03-12T10:00:00Z"
   },
   {
     "_comment": "Record 4 — INVALID. entity_type is 'bank' which is not in the DORA Article 2 lookup (must be credit_institution, investment_firm, etc.). Everything else is valid.",

@@ -299,9 +299,9 @@ contract-level switch both engines would have to interpret identically
 forever, the ambiguity was removed from the data. Both engines already agree
 on any field where the YAML says which it is — `not_empty` is "required" on
 both, `optional: true` on a format rule is "optional" on both — so every such
-field in the bundled library now says which: 109 `<field>_required` rules
-across 27 contracts, one `optional: true` (`customer.loyalty_tier`, "when
-provided"). One deliberate exception: `customer` is the hello-world contract
+field in the bundled library now says which: 110 `<field>_required` rules
+across 29 contracts, and `optional: true` on 8 format rules whose text says
+the field is optional when present. One deliberate exception: `customer` is the hello-world contract
 on both sides, and a minimal record (email, age, name) must stay valid — so
 `email` and `age` are required and `phone`, `score`, `date`, `username`,
 `password` carry `optional: true` ("optional when present") rather than a

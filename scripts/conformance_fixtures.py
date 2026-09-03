@@ -100,7 +100,8 @@ def blank_probes(contract) -> list[dict]:
             continue
         seen.add(r.type)
         base = {f: "x" for f in fields}
-        absent = dict(base); absent.pop(r.field, None)
+        absent = dict(base)
+        absent.pop(r.field, None)
         out.append(absent)
         for v in ("", "   ", "\t\n"):
             out.append(base | {r.field: v})
@@ -126,7 +127,8 @@ def counterpart_probes(contract) -> list[dict]:
                 continue
             seen.add((r.type, attr))
             base = {f: "x" for f in fields}
-            absent = dict(base); absent.pop(other, None)
+            absent = dict(base)
+            absent.pop(other, None)
             out.append(absent)
             for v in ("", "   "):
                 out.append(base | {other: v})
@@ -134,7 +136,8 @@ def counterpart_probes(contract) -> list[dict]:
         if sf and ("field_sum", "sum_fields") not in seen:
             seen.add(("field_sum", "sum_fields"))
             base = {f: "x" for f in fields}
-            absent = dict(base); absent.pop(sf[0], None)
+            absent = dict(base)
+            absent.pop(sf[0], None)
             out.append(absent)
     return out
 

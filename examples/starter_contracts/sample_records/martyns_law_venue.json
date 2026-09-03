@@ -13,7 +13,9 @@
     "staff_training_completed": "true",
     "staff_training_date": "2026-02-15",
     "compliance_reviewed_by": "Head of Operations",
-    "compliance_review_date": "2026-03-25"
+    "compliance_review_date": "2026-03-25",
+    "communication_procedure_documented": "true",
+    "sia_notification_reference": "SIA-NOT-2026-000123"
   },
   {
     "_comment": "Record 2 — VALID. Enhanced-duty sports stadium (12000 capacity). All enhanced-duty fields present: SRP, role, SIA registration, TTP documented with review date.",
@@ -34,7 +36,9 @@
     "terrorism_protection_plan_documented": "true",
     "terrorism_protection_plan_review_date": "2026-03-01",
     "compliance_reviewed_by": "Safety Compliance Manager",
-    "compliance_review_date": "2026-03-25"
+    "compliance_review_date": "2026-03-25",
+    "communication_procedure_documented": "true",
+    "sia_notification_reference": "SIA-NOT-2026-000123"
   },
   {
     "_comment": "Record 3 — VALID. Standard-duty conference centre (300 capacity). Staff training not yet completed — declared false, no training date required.",
@@ -49,7 +53,9 @@
     "lockdown_procedure_documented": "false",
     "staff_training_completed": "false",
     "compliance_reviewed_by": "Facilities Manager",
-    "compliance_review_date": "2026-03-25"
+    "compliance_review_date": "2026-03-25",
+    "communication_procedure_documented": "true",
+    "sia_notification_reference": "SIA-NOT-2026-000123"
   },
   {
     "_comment": "Record 4 — INVALID. capacity is 150 which is below the minimum of 200 — Martyn's Law applies to premises with a capacity of 200 or more persons.",

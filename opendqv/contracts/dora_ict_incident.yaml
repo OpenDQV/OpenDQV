@@ -285,11 +285,14 @@ contract:
         value: major
       severity: error
       error_message: initial_notification_timestamp must be within 4 hours of classification of the incident as major — CDR (EU) 2025/301 Art 5(1)(a) and 5(2)
-    - name: intermediate_report_timestamp_required
+    - name: intermediate_report_timestamp_required_if_major
       field: intermediate_report_timestamp
-      type: not_empty
+      type: required_if
+      required_if:
+        field: incident_classification
+        value: major
       severity: error
-      error_message: intermediate_report_timestamp is required — Article 19(4)(b) DORA intermediate report; due within 72 hours of submission of the initial notification (CDR (EU) 2025/301 Art 5(1)(b)), even where status or handling have not changed
+      error_message: intermediate_report_timestamp is required for major ICT-related incidents — DORA Article 19(4)(b) intermediate report
     - name: intermediate_report_timestamp_format
       field: intermediate_report_timestamp
       type: regex

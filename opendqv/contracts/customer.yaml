@@ -16,14 +16,10 @@ contract:
   status: active
   asset_id: urn:opendqv:customer
   rules:
-  - name: email_required
-    field: email
-    type: not_empty
-    severity: error
-    error_message: email is required
   - name: valid_email
     description: ''
     type: regex
+    optional: true
     field: email
     pattern: "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$"
     severity: error
@@ -31,14 +27,10 @@ contract:
     inherited: false
     negate: false
     all_of: false
-  - name: age_required
-    field: age
-    type: not_empty
-    severity: error
-    error_message: age is required
   - name: age_minimum
     description: Age must be at least 0
     type: min
+    optional: true
     field: age
     min: 0.0
     severity: error

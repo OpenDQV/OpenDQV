@@ -43,8 +43,8 @@
     {
       "file": "customer.yaml",
       "name": "customer",
-      "rule_count": 14,
-      "rules_sha256": "3226545936130d6603f39cd4d4d79d757e4df0a4c79cbbf7cc866ffa35e0bc20",
+      "rule_count": 12,
+      "rules_sha256": "2e21a3705fd75f4a5a107796e4a07e349d0a3b500ac86b34ee077f1e8f9d60e5",
       "strict_schema": false,
       "version": "1.0"
     },
@@ -52,7 +52,7 @@
       "file": "dora_ict_incident.yaml",
       "name": "dora_ict_incident",
       "rule_count": 37,
-      "rules_sha256": "39d05d5076dd7130b8e1c412d15e77ba725a687d5ee818a966fe502ccd4c9449",
+      "rules_sha256": "f72b59d247a80310878924b9f12476eceabd9908a5ad848999f9db281934994f",
       "strict_schema": true,
       "version": "1.0"
     },
@@ -163,8 +163,8 @@
     {
       "file": "martyns_law_event.yaml",
       "name": "martyns_law_event",
-      "rule_count": 40,
-      "rules_sha256": "0665b5804f696159b42060f4c383bf6a046b38dd3d8dac606f0a9c0981670cca",
+      "rule_count": 36,
+      "rules_sha256": "0d58c81bc9f9812adb12a373f72c17da76fcbdb305d6c2d14edbd64072d7e551",
       "strict_schema": false,
       "version": "1.0"
     },
@@ -329,6 +329,6 @@
       "version": "1.0"
     }
   ],
-  "library_sha256": "ffe53e492d902fcb2df5ac9e5fa76080e871ec160b7dad01799de13630c2bf36",
+  "library_sha256": "afd178c0cf6fd95b8022195718150eda5fcdbbad719b897e9f0742fa3a634bbd",
   "manifest_version": 1
 }
