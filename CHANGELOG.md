@@ -2,7 +2,7 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [2.5.1] - Unreleased
+## [2.5.1] - 2026-09-03
 
 Integrity release (CRT178 Option A, patch tier). Five concrete governance and
 injection fixes, each a small change with its recurrence test in the same
