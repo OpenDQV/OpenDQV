@@ -90,7 +90,7 @@ class TestContextOverrideRuleNameMatch:
     """
 
     def test_rule_name_match_preserves_field_and_type(self):
-        reg = ContractRegistry(Path("opendqv/contracts"))
+        reg = ContractRegistry(Path(__import__("os").environ["OPENDQV_CONTRACTS_DIR"]))  # test copy: carries the contexts overlay (2.7.0)
         contract = reg.get("proof_of_play")
         rules = reg.get_rules_with_context(contract, context="billing")
         rc = next(r for r in rules if r.name == "revenue_ceiling")
@@ -101,7 +101,7 @@ class TestContextOverrideRuleNameMatch:
         assert rc.cached_error_code == "OPENDQV_MAX_REVENUE_CEILING"
 
     def test_no_phantom_rules_minted(self):
-        reg = ContractRegistry(Path("opendqv/contracts"))
+        reg = ContractRegistry(Path(__import__("os").environ["OPENDQV_CONTRACTS_DIR"]))  # test copy: carries the contexts overlay (2.7.0)
         contract = reg.get("proof_of_play")
         rules = reg.get_rules_with_context(contract, context="billing")
         phantom_names = [r.name for r in rules if r.name.startswith("ctx_billing_")]
@@ -110,7 +110,7 @@ class TestContextOverrideRuleNameMatch:
         )
 
     def test_error_envelope_field_matches_column(self):
-        reg = ContractRegistry(Path("opendqv/contracts"))
+        reg = ContractRegistry(Path(__import__("os").environ["OPENDQV_CONTRACTS_DIR"]))  # test copy: carries the contexts overlay (2.7.0)
         contract = reg.get("proof_of_play")
         rules = reg.get_rules_with_context(contract, context="billing")
         rec = {
@@ -143,7 +143,7 @@ class TestContextOverrideFieldNameMatchUnbroken:
     """Field-name match (broad) must still work for contracts like customer.yaml."""
 
     def test_field_name_match_modifies_all_rules_on_field(self):
-        reg = ContractRegistry(Path("opendqv/contracts"))
+        reg = ContractRegistry(Path(__import__("os").environ["OPENDQV_CONTRACTS_DIR"]))  # test copy: carries the contexts overlay (2.7.0)
         contract = reg.get("customer")
         rules = reg.get_rules_with_context(contract, context="kids_app")
         age_rules = [r for r in rules if r.field == "age"]

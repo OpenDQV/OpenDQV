@@ -20,7 +20,9 @@ def test_b1_salesforce_personal_email_rule_fires_under_anchored_match():
     reg = ContractRegistry(ROOT / "opendqv" / "contracts")
     contract = reg.get("salesforce_lead")
     rule = next(r for r in contract.rules if r.name == "email_not_personal")
-    assert rule.negate is True and rule.pattern.startswith(".*@")
+    # D7 (search semantics) made the `.*` prefix redundant; the golden library
+    # (2.7.0) dropped it. The property that matters: negated, $-anchored.
+    assert rule.negate is True and rule.pattern.endswith(r"\.com$")
 
     def hits(email: str) -> list[dict]:
         res = validate_record({rule.field: email}, contract.rules)

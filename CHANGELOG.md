@@ -2,6 +2,66 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.7.0] - 2026-09-03
+
+**The starter library now has one owner, and it is not this repository.** The
+managed OpenDQV Cloud library is the golden copy; Core carries a mirror of it,
+exported from that library in this envelope and pinned both ways (Cloud's
+build recomputes this file's `library_manifest.json` digests from its own
+templates; this repository's `scripts/library_manifest.py --check` guards the
+committed manifest). Two deliberate differences remain: Cloud's dogfood
+contract (`opendqv_cloud_customer_profile`) is not bundled here, and
+`universal_benchmark` — a benchmark fixture, not a starter — stays Core-only.
+The per-contract diffs below are the ones that change a verdict; wording
+changes are not listed. Twenty contracts bump a minor version.
+
+**BREAKING — library.** Records the previous release accepted can now be
+rejected; the replay detector lists the contracts in
+`tests/fixtures/conformance/frozen/accepted_breaks.json`, and the frozen
+minimal-clean rows were re-frozen with the new `scripts/freeze_minimal_clean.py`.
+- `dora_ict_incident`: the reporting clock follows CDR (EU) 2024/1773 —
+  `major_classification_timestamp` (required if major), initial notification
+  within 4 h of classification and 24 h of awareness, intermediate report
+  within 72 h of the initial, final report within one month of the
+  intermediate; `root_cause` required if major; every timestamp is a full ISO
+  8601 datetime **with a zone designator**; classification values are `major`
+  / `non_major` (the RTS classifies major or not — "significant" belongs to
+  cyber threats). The `early_warning_*` rules (a NIS2 concept, not DORA) are
+  gone.
+- `martyns_law_event`: a qualifying *event* is 800+ expected attendance
+  (2025 c.10 s.3(1)(d)) and therefore always enhanced-tier — `duty_tier` must
+  be `enhanced` (lookup `ref/martyns_law_event_duty_tiers.txt`), and the
+  senior responsible person, their role, the SIA notification reference and
+  the protection-plan flag are required outright, not "if enhanced". The
+  venue contract keeps both tiers.
+- `mifid_transaction_report`: `execution_timestamp` accepts 0–6 fractional
+  digits (RTS 25 demands microseconds for HFT only); `price` > 0 and
+  `quantity` ≥ 1; identifier types are the RTS 22 Annex I codes (`LEI`,
+  `NIDN`, `CCPT`, `CONCAT`, `MIC`, `INTC`); `transaction_type` is the ISO
+  20022 side code (`BUYI` / `SELL`).
+- `banking_transaction`: `merchant_id` is required only when `channel` is
+  `pos`; `bic`, `sort_code` and `reference` are optional when present
+  (`reference_required` removed).
+- `insurance_claim`, `real_estate_property`, `telecoms_cdr`: minimums are
+  strictly positive (a zero claim, asking price or call duration is not a
+  record of the thing).
+- `nhs_dsp_patient`: the Modulus 11 checksum is the NHS-number gate; the
+  separate shape regex (which allowed separators the checksum rejects) is
+  gone.
+- `proof_of_play`: `advertiser_id` is `ADV-` + 6–10 digits.
+- `pharma_clinical_trial`: `informed_consent` allowed value `"yes"` is now a
+  quoted string (#158 — it was a YAML-1.1 boolean to this engine).
+- `customer`, `financial_services_customer`, `salesforce_contact`,
+  `salesforce_lead`, `proof_of_play`: the `contexts:` blocks are gone — the
+  golden library has none (the managed engine refuses them, D39); the engine
+  feature is unchanged.
+
+**Non-breaking.** Fuller `ref/universal_currency.txt` (ISO 4217) and
+`ref/iso_10383_mic_codes.txt` are kept from 2.6.0. `docs/contract_conformance.md`
+records the ownership change. Closes #158 and #159.
+
+---
+
 ## [2.6.0] - 2026-09-03
 
 Backlog release: the six follow-ups from the Core↔Cloud conformance review

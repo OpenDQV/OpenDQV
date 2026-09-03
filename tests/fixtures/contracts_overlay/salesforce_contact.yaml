@@ -123,3 +123,37 @@ contract:
         type: unique
         severity: error
         error_message: "Duplicate Email detected within this batch — possible duplicate contact. Cross-system uniqueness against the Salesforce master register requires Salesforce duplicate management; OpenDQV validates the input batch only."
+  contexts:
+    salesforce_prod:
+      Email:
+        type: not_empty
+        error_message: "Email is mandatory for production Salesforce contacts."
+      AccountName:
+        type: not_empty
+        severity: error
+        error_message: "AccountName is required in production — no orphan contacts allowed."
+      Birthdate:
+        min_age: 18
+        max_age: 150
+        error_message: "Contact must be 18+ in production."
+
+    salesforce_sandbox:
+      Email:
+        type: regex
+        pattern: "^.*@(example\\.com|test\\.com|sandbox\\..*|invalid)$"
+        error_message: "Sandbox contacts must use test email domains (example.com, test.com)."
+
+    emea_region:
+      MailingCountry:
+        type: not_empty
+        severity: error
+        error_message: "MailingCountry is required for EMEA contacts."
+      MailingPostalCode:
+        type: not_empty
+        severity: error
+        error_message: "MailingPostalCode is required for EMEA contacts."
+      Phone:
+        type: regex
+        pattern: "^\\+[0-9\\s\\-]{8,20}$"
+        severity: error
+        error_message: "EMEA phone numbers must include country code (e.g. +44 20 1234 5678)."

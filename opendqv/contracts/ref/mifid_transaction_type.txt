@@ -1,2 +1,4 @@
-buy
-sell
+BUYI
+SELL
+MLTF
+OTC

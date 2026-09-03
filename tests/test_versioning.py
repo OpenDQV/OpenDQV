@@ -242,13 +242,19 @@ class TestVersioningAPI:
             "/api/v1/contracts/customer/version?new_version=3.0",
             headers=approver_headers,
         )
+        import os
+        import pathlib
+        import yaml as _yaml
+        base_version = str(_yaml.safe_load(
+            (pathlib.Path(os.environ["OPENDQV_CONTRACTS_DIR"]) / "customer.yaml").read_text(encoding="utf-8")
+        )["contract"]["version"])  # the bundled version bumps with the golden library (2.7.0)
         resp = client.get(
-            "/api/v1/contracts/customer/diff?version_a=1.0&version_b=3.0",
+            f"/api/v1/contracts/customer/diff?version_a={base_version}&version_b=3.0",
             headers=approver_headers,
         )
         assert resp.status_code == 200
         body = resp.json()
-        assert body["from_version"] == "1.0"
+        assert body["from_version"] == base_version
         assert body["to_version"] == "3.0"
 
     # 10
@@ -398,12 +404,14 @@ class TestHistoricalHashEcho:
             )
             original_entry_hash = v_entries_before[-1]["entry_hash"]
 
+            # Mutate a plain-scalar field that every bundled contract carries
+            # (the golden library's description is a block scalar, 2.7.0).
             mutated = original_yaml.replace(
-                "description: Standard customer data quality validation",
-                "description: Standard customer data quality validation v2",
+                "owner_email: opendqv@bgmsconsultants.com",
+                "owner_email: opendqv-v2@bgmsconsultants.com",
                 1,
             )
-            assert mutated != original_yaml, "description marker not found in fixture"
+            assert mutated != original_yaml, "owner_email marker not found in fixture"
             yaml_path.write_text(mutated, encoding="utf-8")
 
             _api_deps.registry.reload()

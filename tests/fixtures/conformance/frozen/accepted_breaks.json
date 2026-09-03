@@ -1,0 +1,6 @@
+[
+  {"contract": "dora_ict_incident", "changelog": "2.7.0", "reason": "golden-library sync: CDR (EU) 2024/1773 reporting clock, zone-designated timestamps, major/non_major classification; early_warning_* (NIS2, not DORA) removed"},
+  {"contract": "martyns_law_event", "changelog": "2.7.0", "reason": "golden-library sync: a qualifying event (800+, 2025 c.10 s.3(1)(d)) is always enhanced-tier; SRP, role, SIA reference and protection-plan flag required outright"},
+  {"contract": "mifid_transaction_report", "changelog": "2.7.0", "reason": "golden-library sync: RTS 22 identifier-type codes, ISO 20022 side codes for transaction_type, price > 0, quantity >= 1"},
+  {"contract": "pharma_clinical_trial", "changelog": "2.7.0", "reason": "#158: informed_consent allowed value is the string \"yes\"; the previous frozen row carried the YAML-1.1 boolean true"}
+]

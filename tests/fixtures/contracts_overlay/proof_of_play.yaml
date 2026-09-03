@@ -154,3 +154,19 @@ contract:
         description: Digital panels must specify their content refresh rate
         error_message: refresh_rate_hz is required when panel_type is DIGITAL
         severity: error
+  contexts:
+    billing:
+      # Billing context: all warnings become errors — no leniency during revenue reconciliation
+      revenue_ceiling:
+        severity: error
+        error_message: "revenue_gbp > 500000 — billing reconciliation blocked pending manual review"
+      dwell_seconds_max:
+        severity: error
+        error_message: "dwell_seconds > 3600 — billing reconciliation blocked pending manual review"
+
+    operations:
+      # Operations context: loosened for real-time monitoring dashboards
+      revenue_ceiling:
+        severity: warning
+      dwell_seconds_max:
+        severity: warning

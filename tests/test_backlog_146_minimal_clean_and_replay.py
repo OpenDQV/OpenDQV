@@ -91,5 +91,11 @@ def test_previous_release_replay_reports_and_gates():
               f.get("old_codes"), "->", f.get("new_codes"))
     assert report["accepted_now_rejected"] == [], (
         f"{len(report['accepted_now_rejected'])} record(s) accepted at {ref} are rejected now — "
-        f"a breaking change. Either fix it, or if deliberate, record it in the CHANGELOG BREAKING block "
-        f"and regenerate the corpus in the same PR.")
+        f"a breaking change. Either fix it, or if deliberate, record it in the CHANGELOG BREAKING block, "
+        f"list the contract in tests/fixtures/conformance/frozen/accepted_breaks.json with that CHANGELOG "
+        f"version, and regenerate the corpus in the same PR.")
+    # Every accepted break must be owned by a CHANGELOG section that exists.
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    for item in rp.load_accepted_breaks().values():
+        assert f"## [{item['changelog']}]" in changelog, (
+            f"accepted break for {item['contract']} cites CHANGELOG {item['changelog']}, which has no section")

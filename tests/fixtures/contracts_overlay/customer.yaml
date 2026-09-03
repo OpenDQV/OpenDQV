@@ -145,3 +145,22 @@ contract:
         inherited: false
         negate: false
         all_of: false
+  contexts:
+    kids_app:
+      age:
+        type: range
+        min: 5
+        max: 17
+        severity: error
+        error_message: Age must be 5-17 for kids app
+    financial:
+      age:
+        type: min
+        min: 18
+        severity: error
+        error_message: Must be 18+ for financial products
+      balance:
+        type: min
+        min: 0
+        severity: error
+        error_message: Balance must be non-negative for financial accounts

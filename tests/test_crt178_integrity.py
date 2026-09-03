@@ -284,45 +284,52 @@ class TestCrossVersionWriteBack:
 # 4. bump_contract_version must not alias or mutate the live object
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _customer_v(*_ignored) -> str:
+    """The bundled customer contract's version as shipped — read from the file,
+    not the registry, so it is stable across create_version calls. The library
+    is mirrored from the golden copy and bumps on content change (2.7.0)."""
+    return str(yaml.safe_load((BUNDLED / "customer.yaml").read_text(encoding="utf-8"))["contract"]["version"])
+
+
 class TestCreateVersion:
     def test_base_object_untouched_and_new_version_is_its_own_object(self, reg):
-        base = reg.get("customer", "1.0")
+        base = reg.get("customer", _customer_v())
         base_rules = [r.name for r in base.rules]
-        new = reg.create_version("customer", "1.0", "2.0")
+        new = reg.create_version("customer", _customer_v(), "2.0")
         assert new is not base and new.rules is not base.rules
-        assert base.status == ContractStatus.ACTIVE and base.version == "1.0"
-        assert reg.get("customer", "1.0") is base
+        assert base.status == ContractStatus.ACTIVE and base.version == _customer_v()
+        assert reg.get("customer", _customer_v()) is base
         assert new.status == ContractStatus.DRAFT and new.version == "2.0"
         assert [r.name for r in new.rules] == base_rules
 
     def test_new_version_carries_no_approval_trail(self, reg):
-        base = reg.get("customer", "1.0")
+        base = reg.get("customer", _customer_v())
         base.approved_by, base.approved_at, base.proposed_by = "bob", "2026-01-01T00:00:00+00:00", "alice"
-        new = reg.create_version("customer", "1.0", "2.0")
+        new = reg.create_version("customer", _customer_v(), "2.0")
         assert new.approved_by is None and new.approved_at is None and new.proposed_by is None
         on_disk = yaml.safe_load((reg.contracts_dir / "customer_v2.0.yaml").read_text(encoding="utf-8"))["contract"]
         assert on_disk["status"] == "draft" and "approved_by" not in on_disk
 
     def test_persisted_and_survives_reload_with_both_versions(self, reg):
-        reg.create_version("customer", "1.0", "2.0")
+        reg.create_version("customer", _customer_v(), "2.0")
         reg.reload()
-        assert reg.get("customer", "1.0").status == ContractStatus.ACTIVE
+        assert reg.get("customer", _customer_v()).status == ContractStatus.ACTIVE
         assert reg.get("customer", "2.0").status == ContractStatus.DRAFT
         assert reg.get("customer").version == "2.0"
         assert reg._contract_paths["customer"]["2.0"].name == "customer_v2.0.yaml"
 
     def test_lossless_copy_of_base_file(self, reg):
         base_raw = yaml.safe_load((reg.contracts_dir / "customer.yaml").read_text(encoding="utf-8"))["contract"]
-        reg.create_version("customer", "1.0", "2.0")
+        reg.create_version("customer", _customer_v(), "2.0")
         new_raw = yaml.safe_load((reg.contracts_dir / "customer_v2.0.yaml").read_text(encoding="utf-8"))["contract"]
         assert new_raw["rules"] == base_raw["rules"]
         assert new_raw.get("contexts") == base_raw.get("contexts")
 
-    @pytest.mark.parametrize("bad", ["1.0", "../x", "a/b", "", "x" * 51])
+    @pytest.mark.parametrize("bad", ["__base__", "../x", "a/b", "", "x" * 51])
     def test_rejects_duplicate_and_unsafe_versions(self, reg, tmp_path, bad):
         before = _snapshot(tmp_path)
         with pytest.raises(ValueError):
-            reg.create_version("customer", "1.0", bad)
+            reg.create_version("customer", _customer_v(), _customer_v() if bad == "__base__" else bad)
         assert _snapshot(tmp_path) == before
 
     def test_route_keeps_response_shape_and_does_not_mutate_base(self, client, approver_headers):
@@ -334,7 +341,7 @@ class TestCreateVersion:
             assert r.status_code == 200
             body = r.json()
             assert body["new_version"] == "2.0" and body["status"] == "draft" and "diff" in body
-            assert base.status == ContractStatus.ACTIVE and base.version == "1.0"
+            assert base.status == ContractStatus.ACTIVE and base.version == "1.0"  # MCP_bump1 is seeded at 1.0
             assert _d.registry.get("MCP_bump1", "2.0") is not base
             assert (_d.registry.contracts_dir / "MCP_bump1_v2.0.yaml").exists()
             r2 = client.post("/api/v1/contracts/MCP_bump1/version", params={"new_version": "2.0"}, headers=approver_headers)

@@ -1,3 +1,2 @@
 major
-significant
-minor
+non_major

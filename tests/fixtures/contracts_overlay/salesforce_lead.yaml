@@ -109,3 +109,39 @@ contract:
         type: unique
         severity: error
         error_message: "Duplicate Email within this batch — possible duplicate lead. Cross-system uniqueness against the Salesforce master register requires Salesforce duplicate management; OpenDQV validates the input batch only."
+  contexts:
+    web_form:
+      LeadSource:
+        type: not_empty
+        error_message: "LeadSource must be set for web form leads (e.g. 'Web', 'Landing Page')."
+      Email:
+        type: regex
+        pattern: ".*@(mailinator|guerrillamail|tempmail|throwaway)\\.com$"
+        negate: true
+        error_message: "Disposable email addresses are not allowed from web forms."
+
+    trade_show:
+      Company:
+        type: not_empty
+        severity: error
+        error_message: "Company is required for trade show leads — badge scan should provide it."
+      Phone:
+        type: not_empty
+        severity: error
+        error_message: "Phone is required for trade show leads — needed for follow-up."
+
+    partner_referral:
+      Company:
+        type: not_empty
+        severity: error
+        error_message: "Company is required for partner referrals."
+      AnnualRevenue:
+        type: min
+        min: 100000
+        severity: warning
+        error_message: "Partner referrals typically target companies with $100K+ revenue."
+      NumberOfEmployees:
+        type: min
+        min: 10
+        severity: warning
+        error_message: "Partner referrals typically target companies with 10+ employees."

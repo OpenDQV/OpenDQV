@@ -12,17 +12,17 @@
       "file": "automotive_vehicle.yaml",
       "name": "automotive_vehicle",
       "rule_count": 18,
-      "rules_sha256": "d2c98c6384b0cb2c7ff45f69a1577aa14626b3e5ce6c19a24ebdd544141de6ff",
+      "rules_sha256": "12e33aa9fcaec4237739b6822dae7d46f95f665ffd540e134359db8fcf6758ae",
       "strict_schema": false,
-      "version": "1.1"
+      "version": "1.2"
     },
     {
       "file": "banking_transaction.yaml",
       "name": "banking_transaction",
-      "rule_count": 19,
-      "rules_sha256": "4b679cbe59e8ee1c0fbebb4605f94173e842ea55152d071b6273fbcf8d68fcc4",
+      "rule_count": 18,
+      "rules_sha256": "662b8a904dd3cccca1a0ece49c002ce20c046ea5adcaaec45c02d9201003fd36",
       "strict_schema": true,
-      "version": "1.1"
+      "version": "1.2"
     },
     {
       "file": "building_safety_golden_thread.yaml",
@@ -44,17 +44,17 @@
       "file": "customer.yaml",
       "name": "customer",
       "rule_count": 12,
-      "rules_sha256": "2e21a3705fd75f4a5a107796e4a07e349d0a3b500ac86b34ee077f1e8f9d60e5",
+      "rules_sha256": "9285e62a496bf95270c96827742a2460cb7121dc89947ff6c9c2de0e58000d4d",
       "strict_schema": false,
-      "version": "1.0"
+      "version": "1.1"
     },
     {
       "file": "dora_ict_incident.yaml",
       "name": "dora_ict_incident",
-      "rule_count": 37,
-      "rules_sha256": "f72b59d247a80310878924b9f12476eceabd9908a5ad848999f9db281934994f",
+      "rule_count": 32,
+      "rules_sha256": "6f09982fddc73815d47deb16cc5f7b1603d85d5816eaf382dfcc8717f2293f5c",
       "strict_schema": true,
-      "version": "1.0"
+      "version": "1.1"
     },
     {
       "file": "education_student.yaml",
@@ -84,33 +84,33 @@
       "file": "financial_services_customer.yaml",
       "name": "financial_services_customer",
       "rule_count": 15,
-      "rules_sha256": "8bada64474c1b08b588264e0dc51b6941dc7b4a50367f72c762a044678eef316",
+      "rules_sha256": "5748b68fc886b5da78a9d2d23107a987fdbf0ffc37fb2384fe2739df3130b300",
       "strict_schema": true,
-      "version": "1.0"
+      "version": "1.1"
     },
     {
       "file": "financial_trade.yaml",
       "name": "financial_trade",
       "rule_count": 23,
-      "rules_sha256": "8c31749da14ba542eab436b93a5d014cf41baaf5c2bb8579c4b6321c9288ea6c",
+      "rules_sha256": "c964992bc6c0e316122abf75833ff9a36ee9f96e6ec63711c8327fe9da77f5d5",
       "strict_schema": true,
-      "version": "1.1"
+      "version": "1.2"
     },
     {
       "file": "fmcg_product.yaml",
       "name": "fmcg_product",
       "rule_count": 20,
-      "rules_sha256": "ce2ba78900f8ff6b1ad3a8aac26d4b2b7da8b472beeaca3789a18ca6b32183ae",
+      "rules_sha256": "603b0af787ec73dcd3eb476cda2e6cdd7abd9fb6500526361be7f8c0eeb10bf1",
       "strict_schema": false,
-      "version": "1.1"
+      "version": "1.2"
     },
     {
       "file": "gdpr_dsar_request.yaml",
       "name": "gdpr_dsar_request",
       "rule_count": 31,
-      "rules_sha256": "a6fd2e5ae663c277ea5dc3614ab89ab2ed7657abe29874189e5513611c46c863",
+      "rules_sha256": "bc01214e2fe2b803cb0670ed609dc61c98555f5fec831c119ff7e87a21fef2e3",
       "strict_schema": false,
-      "version": "1.0"
+      "version": "1.1"
     },
     {
       "file": "gdpr_processing_record.yaml",
@@ -132,17 +132,17 @@
       "file": "hr_employee.yaml",
       "name": "hr_employee",
       "rule_count": 21,
-      "rules_sha256": "74026b87db31e6476db4022763379153e372f7d7dd0f9c5e9079ab7f393000bd",
+      "rules_sha256": "73f0c497c7e980a6a0719ad1075958b6f7327c16e13de05d1d8a99427da57f4b",
       "strict_schema": false,
-      "version": "1.1"
+      "version": "1.2"
     },
     {
       "file": "insurance_claim.yaml",
       "name": "insurance_claim",
       "rule_count": 19,
-      "rules_sha256": "537ab669dfc71015646121cccb3e696f94f8ca598f08e967599cb1aa831fe770",
+      "rules_sha256": "0592e47ed5993762a9b3577ba7a0d9e5eb418f5d40ecbfc2b726e96681edcfba",
       "strict_schema": false,
-      "version": "1.1"
+      "version": "1.2"
     },
     {
       "file": "logistics_shipment.yaml",
@@ -164,17 +164,17 @@
       "file": "martyns_law_event.yaml",
       "name": "martyns_law_event",
       "rule_count": 36,
-      "rules_sha256": "1cf73d6dd6bba76e2ae183c92b25f2b33bd903cfb3cb1d04c4032cecbff74107",
+      "rules_sha256": "e574eda12b005b9fbaae3734f30d49e07ea543f05e8eb93b3849c39726c7e644",
       "strict_schema": false,
-      "version": "1.0"
+      "version": "1.1"
     },
     {
       "file": "martyns_law_venue.yaml",
       "name": "martyns_law_venue",
-      "rule_count": 32,
-      "rules_sha256": "4024997533265320d13d457e160c00b2a8dbd654a59965d471f9a1a53711d0d1",
+      "rule_count": 31,
+      "rules_sha256": "27610c4d469fd0e9bd8eaeed539800eab6571c2dce0473826c03b655e0966be6",
       "strict_schema": false,
-      "version": "1.0"
+      "version": "1.1"
     },
     {
       "file": "media_content.yaml",
@@ -188,17 +188,17 @@
       "file": "mifid_transaction_report.yaml",
       "name": "mifid_transaction_report",
       "rule_count": 38,
-      "rules_sha256": "6063cfe12ba30589ae172e2946ec0eb6b94ce108b0a54854fd2333db4c5bfef0",
+      "rules_sha256": "93b664b7afd8107193013676dbed11fc88a846c194b48b4a4d432bebe1296e78",
       "strict_schema": true,
-      "version": "1.0"
+      "version": "1.1"
     },
     {
       "file": "nhs_dsp_patient.yaml",
       "name": "nhs_dsp_patient",
-      "rule_count": 22,
-      "rules_sha256": "31a41881b994846dd8ab25ab3a4770566474146fbadbbdb5d0d9ecdd706cac7b",
+      "rule_count": 21,
+      "rules_sha256": "63b080e8095a68cfdc715f9a3d6199d6221669f920abe98399bdb165d9b83f45",
       "strict_schema": false,
-      "version": "1.1"
+      "version": "1.2"
     },
     {
       "file": "ofgem_meter_reading.yaml",
@@ -220,9 +220,9 @@
       "file": "pharma_clinical_trial.yaml",
       "name": "pharma_clinical_trial",
       "rule_count": 24,
-      "rules_sha256": "6df786f201bf0c8d3d198cd9c604340e26348de933a4e40705606d951e4a8a41",
+      "rules_sha256": "ae22109f6ffcd0cd05d2b3ecc779588d7f8a36db981297a2e2d544e742e0a2a8",
       "strict_schema": false,
-      "version": "1.1"
+      "version": "1.2"
     },
     {
       "file": "ppds_menu_item.yaml",
@@ -236,9 +236,9 @@
       "file": "proof_of_play.yaml",
       "name": "proof_of_play",
       "rule_count": 24,
-      "rules_sha256": "9a3707f02b9b331ff1f1024747e391156c499465f3c0af7d804e2ca573f03a0e",
+      "rules_sha256": "b55fb1313f925b9d2ef06f9b9ae463f8b5b91d5d0079eae56d449f18cacadcf5",
       "strict_schema": false,
-      "version": "1.0"
+      "version": "1.1"
     },
     {
       "file": "public_sector_service.yaml",
@@ -252,33 +252,33 @@
       "file": "real_estate_property.yaml",
       "name": "real_estate_property",
       "rule_count": 18,
-      "rules_sha256": "cd2cc32850fc9f0df6890b32973037d8213ff4c69b666b4de6a69aa9fe90a890",
+      "rules_sha256": "8667b43b82765dad7143955f554b02caaa91e416f590b22d709899c9def2199e",
       "strict_schema": false,
-      "version": "1.1"
+      "version": "1.2"
     },
     {
       "file": "retail_product.yaml",
       "name": "retail_product",
       "rule_count": 18,
-      "rules_sha256": "a93eaa53848f2d434029eabd3031ddad4c7460462c01ed83fb82b36d7302ff73",
+      "rules_sha256": "abeedeed7aed4b5ca691e095aae0641b9bf35e370c42a58ebb7551c165f2cff1",
       "strict_schema": false,
-      "version": "1.1"
+      "version": "1.2"
     },
     {
       "file": "salesforce_contact.yaml",
       "name": "salesforce_contact",
       "rule_count": 19,
-      "rules_sha256": "af5bb45c0f5b5dc71defa21c3b680926bbad46c39dec6d724a93f2b27cfe3a82",
+      "rules_sha256": "25323c6daba53a93befcd1b328b154c0122a4ef32e532413e321d37c6b7ceb41",
       "strict_schema": false,
-      "version": "1.0"
+      "version": "1.1"
     },
     {
       "file": "salesforce_lead.yaml",
       "name": "salesforce_lead",
       "rule_count": 16,
-      "rules_sha256": "ec9f97de7c077e92a47909956cc0b74b95b0fae173f1a9291b6e926ab38654a4",
+      "rules_sha256": "f05ac724981966097ba8a778f1974c6c9f1fdea1e66827544ef5ed19d15e1a6d",
       "strict_schema": false,
-      "version": "1.0"
+      "version": "1.1"
     },
     {
       "file": "social_media_age_compliance.yaml",
@@ -308,9 +308,9 @@
       "file": "telecoms_cdr.yaml",
       "name": "telecoms_cdr",
       "rule_count": 20,
-      "rules_sha256": "8bcbc09373ee8b80eaa92829a007a33ba4bd8dfc3eb6fe63eb96f72ea214f19d",
+      "rules_sha256": "943e533bba5e2612d2de129e22a61438db48c1aacc195412365c173a2246ad36",
       "strict_schema": false,
-      "version": "1.1"
+      "version": "1.2"
     },
     {
       "file": "travel_booking.yaml",
@@ -329,6 +329,6 @@
       "version": "1.0"
     }
   ],
-  "library_sha256": "6a3716f66dda5a8dcc36beb11f5740356ff21b86663125490b46c0cbf014c6ac",
+  "library_sha256": "b38277c3654ab3f421b2b456026742c6ccb01e392d902b186d336ea9e4506df6",
   "manifest_version": 1
 }

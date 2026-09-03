@@ -11,11 +11,11 @@ Values are synthetic. No real person, account or organisation is described.
 Contracts whose rules are all error-severity (dora_ict_incident) have no
 warning-only row; the test only demands one where a warning rule exists.
 
-Note on dora_ict_incident: its ``date_format`` fields accept ``YYYY-MM-DD`` or
-``YYYY-MM-DDTHH:MM:SS`` (no zone designator) while its two regex-only
-timestamp fields *require* one — each value below follows its own field's
-rule. That asymmetry is a library observation for the D4 list, not a fixture
-choice.
+Note on dora_ict_incident: since the golden-library sync (2.7.0) every DORA
+timestamp field requires a full ISO 8601 datetime WITH a zone designator, and
+the reporting clock runs classification → initial notification (≤4h) →
+intermediate report (≤72h of the initial) → final report (≤1 month of the
+intermediate) per CDR (EU) 2024/1773; the row below sits inside every window.
 """
 
 from __future__ import annotations
@@ -95,10 +95,9 @@ CLEAN_ROWS: dict[str, list[dict]] = {
             "incident_classification": "major",
             "incident_description": "Payments gateway failed over to a stale configuration.",
             "affected_services": "card_payments",
-            "detection_timestamp": "2026-01-10T08:00:00",
-            "early_warning_timestamp": "2026-01-10T09:00:00",
+            "detection_timestamp": "2026-01-10T08:00:00Z",
             "major_classification_timestamp": "2026-01-10T09:30:00Z",
-            "initial_notification_timestamp": "2026-01-10T10:00:00",
+            "initial_notification_timestamp": "2026-01-10T10:00:00Z",
             "intermediate_report_timestamp": "2026-01-11T10:00:00Z",
             "root_cause": "Stale failover configuration",
             "remediation_status": "resolved",
