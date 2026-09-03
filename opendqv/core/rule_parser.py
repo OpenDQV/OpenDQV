@@ -312,6 +312,21 @@ class Rule(BaseModel):
             )
         if self.compare_op and self.compare_op in self._COMPARE_OP_ALIASES:
             self.compare_op = self._COMPARE_OP_ALIASES[self.compare_op]
+        # #144: the condition block is a closed vocabulary. An unknown key would
+        # be silently ignored by both paths (the rule fires unconditionally),
+        # which is exactly the "loads clean, means something else" failure the
+        # conformance work exists to prevent.
+        if isinstance(self.condition, dict):
+            unknown = set(self.condition) - {"field", "value", "not_value", "present"}
+            if unknown:
+                raise ValueError(
+                    f"Rule '{self.name}': condition has unknown key(s) {sorted(unknown)}; "
+                    f"allowed: field, value, not_value, present."
+                )
+            if not self.condition.get("field"):
+                raise ValueError(f"Rule '{self.name}': condition requires 'field'.")
+            if "present" in self.condition and not isinstance(self.condition["present"], bool):
+                raise ValueError(f"Rule '{self.name}': condition.present must be true or false.")
         # SEC-004: Validate field name is safe for use as a SQL identifier in DuckDB
         # batch queries. Field names are double-quoted in SQL, but a name containing
         # a double-quote character would break the quoting and allow SQL injection.

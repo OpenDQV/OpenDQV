@@ -364,3 +364,35 @@ Run the full suite to confirm nothing is broken:
 ```bash
 python -m pytest tests/ --ignore=tests/test_e2e.py -p no:playwright --tb=short --timeout=60 -q
 ```
+
+## Conditions on any rule
+
+Any rule may carry a `condition:` block; the rule is evaluated only when the
+condition holds, on both the single-record and batch paths. The vocabulary is
+closed — an unknown key is a load error, never a silent no-op.
+
+| Key | Meaning |
+|---|---|
+| `field` | the field the condition inspects (required) |
+| `value: X` | apply the rule only when `field == X` |
+| `not_value: X` | apply the rule only when `field != X` |
+| `present: true` | apply only when `field` is present — not `null`, `""` or whitespace (the D6 absence reading) |
+| `present: false` | apply only when `field` is absent |
+
+Predicates conjoin: `{field: kind, present: true, value: charge}` applies only
+when `kind` is present *and* equals `charge`.
+
+**"Compare only when both fields are present."** Under D10 a cross-field rule
+fails when its counterpart is absent or blank (`counterpart_missing: true` on
+the error entry). When the counterpart is genuinely optional, say so with
+`present`:
+
+```yaml
+- name: settled_after_booked
+  type: compare
+  field: settled_at
+  compare_to: booked_at
+  compare_op: gte
+  condition: {field: booked_at, present: true}   # skip when booked_at is not supplied
+  error_message: settled_at must not precede booked_at
+```

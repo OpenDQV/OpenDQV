@@ -351,7 +351,15 @@ def _check_condition(rule: Rule, record: Optional[dict]) -> bool:
     if not rule.condition:
         return True
     cond_field = rule.condition.get("field")
-    actual = str((record or {}).get(cond_field, ""))
+    raw = (record or {}).get(cond_field)
+    # #144: `present: true|false` — apply the rule only when the condition field
+    # is present (not None / blank / whitespace) or only when it is absent.
+    # Uses the D6 absence reading, so "compare only when both are present" is
+    # `condition: {field: <counterpart>, present: true}`. Predicates conjoin.
+    if "present" in rule.condition:
+        if (not _is_field_absent(raw)) != bool(rule.condition["present"]):
+            return False
+    actual = str(raw if raw is not None else "")
     if "value" in rule.condition:
         return actual == str(rule.condition["value"])
     if "not_value" in rule.condition:
@@ -1658,6 +1666,15 @@ def validate_batch(
             # Apply condition filter: exclude rows where the condition is not met.
             if rule.condition and failing_indices:
                 cond_field = rule.condition.get("field", "")
+                if "present" in rule.condition:
+                    # #144: presence judged from the raw record (D6 absence reading),
+                    # exactly as _check_condition does on the single path.
+                    want = bool(rule.condition["present"])
+                    eligible = {
+                        i for i in range(total)
+                        if (not _is_field_absent((records[i] if records is not None else {}).get(cond_field))) == want
+                    }
+                    failing_indices = failing_indices & eligible
                 if cond_field in df.columns:
                     cond_series = df[cond_field].astype(str)
                     if "value" in rule.condition:
@@ -1668,6 +1685,10 @@ def validate_batch(
                         # Exclude rows where condition field == not_value
                         excluded = set(df.index[cond_series == str(rule.condition["not_value"])])
                         failing_indices = failing_indices - excluded
+                elif "value" in rule.condition:
+                    # condition field absent from every record: actual == "" on the
+                    # single path, so `value: X` never matches → nothing fails.
+                    failing_indices = set()
 
             entry_template = {
                 "field": rule.field,
