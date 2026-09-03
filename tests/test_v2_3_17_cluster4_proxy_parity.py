@@ -68,18 +68,13 @@ def _proxy_tool_names() -> set:
 def _in_process_tool_names() -> set:
     """Inspect the in-process server's tools/list output."""
     import asyncio
-    from opendqv.mcp_server import server
 
-    # FastMCP exposes the registered tools via list_tools handlers.
-    # Call the underlying handler directly to avoid running stdio.
-    handlers = server.request_handlers
-    # Find the list_tools handler
-    from mcp.types import ListToolsRequest
-    handler = handlers[ListToolsRequest]
-    request = ListToolsRequest(method="tools/list")
-    result = asyncio.run(handler(request))
-    # result is ServerResult; access via .root
-    tools = result.root.tools
+    # mcp 2.x: handlers are constructor-registered (no request_handlers map).
+    # Call the mcp 2 adapter, which wraps the plain list_tools() the server
+    # was built with — the same catalogue the stdio transport serves.
+    from opendqv.mcp_server import _on_list_tools
+    result = asyncio.run(_on_list_tools(None, None))
+    tools = result.tools
     return {t.name for t in tools}, tools
 
 
@@ -151,7 +146,7 @@ class TestProxyInprocessParity:
         diffs = []
         for name in shared:
             proxy_required = set(proxy_by_name[name]["inputSchema"].get("required", []))
-            inproc_required = set(inproc_by_name[name].inputSchema.get("required", []))
+            inproc_required = set(inproc_by_name[name].input_schema.get("required", []))
             if proxy_required != inproc_required:
                 diffs.append((name, proxy_required, inproc_required))
         assert not diffs, \
@@ -174,7 +169,7 @@ class TestProxyInprocessParity:
         diffs = []
         for name in proxy_names_set & inproc_names_set:
             proxy_props = set(proxy_by_name[name]["inputSchema"].get("properties", {}))
-            inproc_props = set(inproc_by_name[name].inputSchema.get("properties", {}))
+            inproc_props = set(inproc_by_name[name].input_schema.get("properties", {}))
             allowed = KNOWN_PROPERTY_ASYMMETRIES.get(name, set())
             only_inproc = inproc_props - proxy_props - allowed
             only_proxy = proxy_props - inproc_props
