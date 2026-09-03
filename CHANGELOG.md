@@ -2,7 +2,7 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [3.0.0] - Unreleased
+## [2.5.0] - 2026-09-03
 
 **One aligned library and one aligned engine.** OpenDQV Core and the managed
 OpenDQV Cloud engine now produce the same verdict, code, severity and message

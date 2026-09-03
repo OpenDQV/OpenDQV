@@ -384,7 +384,7 @@ thing on both engines.
 The project owner ruled that with no downstream users of either engine this
 is the moment to align, not to stage migrations. So: the six strict flips are
 in this change (not a separate release); the explicit-presence pass stays;
-the CHANGELOG opens with a single 3.0.0 `BREAKING` block. Two library
+the CHANGELOG opens with a single 2.5.0 `BREAKING` block. Two library
 decisions the aligned copy makes, both Act-faithful and mirrored on the
 managed side:
 
