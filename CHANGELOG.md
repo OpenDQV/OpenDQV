@@ -6,8 +6,12 @@ All notable changes to OpenDQV are documented here.
 
 Backlog release: the six follow-ups from the Core↔Cloud conformance review
 (#144–#149), the Dependabot queue including the mcp 2 port, and the release
-pipeline fix. Additive on the wire — no existing verdict, code, severity or
-message changes; the previous-release replay reports 0 flips against v2.5.1.
+pipeline fix. Additive on the wire (one new optional key, `counterpart_missing`,
+on error entries; REST, GraphQL and MCP all carry it) with one deliberate
+verdict correction: the batch `field_sum` / `ratio_check` absent-operand fix
+below, which brings batch in line with the single path. The previous-release
+replay reports 0 flips against the v2.5.1 corpus (which did not exercise that
+pattern).
 
 - **`condition: {field: X, present: true|false}` (#144).** Apply a rule only
   when another field is present (D6 absence reading: not `null`, `""` or
@@ -21,7 +25,9 @@ message changes; the previous-release replay reports 0 flips against v2.5.1.
   that fails because its counterpart is absent or blank carries one extra
   structured key on the error entry — same code, severity and message — so
   remediation loops can tell "supply `end_date`" from "fix `start_date`". The
-  key is absent on every other entry. While marking, the batch `field_sum`
+  key is absent on every other entry. Marked for every cross-field type:
+  `compare`, `date_diff`, `cross_field_range`, `field_sum`, `ratio_check`,
+  `age_match`, `geospatial_bounds`. While marking, the batch `field_sum`
   and `ratio_check` branches were found to still zero an absent operand
   (`{a: 10}` with `b` absent passed in batch, failed single); both now fail
   it like the single path.

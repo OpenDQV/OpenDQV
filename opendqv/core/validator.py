@@ -1028,11 +1028,15 @@ def _check_cross_field_range(value, rule: Rule, record: Optional[dict] = None) -
         v = float(value)
         if rule.cross_min_field:
             low = rec.get(rule.cross_min_field)
-            if low is None or v < float(low):
+            if _is_field_absent(low):
+                return _COUNTERPART_MISSING_PREFIX + rule.error_message   # D10 (#145)
+            if v < float(low):
                 return rule.error_message
         if rule.cross_max_field:
             high = rec.get(rule.cross_max_field)
-            if high is None or v > float(high):
+            if _is_field_absent(high):
+                return _COUNTERPART_MISSING_PREFIX + rule.error_message   # D10 (#145)
+            if v > float(high):
                 return rule.error_message
     except (TypeError, ValueError):
         return rule.error_message
@@ -1163,8 +1167,8 @@ def _check_geospatial_bounds(value, rule: Rule, record: Optional[dict] = None) -
 
         if rule.geo_lon_field:
             lon_val = rec.get(rule.geo_lon_field)
-            if lon_val is None:
-                return rule.error_message
+            if _is_field_absent(lon_val):
+                return _COUNTERPART_MISSING_PREFIX + rule.error_message   # D10 (#145)
             lon = float(lon_val)
             if rule.geo_min_lon is not None and lon < rule.geo_min_lon:
                 return rule.error_message
@@ -2206,13 +2210,16 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
             try:
                 v = float(val)
                 fail = False
-                if rule.cross_min_field and rule.cross_min_field in df.columns:
-                    low = df[rule.cross_min_field].iloc[idx]
-                    if low is None or (isinstance(low, float) and pd.isna(low)) or v < float(low):
+                for bound_field, cmp in ((rule.cross_min_field, lambda b: v < float(b)),
+                                         (rule.cross_max_field, lambda b: v > float(b))):
+                    if fail or not bound_field:
+                        continue
+                    bound = df[bound_field].iloc[idx] if bound_field in df.columns else None
+                    if _batch_absent(bound):
+                        failing.add(idx)
+                        failing_counterpart_missing.add(idx)   # D10 (#145)
                         fail = True
-                if not fail and rule.cross_max_field and rule.cross_max_field in df.columns:
-                    high = df[rule.cross_max_field].iloc[idx]
-                    if high is None or (isinstance(high, float) and pd.isna(high)) or v > float(high):
+                    elif cmp(bound):
                         fail = True
                 if fail:
                     failing.add(idx)
@@ -2333,10 +2340,11 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                 elif rule.geo_max_lat is not None and lat > rule.geo_max_lat:
                     fail = True
 
-                if not fail and rule.geo_lon_field and rule.geo_lon_field in df.columns:
-                    lon_val = df[rule.geo_lon_field].iloc[idx]
-                    if lon_val is None or (isinstance(lon_val, float) and pd.isna(lon_val)):
+                if not fail and rule.geo_lon_field:
+                    lon_val = df[rule.geo_lon_field].iloc[idx] if rule.geo_lon_field in df.columns else None
+                    if _batch_absent(lon_val):
                         fail = True
+                        failing_counterpart_missing.add(idx)   # D10 (#145)
                     else:
                         lon = float(lon_val)
                         if not (-180 <= lon <= 180):

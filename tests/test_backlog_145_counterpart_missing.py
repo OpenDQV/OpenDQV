@@ -22,6 +22,11 @@ CASES = [
      {"a": 4}, {"a": 4, "b": 4}),
     (Rule(name="am", type="age_match", field="age", dob_field="dob", error_message="age matches dob"),
      {"age": 30, "dob": "   "}, {"age": 99, "dob": "1990-01-01"}),
+    (Rule(name="cfr", type="cross_field_range", field="v", cross_min_field="lo", cross_max_field="hi", error_message="in range"),
+     {"v": 5, "lo": 1}, {"v": 50, "lo": 1, "hi": 10}),
+    (Rule(name="geo", type="geospatial_bounds", field="lat", geo_lon_field="lon", geo_min_lat=-90, geo_max_lat=90,
+          geo_min_lon=-180, geo_max_lon=180, error_message="bounds"),
+     {"lat": 51.5, "lon": ""}, {"lat": 51.5, "lon": 999}),
 ]
 
 
@@ -73,3 +78,17 @@ def test_field_sum_absent_operand_is_not_zeroed_on_batch_path():
     assert not single["valid"] and not batch["valid"]
     assert batch["errors"][0] == single["errors"][0]
     assert batch["errors"][0]["counterpart_missing"] is True
+
+
+def test_rest_and_graphql_error_types_carry_the_key():
+    """Sonnet round-1 blocker: GraphQL's FieldError(**entry) crashed on the new key; REST dropped it."""
+    from opendqv.api.graphql_schema import FieldError as GqlFieldError
+    from opendqv.api.models import FieldErrorResponse
+    r = Rule(name="cmp", type="compare", field="end", compare_to="start", compare_op="gte", error_message="m")
+    entry = validate_record({"end": "x"}, [r], "t")["errors"][0]
+    assert entry["counterpart_missing"] is True
+    assert GqlFieldError(**entry).counterpart_missing is True
+    assert FieldErrorResponse(**entry).model_dump()["counterpart_missing"] is True
+    plain = validate_record({"end": "2026-01-01", "start": "2026-01-02"}, [r], "t")["errors"][0]
+    assert GqlFieldError(**plain).counterpart_missing is False
+    assert FieldErrorResponse(**plain).model_dump()["counterpart_missing"] is None

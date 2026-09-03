@@ -76,6 +76,7 @@ class FieldErrorResponse(BaseModel):
     severity: str = Field(..., description="Blocking level: 'error' prevents the record from being accepted; 'warning' is informational only")
     error_code: str = Field("", description="Stable machine-readable error code derived from rule type AND rule name, e.g. OPENDQV_REGEX_VALID_EMAIL. Two rules of the same type now produce different codes (was: shared OPENDQV_REGEX_001 in v2.3.5 and earlier — see CHANGELOG v2.3.6 for migration). Safe to use as a routing key in dead-letter queues and alerting rules.")
     suggested_fix: Optional[str] = Field(None, description="Concise actionable fix hint — use to self-correct and resubmit without a separate explain_error call")
+    counterpart_missing: Optional[bool] = Field(None, description="True when a cross-field rule failed because its counterpart field was absent or blank (D10) — supply the counterpart rather than fixing this field. Absent on every other failure.")
 
 
 class ValidateResponse(BaseModel):
