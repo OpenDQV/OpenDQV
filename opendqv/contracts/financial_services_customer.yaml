@@ -30,6 +30,7 @@ contract:
   approved_by: opendqv-core-team
   approved_at: "2026-04-27T00:00:00+00:00"
   version: "1.0"
+  strict_schema: true
   description: >
     Financial Services customer data quality rules for UK regulated financial services.
     Enforces demographic plausibility controls required under BCBS 239 (risk data
