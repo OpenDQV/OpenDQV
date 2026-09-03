@@ -5,7 +5,7 @@ from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Requ
 
 import opendqv.api.deps as _d
 import opendqv.config as config
-from opendqv.core.contracts import validate_promotion_readiness
+from opendqv.core.contracts import ContractImmutableError, validate_promotion_readiness
 from opendqv.core.jsonschema import contract_to_jsonschema
 from opendqv.core.quality_stats import quality_confidence
 from opendqv.core.rule_parser import ContractStatus
@@ -924,15 +924,13 @@ async def bump_contract_version(
     if old_version == new_version:
         raise HTTPException(status_code=400, detail=f"New version must differ from current version '{old_version}'.")
 
+    # CRT178 #2: the base object is never touched — create_version deep-copies,
+    # strips the approval trail, writes its own file and indexes it.
     _d.registry.history.record_version(contract)
-
-    contract.version = new_version
-    contract.status = ContractStatus.DRAFT
-
-    if name in _d.registry._contracts:
-        _d.registry._contracts[name][new_version] = contract
-
-    _d.registry.history.record_version(contract)
+    try:
+        _d.registry.create_version(name, old_version, new_version)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     logger.info(
         "version_bump caller=%s contract=%s old_version=%s new_version=%s status=draft",
@@ -981,6 +979,8 @@ async def add_rule(
     _d._assert_contract_mutable(contract, name, user, "add_rule")
     try:
         contract = _d.registry.add_rule(name, body)
+    except ContractImmutableError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     return {"status": "added", "contract": name, "rule": body.get("name"), "rule_count": len(contract.rules), "version": contract.version}
@@ -1011,6 +1011,8 @@ async def update_rule(
     _d._assert_contract_mutable(contract, name, user, "update_rule")
     try:
         contract, breaking = _d.registry.update_rule(name, rule_name, body)
+    except ContractImmutableError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     resp: dict = {"status": "updated", "contract": name, "rule": rule_name, "version": contract.version}
@@ -1044,6 +1046,8 @@ async def delete_rule(
     _d._assert_contract_mutable(contract, name, user, "delete_rule")
     try:
         contract = _d.registry.delete_rule(name, rule_name)
+    except ContractImmutableError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     return {"status": "deleted", "contract": name, "rule": rule_name, "rule_count": len(contract.rules), "version": contract.version}

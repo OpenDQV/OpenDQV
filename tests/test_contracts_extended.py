@@ -444,7 +444,7 @@ def _insert_draft(name: str, rules=None):
     }
     path.write_text(yaml.dump(yaml_data), encoding="utf-8")
     registry._contracts.setdefault(name, {})[contract.version] = contract
-    registry._contract_paths[name] = path
+    registry._contract_paths.setdefault(name, {})[contract.version] = path
     return contract
 
 

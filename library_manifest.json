@@ -164,7 +164,7 @@
       "file": "martyns_law_event.yaml",
       "name": "martyns_law_event",
       "rule_count": 36,
-      "rules_sha256": "0d58c81bc9f9812adb12a373f72c17da76fcbdb305d6c2d14edbd64072d7e551",
+      "rules_sha256": "1cf73d6dd6bba76e2ae183c92b25f2b33bd903cfb3cb1d04c4032cecbff74107",
       "strict_schema": false,
       "version": "1.0"
     },
@@ -188,7 +188,7 @@
       "file": "mifid_transaction_report.yaml",
       "name": "mifid_transaction_report",
       "rule_count": 38,
-      "rules_sha256": "7920aac1ce93caa15cfefa5cbc8a284804b8a5f4fa4228806379724597678610",
+      "rules_sha256": "6063cfe12ba30589ae172e2946ec0eb6b94ce108b0a54854fd2333db4c5bfef0",
       "strict_schema": true,
       "version": "1.0"
     },
@@ -329,6 +329,6 @@
       "version": "1.0"
     }
   ],
-  "library_sha256": "afd178c0cf6fd95b8022195718150eda5fcdbbad719b897e9f0742fa3a634bbd",
+  "library_sha256": "6a3716f66dda5a8dcc36beb11f5740356ff21b86663125490b46c0cbf014c6ac",
   "manifest_version": 1
 }

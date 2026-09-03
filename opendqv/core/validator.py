@@ -1948,9 +1948,13 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
         # declared format strictly; default to ISO 8601 (date or datetime)
         # when no format is declared. Do NOT use TRY_CAST AS DATE — it
         # accepts locale-ambiguous formats like DD/MM/YYYY.
+        params: dict = {}
         if rule.format:
-            strptime_fmt = _human_to_strptime(rule.format)
-            fmt_clause = f"TRY_STRPTIME(CAST(\"{field}\" AS VARCHAR), '{strptime_fmt}') IS NULL"
+            # CRT178 #9: the format string used to be f-strung into the query;
+            # a quote in a caller-supplied `format` was SQL injection into an
+            # engine with filesystem reach. Bind it instead.
+            params["fmt"] = _human_to_strptime(rule.format)
+            fmt_clause = f"TRY_STRPTIME(CAST(\"{field}\" AS VARCHAR), $fmt) IS NULL"
         else:
             fmt_clause = (
                 f"TRY_STRPTIME(CAST(\"{field}\" AS VARCHAR), '%Y-%m-%d') IS NULL "
@@ -1962,7 +1966,7 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
               AND TRIM(CAST("{field}" AS VARCHAR)) != ''
               AND ({fmt_clause})
         """
-        for r in con.execute(query).fetchall():
+        for r in con.execute(query, params).fetchall():
             failing.add(r[0])
 
     elif rule.type == "unique":

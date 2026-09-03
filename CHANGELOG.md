@@ -2,6 +2,76 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.5.1] - 2026-09-03
+
+Integrity release (CRT178 Option A, patch tier). Five concrete governance and
+injection fixes, each a small change with its recurrence test in the same
+commit; design red-teamed by Sonnet before implementation. No wire-format
+change. Two behaviour changes worth noting: contracts under **REVIEW** are now
+frozen (rule mutations return 409, as ACTIVE already did), and
+`POST /contracts/{name}/version` now writes a real `{name}_v{version}.yaml`
+file and refuses a version that already exists (400).
+
+- **Two starter-library corrections from the cross-engine diff (align-now ruling).**
+  #140 `mifid_transaction_report`: the LEI check-digit rules' `condition` compared
+  `buyer_id_type` / `seller_id_type` against lower-case `lei` while the managed
+  copy used `LEI`, so one copy never fired on real data; the canonical literal
+  is now upper-case `LEI` (RTS 22 convention) in the conditions, the
+  `ref/mifid_id_type.txt` taxonomy and the sample records. #141
+  `martyns_law_event`: `expected_attendance_minimum` was 200; the Terrorism
+  (Protection of Premises) Act 2025 s.3(1)(d) makes 800 the floor for a
+  qualifying *event* (200 is the s.2 premises tier) — now `min: 800` with the
+  citation in the message; the example record and the examples copy updated;
+  `library_manifest.json` regenerated (two contracts move).
+- **MCP `create_contract_draft` path-traversal (CRT178 #10).** The only check on
+  an agent-supplied name was the `MCP_` prefix, and the name went straight into
+  `contracts_dir / f"{name}.yaml"` — `MCP_../../x` wrote outside the contracts
+  directory from an agent-facing tool that runs regardless of `AUTH_MODE`. The
+  canonical name regex now lives in core (`CONTRACT_NAME_RE`; the REST layer
+  aliases it), `create_draft` checks charset before prefix and asserts path
+  containment, and the MCP handler returns `INVALID_CONTRACT_NAME`.
+- **`format` → DuckDB SQL injection (CRT178 #9).** A `date_format` rule's
+  `format` string was f-strung into `TRY_STRPTIME(..., '{fmt}')`; a quote in a
+  caller-supplied format was SQL injection into an engine with filesystem
+  reach. It is now a bound parameter. Sonnet's pre-implementation review found
+  the sibling: SEC-004 only inspected `rule.field`, while `required_if` /
+  `forbidden_if` trigger fields are quoted identifiers in the same SQL. The
+  model validator now rejects unsafe characters in every field reference a rule
+  can carry (trigger fields, `condition.field`, `compare_to`, cross-field and
+  date-diff fields).
+- **REVIEW-state contracts were mutable (CRT178 #6).** The REST guard blocked
+  ACTIVE only and the registry blocked nothing, so a contract could be edited
+  after the reviewer looked at it (maker-checker TOCTOU) and any non-REST
+  caller could edit any state. `ContractRegistry._assert_rules_mutable` now
+  raises `ContractImmutableError` for ACTIVE and REVIEW inside
+  `add/update/delete_rule`; REST returns 409 with the reject-to-edit hint.
+- **Cross-version approval forgery (CRT178, Opus).** The in-memory contract map
+  was keyed `(name, version)` but the file index only by name, so on a contract
+  stored one-file-per-version — a layout the module docstring advertises —
+  approving v1.0 stamped the approval into whichever file sorted last. The
+  index is now `name → {version → path}`; writes resolve the exact version,
+  fall back only when a name maps to a single file, and refuse to guess
+  between files.
+- **`bump_contract_version` aliased the live ACTIVE object (CRT178 #2).** The
+  route mutated the fetched object in place and stored the same object under
+  the new key, so the live version read DRAFT for every concurrent `/validate`
+  until the next reload erased the bump. `ContractRegistry.create_version`
+  deep-copies, strips the approval trail (a still-DRAFT version must never read
+  as approved after a reload), writes its own file losslessly from the base
+  file's raw YAML, and indexes it.
+
+**Found, not fixed (recorded for v2.5):** `_contract_to_yaml`, used by MCP
+drafts, serialises only a subset of rule fields — an agent-created draft with a
+`compare` or `lookup` rule loses those parameters on disk. Also still open from
+CRT178: revoked-but-unexpired tokens keep reading `/audit/events` and `/config`
+until JWT expiry (token mode only), and the default `SECRET_KEY` warns rather
+than halts in token mode.
+
+Tests: `tests/test_crt178_integrity.py` (43 tests). Each class was verified to
+fail on v2.4.0 by stashing its fix.
+
+---
+
 ## [2.5.0] - 2026-09-03
 
 **One aligned library and one aligned engine.** OpenDQV Core and the managed
@@ -153,7 +223,6 @@ CRT180 — contract-format conformance across engines (see
   context's rule targets instead of refusing `additionalProperties: false`.
 
 ---
-
 ## [2.4.0] - 2026-09-02
 
 ODCS compliance release (CRT179, minor tier — **breaking wire-format change**

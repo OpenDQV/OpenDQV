@@ -317,12 +317,27 @@ class Rule(BaseModel):
         # a double-quote character would break the quoting and allow SQL injection.
         # Allow: letters, digits, underscore, hyphen, space, dot (all safe when double-quoted).
         # Reject: double-quote, backslash, null byte, semicolon, and other control chars.
-        if _UNSAFE_FIELD_CHARS.search(self.field):
-            raise ValueError(
-                f"Rule '{self.name}': field name '{self.field}' contains characters "
-                f"not permitted in a SQL identifier (double-quote, backslash, "
-                f"semicolon, or control characters)."
-            )
+        # CRT178 #9 (Sonnet): the same check must cover every OTHER field name a
+        # rule can name — required_if/forbidden_if trigger fields are quoted
+        # identifiers in the batch SQL too, and cross-field names may become so.
+        for label, ref in (
+            ("field", self.field),
+            ("required_if.field", (self.required_if or {}).get("field") if isinstance(self.required_if, dict) else None),
+            ("forbidden_if.field", (self.forbidden_if or {}).get("field") if isinstance(self.forbidden_if, dict) else None),
+            ("condition.field", (self.condition or {}).get("field") if isinstance(self.condition, dict) else None),
+            ("compare_to", self.compare_to),
+            ("cross_min_field", self.cross_min_field),
+            ("cross_max_field", self.cross_max_field),
+            ("date_diff_field", self.date_diff_field),
+            ("dob_field", self.dob_field),
+            ("geo_lon_field", self.geo_lon_field),
+        ):
+            if isinstance(ref, str) and _UNSAFE_FIELD_CHARS.search(ref):
+                raise ValueError(
+                    f"Rule '{self.name}': {label} '{ref}' contains characters "
+                    f"not permitted in a SQL identifier (double-quote, backslash, "
+                    f"semicolon, or control characters)."
+                )
         # Hot-path caches — avoid repeated Pydantic/Enum access per validation call
         self.cached_has_condition = bool(self.condition)
         self.cached_severity_value = self.severity.value

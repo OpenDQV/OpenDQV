@@ -151,6 +151,21 @@ def _assert_contract_mutable(contract, name: str, user: str, op: str) -> None:
                 f"To modify rules, use POST /api/v1/contracts/{name}/version to create a new draft version."
             ),
         )
+    if contract.status == ContractStatus.REVIEW:
+        # CRT178 #6: a contract under review is frozen — editing it after the
+        # reviewer has looked at it is the maker-checker TOCTOU.
+        logger.warning(
+            "rule_mutation_blocked contract=%s op=%s caller=%s status=review",
+            name, op, user,
+        )
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Contract '{name}' is under REVIEW and frozen. Rule mutations are not permitted while a "
+                f"contract awaits approval. Reject it back to DRAFT (POST /api/v1/contracts/{name}/reject) "
+                f"to edit, or approve it."
+            ),
+        )
     if config.CONTRACT_EDIT_MODE != "auto":
         logger.info("contract_edit_mode=%s contract=%s op=%s", config.CONTRACT_EDIT_MODE, name, op)
 
@@ -235,9 +250,8 @@ def _parse_upload(content: bytes, filename: str):
         raise HTTPException(status_code=400, detail="Invalid file format. Expected CSV or Parquet.")
 
 
-import re as _re
 
-_CONTRACT_NAME_RE = _re.compile(r'^[A-Za-z0-9_-]{1,100}$')
+from opendqv.core.contracts import CONTRACT_NAME_RE as _CONTRACT_NAME_RE  # single source of truth (CRT178 #10)
 
 def _validate_contract_name(name: str) -> None:
     if not _CONTRACT_NAME_RE.match(name):

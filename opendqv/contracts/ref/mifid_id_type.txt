@@ -1,4 +1,4 @@
-lei
+LEI
 national_client_identifier
 mifid_client_identifier
 aggregated

@@ -867,7 +867,7 @@ class TestValidateBatchDraftNotice:
                                  "error_message": "req"}]}
         path.write_text(yaml.dump(yaml_data), encoding="utf-8")
         ms._registry._contracts.setdefault(name, {})["1.0"] = contract
-        ms._registry._contract_paths[name] = path
+        ms._registry._contract_paths.setdefault(name, {})["1.0"] = path
 
         try:
             result = await _tool_validate_batch({
