@@ -137,17 +137,22 @@ def _sanitise_record_keys(record: dict) -> dict:
 
 class FieldError:
     """A single field-level validation failure."""
-    __slots__ = ("field", "rule", "message", "severity", "error_code")
+    __slots__ = ("field", "rule", "message", "severity", "error_code", "counterpart_missing")
 
-    def __init__(self, field: str, rule: str, message: str, severity: str, error_code: str = ""):
+    def __init__(self, field: str, rule: str, message: str, severity: str, error_code: str = "",
+                 counterpart_missing: bool = False):
         self.field = field
         self.rule = rule
         self.message = message
         self.severity = severity
         self.error_code = error_code
+        self.counterpart_missing = counterpart_missing
 
     def to_dict(self) -> dict:
-        return {"field": self.field, "rule": self.rule, "message": self.message, "severity": self.severity, "error_code": self.error_code}
+        d = {"field": self.field, "rule": self.rule, "message": self.message, "severity": self.severity, "error_code": self.error_code}
+        if self.counterpart_missing:
+            d["counterpart_missing"] = True   # #145: only present on D10 failures — shape unchanged otherwise
+        return d
 
 
 # ── Single-record validation (pure Python, no DuckDB) ───────────────
@@ -288,9 +293,14 @@ def validate_record(
             # non-numeric. Strip the prefix and override error_code so
             # consumers can branch on a real type-error vs a real
             # value-violation.
+            counterpart_missing = False
             if failure.startswith(_TYPE_MISMATCH_PREFIX):
                 entry_message = failure[len(_TYPE_MISMATCH_PREFIX):]
                 entry_error_code = "OPENDQV_TYPE_MISMATCH"
+            elif failure.startswith(_COUNTERPART_MISSING_PREFIX):
+                entry_message = failure[len(_COUNTERPART_MISSING_PREFIX):]
+                entry_error_code = rule.cached_error_code
+                counterpart_missing = True
             else:
                 entry_message = failure
                 entry_error_code = rule.cached_error_code
@@ -300,6 +310,7 @@ def validate_record(
                 message=entry_message,
                 severity=rule.cached_severity_value,
                 error_code=entry_error_code,
+                counterpart_missing=counterpart_missing,
             ).to_dict()
 
             if rule.severity == Severity.ERROR:
@@ -675,6 +686,11 @@ def _check_regex(value, rule: Rule, record: Optional[dict] = None) -> Optional[s
 # Generated message includes field name and Python type but NEVER
 # the value itself (PII risk on free-text fields).
 _TYPE_MISMATCH_PREFIX = "__OPENDQV_TYPE_MISMATCH__::"
+# #145: a cross-field rule that fails because its counterpart is absent or
+# blank (D10) is marked so remediation loops can tell it from a real
+# comparison failure. Same code, same severity, same message; one extra
+# structured key (`counterpart_missing: true`) on the entry, both paths.
+_COUNTERPART_MISSING_PREFIX = "__OPENDQV_COUNTERPART_MISSING__::"
 
 
 def _type_mismatch_msg(rule: Rule, value) -> str:
@@ -877,7 +893,7 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
     else:
         other = (record or {}).get(rule.compare_to)
         if _is_field_absent(other):
-            return rule.error_message  # D10: a missing/blank counterpart IS a comparison failure (both engines)
+            return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: a missing/blank counterpart IS a comparison failure (both engines)
 
     # v2.3.20 Cluster C (P1.2): same_date compare_op extracts the
     # YYYY-MM-DD portion from each side before comparing. Catches the
@@ -1022,7 +1038,7 @@ def _check_field_sum(value, rule: Rule, record: Optional[dict] = None) -> Option
     rec = record or {}
     try:
         if any(_is_field_absent(rec.get(f)) for f in rule.sum_fields):
-            return rule.error_message  # D10: absent/blank counterpart → the rule fails
+            return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: absent/blank counterpart → the rule fails
         total = sum(float(rec.get(f)) for f in rule.sum_fields)
         tolerance = rule.sum_tolerance if rule.sum_tolerance is not None else 0.0
         if abs(total - rule.sum_equals) > tolerance:
@@ -1060,7 +1076,7 @@ def _check_date_diff(value, rule: Rule, record: Optional[dict] = None) -> Option
         return None  # field absent or blank (D6) — skip date_diff; required check is a separate rule
     other_val = (record or {}).get(rule.date_diff_field)
     if _is_field_absent(other_val):
-        return rule.error_message  # D10: a missing/blank counterpart IS a date_diff failure (both engines)
+        return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: a missing/blank counterpart IS a date_diff failure (both engines)
     try:
         d1 = _parse_date(value)
         d2 = _parse_date(other_val)
@@ -1090,7 +1106,7 @@ def _check_ratio_check(value, rule: Rule, record: Optional[dict] = None) -> Opti
         num_raw = rec.get(rule.ratio_numerator)
         den_raw = rec.get(rule.ratio_denominator)
         if _is_field_absent(num_raw) or _is_field_absent(den_raw):
-            return rule.error_message  # D10: absent/blank counterpart → the rule fails
+            return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: absent/blank counterpart → the rule fails
         num = float(num_raw)
         den = float(den_raw)
         if den == 0:
@@ -1168,7 +1184,7 @@ def _check_age_match(value, rule: Rule, record: Optional[dict] = None) -> Option
         return None
     dob_val = (record or {}).get(rule.dob_field)
     if _is_field_absent(dob_val):
-        return rule.error_message  # D10: absent/blank counterpart → the rule fails (both engines)
+        return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: absent/blank counterpart → the rule fails (both engines)
     try:
         declared = int(float(value))
         dob = datetime.strptime(str(dob_val), "%Y-%m-%d")
@@ -1628,10 +1644,12 @@ def validate_batch(
             # by min/max/range branches of _batch_check_rule.
             failing_type_mismatches: dict[int, str] = {}
             failing_messages: dict[int, str] = {}
+            failing_counterpart_missing: set[int] = set()   # #145
             try:
                 failing_indices = _batch_check_rule(
                     con, df, rule, failing_type_mismatches=failing_type_mismatches,
-                    records=records, failing_messages=failing_messages, synthesised=synthesised)
+                    records=records, failing_messages=failing_messages, synthesised=synthesised,
+                    failing_counterpart_missing=failing_counterpart_missing)
             except Exception as e:
                 # Log only rule metadata — never include record field values.
                 logger.error("Error evaluating rule '%s' (field='%s'): %s", rule.name, rule.field, e)
@@ -1684,6 +1702,8 @@ def validate_batch(
                     row_entry = {**entry_template, "message": failing_messages[idx]}
                 else:
                     row_entry = entry_template
+                if idx in failing_counterpart_missing:
+                    row_entry = {**row_entry, "counterpart_missing": True}   # #145
                 if rule.severity == Severity.ERROR:
                     row_results[idx]["errors"].append(row_entry)
                 else:
@@ -1753,7 +1773,7 @@ _BATCH_BRANCH_TYPES = frozenset({
 })
 
 
-def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches: dict | None = None, records: list[dict] | None = None, failing_messages: dict | None = None, synthesised: set | None = None) -> set[int]:
+def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches: dict | None = None, records: list[dict] | None = None, failing_messages: dict | None = None, synthesised: set | None = None, failing_counterpart_missing: set | None = None) -> set[int]:
     """Batch twin of _check_rule with the same structural guarantee (D6):
     rows whose value for the rule's field is absent or blank never fail a
     non-presence rule, whatever the per-type branch did. Set-based rules
@@ -1762,7 +1782,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
     synthesised = synthesised or set()
     if rule.type == "unique" and rule.field in synthesised:
         return set()  # a column nobody sent cannot carry duplicates
-    failing = _batch_check_rule_inner(con, df, rule, failing_type_mismatches, records, failing_messages, synthesised)
+    failing = _batch_check_rule_inner(con, df, rule, failing_type_mismatches, records, failing_messages, synthesised, failing_counterpart_missing)
     if rule.type not in _ABSENT_EXEMPT_RULE_TYPES and rule.field and rule.field in df.columns:
         # Judge absence from the RAW record when available: pandas stores a
         # missing key and an explicit NaN identically, and an explicit NaN/inf
@@ -1781,7 +1801,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
     return failing
 
 
-def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches: dict | None = None, records: list[dict] | None = None, failing_messages: dict | None = None, synthesised: set | None = None) -> set[int]:
+def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches: dict | None = None, records: list[dict] | None = None, failing_messages: dict | None = None, synthesised: set | None = None, failing_counterpart_missing: set | None = None) -> set[int]:
     """Run a single rule against the batch via DuckDB. Returns set of failing row indices.
 
     v2.3.23 outside-review #3 (Sonnet aec401d0381905d97): for numeric
@@ -1806,6 +1826,8 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
         failing_type_mismatches = {}
     if failing_messages is None:
         failing_messages = {}
+    if failing_counterpart_missing is None:
+        failing_counterpart_missing = set()
     if rule.type not in _BATCH_BRANCH_TYPES:
         # Round-2 pattern-closer: a rule type with no native batch branch is
         # evaluated per record with the single-path handler, so single/batch
@@ -1816,6 +1838,9 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
             msg = _check_rule(rec.get(field), rule, rec)
             if msg:
                 failing.add(idx)
+                if msg.startswith(_COUNTERPART_MISSING_PREFIX):   # #145
+                    failing_counterpart_missing.add(idx)
+                    msg = msg[len(_COUNTERPART_MISSING_PREFIX):]
                 if msg != rule.error_message:
                     failing_messages[idx] = msg
         # no early return: the min_age/max_age add-on at the tail applies to
@@ -2032,7 +2057,8 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                 if a_raw is None or (isinstance(a_raw, float) and pd.isna(a_raw)):
                     continue
                 if not is_temporal_sentinel and _batch_absent(b_raw):
-                    failing.add(idx)  # D10: missing/blank counterpart → fail, as the single path
+                    failing.add(idx)
+                    failing_counterpart_missing.add(idx)   # D10 (#145: marked)
                     continue
                 a_str = str(a_raw)[:10]
                 b_str = str(b_raw)[:10]
@@ -2059,7 +2085,8 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                         # CRT170/J3: absent field — skip (not_empty is the catcher).
                         continue
                     if not is_temporal_sentinel and _batch_absent(b_raw):
-                        failing.add(idx)  # D10: missing/blank counterpart → fail, as the single path
+                        failing.add(idx)
+                        failing_counterpart_missing.add(idx)   # D10 (#145: marked)
                         continue
                     try:
                         a, b = float(a_raw), float(b_raw)
@@ -2174,12 +2201,16 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
     elif rule.type == "field_sum" and rule.sum_fields and rule.sum_equals is not None:
         tolerance = rule.sum_tolerance if rule.sum_tolerance is not None else 0.0
         for idx in range(len(df)):
+            # D10 (#145): an absent/blank operand is a counterpart-missing
+            # failure, as on the single path — never silently zeroed (a record
+            # whose remaining operands happened to sum correctly passed here).
+            operands = [(df[f].iloc[idx] if f in df.columns else None) for f in rule.sum_fields]
+            if any(_batch_absent(v) for v in operands):
+                failing.add(idx)
+                failing_counterpart_missing.add(idx)
+                continue
             try:
-                total = 0.0
-                for f in rule.sum_fields:
-                    if f in df.columns:
-                        v = df[f].iloc[idx]
-                        total += float(v) if v is not None and not (isinstance(v, float) and pd.isna(v)) else 0.0
+                total = sum(float(v) for v in operands)
                 if abs(total - rule.sum_equals) > tolerance:
                     failing.add(idx)
             except (TypeError, ValueError):
@@ -2221,6 +2252,7 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                 if _batch_absent(other_val):
                     # D10: missing/blank counterpart → fail, as the single path (both engines).
                     failing.add(idx)
+                    failing_counterpart_missing.add(idx)   # #145
                     continue
                 try:
                     d1 = _parse_date(val)
@@ -2245,7 +2277,11 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                 try:
                     num = df[rule.ratio_numerator].iloc[idx]
                     den = df[rule.ratio_denominator].iloc[idx]
-                    if den is None or (isinstance(den, float) and pd.isna(den)) or float(den) == 0:
+                    if _batch_absent(num) or _batch_absent(den):
+                        failing.add(idx)
+                        failing_counterpart_missing.add(idx)   # D10 (#145)
+                        continue
+                    if float(den) == 0:
                         failing.add(idx)
                         continue
                     ratio = float(num) / float(den)
