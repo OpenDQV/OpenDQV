@@ -2,6 +2,62 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.6.0] - Unreleased
+
+Backlog release: the six follow-ups from the Core↔Cloud conformance review
+(#144–#149), the Dependabot queue including the mcp 2 port, and the release
+pipeline fix. Additive on the wire (one new optional key, `counterpart_missing`,
+on error entries; REST, GraphQL and MCP all carry it) with one deliberate
+verdict correction: the batch `field_sum` / `ratio_check` absent-operand fix
+below, which brings batch in line with the single path. The previous-release
+replay reports 0 flips against the v2.5.1 corpus (which did not exercise that
+pattern).
+
+- **`condition: {field: X, present: true|false}` (#144).** Apply a rule only
+  when another field is present (D6 absence reading: not `null`, `""` or
+  whitespace) or only when it is absent. Predicates conjoin with `value` /
+  `not_value`. This is the discoverable way to say "compare only when both
+  fields are present" under D10. The condition vocabulary is now closed
+  (`field`, `value`, `not_value`, `present`): an unknown key is a load error
+  instead of a silently unconditional rule. Both paths; documented in
+  `docs/custom_rules.md`.
+- **`counterpart_missing: true` on D10 failures (#145).** A cross-field rule
+  that fails because its counterpart is absent or blank carries one extra
+  structured key on the error entry — same code, severity and message — so
+  remediation loops can tell "supply `end_date`" from "fix `start_date`". The
+  key is absent on every other entry. Marked for every cross-field type:
+  `compare`, `date_diff`, `cross_field_range`, `field_sum`, `ratio_check`,
+  `age_match`, `geospatial_bounds`. While marking, the batch `field_sum`
+  and `ratio_check` branches were found to still zero an absent operand
+  (`{a: 10}` with `b` absent passed in batch, failed single); both now fail
+  it like the single path.
+- **Breaking-change detector (#146).** `tests/fixtures/conformance/frozen/minimal_clean.jsonl`
+  freezes the smallest record each starter accepted at v2.5.1 (30 of 41;
+  the 11 without an example record are in an explicit shrink-only
+  allowlist), and `scripts/replay_previous_corpus.py` replays the previous
+  tag's whole corpus against the working tree, failing the suite when a
+  record the last release accepted is now rejected.
+- **`_BATCH_BRANCH_TYPES` pinned to the native branches (#147)** by a
+  source-level test, so a type that gains or loses a native batch branch
+  without updating the set fails CI instead of double-evaluating or
+  silently falling back. **`Rule.optional` pinned engine-inert (#148)** on
+  both paths.
+- **MCP drafts are lossless on disk (#149).** `_contract_to_yaml` serialises
+  from the Rule model (aliases kept, engine-stamped fields and caches
+  dropped) instead of a five-field whitelist; a draft with `compare`,
+  `lookup`, `checksum`, `condition`, `required_if`, `negate` or `optional`
+  now round-trips through reload. Pinned over all 41 bundled contracts.
+- **Dependencies.** mcp 1.x → **2.1.1** (#154): the in-process server is
+  ported to the constructor-registered handler API with two thin adapters
+  (tool exceptions become an `INTERNAL_ERROR` envelope with `is_error`, never
+  a protocol error); cold-client stdio smoke passed. Python minor/patch group
+  via poetry (#153): starlette 1.6, pydantic 2.13.5, uvicorn 0.52.4,
+  gunicorn 26.2, streamlit 1.63. websockets stays 16.x (streamlit pins
+  `<17`). GitHub Actions group (#134).
+- **Release pipeline (#152).** `release.yml` dispatches `publish.yml` instead
+  of running an inline PyPI job that PyPI's trusted publisher rejected
+  (`invalid-publisher`); the manifest is attached to every release (#150).
+
 ## [2.5.1] - 2026-09-03
 
 Integrity release (CRT178 Option A, patch tier). Five concrete governance and

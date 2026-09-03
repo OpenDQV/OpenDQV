@@ -88,6 +88,7 @@ class FieldError:
     message: str
     severity: str
     error_code: str = ""
+    counterpart_missing: bool = False   # #145: True only on a D10 counterpart-absent failure
 
 
 @strawberry.type

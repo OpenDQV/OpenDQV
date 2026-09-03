@@ -12,7 +12,7 @@ It validates records against YAML data contracts at the point of write — befor
 data enters the pipeline ("shift-left"). It is **not** a pipeline monitoring tool
 (that's Monte Carlo) or a pipeline test framework (that's dbt/Soda).
 
-**Version:** 2.5.1
+**Version:** 2.6.0
 **Stack:** FastAPI + Gunicorn/Uvicorn, Streamlit UI, SQLite/PostgreSQL, DuckDB (batch), MCP
 
 ---
@@ -97,6 +97,11 @@ python -m opendqv.cli validate customer '{"name":"Alice","age":30}'
 - Pydantic `Field(alias="min")` + `populate_by_name=True` accepts both
 - Importers MUST use `"min_value"` / `"max_value"` as dict keys (not the aliases)
 - Import endpoints (`opendqv/api/routes_imports.py`) MUST use `str(config.CONTRACTS_DIR)` — never hardcode `os.path.dirname(__file__)`
+
+### Rule conditions
+- `condition:` vocabulary is closed: `field`, `value`, `not_value`, `present` (bool). Unknown keys are a load error (v2.6.0).
+- D10: a cross-field rule fails when its counterpart is absent/blank on both paths; the error entry carries `counterpart_missing: true`. Use `condition: {field: <counterpart>, present: true}` for "compare only when both present".
+- `tests/fixtures/conformance/frozen/minimal_clean.jsonl` is frozen by hand, never regenerated; `scripts/replay_previous_corpus.py` fails the suite when a record the previous release accepted is now rejected.
 
 ### Contract lifecycle
 States: `draft` → `review` → `active` | `archived`

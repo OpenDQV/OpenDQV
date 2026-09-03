@@ -368,6 +368,17 @@ thing on both engines.
   a rule's OWN field, not the counterpart a comparison needs. Pinned per
   type on both sides and by the corpus's `counterpart_probe` rows. (A first
   cut of this round went the other way; corrected the same morning.)
+- **D10 follow-ups (#144, #145, shipped after 2.5.1).** A counterpart-absent
+  failure now carries `counterpart_missing: true` on the error entry (same
+  code, severity and message; the key is absent on every other entry), so a
+  remediation loop can tell "supply `end_date`" from "fix `start_date`". And
+  "compare only when both are present" is expressible:
+  `condition: {field: <counterpart>, present: true}` — judged with the D6
+  absence reading (`null`, `""`, whitespace) on both paths. `present: false`
+  is the mirror ("apply only when the other field is absent"). The condition
+  vocabulary is closed (`field`, `value`, `not_value`, `present`); an unknown
+  key is a load error. The batch `field_sum` / `ratio_check` branches, which
+  still zeroed an absent operand in 2.5.0/2.5.1, now fail it like the single path.
 - **Batch fallback (pattern-closer).** Any rule type without a native batch
   branch is now evaluated per record with the single-path handler, so
   single/batch parity holds by construction for every present and future
