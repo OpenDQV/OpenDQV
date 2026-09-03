@@ -64,31 +64,39 @@ rules:
   # ── INCIDENT IDENTIFICATION ──────────────────────────────────────────────────
   # INC- prefix followed by 6 digits. Adjust to your ticketing system format.
   # Common patterns: INC-000001 (ServiceNow), TKT-000001, INC20240001.
-  - field: incident_id
-    rule: not_empty
+  - name: incident_id_not_empty
+    type: not_empty
+    field: incident_id
     severity: error
     description: "Incident ID is mandatory. Every detected event must receive a unique reference for audit trail and SLA tracking."
+    error_message: "Incident ID is mandatory. Every detected event must receive a unique reference for audit trail and SLA tracking."
 
-  - field: incident_id
-    rule: regex
+  - name: incident_id_regex
+    type: regex
+    field: incident_id
     pattern: "^INC-[0-9]{6}$"
     severity: error
     description: "Incident ID must match format INC-XXXXXX (6 digits). Example: INC-000042."
+    error_message: "Incident ID must match format INC-XXXXXX (6 digits). Example: INC-000042."
 
   # ── SERVICE ──────────────────────────────────────────────────────────────────
   # The name of the affected service or system. Free text but bounded by length.
   # For production, replace max_length with a lookup_file pointing to your
   # internal service catalogue to ensure only registered services are reported.
-  - field: service_name
-    rule: not_empty
+  - name: service_name_not_empty
+    type: not_empty
+    field: service_name
     severity: error
     description: "Service name is mandatory. Required to route the incident to the correct on-call team."
+    error_message: "Service name is mandatory. Required to route the incident to the correct on-call team."
 
-  - field: service_name
-    rule: max_length
-    max: 100
+  - name: service_name_max_length
+    type: max_length
+    field: service_name
+    max_length: 100
     severity: error
     description: "Service name must not exceed 100 characters."
+    error_message: "Service name must not exceed 100 characters."
 
   # ── SEVERITY ─────────────────────────────────────────────────────────────────
   # ITIL 4 / PagerDuty-aligned priority levels:
@@ -99,20 +107,23 @@ rules:
   #   P5: Informational — no customer impact, proactive alert
   # P1 incidents must be escalated to on-call SRE within 15 minutes per
   # typical enterprise SLA. See docs for SLA policy integration.
-  - field: severity
-    rule: lookup
-    lookup_values: [P1, P2, P3, P4, P5]
+  - name: severity_allowed_values
+    type: allowed_values
+    field: severity
+    allowed_values: [P1, P2, P3, P4, P5]
     severity: error
     description: "Severity must be an ITIL 4 priority code. P1=critical outage (4h SLA), P2=major degradation, P3=partial impact, P4=low, P5=informational."
+    error_message: "Severity must be an ITIL 4 priority code. P1=critical outage (4h SLA), P2=major degradation, P3=partial impact, P4=low, P5=informational."
 
   # ── INCIDENT TYPE ────────────────────────────────────────────────────────────
   # SECURITY_BREACH: unauthorised access or data exfiltration — triggers GDPR workflow.
   # DATA_LOSS: data irrecoverably lost or corrupted — also triggers GDPR review.
   # THIRD_PARTY_DEPENDENCY: failure in an upstream provider (CDN, payment processor,
   # DNS). Important for SOC 2 vendor management evidence (CC9.2).
-  - field: incident_type
-    rule: lookup
-    lookup_values:
+  - name: incident_type_allowed_values
+    type: allowed_values
+    field: incident_type
+    allowed_values:
       - OUTAGE
       - DEGRADATION
       - SECURITY_BREACH
@@ -123,43 +134,53 @@ rules:
       - THIRD_PARTY_DEPENDENCY
     severity: error
     description: "Incident type must be a recognised ITIL 4 / NIST classification. SECURITY_BREACH and DATA_LOSS types automatically trigger GDPR breach assessment."
+    error_message: "Incident type must be a recognised ITIL 4 / NIST classification. SECURITY_BREACH and DATA_LOSS types automatically trigger GDPR breach assessment."
 
   # ── DETECTION TIMESTAMP ──────────────────────────────────────────────────────
   # ISO 8601 datetime with mandatory timezone offset. All incident timestamps
   # must include timezone to avoid ambiguity in distributed / multi-region teams.
   # Examples: 2026-03-09T14:30:00Z (UTC), 2026-03-09T15:30:00+01:00 (CET)
-  - field: detected_at
-    rule: not_empty
+  - name: detected_at_not_empty
+    type: not_empty
+    field: detected_at
     severity: error
     description: "Detection timestamp is mandatory. The 72-hour GDPR notification clock starts from the moment of awareness, not discovery."
+    error_message: "Detection timestamp is mandatory. The 72-hour GDPR notification clock starts from the moment of awareness, not discovery."
 
-  - field: detected_at
-    rule: regex
+  - name: detected_at_regex
+    type: regex
+    field: detected_at
     # ISO 8601 datetime with timezone: UTC (Z) or offset (+HH:MM / -HH:MM)
     pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
     severity: error
     description: "Detection timestamp must be ISO 8601 with timezone (e.g., 2026-03-09T14:30:00Z or 2026-03-09T15:30:00+01:00)."
+    error_message: "Detection timestamp must be ISO 8601 with timezone (e.g., 2026-03-09T14:30:00Z or 2026-03-09T15:30:00+01:00)."
 
-  - field: detected_at
-    rule: compare
+  - name: detected_at_compare
+    type: compare
+    field: detected_at
     compare_op: lte
     compare_to: now
     severity: error
     description: "Detection timestamp cannot be in the future."
+    error_message: "Detection timestamp cannot be in the future."
 
   # ── REPORTER ─────────────────────────────────────────────────────────────────
-  - field: reported_by
-    rule: not_empty
+  - name: reported_by_not_empty
+    type: not_empty
+    field: reported_by
     severity: error
     description: "Reported by is mandatory. Required for incident accountability and SOC 2 CC7.3 audit evidence."
+    error_message: "Reported by is mandatory. Required for incident accountability and SOC 2 CC7.3 audit evidence."
 
   # ── AFFECTED REGION ──────────────────────────────────────────────────────────
   # AWS region identifiers plus GLOBAL (multi-region / CDN) and ON_PREMISE.
   # Adjust this lookup to match your actual cloud provider and deployed regions.
   # For Azure: use eastus, westeurope, etc. For GCP: us-central1, europe-west1.
-  - field: affected_region
-    rule: lookup
-    lookup_values:
+  - name: affected_region_allowed_values
+    type: allowed_values
+    field: affected_region
+    allowed_values:
       - us-east-1
       - us-west-2
       - eu-west-1
@@ -171,6 +192,7 @@ rules:
       - ON_PREMISE
     severity: error
     description: "Affected region must be a recognised deployment region. Required for blast radius analysis and customer communication scoping."
+    error_message: "Affected region must be a recognised deployment region. Required for blast radius analysis and customer communication scoping."
 
   # ── INCIDENT STATUS ──────────────────────────────────────────────────────────
   # ITIL 4 incident lifecycle states:
@@ -178,9 +200,10 @@ rules:
   # POST_MORTEM: blameless post-mortem process initiated (required for all P1/P2).
   # A P1 remaining in DETECTED status for more than 15 minutes without moving
   # to INVESTIGATING should trigger an SLA breach alert.
-  - field: status
-    rule: lookup
-    lookup_values:
+  - name: status_allowed_values
+    type: allowed_values
+    field: status
+    allowed_values:
       - DETECTED
       - INVESTIGATING
       - IDENTIFIED
@@ -189,27 +212,32 @@ rules:
       - POST_MORTEM
     severity: error
     description: "Status must reflect the ITIL 4 incident lifecycle. POST_MORTEM status is required for all P1 and P2 incidents after resolution."
+    error_message: "Status must reflect the ITIL 4 incident lifecycle. POST_MORTEM status is required for all P1 and P2 incidents after resolution."
 
   # ── IMPACT METRICS ───────────────────────────────────────────────────────────
   # customers_affected_count: number of unique customers experiencing degraded
   # or unavailable service. Max 100,000,000 (100M) — adjust to your total
   # addressable user base. Used for GDPR breach materiality assessment.
-  - field: customers_affected_count
-    rule: range
+  - name: customers_affected_count_range
+    type: range
+    field: customers_affected_count
     min: 0
     max: 100000000
     severity: warning
     description: "Customers affected must be between 0 and 100,000,000. Used for GDPR breach scope assessment and customer communications prioritisation."
+    error_message: "Customers affected must be between 0 and 100,000,000. Used for GDPR breach scope assessment and customer communications prioritisation."
 
   # estimated_revenue_impact_usd: projected direct revenue loss.
   # Max 1,000,000,000 (1B USD) — adjust to your maximum realistic single-incident
   # impact. Used for executive escalation and insurance claim triggers.
-  - field: estimated_revenue_impact_usd
-    rule: range
+  - name: estimated_revenue_impact_usd_range
+    type: range
+    field: estimated_revenue_impact_usd
     min: 0
     max: 1000000000
     severity: warning
     description: "Estimated revenue impact must be between 0 and 1,000,000,000 USD. Values above threshold trigger CFO escalation workflow."
+    error_message: "Estimated revenue impact must be between 0 and 1,000,000,000 USD. Values above threshold trigger CFO escalation workflow."
 
   # ── GDPR BREACH ASSESSMENT ───────────────────────────────────────────────────
   # GDPR Article 33: where a personal data breach is likely to result in a risk
@@ -217,45 +245,53 @@ rules:
   # the supervisory authority within 72 hours of becoming aware of the breach.
   # UNDER_ASSESSMENT: security/legal team still evaluating whether personal data
   # was involved. Must be resolved to YES or NO within 24 hours of DETECTED.
-  - field: gdpr_breach
-    rule: lookup
-    lookup_values: [YES, NO, UNDER_ASSESSMENT]
+  - name: gdpr_breach_allowed_values
+    type: allowed_values
+    field: gdpr_breach
+    allowed_values: ["YES", "NO", UNDER_ASSESSMENT]
     severity: error
     description: "GDPR breach status is mandatory for all SECURITY_BREACH and DATA_LOSS incidents. YES triggers the 72-hour ICO/supervisory authority notification obligation (GDPR Art. 33)."
+    error_message: "GDPR breach status is mandatory for all SECURITY_BREACH and DATA_LOSS incidents. YES triggers the 72-hour ICO/supervisory authority notification obligation (GDPR Art. 33)."
 
   # ── GDPR NOTIFICATION ────────────────────────────────────────────────────────
   # When gdpr_breach = YES, gdpr_notification_sent_at must be present.
   # The 72-hour clock runs from detected_at. Failure to notify within 72 hours
   # must be explained and documented (GDPR Art. 33(1): "without undue delay").
   # Fines for failure to notify: up to 2% of global annual turnover or €10M.
-  - field: gdpr_notification_sent_at
-    rule: required_if
-    when_field: gdpr_breach
-    when_value: "YES"
+  - name: gdpr_notification_sent_at_required_if
+    type: required_if
+    field: gdpr_notification_sent_at
     severity: error
     description: "GDPR notification timestamp is required when gdpr_breach = YES. Supervisory authority (e.g., ICO) must be notified within 72 hours of detection (GDPR Article 33)."
+    required_if:
+      field: gdpr_breach
+      value: "YES"
+    error_message: "GDPR notification timestamp is required when gdpr_breach = YES. Supervisory authority (e.g., ICO) must be notified within 72 hours of detection (GDPR Article 33)."
 
   # ── MEAN TIME TO RESOLVE ─────────────────────────────────────────────────────
   # mttr_minutes: elapsed time from detected_at to RESOLVED status.
   # Range: 0 to 525,600 minutes (365 days). Zero is valid for auto-remediated
   # incidents. Values over 10,080 (1 week) should trigger an executive review.
   # P1 SLA benchmark: resolve within 240 minutes (4 hours).
-  - field: mttr_minutes
-    rule: range
+  - name: mttr_minutes_range
+    type: range
+    field: mttr_minutes
     min: 0
     # 525,600 = 365 days × 24 hours × 60 minutes
     max: 525600
     severity: warning
     description: "MTTR must be between 0 and 525,600 minutes (1 year). P1 SLA target is typically ≤240 minutes. Values above 10,080 (1 week) require executive review."
+    error_message: "MTTR must be between 0 and 525,600 minutes (1 year). P1 SLA target is typically ≤240 minutes. Values above 10,080 (1 week) require executive review."
 
   # ── ASSIGNED TEAM ────────────────────────────────────────────────────────────
   # The team responsible for resolution. VENDOR_ESCALATION: incident has been
   # escalated to a third-party provider (e.g., AWS Support, Cloudflare, Stripe).
   # For SOC 2 CC9.2 (vendor management), VENDOR_ESCALATION incidents must have
   # an associated ticket number in the vendor's support system.
-  - field: assigned_team
-    rule: lookup
-    lookup_values:
+  - name: assigned_team_allowed_values
+    type: allowed_values
+    field: assigned_team
+    allowed_values:
       - SRE
       - SECURITY
       - PLATFORM
@@ -265,6 +301,7 @@ rules:
       - VENDOR_ESCALATION
     severity: error
     description: "Assigned team must be a recognised team identifier. Required for on-call routing and SOC 2 CC7.4 incident evaluation evidence."
+    error_message: "Assigned team must be a recognised team identifier. Required for on-call routing and SOC 2 CC7.4 incident evaluation evidence."
 
   # ── ROOT CAUSE CATEGORY ──────────────────────────────────────────────────────
   # Post-mortem classification. HUMAN_ERROR: misconfiguration, wrong deployment,
@@ -272,9 +309,10 @@ rules:
   # EXTERNAL_DEPENDENCY: failure in a service your system depends on but does
   # not control. UNKNOWN: set at RESOLVED if root cause not yet determined;
   # must be updated before POST_MORTEM is closed.
-  - field: root_cause_category
-    rule: lookup
-    lookup_values:
+  - name: root_cause_category_allowed_values
+    type: allowed_values
+    field: root_cause_category
+    allowed_values:
       - HUMAN_ERROR
       - SOFTWARE_BUG
       - INFRASTRUCTURE
@@ -283,3 +321,4 @@ rules:
       - UNKNOWN
     severity: warning
     description: "Root cause category is required for post-mortem analysis and SOC 2 CC7.4 evidence. UNKNOWN is acceptable at resolution but must be resolved before the post-mortem is closed."
+    error_message: "Root cause category is required for post-mortem analysis and SOC 2 CC7.4 evidence. UNKNOWN is acceptable at resolution but must be resolved before the post-mortem is closed."

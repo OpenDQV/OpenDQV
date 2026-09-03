@@ -2,7 +2,7 @@
 
 **Rule type:** `compare`
 **Released:** v1.0.0
-**Applies to:** All 15 industry starter contracts
+**Applies to:** Most starter contracts (14 of the 17 in `examples/starter_contracts/`)
 
 ## Overview
 

@@ -34,7 +34,7 @@ The `field_sum` rule validates that the sum of a named list of fields equals a t
 - All fields listed in `sum_fields` are converted to floats and summed.
 - The rule passes if `|sum - sum_equals| <= sum_tolerance`.
 - If `sum_tolerance` is omitted or 0.0, the sum must equal `sum_equals` exactly. In practice, always set a small tolerance (e.g. `0.01`) to handle floating-point rounding.
-- If any field in `sum_fields` is absent or null, it is treated as `0.0`.
+- If any field in `sum_fields` is absent or blank the rule fails (D10) and the error entry carries `counterpart_missing: true`. An absent anchor `field` is skipped (D6).
 - Errors are attributed to the `field` specified in the rule (the anchor field).
 
 ## Use cases by industry

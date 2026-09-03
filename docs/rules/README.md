@@ -1,7 +1,9 @@
 # OpenDQV Rule Types — Documentation Index
 
 ## Core rules
+- [Presence is explicit](core_rules.md#presence-is-explicit-250) — blank is absent (D6), cross-field counterpart failures (D10), `condition` vocabulary
 - [not_empty](core_rules.md#1-not_empty) — field must be present and non-empty
+- [not_empty_string](core_rules.md#14-not_empty_string) — field must be present, a JSON string, and non-empty
 - [regex](core_rules.md#2-regex) — field must match a pattern (supports `negate: true` and `builtin:` shorthands)
 - [min](core_rules.md#3-min) — numeric field must be >= minimum
 - [max](core_rules.md#4-max) — numeric field must be <= maximum
@@ -15,7 +17,7 @@
 - [required_if](core_rules.md#12-required_if) — field required when another field equals a value
 - [unique](core_rules.md#13-unique) — field must be unique (supports `group_by`)
 - [Common Pitfalls](core_rules.md#common-pitfalls) — `min:` vs `min_length:` and other traps
-- min_age / max_age — date field implies an age constraint (see Rule model)
+- min_age / max_age — optional add-on keys (typically on a `date_format` rule) constraining the age implied by a date; not standalone rule types
 
 - [age_match](age_match.md) — declared age must be consistent with date of birth
 

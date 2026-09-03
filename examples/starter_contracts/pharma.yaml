@@ -45,108 +45,136 @@ rules:
   # Format: 3 uppercase alphanumerics + hyphen + 3 digits + hyphen + 4 digits
   # Example: ABC-001-0042, XYZ-003-1001
   # Adapt the regex to match your study's USUBJID convention.
-  - field: subject_id
-    rule: not_empty
+  - name: subject_id_not_empty
+    type: not_empty
+    field: subject_id
     severity: error
     description: "Subject ID (USUBJID) is mandatory for all observations."
+    error_message: "Subject ID (USUBJID) is mandatory for all observations."
 
-  - field: subject_id
-    rule: regex
+  - name: subject_id_regex
+    type: regex
+    field: subject_id
     # Format: STUDY-SITE-SUBJECT (e.g., "XYZ-003-1001")
     pattern: "^[A-Z0-9]{2,6}-[0-9]{3}-[0-9]{4}$"
     severity: error
     description: "Subject ID must follow STUDY-SITE-SUBJECT format (e.g., XYZ-003-1001)."
+    error_message: "Subject ID must follow STUDY-SITE-SUBJECT format (e.g., XYZ-003-1001)."
 
   # ── VISIT ────────────────────────────────────────────────────────────────────
   # CDISC SDTM VISIT: planned visit name from the protocol schedule.
   # Extend this list to match your study's visit schedule.
-  - field: visit_name
-    rule: lookup
-    lookup_values: [SCREENING, BASELINE, WEEK2, WEEK4, WEEK8, WEEK12,
+  - name: visit_name_allowed_values
+    type: allowed_values
+    field: visit_name
+    allowed_values: [SCREENING, BASELINE, WEEK2, WEEK4, WEEK8, WEEK12,
                     WEEK16, WEEK24, WEEK48, MONTH6, MONTH12, EOS,
                     EOT, FOLLOWUP, UNSCHEDULED, TELEPHONE]
     severity: error
     description: "Visit name must be a protocol-defined visit. UNSCHEDULED is permitted; must be documented in source data."
+    error_message: "Visit name must be a protocol-defined visit. UNSCHEDULED is permitted; must be documented in source data."
 
   # ── DATES ────────────────────────────────────────────────────────────────────
-  - field: observation_date
-    rule: not_empty
+  - name: observation_date_not_empty
+    type: not_empty
+    field: observation_date
     severity: error
     description: "Observation date is mandatory — ICH E6(R2) §5.18.4 requires contemporaneous records."
+    error_message: "Observation date is mandatory — ICH E6(R2) §5.18.4 requires contemporaneous records."
 
-  - field: observation_date
-    rule: regex
+  - name: observation_date_regex
+    type: regex
+    field: observation_date
     pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
     severity: error
     description: "Observation date must be in YYYY-MM-DD format."
+    error_message: "Observation date must be in YYYY-MM-DD format."
 
-  - field: observation_date
-    rule: compare
+  - name: observation_date_compare
+    type: compare
+    field: observation_date
     compare_op: lte
     compare_to: today
     severity: error
     description: "Observation date cannot be in the future (21 CFR Part 11 data integrity)."
+    error_message: "Observation date cannot be in the future (21 CFR Part 11 data integrity)."
 
   # ── LABORATORY TEST ──────────────────────────────────────────────────────────
   # LOINC code: numeric part, hyphen, check digit. Range: 5–7 digits.
   # For production, replace with a lookup_file pointing to the LOINC code list
   # relevant to your study's laboratory panel:
   #   lookup_file: "reference_data/loinc_study_panel.csv"
-  - field: test_code
-    rule: not_empty
+  - name: test_code_not_empty
+    type: not_empty
+    field: test_code
     severity: error
     description: "LOINC test code is mandatory for laboratory observations."
+    error_message: "LOINC test code is mandatory for laboratory observations."
 
-  - field: test_code
-    rule: regex
+  - name: test_code_regex
+    type: regex
+    field: test_code
     # LOINC format: 5–7 digits, hyphen, 1 check digit
     pattern: "^[0-9]{5,7}-[0-9]$"
     severity: error
     description: "Test code must be a valid LOINC format (e.g., 2160-0 for serum creatinine)."
+    error_message: "Test code must be a valid LOINC format (e.g., 2160-0 for serum creatinine)."
 
   # ── RESULT ───────────────────────────────────────────────────────────────────
-  - field: result_value
-    rule: not_empty
+  - name: result_value_not_empty
+    type: not_empty
+    field: result_value
     severity: error
     description: "Result value is mandatory. Use 'BLQ' for below limit of quantification, not empty."
+    error_message: "Result value is mandatory. Use 'BLQ' for below limit of quantification, not empty."
 
-  - field: result_unit
-    rule: lookup
+  - name: result_unit_allowed_values
+    type: allowed_values
+    field: result_unit
     # Common clinical laboratory units (SI and conventional).
     # Extend with units specific to your study's endpoints.
-    lookup_values: [mg_dL, mmol_L, g_dL, g_L, U_L, IU_L, mIU_mL,
+    allowed_values: [mg_dL, mmol_L, g_dL, g_L, U_L, IU_L, mIU_mL,
                     pg_mL, ng_mL, ug_mL, nmol_L, umol_L, pmol_L,
                     10e9_L, 10e12_L, pct, sec, INR, ratio,
                     mmHg, bpm, kg, kg_m2, cm, mm]
     severity: error
     description: "Result unit must be a recognised clinical laboratory unit."
+    error_message: "Result unit must be a recognised clinical laboratory unit."
 
   # Plausibility check: catches extreme values that are almost certainly
   # data entry errors (e.g., entered in wrong unit, decimal point shift).
   # Adjust the range to the plausible range for your primary endpoint.
-  - field: result_numeric
-    rule: range
+  - name: result_numeric_range
+    type: range
+    field: result_numeric
     min: 0.0
     max: 100000.0
     severity: warning
     description: "Numeric result value should be within a physiologically plausible range. Review values at the extremes."
+    error_message: "Numeric result value should be within a physiologically plausible range. Review values at the extremes."
 
-  - field: result_numeric
-    rule: cross_field_range
-    min_field: normal_range_low
-    max_field: normal_range_high
+  - name: result_numeric_cross_field_range
+    type: cross_field_range
+    field: result_numeric
+    cross_min_field: normal_range_low
+    cross_max_field: normal_range_high
     severity: warning
     description: "Result is outside the reference range for this test. Requires clinical review."
+    error_message: "Result is outside the reference range for this test. Requires clinical review."
 
-  - field: normal_range_low
-    rule: not_empty
+  - name: normal_range_low_not_empty
+    type: not_empty
+    field: normal_range_low
     severity: error
     description: "Normal range low is required — needed for clinically significant abnormality (CSA) flagging."
+    error_message: "Normal range low is required — needed for clinically significant abnormality (CSA) flagging."
 
-  - field: normal_range_high
-    rule: not_empty
+  - name: normal_range_high_not_empty
+    type: not_empty
+    field: normal_range_high
     severity: error
     description: "Normal range high is required."
+    error_message: "Normal range high is required."
 
   # ── CDISC FLAGS ──────────────────────────────────────────────────────────────
   # CDISC SDTM VSBLFL: Baseline flag. "Y" for the baseline observation,
@@ -154,24 +182,30 @@ rules:
   # may be flagged as baseline.
   # NOTE: The grouped uniqueness constraint (only one Y per USUBJID+TESTCD)
   # will be available via the grouped_unique rule type (roadmap — P1).
-  - field: baseline_flag
-    rule: lookup
-    lookup_values: ["Y", "N"]
+  - name: baseline_flag_allowed_values
+    type: allowed_values
+    field: baseline_flag
+    allowed_values: ["Y", "N"]
     severity: error
     description: "Baseline flag must be Y or N (CDISC VSBLFL). Only one observation per subject per test may be Y."
+    error_message: "Baseline flag must be Y or N (CDISC VSBLFL). Only one observation per subject per test may be Y."
 
   # CDISC SDTM DTYPE: Derivation type for derived/imputed records.
-  - field: derivation_type
-    rule: lookup
-    lookup_values: [ORIGINAL, LOCF, BOCF, WOCF, AVERAGE, MEDIAN,
+  - name: derivation_type_allowed_values
+    type: allowed_values
+    field: derivation_type
+    allowed_values: [ORIGINAL, LOCF, BOCF, WOCF, AVERAGE, MEDIAN,
                     MINIMUM, MAXIMUM, INTERPOLATED]
     severity: warning
     description: "Derivation type must indicate whether the record is original or derived (CDISC DTYPE)."
+    error_message: "Derivation type must indicate whether the record is original or derived (CDISC DTYPE)."
 
   # ── INVESTIGATOR SIGN-OFF ────────────────────────────────────────────────────
   # 21 CFR Part 11: electronic records require an electronic signature attribute.
   # The signed_by field stores the investigator ID who reviewed the record.
-  - field: signed_by
-    rule: not_empty
+  - name: signed_by_not_empty
+    type: not_empty
+    field: signed_by
     severity: warning
     description: "Investigator ID is required for 21 CFR Part 11 electronic signature compliance."
+    error_message: "Investigator ID is required for 21 CFR Part 11 electronic signature compliance."

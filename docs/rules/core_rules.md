@@ -1,48 +1,79 @@
 # Core Rule Types Reference
 
-Last reviewed: 2026-04-16
+Last reviewed: 2026-09-03 (engine 2.7.0)
 
-OpenDQV ships 13 core rule types. Each rule lives under `contract.rules[]` in
-a YAML data contract.
+OpenDQV ships 24 rule types (the `_RULE_HANDLERS` table in
+`opendqv/core/validator.py`). The 14 core ones are documented on this page;
+the rest have their own pages — see the [index](README.md). Each rule lives
+under `contract.rules[]` in a YAML data contract.
 
 Every rule requires these fields:
 
 ```yaml
 - name: rule_name          # unique within the contract
   field: target_field      # the record field to validate
-  type: rule_type          # one of the 13 types below
+  type: rule_type          # one of the types below (or in README.md)
   severity: error          # error (block) or warning (allow but flag)
   error_message: "..."     # returned when validation fails
 ```
 
-Optional on any rule: `description`, `condition` (conditional application).
+Optional on any rule: `description`, `condition` (conditional application —
+vocabulary below), `optional` (accepted for round-trip with the managed
+engine; inert on Core, see below).
 
 ---
 
-## Null handling (current v2.2.x behaviour)
+## Presence is explicit (2.5.0+)
 
-Rule handlers are not yet fully consistent about missing values:
+A format rule never implies that its field is present. The rules below are
+the conformance decisions from `docs/contract_conformance.md` (D2, D6, D10)
+and hold identically on the single-record and batch paths:
 
-- Most format rules (`regex`, `min`, `max`, `range`, `date_format`, `checksum`,
-  `compare`, `geospatial_bounds`, `conditional_value`, `cross_field_range`,
-  `conditional_lookup`, `age_match`) **fail** when the target field is `None`
-  or absent.
-- A few (`max_length`, `allowed_values`, single-record `lookup`,
-  single-record `date_diff`) **pass silently** on missing values.
-- `field_sum` and `ratio_check` silently **coerce** missing operands to `0`.
-- In a handful of cases the single-record path and the batch path disagree.
+- **Blank is absent (D6).** Every rule that is not a presence rule skips a
+  value that is missing, `null`, or a whitespace-only string — `min`, `max`,
+  `range`, `regex`, `min_length`, `max_length`, `date_format`, `checksum`,
+  `compare`, `allowed_values`, `lookup`, `date_diff`, and the rest all
+  **pass** on an absent field. This is enforced structurally in
+  `_check_rule()` before any handler runs, not handler by handler.
+- **Presence is its own rule.** To require a field, add `not_empty`
+  (any non-blank value), `not_empty_string` (must be a JSON string, and
+  non-blank — section 14), or `required_if` (presence conditioned on another
+  field). This is how the 41 bundled contracts do it.
+- **`optional` is accepted but inert.** `optional: true` loads and
+  round-trips so that contracts authored for the managed engine (where an
+  error-severity single-field rule implies presence) are byte-identical on
+  Core. Core already skips absent values, so the key changes nothing here.
+- **Cross-field rules fail on a missing counterpart (D10).** `compare`,
+  `date_diff`, `field_sum`, `cross_field_range`, `ratio_check`, `age_match` —
+  when the *other* field the rule reads (the counterpart, not a `condition` trigger) is
+  absent or blank the rule **fails** with the rule's `error_message`, and the
+  error entry carries `counterpart_missing: true` (REST, GraphQL and MCP).
+  The rule's own `field` being absent is still D6 (skipped).
+- **Unknown rule types load with a warning and pass** every record. Run
+  `opendqv lint` — `UNKNOWN_RULE_TYPE` is a lint error — before deploying a
+  contract.
+- **`regex` is an unanchored search** (since 2.5.0; it was `match`). A
+  pattern without `^…$` matches anywhere in the value. Anchor deliberately;
+  `opendqv lint` flags `REGEX_NOT_START_ANCHORED` as an advisory.
 
-**Safe pattern today:** if you want guaranteed presence enforcement on a
-field, add an explicit `not_empty` rule alongside any format rule. This is
-how most of the 43 shipped contracts already handle it.
+### `condition` vocabulary
 
-**Planned for v2.3.0** (breaking change, tracked to ship after the
-April 2026 demo window): every rule handler will fail on missing values by
-default, with a new `optional: true` flag for authors who want
-"format-validate-if-present, pass-if-absent". Single and batch paths will
-agree in every case. Unknown rule types will be rejected at contract load
-rather than silently passing at runtime. See `CHANGELOG.md` when v2.3.0
-ships for the full migration guide.
+`condition` can sit on any rule and gates whether it applies to a record. The
+keys are a closed set — anything else is rejected at load:
+
+```yaml
+condition:
+  field: transaction_type   # the field inspected (required)
+  value: CHARGE             # apply only when field == value (string compare)
+  not_value: CREDIT         # apply only when field != not_value
+  present: true             # apply only when field is present / absent (bool)
+```
+
+`field` is required; the predicates conjoin, so `present: true` combined with
+`value:` means "present *and* equal". `present` uses the D6 reading of absence
+(missing, `null`, or blank), so `condition: {field: <counterpart>, present: true}`
+is how to say "compare only when both fields are present". A rule whose
+condition is not met is skipped for that record (no error, no warning).
 
 ---
 
@@ -114,7 +145,8 @@ pattern: builtin:isbn13
 
 **Gotchas:**
 - A regex rule with no `pattern` fails every record (by design -- fail visible, not silent).
-- Value is coerced to string via `str(value)` before matching; `None` becomes `""`.
+- Absent/blank values are skipped before matching (D6) — add `not_empty` if the field is required.
+- Matching is an unanchored **search**: `pattern: '\d{6}'` accepts `"ref-123456-x"`. Anchor with `^…$` when you mean the whole value; `opendqv lint` reports `REGEX_NOT_START_ANCHORED` on patterns that do not start with `^`.
 - Uses the `regex` library (not `re`) for ReDoS timeout protection (SEC-001).
 
 ---
@@ -140,7 +172,8 @@ Numeric field must be >= a minimum value.
 
 `min` is a YAML alias for `min_value`. Both are accepted.
 
-**Behaviour:** fails if value is `None`, non-numeric, or `float(value) < min_value`.
+**Behaviour:** fails if the value is non-numeric or `float(value) < min_value`.
+Absent/blank values pass (D6) — add `not_empty` for presence.
 
 ---
 
@@ -165,7 +198,8 @@ Numeric field must be <= a maximum value.
 
 `max` is a YAML alias for `max_value`. Both are accepted.
 
-**Behaviour:** fails if value is `None`, non-numeric, or `float(value) > max_value`.
+**Behaviour:** fails if the value is non-numeric or `float(value) > max_value`.
+Absent/blank values pass (D6) — add `not_empty` for presence.
 
 ---
 
@@ -193,7 +227,8 @@ Numeric field must be between min and max (inclusive).
 Either bound can be omitted for a one-sided range, but then you should use
 `type: min` or `type: max` instead for clarity.
 
-**Behaviour:** fails if value is `None`, non-numeric, or outside `[min_value, max_value]`.
+**Behaviour:** fails if the value is non-numeric or outside `[min_value, max_value]`.
+Absent/blank values pass (D6) — add `not_empty` for presence.
 
 ---
 
@@ -216,8 +251,8 @@ String length must be >= a minimum.
 |--------------|--------------------|------|
 | `min_length` | `rule.min_length`  | int  |
 
-**Behaviour:** coerces value to string via `str(value)` (`None` becomes `""`), then
-checks `len(str_val) < min_length`.
+**Behaviour:** absent/blank values pass (D6). Otherwise coerces the value to
+string via `str(value)` and checks `len(str_val) < min_length`.
 
 **WARNING:** do NOT use `min:` here. See [Common Pitfalls](#common-pitfalls).
 
@@ -242,7 +277,8 @@ String length must be <= a maximum.
 |--------------|--------------------|------|
 | `max_length` | `rule.max_length`  | int  |
 
-**Behaviour:** coerces value to string, then checks `len(str_val) > max_length`.
+**Behaviour:** absent/blank values pass (D6). Otherwise coerces the value to
+string and checks `len(str_val) > max_length`.
 If `max_length` is not set, defaults to 99999 (effectively no limit).
 
 **WARNING:** do NOT use `max:` here. See [Common Pitfalls](#common-pitfalls).
@@ -274,7 +310,12 @@ Field must be a parseable date or datetime string.
 4. `%d/%m/%Y`
 5. `%m/%d/%Y`
 
-Passes on the first successful parse. Fails if none match or value is `None`.
+Passes on the first successful parse. Fails if none match. Absent/blank values
+pass (D6) — add `not_empty` for presence.
+
+`min_age` / `max_age` may be added to a `date_format` rule (or any rule) as an
+add-on check on the age implied by the parsed date; they are keys, not rule
+types.
 
 **Custom format example:**
 
@@ -310,7 +351,7 @@ enumerations; use `lookup` for external reference lists.
 | `allowed_values` | `rule.allowed_values`  | list |
 
 **Behaviour:** coerces both the value and list entries to strings before comparison.
-`None` values pass (use `not_empty` to catch missing values separately).
+Absent/blank values pass (D6) — use `not_empty` to catch missing values separately.
 
 **Gotcha:** a rule with an empty or missing `allowed_values` list silently passes
 all records (logged as a warning).
@@ -373,7 +414,7 @@ Field value must appear in an external reference list (file or HTTP endpoint).
 ```
 
 **Gotchas:**
-- `None` values pass -- combine with `not_empty` if the field is required.
+- Absent/blank values pass (D6) -- combine with `not_empty` if the field is required.
 - Missing `lookup_file` skips validation (logged as warning).
 - Local file paths are subject to path traversal protection (SEC-002).
 - `lookup_auth_header` performs env var substitution at runtime (`${VAR}` syntax).
@@ -426,8 +467,9 @@ symbols are normalised to word form at parse time.
 - `now` -- current UTC datetime as ISO 8601
 
 **Gotchas:**
-- `None` value always fails.
-- If `compare_to` names a field and that field is missing from the record, the rule fails.
+- An absent/blank value in `field` passes (D6) — add `not_empty` for presence.
+- If `compare_to` names a field and that field is absent or blank, the rule **fails**
+  (D10) and the error entry carries `counterpart_missing: true`.
 - Naive datetimes (no timezone offset) are treated as UTC.
 - Missing `compare_to` or `compare_op` skips the rule (logged as warning).
 
@@ -499,6 +541,27 @@ batch validation (`/validate/batch`); single-record mode silently skips this rul
 
 **Gotcha:** this rule is a no-op in single-record `/validate` calls. If you need
 uniqueness enforcement, use `/validate/batch`.
+
+---
+
+## 14. not_empty_string
+
+Like `not_empty`, but the value must also be a JSON **string**. Use it for
+identifiers whose canonical form is lost by numeric coercion (leading zeros,
+account numbers, postcodes).
+
+```yaml
+- name: account_number_present
+  field: account_number
+  type: not_empty_string
+  severity: error
+  error_message: "account_number is required"
+```
+
+**Behaviour:** fails if the value is missing, `null`, or blank after trimming
+(with `error_message`), and fails with an engine message naming the JSON type
+received when the value is present but not a string (e.g. `12345` sent as a
+number).
 
 ---
 

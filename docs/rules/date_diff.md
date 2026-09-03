@@ -64,7 +64,8 @@ At least one of `min_value` or `max_value` must be specified.
 
 ## Notes
 
-- Both fields must be parseable dates. If either is null or unparseable the record fails validation.
+- Both fields must be parseable dates. An absent or blank `field` is skipped (D6 — declare presence with `not_empty` separately); an absent, blank or unparseable `date_diff_field` fails the rule (D10) and the error entry carries `counterpart_missing: true`.
+- The difference is signed and fractional (2.7.0): `field` earlier than `date_diff_field` gives a negative number of days, and timezone offsets are honoured. `max: 0.16667` days is how the bundled `dora_ict_incident` contract encodes a 4-hour window.
 - Use `date_diff_unit: years` for age-style checks (e.g., employee tenure, policy duration).
 - For single-sided checks, omit the bound you do not need (e.g., omit `min_value` to enforce only a maximum).
 - To compare a date field against today rather than another field, use the `compare` rule type with `compare_to: today`.

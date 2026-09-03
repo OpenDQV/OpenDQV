@@ -35,146 +35,188 @@ rules:
   # The NHS Number has a modulo-11 check digit (digit 10).
   # This regex validates format only. Full checksum validation available
   # via the checksum rule type (see roadmap — HC-3).
-  - field: nhs_number
-    rule: not_empty
+  - name: nhs_number_not_empty
+    type: not_empty
+    field: nhs_number
     severity: error
     description: "NHS Number is mandatory for all patient records."
+    error_message: "NHS Number is mandatory for all patient records."
 
-  - field: nhs_number
-    rule: regex
+  - name: nhs_number_regex
+    type: regex
+    field: nhs_number
     # Accepts 10 digits with optional spaces: "943 476 5919" or "9434765919"
     pattern: "^[0-9]{3}\\s?[0-9]{3}\\s?[0-9]{4}$"
     severity: error
     description: "NHS Number must be 10 digits (spaces optional: '943 476 5919')."
+    error_message: "NHS Number must be 10 digits (spaces optional: '943 476 5919')."
 
   # ── DEMOGRAPHICS ────────────────────────────────────────────────────────────
-  - field: date_of_birth
-    rule: not_empty
+  - name: date_of_birth_not_empty
+    type: not_empty
+    field: date_of_birth
     severity: error
     description: "Date of birth is mandatory."
+    error_message: "Date of birth is mandatory."
 
-  - field: date_of_birth
-    rule: regex
+  - name: date_of_birth_regex
+    type: regex
+    field: date_of_birth
     pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
     severity: error
     description: "Date of birth must be in YYYY-MM-DD format."
+    error_message: "Date of birth must be in YYYY-MM-DD format."
 
-  - field: date_of_birth
-    rule: compare
+  - name: date_of_birth_compare
+    type: compare
+    field: date_of_birth
     compare_op: lte
     compare_to: today
     severity: error
     description: "Date of birth cannot be in the future."
+    error_message: "Date of birth cannot be in the future."
 
-  - field: gender
-    rule: lookup
+  - name: gender_allowed_values
+    type: allowed_values
+    field: gender
     # NHS Data Dictionary gender codes (SNOMED aligned)
     # 9: Not Specified  1: Male  2: Female  0: Not Known  X: Non-Binary
-    lookup_values: ["1", "2", "9", "0", "X"]
+    allowed_values: ["1", "2", "9", "0", "X"]
     severity: error
     description: "Gender must be an NHS Data Dictionary code (1=Male, 2=Female, 9=Not Specified, 0=Not Known, X=Non-Binary)."
+    error_message: "Gender must be an NHS Data Dictionary code (1=Male, 2=Female, 9=Not Specified, 0=Not Known, X=Non-Binary)."
 
-  - field: first_name
-    rule: not_empty
+  - name: first_name_not_empty
+    type: not_empty
+    field: first_name
     severity: error
     description: "First name is required."
+    error_message: "First name is required."
 
-  - field: last_name
-    rule: not_empty
+  - name: last_name_not_empty
+    type: not_empty
+    field: last_name
     severity: error
     description: "Last name is required."
+    error_message: "Last name is required."
 
   # ── CLINICAL CODING ─────────────────────────────────────────────────────────
   # ICD-10-CM format: letter followed by 2 digits, optional decimal and up to 4 more digits.
   # Examples: J18.9 (pneumonia), I21.0 (STEMI), Z00.00 (general exam)
   # For production, replace with a lookup_file pointing to the full ICD-10-CM code list:
   #   lookup_file: "reference_data/icd10cm_2026.csv"
-  - field: icd10_primary
-    rule: regex
+  - name: icd10_primary_regex
+    type: regex
+    field: icd10_primary
     pattern: "^[A-Z][0-9]{2}(\\.[0-9A-Z]{1,4})?$"
     severity: error
     description: "Primary ICD-10-CM diagnosis code must follow standard format (e.g., J18.9, I21.0)."
+    error_message: "Primary ICD-10-CM diagnosis code must follow standard format (e.g., J18.9, I21.0)."
 
   # ── ADMISSION ────────────────────────────────────────────────────────────────
-  - field: admission_date
-    rule: not_empty
+  - name: admission_date_not_empty
+    type: not_empty
+    field: admission_date
     severity: error
     description: "Admission date is required for inpatient records."
+    error_message: "Admission date is required for inpatient records."
 
-  - field: admission_date
-    rule: regex
+  - name: admission_date_regex
+    type: regex
+    field: admission_date
     pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
     severity: error
     description: "Admission date must be in YYYY-MM-DD format."
+    error_message: "Admission date must be in YYYY-MM-DD format."
 
-  - field: admission_type
-    rule: lookup
+  - name: admission_type_allowed_values
+    type: allowed_values
+    field: admission_type
     # NHS HES (Hospital Episode Statistics) admission type codes
-    lookup_values: [ELECTIVE, EMERGENCY, MATERNITY, OTHER]
+    allowed_values: [ELECTIVE, EMERGENCY, MATERNITY, OTHER]
     severity: error
     description: "Admission type must be a valid HES code."
+    error_message: "Admission type must be a valid HES code."
 
-  - field: ward_code
-    rule: not_empty
+  - name: ward_code_not_empty
+    type: not_empty
+    field: ward_code
     severity: error
     description: "Ward code is required for bed management."
+    error_message: "Ward code is required for bed management."
 
-  - field: ward_code
-    rule: max_length
-    max: 10
+  - name: ward_code_max_length
+    type: max_length
+    field: ward_code
+    max_length: 10
     severity: error
     description: "Ward code must not exceed 10 characters."
+    error_message: "Ward code must not exceed 10 characters."
 
   # ── CLINICAL STAFF ──────────────────────────────────────────────────────────
   # UK GMC (General Medical Council) registration: 7 digits
-  - field: attending_clinician_gmc
-    rule: regex
+  - name: attending_clinician_gmc_regex
+    type: regex
+    field: attending_clinician_gmc
     pattern: "^[0-9]{7}$"
     severity: warning
     description: "Attending clinician GMC number must be 7 digits."
+    error_message: "Attending clinician GMC number must be 7 digits."
 
   # ── PHYSIOLOGICAL PLAUSIBILITY ───────────────────────────────────────────────
   # These range checks catch data entry errors and unit confusion
   # before they reach clinical systems.
-  - field: systolic_bp
-    rule: range
+  - name: systolic_bp_range
+    type: range
+    field: systolic_bp
     min: 50
     max: 250
     severity: warning
     description: "Systolic blood pressure should be between 50 and 250 mmHg. Values outside this range are physiologically implausible."
+    error_message: "Systolic blood pressure should be between 50 and 250 mmHg. Values outside this range are physiologically implausible."
 
-  - field: diastolic_bp
-    rule: range
+  - name: diastolic_bp_range
+    type: range
+    field: diastolic_bp
     min: 30
     max: 150
     severity: warning
     description: "Diastolic blood pressure should be between 30 and 150 mmHg."
+    error_message: "Diastolic blood pressure should be between 30 and 150 mmHg."
 
-  - field: heart_rate
-    rule: range
+  - name: heart_rate_range
+    type: range
+    field: heart_rate
     min: 20
     max: 300
     severity: warning
     description: "Heart rate should be between 20 and 300 bpm. Values outside this range warrant review."
+    error_message: "Heart rate should be between 20 and 300 bpm. Values outside this range warrant review."
 
-  - field: temperature_celsius
-    rule: range
+  - name: temperature_celsius_range
+    type: range
+    field: temperature_celsius
     min: 32.0
     max: 43.0
     severity: warning
     description: "Body temperature should be between 32.0°C and 43.0°C. Check for unit error (Fahrenheit entered instead of Celsius)."
+    error_message: "Body temperature should be between 32.0°C and 43.0°C. Check for unit error (Fahrenheit entered instead of Celsius)."
 
-  - field: weight_kg
-    rule: range
+  - name: weight_kg_range
+    type: range
+    field: weight_kg
     min: 0.3
     max: 500.0
     severity: warning
     description: "Weight should be between 0.3 kg (neonate) and 500 kg. Values outside this range suggest a unit error."
+    error_message: "Weight should be between 0.3 kg (neonate) and 500 kg. Values outside this range suggest a unit error."
 
   # ── CONSENT ─────────────────────────────────────────────────────────────────
   # GDPR Article 9 / HIPAA §164.508: consent status must be recorded.
-  - field: data_sharing_consent
-    rule: lookup
-    lookup_values: [YES, NO, NOT_ASKED, WITHDRAWN]
+  - name: data_sharing_consent_allowed_values
+    type: allowed_values
+    field: data_sharing_consent
+    allowed_values: ["YES", "NO", NOT_ASKED, WITHDRAWN]
     severity: error
     description: "Data sharing consent status must be recorded. Required under GDPR Article 9 and HIPAA §164.508."
+    error_message: "Data sharing consent status must be recorded. Required under GDPR Article 9 and HIPAA §164.508."

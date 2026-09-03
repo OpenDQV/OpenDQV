@@ -76,7 +76,8 @@ first; the declared set is computed from the resolved rules.
 - **JSON Schema export** emits `additionalProperties: false` for a strict
   contract and a bare property entry for every `allowed_fields:` name.
 - **ODCS export** carries both as custom properties (`opendqv.strict_schema`,
-  `opendqv.fields`); ODCS import restores them. The standard has no native
+  `opendqv.allowed_fields`); ODCS import restores them, and still reads the
+  older `opendqv.fields` key for back-compatibility. The standard has no native
   construct for "reject undeclared fields".
 - **Linter** rejects a non-boolean `strict_schema` or a non-string-list
   `allowed_fields`, warns when it is set without `strict_schema`, and warns on the deprecated `fields:` spelling.

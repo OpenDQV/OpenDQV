@@ -114,7 +114,7 @@ rules:
     field: email
     pattern: "^[^@]+@[^@]+\\.[^@]+$"
     error_message: Invalid email format
-    # Optional metadata for IQ dimension reporting:
+    # Proposed metadata for IQ dimension reporting (not an engine key — see note below):
     iq_dimensions: [accuracy, validity]
 
   - name: date_not_future
@@ -126,7 +126,7 @@ rules:
     iq_dimensions: [timeliness, accuracy]
 ```
 
-These tags are passed through in validation responses and can be used by downstream BI tools to aggregate quality failures by IQ dimension.
+**Honest note:** `iq_dimensions` is a proposal, not an engine feature. The `Rule` model has no such field; an unknown key is silently dropped at load and never appears in validation responses. Until it is implemented, keep IQ dimension tags in the rule's `description` (which `/explain` surfaces) or in your own mapping table keyed on rule `name`, and aggregate by rule name downstream.
 
 ---
 
