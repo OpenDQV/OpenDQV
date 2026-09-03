@@ -80,7 +80,7 @@ cp -r odoo_modules/odoo_opendqv_gdpr /path/to/odoo/addons/
 ### 2. Install opendqv
 
 ```bash
-pip install opendqv>=1.4.0
+pip install "opendqv>=<engine-version>"   # strict-schema / explicit-presence semantics need 2.5.0+
 ```
 
 ### 3. Install in Odoo

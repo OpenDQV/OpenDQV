@@ -67,12 +67,8 @@ If your proxy sets `X-Forwarded-For`, set `TRUST_PROXY_HEADERS=true` in the Open
 
 ### Docker Compose (production profile)
 
-```yaml
-services:
-  api:
-    environment:
-      - OPENDQV_BASE_URL=https://opendqv.example.com
-```
+OpenDQV does not terminate TLS itself and has no public-URL setting — put the API
+behind a TLS-terminating reverse proxy (nginx, Caddy, an ALB) and forward to port 8000.
 
 ---
 
@@ -307,14 +303,13 @@ services:
     user: "1000:1000"                        # Run as non-root
     environment:
       - AUTH_MODE=token
-      - OPENDQV_TRACE_HMAC_KEY_FILE=/run/secrets/hmac_key
-    secrets:
-      - hmac_key
-
-secrets:
-  hmac_key:
-    external: true
+      - OPENDQV_TRACE_HMAC_KEY=${OPENDQV_TRACE_HMAC_KEY}   # inject from your secrets manager
 ```
+
+OpenDQV reads `OPENDQV_TRACE_HMAC_KEY` (and `SECRET_KEY`) from the environment only —
+there is no `*_FILE` variant. Inject secrets via the orchestrator's environment
+mechanism (Compose `.env` with restricted permissions, Kubernetes `secretKeyRef`,
+ECS secrets) rather than baking them into the compose file.
 
 ---
 

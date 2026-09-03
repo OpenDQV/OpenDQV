@@ -6,7 +6,9 @@ Throughput was measured using a reproducible three-duration load test series aga
 Docker deployment. The same test was run at 1 minute, 5 minutes, and 10 minutes to confirm
 that throughput is stable over time — not a short burst that degrades.
 
-**Full results and raw data:** `tests/load-test-results.md` (latest run: 2026-03-27)
+**Full results and raw data:** `tests/load-test-results.md` (latest run: 2026-03-27, engine v1.8.7)
+
+> **Note:** these figures pre-date the 2.5.0 conformance changes (strict-schema / `allowed_fields`, explicit presence, unanchored regex search), which altered the single-record hot path. Treat them as an order-of-magnitude baseline; a re-run on the current engine is pending.
 
 ## Test environment
 

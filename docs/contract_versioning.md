@@ -12,6 +12,23 @@ The system does **not** validate that version strings follow semver, and it does
 
 ---
 
+## Creating a New Version
+
+`POST /contracts/{name}/version?new_version=<v>` creates the
+new version as a **separate contract object with its own file**, `{name}_v{version}.yaml`,
+in DRAFT status with the approval trail cleared. The version it was copied from is not
+modified and keeps serving validation until the new version is approved. The request is
+rejected with `400` if that version — or a file for it — already exists, and the version
+string must match `[A-Za-z0-9][A-Za-z0-9._-]{0,49}`. The copy is lossless: rules, `contexts:`,
+`strict_schema` / `allowed_fields` and every other key carry over.
+
+Rule mutations are only accepted while the new version is DRAFT. Once it is submitted for
+review (`/contracts/{name}/{version}/submit-review`) it is immutable — the registry returns
+`409` on every surface — until an approver approves it (`/approve`) or rejects it back to
+DRAFT (`/reject`). Activation archives the previously ACTIVE version of the same name.
+
+---
+
 ## In-Flight Semantics
 
 Active version resolves at request time: when a validation request arrives, OpenDQV looks up the currently `ACTIVE` version of the named contract and applies its rules. The resolved version is recorded in the response (`"version"` field) and in the audit log entry for that request.

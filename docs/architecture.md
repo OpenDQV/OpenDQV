@@ -4,66 +4,82 @@
 
 ```
 OpenDQV/
-├── api/
-│   ├── routes.py              # FastAPI app assembly and middleware (~39 lines)
-│   ├── routes_validation.py   # Validation endpoints — /validate, /validate/batch (~378 lines)
-│   ├── routes_contracts.py    # Contract management — CRUD, lifecycle, audit (~840 lines)
-│   ├── routes_analytics.py    # Analytics endpoints — trends, velocity (~238 lines)
-│   ├── models.py              # Pydantic request/response models (~359 lines)
-│   ├── graphql_schema.py      # Strawberry GraphQL schema (~237 lines)
-│   └── deps.py                # FastAPI dependency injection
+├── opendqv/                   # The installable package — all importable code lives here
+│   ├── api/
+│   │   ├── routes.py              # Assembly shim — mounts the 9 domain sub-routers below
+│   │   ├── routes_validation.py   # /validate, /validate/batch
+│   │   ├── routes_contracts.py    # Contract CRUD, lifecycle, versioning, audit
+│   │   ├── routes_imports.py      # /import/* (8 format importers)
+│   │   ├── routes_tokens.py       # /tokens/* (PAT issue / revoke)
+│   │   ├── routes_webhooks.py     # /webhooks
+│   │   ├── routes_analytics.py    # Trends, velocity, quality metrics
+│   │   ├── routes_audit_events.py # Audit event read surface
+│   │   ├── routes_federation.py   # Multi-node federation
+│   │   ├── routes_profiler.py     # /profile, /profile/file
+│   │   ├── models.py              # Pydantic request/response models
+│   │   ├── graphql_schema.py      # Strawberry GraphQL schema (mounted at /graphql)
+│   │   └── deps.py                # Shared router state, limiter, auth/validation helpers
+│   │
+│   ├── core/
+│   │   ├── validator.py           # Validation engine — single-record + DuckDB batch
+│   │   ├── rule_parser.py         # Rule Pydantic model, YAML parsing, compiled patterns
+│   │   ├── contracts.py           # Contract registry, YAML load/save, versioning, history
+│   │   ├── code_generator.py      # Push-down code generation (Apex/JS/Snowflake/SQL)
+│   │   ├── onboarding.py          # Interactive setup wizard
+│   │   ├── webhooks.py            # Lifecycle webhook dispatch
+│   │   ├── federation.py          # Multi-node contract federation
+│   │   ├── trace_log.py           # Per-record validation trace log (hash chain + HMAC)
+│   │   ├── node_health.py         # Node health state machine
+│   │   ├── isolation_log.py       # Federation isolation audit log
+│   │   ├── quality_stats.py       # Validation quality statistics
+│   │   ├── quality_analytics.py   # DuckDB OLAP analytics layer
+│   │   ├── worker_heartbeat.py    # Gunicorn worker liveness tracking
+│   │   ├── profiler.py            # Field-level data profiling
+│   │   ├── linter.py              # Contract linter
+│   │   ├── jsonschema.py          # Contract → JSON Schema projection
+│   │   ├── storage.py             # History backends (SQLite / PostgreSQL)
+│   │   └── importers/             # 8 format importers (GX, dbt, Soda, CSV, ODCS, CSVW, OTel, NDC)
+│   │
+│   ├── contracts/                 # Bundled YAML contracts — a mirror of the OpenDQV Cloud
+│   │   │                          #   golden library; provenance in library_manifest.json
+│   │   └── ref/                   # Lookup reference files used by lookup rules
+│   │
+│   ├── security/
+│   │   └── auth.py                # JWT PAT authentication, RBAC — 6 roles
+│   │
+│   ├── sdk/
+│   │   ├── client.py              # Synchronous + asynchronous Python SDK (httpx-based)
+│   │   └── local.py               # Zero-network in-process validation (LocalValidator)
+│   │
+│   ├── cli.py                     # CLI (~26 subcommands)
+│   ├── config.py                  # All configuration via environment variables
+│   ├── main.py                    # FastAPI app entry point, lifespan, /health, GraphQL mount
+│   ├── monitoring.py              # Prometheus metrics + in-memory validation stats
+│   └── mcp_server.py              # In-process MCP server (official mcp SDK, stdio)
 │
-├── core/
-│   ├── validator.py           # Validation engine — single-record + DuckDB batch (~1,400 lines)
-│   ├── rule_parser.py         # Rule Pydantic model, YAML parsing, compiled patterns (~304 lines)
-│   ├── contracts.py           # Contract registry, YAML load/save, versioning (~1,053 lines)
-│   ├── code_generator.py      # Push-down code generation (Apex/JS/Snowflake/SQL) (~465 lines)
-│   ├── onboarding.py          # Interactive setup wizard (~1,254 lines)
-│   ├── webhooks.py            # Lifecycle webhook dispatch (~330 lines)
-│   ├── federation.py          # Multi-node contract federation (~236 lines)
-│   ├── trace_log.py           # Per-record validation trace log
-│   ├── node_health.py         # Node health state machine
-│   ├── isolation_log.py       # Federation isolation audit log
-│   ├── quality_stats.py       # Validation quality statistics
-│   ├── worker_heartbeat.py    # Gunicorn worker liveness tracking
-│   ├── profiler.py            # Field-level data profiling
-│   └── importers/             # 8 format importers (GX, dbt, Soda, CSV, ODCS, CSVW, OTel, NDC)
-│
-├── security/
-│   └── auth.py                # JWT PAT authentication, RBAC — 6 roles (~224 lines)
-│
-├── sdk/
-│   ├── client.py              # Synchronous Python SDK (httpx-based) (~547 lines)
-│   ├── async_client.py        # Asynchronous Python SDK
-│   └── local_validator.py     # Zero-network in-process validation
+├── opendqv_mcp_proxy.py       # Standalone REST-bridge MCP proxy (repo root, not in the wheel)
 │
 ├── ui/
-│   └── app.py                 # Streamlit governance workbench, 12 sections (~2,826 lines)
-│
-├── contracts/                 # YAML data contracts (45 active, 22+ industry domains)
-│   └── ref/                   # Lookup reference files used by lookup rules
+│   └── app.py                 # Streamlit governance workbench
 │
 ├── examples/
-│   ├── starter_contracts/     # 17 minimal starter templates
-│   └── sample_records/        # Sample records by domain
+│   ├── starter_contracts/     # Minimal starter templates
+│   ├── contexts/              # Worked `contexts:` example (customer.yaml)
+│   └── <domain>/              # Sample records + starter contract by domain
 │
-├── tests/                     # pytest suite (3,398+ tests, 72 test files)
+├── tests/                     # pytest suite (see CLAUDE.md for the current count)
 │   └── conftest.py            # Fixtures — temp contracts dir, auth tokens, test isolation
 │
-├── docs/                      # 79 markdown integration and operations guides
+├── docs/                      # Markdown integration and operations guides
 │
 ├── scripts/
 │   ├── demo_*.py              # Domain-specific demo seeders (OOH, PPDS, Salesforce, etc.)
-│   ├── run_smoke_tests.sh     # Full pre-release smoke test suite (43 checks)
+│   ├── run_smoke_tests.sh     # Full pre-release smoke test suite
 │   ├── perf-test.sh           # Load testing with Apache Bench
 │   └── diagnostics/           # Debug and diagnostic utilities
 │
-├── postman/                   # Postman collection + environment (all 50 endpoints)
+├── postman/                   # Postman collection + environment
 │
-├── monitoring.py              # Prometheus metrics + in-memory validation stats (~355 lines)
-├── mcp_server.py              # MCP server (Claude Desktop / Cursor integration) (~1,059 lines)
-├── config.py                  # All configuration via environment variables (~185 lines)
-├── main.py                    # FastAPI app entry point (~212 lines)
 ├── docker-compose.yml         # Production stack (API + UI + PostgreSQL)
 ├── docker-compose.dev.yml     # Development stack (hot-reload API)
 └── docker-compose.demo.yml    # Demo stack (ports 8080/8502, pre-seeded data)
@@ -81,7 +97,7 @@ can run behind a load balancer with no coordination.
 
 **2. Contract-as-Code**
 
-YAML files in `contracts/` are the single source of truth. The API writes back to YAML
+YAML files in `config.CONTRACTS_DIR` (the bundled `opendqv/contracts/` by default) are the single source of truth. The API writes back to YAML
 atomically on every mutation. The in-memory registry is rebuilt from disk on reload.
 
 **3. Config via environment variables**
@@ -112,20 +128,20 @@ Source system
     │
     │  POST /validate
     ▼
-FastAPI (routes_validation.py)
+FastAPI (opendqv/api/routes_validation.py)
     │
-    ├─ Auth check (security/auth.py)
+    ├─ Auth check (opendqv/security/auth.py)
     ├─ Rate limit check (slowapi)
     │
     ▼
-Validator (core/validator.py)
+Validator (opendqv/core/validator.py)
     │
-    ├─ Load contract from registry (core/contracts.py)
+    ├─ Load contract from registry (opendqv/core/contracts.py)
     ├─ Apply each rule in sequence
-    │   ├─ regex: compiled_pattern.match() with ReDoS timeout
+    │   ├─ regex: unanchored pattern.search() with ReDoS timeout (anchor with ^…$)
     │   ├─ lookup: TTL-cached HTTP or file lookup
     │   ├─ compare: cross-field evaluation
-    │   └─ ... (15 rule types)
+    │   └─ ... (every rule type in the dispatch table — see rules.md)
     │
     ├─ Collect errors + warnings
     ├─ Write analytics event (fire-and-forget, SQLite async)
@@ -143,19 +159,22 @@ Response: {valid, errors, warnings, contract, version, owner}
 
 | Control | Where | Description |
 |---------|-------|-------------|
-| SEC-001 | `core/validator.py` | ReDoS timeout via `regex` library (0.5s default) |
+| SEC-001 | `core/validator.py` | ReDoS timeout via `regex` library (0.5s default, `OPENDQV_REGEX_TIMEOUT`) |
 | SEC-002 | `core/contracts.py` | Path traversal prevention (`pathlib.resolve()` + containment) |
-| SEC-004 | `core/validator.py` | Field name SQL injection protection (parameterised DuckDB) |
-| SEC-008 | `core/webhooks.py` | Webhook SSRF protection (RFC 1918 + loopback blocked) |
+| SEC-004 | `core/validator.py`, `core/rule_parser.py` | SQL injection protection — every field reference a rule carries (`field`, trigger fields, `compare_to`, cross-field names) is parameterised; `date_format.format` is a bound SQL parameter |
+| SEC-006 | `core/importers/` | Path traversal prevention on importer `lookup_file` paths |
+| SEC-008 | `core/webhooks.py` | Webhook SSRF protection (RFC 1918 + loopback + link-local blocked) |
 | SEC-009 | `security/auth.py` | Token role whitelist — unknown roles rejected with 422 |
-| SEC-010 | `api/routes_contracts.py` | Role guards on import, webhook, reload, and token endpoints |
-| — | `core/contracts.py` | ACTIVE contracts are immutable — rule mutations return 409 |
+| SEC-010 | `api/deps.py` + every sub-router | Role guards — `POST /import/*`, `POST/DELETE /webhooks` require `editor`/`admin`; `POST /contracts/reload` and `/tokens/*` require `admin` |
+| SEC-011 | `core/validator.py`, `config.py` | `lookup_auth_header` secret substitution — `OPENDQV_LOOKUP_` prefix allowlist, disabled under `AUTH_MODE=open`, egress host allowlist (`OPENDQV_LOOKUP_EGRESS_ALLOWLIST`) |
+| — | `core/contracts.py` | `CONTRACT_NAME_RE` — the single contract-name charset; every core write path taking a caller-supplied name checks it |
+| — | `core/contracts.py` | ACTIVE and REVIEW contracts are immutable — rule mutations return 409 (registry-level gate); reject REVIEW → DRAFT to edit |
 
 ---
 
 ## Related
 
 - [Quickstart](quickstart.md) — first validation in 15 minutes
-- [API Reference](api_reference.md) — all 50 endpoints
+- [API Reference](api_reference.md) — all REST endpoints
 - [Production Deployment](production_deployment.md) — Docker Compose, TLS, scaling
 - [Security](../SECURITY.md) — threat model, deployment checklist
