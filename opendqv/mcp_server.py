@@ -1578,7 +1578,7 @@ async def _tool_create_contract_draft(args: dict) -> list[types.TextContent]:
         "message": (
             f"Draft contract '{contract.name}' created with {len(contract.rules)} rule(s). "
             "You can now call validate_record against it (draft status allows testing). "
-            "To submit for human review: POST /api/v1/contracts/{name}/submit-for-review. "
+            "To submit for human review: POST /api/v1/contracts/{name}/{version}/submit-review. "
             "The contract will only become ACTIVE — and visible in the shared library — "
             f"after a human approves it.{remote_reload_note}"
         ),

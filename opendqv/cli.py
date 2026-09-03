@@ -110,7 +110,7 @@ def cmd_init(args):
     """Initialise a contracts directory.
 
     Default: writes a single starter customer.yaml.
-    With --all: copies every bundled contract (43+ regulated domains) and
+    With --all: copies every bundled contract (every regulated starter in the library) and
     reference lookup files to the target directory — a writable working copy
     of the full OpenDQV library.
     """
@@ -1022,7 +1022,7 @@ def main():
     p_init = subparsers.add_parser("init", help="Initialise a contracts directory")
     p_init.add_argument("--dir", default="contracts", help="Target directory (default: ./contracts)")
     p_init.add_argument("--force", action="store_true", help="Overwrite existing contract files")
-    p_init.add_argument("--all", action="store_true", help="Copy every bundled contract (43+ regulated domains) instead of the single starter")
+    p_init.add_argument("--all", action="store_true", help="Copy every bundled contract (every regulated starter in the library) instead of the single starter")
 
     # list
     subparsers.add_parser("list", help="List all contracts")
