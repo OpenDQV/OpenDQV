@@ -379,6 +379,44 @@ thing on both engines.
   the "cross-field refs inside overrides not walked" caveat.
 - **S4 / S5 / S2 / S7** as above (D7, D9, CLI label, dead branch).
 
+## Review round 3 (2026-09-03) — one aligned library, on the owner's ruling
+
+The project owner ruled that with no downstream users of either engine this
+is the moment to align, not to stage migrations. So: the six strict flips are
+in this change (not a separate release); the explicit-presence pass stays;
+the CHANGELOG opens with a single 3.0.0 `BREAKING` block. Two library
+decisions the aligned copy makes, both Act-faithful and mirrored on the
+managed side:
+
+- **Martyn's Law:** fields that exist only for enhanced-duty premises/events
+  (`senior_responsible_person`, its role, the SIA notification reference on
+  events) are `required_if duty_tier: enhanced`, not unconditionally
+  required; `communication_procedure_documented` stays required for both
+  tiers (s.5(3)(d) public protection procedures); the SIA *registration*
+  reference stays required for all qualifying premises (s.9(1)).
+- **DORA:** `intermediate_report_timestamp` is `required_if
+  incident_classification: major` (Art. 19(4)(b)), not unconditional.
+- **`customer`** is the hello-world: `name` required, every other field
+  `optional: true`, so `validate customer '{"name":"Alice","age":30}'` and
+  `'{"name":"Alice"}'` pass as documented.
+
+**Every record the repo ships validates as its own comment says** — the
+CLAUDE.md hello-world, `docs/cli.md`, `docs/contexts.md`,
+`docs/api_reference.md`, `examples/*`, `sample_records/*`: 159 records, 0
+disagreements (script in the PR thread). Data fixes where the rule was
+right: NHS numbers with valid mod-11 check digits, digits-only (both
+engines strip spaces, not hyphens); a GTIN-8 check digit; MiFIR
+`execution_timestamp` at microsecond precision; the DORA major sample gains
+its classification and intermediate timestamps. Two sample files that
+matched no contract and never validated were removed.
+
+**Fifth cross-engine run (aligned library, 321 rows: clean, warning-only,
+probes, blank probes, counterpart probes): 321/321 identical on verdict,
+code, severity and message.** The run also caught one managed-engine gap:
+its implicit-required catcher fired on a field whose presence the contract
+decides *conditionally* (`required_if`); it now stays silent for any field
+carrying a presence-class rule, as Core reads it.
+
 ## Known issues
 
 **K1 — batch skipped absent fields (FIXED, review B6).** `validate_batch`
