@@ -249,7 +249,7 @@ OpenDQV Core owns layer one. Your catalog handles layer two, your pipeline tools
 
 ## Contracts
 
-43 production-ready contracts ship inside the `opendqv` package covering GDPR, HIPAA, SOX, MiFID II,
+41 production-ready contracts ship inside the `opendqv` package covering GDPR, HIPAA, SOX, MiFID II,
 UK Building Safety Act, Martyn's Law, Natasha's Law, Ofcom Online Safety Act, EU DORA,
 and 20+ other regulatory frameworks across UK, EU, and US. `pip install opendqv` gives you all of them
 — `opendqv list` works with zero configuration.
@@ -276,12 +276,12 @@ methodology, and monthly volume extrapolation.
 |---|---|
 | [Quickstart](docs/quickstart.md) | Build your first contract in 15 minutes |
 | [Rules Reference](docs/rules/) | All rule types with parameters and examples |
-| [Compliance Contracts](docs/compliance-contracts.md) | 44 contracts with regulatory context |
+| [Compliance Contracts](docs/compliance-contracts.md) | 41 contracts with regulatory context |
 | [API Reference](docs/index.md) | REST endpoints, SDK, GraphQL, webhooks |
 | [Security](SECURITY.md) | Deployment checklist, threat model, RBAC |
 | [Production Deployment](docs/production_deployment.md) | Token auth, TLS, Docker Compose, hardening |
 | [Integrations](docs/index.md) | Salesforce, Kafka, Snowflake, dbt, Databricks, MCP, and more |
-| [All docs →](docs/) | 76 documentation files |
+| [All docs →](docs/) | 94 documentation files |
 
 ---
 
@@ -295,19 +295,37 @@ OpenDQV is in Beta as of 2.0.0. The following stability commitments apply to the
 - **MCP tools** — tool names and parameters are stable within `v2.x`.
 - **Security fixes** — backported to the latest 2.x line on a best-effort basis.
 
-### Known limitations in v2.2.x
+### Absent and blank values, unknown rule types
 
-- **Rule null handling is inconsistent.** Most format rules fail when the target
-  field is missing; a few (`max_length`, `allowed_values`) pass silently;
-  `field_sum` and `ratio_check` coerce missing operands to `0`. Single-record
-  and batch paths disagree in a few cases. See
-  [`docs/rules/core_rules.md`](docs/rules/core_rules.md#null-handling-current-v22x-behaviour)
-  for the full matrix and the safe pattern to use today. v2.3.0 will make this
-  consistent (loud-by-default with an `optional: true` opt-out).
-- **Unknown rule types pass silently at runtime.** A typo in `type:` (e.g.
-  `min_lenght`) is caught by `opendqv lint` but not by the engine — a typo'd
-  rule is a disabled rule. Always lint before deploy. v2.3.0 will reject
-  unknown types at contract load.
+- **A `null`, empty, or whitespace-only value is treated as absent.** This is
+  structural, not per-handler: every rule type skips an absent value except
+  the presence rules (`not_empty`, `not_empty_string`, `required_if`), which
+  are the single reporter of absence. A format-class rule (`regex`, `min`,
+  `max`, `range`, `min_length`, `max_length`, `date_format`, `checksum`,
+  `lookup`, `allowed_values`, `compare`, `geospatial_bounds`, `age_match`,
+  and friends) simply has nothing to check on an absent field and passes —
+  add a `not_empty`/`not_empty_string` rule alongside it if the field must
+  also be present. `optional: true` is accepted on any rule and round-trips
+  on disk.
+- **A cross-field rule with an absent or blank counterpart fails.** `compare`,
+  `date_diff`, `cross_field_range`, `field_sum`, `ratio_check`, `age_match`,
+  and `geospatial_bounds` compare the target field against another field —
+  if that counterpart is absent or blank, the rule fails rather than passing
+  or silently coercing, and the error entry carries `counterpart_missing: true`
+  so callers can distinguish "the counterpart was missing" from an ordinary
+  value violation.
+- **`condition:` has a closed vocabulary.** A rule's `condition` block accepts
+  only `field`, `value`, `not_value`, and `present: true|false`; any other key
+  is a contract load error. See
+  [`docs/custom_rules.md`](docs/custom_rules.md) for the full reference.
+- **An unknown rule `type` still loads, with a warning, and never fires.** A
+  typo in `type:` (e.g. `min_lenght`) is caught by `opendqv lint` but not by
+  the engine — a typo'd rule is a disabled rule. Always lint before deploy.
+
+See [`docs/rules/core_rules.md`](docs/rules/core_rules.md#null-handling) for
+the full behaviour and worked examples, and
+[`docs/contract_conformance.md`](docs/contract_conformance.md) for how this
+model was derived and cross-checked against the managed engine.
 
 ---
 

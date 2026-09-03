@@ -1,48 +1,77 @@
 # Core Rule Types Reference
 
-Last reviewed: 2026-04-16
+Last reviewed: 2026-09-03
 
-OpenDQV ships 13 core rule types. Each rule lives under `contract.rules[]` in
-a YAML data contract.
+OpenDQV ships 25 core rule types (`_KNOWN_RULE_TYPES` in
+`opendqv/core/linter.py`): `not_empty`, `not_empty_string`, `regex`, `min`,
+`max`, `range`, `min_length`, `max_length`, `date_format`, `unique`,
+`min_age`, `max_age`, `compare`, `required_if`, `lookup`, `checksum`,
+`cross_field_range`, `field_sum`, `forbidden_if`, `conditional_value`,
+`date_diff`, `ratio_check`, `geospatial_bounds`, `allowed_values`, and
+`age_match`. Each rule lives under `contract.rules[]` in a YAML data
+contract.
+
+This page documents the 13 foundational types in full worked detail below.
+The other 12 (`not_empty_string`, `min_age`, `max_age`, `checksum`,
+`cross_field_range`, `field_sum`, `forbidden_if`, `conditional_value`,
+`date_diff`, `ratio_check`, `geospatial_bounds`, `age_match`) each have their
+own page — see [docs/rules/README.md](README.md) for the full index.
 
 Every rule requires these fields:
 
 ```yaml
 - name: rule_name          # unique within the contract
   field: target_field      # the record field to validate
-  type: rule_type          # one of the 13 types below
+  type: rule_type          # one of the types above
   severity: error          # error (block) or warning (allow but flag)
   error_message: "..."     # returned when validation fails
 ```
 
-Optional on any rule: `description`, `condition` (conditional application).
+Optional on any rule: `description`, `condition` (conditional application),
+`optional: true` (see Null handling below).
 
 ---
 
-## Null handling (current v2.2.x behaviour)
+## Null handling
 
-Rule handlers are not yet fully consistent about missing values:
+A `null`, empty, or whitespace-only value is treated as absent (D6). This is
+structural, not per-handler:
 
-- Most format rules (`regex`, `min`, `max`, `range`, `date_format`, `checksum`,
-  `compare`, `geospatial_bounds`, `conditional_value`, `cross_field_range`,
-  `conditional_lookup`, `age_match`) **fail** when the target field is `None`
-  or absent.
-- A few (`max_length`, `allowed_values`, single-record `lookup`,
-  single-record `date_diff`) **pass silently** on missing values.
-- `field_sum` and `ratio_check` silently **coerce** missing operands to `0`.
-- In a handful of cases the single-record path and the batch path disagree.
+- **Presence rules are the single reporter of absence.** `not_empty`,
+  `not_empty_string`, and `required_if` are the only rule types that fire on
+  an absent or blank value; every other rule type skips it.
+- **Format-class rules skip an absent field.** `regex`, `min`, `max`,
+  `range`, `min_length`, `max_length`, `date_format`, `checksum`, `lookup`,
+  `allowed_values`, `compare`, `geospatial_bounds`, `age_match`, and the rest
+  simply have nothing to check on an absent value and pass. If a field must
+  also be present, add a `not_empty`/`not_empty_string` rule alongside the
+  format rule — this is how most of the 41 shipped contracts already handle
+  it.
+- **A cross-field rule with an absent or blank counterpart fails, not
+  passes.** `compare`, `date_diff`, `cross_field_range`, `field_sum`,
+  `ratio_check`, `age_match`, and `geospatial_bounds` check a target field
+  against a counterpart field; if the counterpart is absent or blank, the
+  rule fails (D10) and the error entry carries `counterpart_missing: true`
+  so callers can tell that apart from an ordinary value violation. This
+  holds on both the single-record and batch paths.
+- **`date_diff` is fractional and signed on both units.** The day count
+  between the two dates is a fractional, signed delta (positive when the
+  target field's date is later); for `date_diff_unit: years` the delta is
+  divided by 365.25. A contract enforcing "end must be at least 1 year after
+  start" fails correctly when end is *before* start.
+- **`optional: true` is accepted on any rule and round-trips on disk** — it
+  is not read by the runtime validator (`opendqv/core/validator.py`;
+  `_RULE_HANDLERS` has no `optional` branch), but the linter uses it to
+  suppress its `FORMAT_ONLY_FIELD_ACCEPTS_EMPTY` advisory on a format-only
+  field.
+- **An unknown rule `type` still loads, with a warning, and never fires.**
+  `opendqv lint` catches it (`UNKNOWN_RULE_TYPE`); the engine does not — a
+  typo'd rule is a disabled rule at runtime. Always lint before deploy.
 
-**Safe pattern today:** if you want guaranteed presence enforcement on a
-field, add an explicit `not_empty` rule alongside any format rule. This is
-how most of the 43 shipped contracts already handle it.
-
-**Planned for v2.3.0** (breaking change, tracked to ship after the
-April 2026 demo window): every rule handler will fail on missing values by
-default, with a new `optional: true` flag for authors who want
-"format-validate-if-present, pass-if-absent". Single and batch paths will
-agree in every case. Unknown rule types will be rejected at contract load
-rather than silently passing at runtime. See `CHANGELOG.md` when v2.3.0
-ships for the full migration guide.
+See [docs/contract_conformance.md](../contract_conformance.md) for how this
+model was derived and cross-checked against the managed engine, and
+[docs/custom_rules.md](../custom_rules.md) for the closed `condition:`
+vocabulary (`field`, `value`, `not_value`, `present: true|false`).
 
 ---
 

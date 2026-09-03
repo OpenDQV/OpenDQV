@@ -126,7 +126,14 @@ All 43 checks must pass before the `ALL SMOKE TESTS PASSED` line appears.
   shows it landed (`source.export_ref`, `library_version`). Do not expect a
   starter PR to be merged into `opendqv/contracts/` directly — the digest
   check on the managed side would fail the build — expect it to land through
-  the export within the next release.
+  the export within the next release. If your change touches a bundled
+  contract's rules, it must move together with three fixture files —
+  `tests/fixtures/conformance/frozen/minimal_clean.jsonl` (re-freeze with
+  `scripts/freeze_minimal_clean.py`), `tests/fixtures/conformance/frozen/accepted_breaks.json`
+  (a deliberate verdict change, scoped to its error codes and tied to the
+  current CHANGELOG version), and `tests/fixtures/conformance/frozen/regulatory_claims.jsonl`
+  (a claim row per regulatory rule) — regenerated together via
+  `scripts/conformance_fixtures.py`.
 
 ### Project Conventions
 

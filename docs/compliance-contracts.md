@@ -17,23 +17,23 @@ See [docs/community_use_cases.md](community_use_cases.md) for real-world example
 | Contract | Description | Contexts | Highlights |
 |----------|-------------|----------|-----------|
 | `customer` | General customer validation (email, age, name, phone, etc.) | — (worked example with `kids_app` / `financial` in `examples/contexts/`) | — |
-| `salesforce_contact` | Salesforce Contact — 18 validation criteria, production-grade | — (example in `examples/contexts/`) | Sentinel date rejection |
+| `salesforce_contact` | Salesforce Contact — 19 validation criteria, production-grade | — (example in `examples/contexts/`) | Sentinel date rejection |
 | `salesforce_lead` | Salesforce Lead — 16 validation criteria with lead-specific checks | — (example in `examples/contexts/`) | — |
-| `proof_of_play` | **Reference contract: OOH advertising impression validation** | `billing`, `operations` | Cross-field rules, conditional constraints, context-aware billing thresholds |
+| `proof_of_play` | **Reference contract: OOH advertising impression validation** | — (example in `examples/contexts/`) | Cross-field rules, conditional constraints, context-aware billing thresholds |
 | `social_media_age_compliance` | UK Online Safety Act / Ofcom age assurance — 13+ age gate, DOB consistency, identity verification audit trail | — | `age_match` rule, identity verification lookup, verification timestamp |
 | `ppds_menu_item` | Natasha's Law (PPDS) allergen compliance — all 14 major allergens must be explicitly declared before a QSR menu item is saved or labelled | — | 14 mandatory boolean fields, `required_if` for gluten/tree-nut type, sulphite threshold, audit trail |
 | `martyns_law_venue` | Martyn's Law (Terrorism (Protection of Premises) Act 2025) — venue terrorism preparedness compliance, two-tier (standard/enhanced), mandatory SRP and SIA registration for 800+ capacity venues | — | Two-tier `required_if` enforcement, capacity minimum, enhanced-duty field gate, audit trail |
-| `martyns_law_event` | Martyn's Law — qualifying events (temporary/one-off, 200+ expected attendance). Organiser-centric; SIA notification not registration; staff briefing not training; time-bounded with start/end dates | — | Distinct from venue contract: `sia_notification_reference` not `sia_registration_number`; event dates required |
+| `martyns_law_event` | Martyn's Law — qualifying events (temporary/one-off, 800+ expected attendance — s.3(1)(d); the 200 threshold is for premises, s.2). Organiser-centric; SIA notification not registration; staff briefing not training; time-bounded with start/end dates | — | Distinct from venue contract: `sia_notification_reference` not `sia_registration_number`; event dates required; no `duty_tier` field — every qualifying event carries the enhanced-level duties |
 | `building_safety_golden_thread` | Building Safety Act 2022 — Golden Thread compliance for higher-risk buildings (18m+ / 7+ storeys). Enforces accountable person, BSR registration, safety case, and golden thread audit trail at point of write | — | Named accountable person + BSM mandatory, BSR registration gate, `required_if safety_case_documented = true` |
 | `companies_house_filing` | Economic Crime and Corporate Transparency Act 2023 — identity verification for Companies House director and PSC filings. A missing verification field blocks the record before submission | — | `required_if id_verification_completed = true` gates method, date, and verifier; role and method lookups |
 | `gdpr_processing_record` | UK GDPR Article 30 — Record of Processing Activities (ROPA). Enforces lawful basis declaration, consent-specific fields, legitimate interests assessment, special category data basis, and international transfer safeguard at the point of write | — | All 6 Article 6 lawful bases via lookup; consent/LIA/special-category/transfer fields via `required_if`; DPO audit trail |
 | `gdpr_dsar_request` | UK GDPR Article 15 — Data Subject Access Request handling. Enforces 30-day deadline recording, identity verification gate, extension logic, and outcome tracking before a request enters the case management workflow | — | 30-day deadline field required at intake; `required_if` for verification method, extension reason, and refusal reason |
 | `eu_gdpr_processing_record` | EU GDPR Article 30 — Record of Processing Activities (ROPA). EU variant with EU Standard Contractual Clauses, 27-DPA supervisory authority lookup, and EU adequacy decision list | — | EU transfer safeguards and supervisory authority lookup; otherwise identical pattern to UK GDPR |
 | `eu_gdpr_dsar_request` | EU GDPR Article 15 — Data Subject Access Request handling. EU variant with €20M / 4% turnover penalty references and EU supervisory authority | — | Same enforcement pattern as UK GDPR DSAR; fines referenced in EUR |
-| `dora_ict_incident` | EU DORA (Digital Operational Resilience Act) Articles 17-19 — ICT incident report for financial entities. In force 17 January 2025. Enforces incident classification, statutory reporting timelines (24h / 72h / 30 days), and root cause documentation | — | `date_diff` enforces 24h early warning and 72h notification windows; `required_if` for root_cause when major/significant |
+| `dora_ict_incident` | EU DORA (Digital Operational Resilience Act) Articles 17-19 — ICT incident report for financial entities. In force 17 January 2025. Enforces incident classification, the CDR (EU) 2025/301 reporting clocks (4h / 24h / 72h / one month), and root cause documentation | — | `date_diff` enforces the initial notification's 4-hour classification clock and 24-hour detection clock, the 72-hour intermediate report window, and the one-month final report window; `required_if` for root_cause and all three reports when `incident_classification == major` (values are `major` / `non_major`, not `significant`) |
 | `hipaa_disclosure_accounting` | US HIPAA 45 CFR 164.528 — Accounting of Disclosures. Enforces complete disclosure records before they enter covered entity systems. OCR penalties up to $2.1M/year | — | `required_if` for authorization_reference when patient_authorization; minimum_necessary_applied boolean gated on non-treatment purposes |
 | `sox_control_test` | US Sarbanes-Oxley Act 2002, Sections 302/404 — Internal control test record. CEO/CFO personal certification liability. Enforces deficiency classification and remediation plan completeness before control test records are saved | — | Three-level `required_if` cascade: test_result → deficiency_classification → remediation plan + audit committee escalation |
-| `mifid_transaction_report` | MiFID II / MiFIR Article 26 — Transaction reporting for investment firms and trading venues. Enforces LEI, ISIN, and venue MIC format at point of write before submission to an Approved Reporting Mechanism | — | LEI regex (`^[A-Z0-9]{18}[0-9]{2}$`), ISIN regex, MIC regex; buyer/seller ID type lookups |
+| `mifid_transaction_report` | MiFID II / MiFIR Article 26 — Transaction reporting for investment firms and trading venues. Enforces LEI, ISIN, and venue MIC format at point of write before submission to an Approved Reporting Mechanism | — | LEI check digit (`checksum` rule, `checksum_algorithm: lei_mod97` — ISO 17442 mod-97-10), ISIN regex, MIC regex; buyer/seller ID type lookups against the RTS 22 Annex I codes (LEI, NIDN, CCPT, CONCAT, MIC, INTC) |
 
 For the remaining 25+ contracts (agriculture, automotive, energy, HR, insurance, logistics,
 manufacturing, media, pharma, real estate, telecoms, travel, water utility, and more) see
@@ -100,9 +100,13 @@ data of EU residents.
 
 `dora_ict_incident` enforces ICT incident reporting completeness for EU financial entities.
 Incident classification, affected services, and root cause are mandatory before an incident
-record enters a case management system. The `date_diff` rule enforces DORA's statutory
-reporting windows: 24-hour early warning and 72-hour initial notification from the moment of
-becoming aware.
+record enters a case management system. The `date_diff` rules enforce the CDR (EU) 2025/301
+Art 5 reporting clocks for major incidents: initial notification within 4 hours of
+`major_classification_timestamp` and within 24 hours of `detection_timestamp`, intermediate
+report within 72 hours of the initial notification, and final report within one month of the
+intermediate report. `incident_classification` is `major` or `non_major` — DORA's "significant"
+is Article 18(2) cyber-threat vocabulary, not an incident class — and `root_cause` is required
+whenever the incident is major.
 
 ### US HIPAA — 45 CFR 164.528
 
@@ -136,4 +140,7 @@ and conditional constraints. It demonstrates:
 - `compare` rule: `impression_end` must be strictly after `impression_start` (catches phantom billing from inverted timestamps)
 - `required_if` rule: `refresh_rate_hz` required only when `panel_type == DIGITAL`
 - `condition` block: revenue floor applied only to `CHARGE` records, not `CREDIT` notes
-- Two contexts: `billing` (all warnings become errors) and `operations` (relaxed thresholds for dashboards)
+- Contexts: no bundled contract carries a `contexts:` block since 2.7.0. The worked example
+  is [`examples/contexts/proof_of_play.yaml`](../examples/contexts/proof_of_play.yaml), which
+  adds two contexts: `billing` (all warnings become errors) and `operations` (relaxed
+  thresholds for dashboards)
