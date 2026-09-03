@@ -458,6 +458,23 @@ class TestBuildSampleRecordsFromRules:
         assert validate_record({"nhs_number": valid["nhs_number"]}, nhs_rules, "t")["valid"]
         assert not validate_record({"nhs_number": invalid["nhs_number"]}, nhs_rules, "t")["valid"]
 
+    def test_checksum_unknown_algorithm_falls_back_to_name_inference(self):
+        """An algorithm with no known-valid example falls back to the name-based
+        sample (never an empty string), and its invalid twin is the generic marker."""
+        rules = [{"name": "x", "field": "email", "type": "checksum", "checksum_algorithm": "made_up_alg"}]
+        valid, invalid = build_sample_records_from_rules(rules)
+        assert valid["email"] and "@" in valid["email"]
+        assert invalid["email"] == "INVALID"
+
+    def test_checksum_outranks_regex_for_the_same_field(self):
+        """A check-digit rule wins the per-field priority over a shape regex."""
+        rules = [
+            {"name": "shape", "field": "nhs_number", "type": "regex", "pattern": r"^\d{10}$"},
+            {"name": "check", "field": "nhs_number", "type": "checksum", "checksum_algorithm": "nhs_mod11"},
+        ]
+        valid, _ = build_sample_records_from_rules(rules)
+        assert valid["nhs_number"] == "9434765919"
+
     def test_checksum_examples_are_valid_under_the_engine(self):
         """Every entry in _CHECKSUM_EXAMPLES passes/fails the engine's own checksum."""
         from opendqv.core.onboarding import _CHECKSUM_EXAMPLES
