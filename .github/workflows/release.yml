@@ -12,7 +12,13 @@ name: Create Release
 #   4. Creates a published GitHub release with the CHANGELOG notes
 #
 # What fires automatically after:
-#   - publish.yml   → PyPI publish (called directly by this workflow)
+#   - publish.yml   → PyPI publish. Dispatched explicitly by this workflow
+#                     (workflow_dispatch is the one event a GITHUB_TOKEN-created
+#                     tag/release IS allowed to trigger). The PyPI trusted
+#                     publisher is registered against publish.yml + the `pypi`
+#                     environment, so publishing must run inside publish.yml —
+#                     an inline job here presents claims PyPI has no publisher
+#                     for (`invalid-publisher`, the v2.5.0 failure).
 #   - docker-publish.yml → Docker multi-arch image (triggered by the tag push)
 
 on:
@@ -30,6 +36,7 @@ on:
 
 permissions:
   contents: write
+  actions: write   # to dispatch publish.yml
 
 jobs:
   release:
@@ -100,33 +107,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish:
-    name: Publish to PyPI
+    name: Dispatch PyPI publish
     needs: release
     runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/project/opendqv/
     permissions:
+      actions: write
       contents: read
-      id-token: write
-
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          ref: v${{ needs.release.outputs.version }}
-
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
-        with:
-          python-version: '3.11'
-
-      - name: Install Poetry
-        run: pip install poetry==2.3.2
-
-      - name: Set version from tag
-        run: poetry version ${{ needs.release.outputs.version }}
-
-      - name: Build package
-        run: poetry build
-
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247  # release/v1
+      - name: Dispatch publish.yml on the new tag
+        run: |
+          gh workflow run publish.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "v${{ needs.release.outputs.version }}" \
+            -f version="${{ needs.release.outputs.version }}"
+          echo "Dispatched publish.yml for v${{ needs.release.outputs.version }}; track it under Actions → Publish to PyPI."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -4,6 +4,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (defaults to the tag the run is on)'
+        required: false
+        type: string
   workflow_call:
     inputs:
       version:
