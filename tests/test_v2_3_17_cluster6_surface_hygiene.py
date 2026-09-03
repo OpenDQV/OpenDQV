@@ -269,13 +269,10 @@ class TestMcpValidateRecordHasRecordId:
 
     def test_in_process_validate_record_schema_includes_record_id(self):
         import asyncio
-        from opendqv.mcp_server import server
-        from mcp.types import ListToolsRequest
+        from opendqv.mcp_server import _on_list_tools  # mcp 2: constructor-registered handlers
 
-        handlers = server.request_handlers
-        handler = handlers[ListToolsRequest]
-        result = asyncio.run(handler(ListToolsRequest(method="tools/list")))
-        tools = {t.name: t for t in result.root.tools}
+        result = asyncio.run(_on_list_tools(None, None))
+        tools = {t.name: t for t in result.tools}
         validate_record = tools["validate_record"]
-        assert "record_id" in validate_record.inputSchema["properties"], \
-            f"in-process validate_record must declare record_id, got: {list(validate_record.inputSchema['properties'])}"
+        assert "record_id" in validate_record.input_schema["properties"], \
+            f"in-process validate_record must declare record_id, got: {list(validate_record.input_schema['properties'])}"

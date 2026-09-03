@@ -42,13 +42,11 @@ def _load_proxy_module():
 
 def _in_process_descs():
     import asyncio
-    from opendqv.mcp_server import server
-    from mcp.types import ListToolsRequest
-    handlers = server.request_handlers
+    from opendqv.mcp_server import _on_list_tools  # mcp 2: constructor-registered handlers
     result = asyncio.run(
-        handlers[ListToolsRequest](ListToolsRequest(method="tools/list"))
+        _on_list_tools(None, None)
     )
-    return {t.name: (t.description or "") for t in result.root.tools}
+    return {t.name: (t.description or "") for t in result.tools}
 
 
 @pytest.fixture
