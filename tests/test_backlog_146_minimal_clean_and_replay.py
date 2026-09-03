@@ -81,6 +81,8 @@ def test_previous_release_replay_reports_and_gates():
     sys.path.insert(0, str(ROOT / "scripts"))
     import replay_previous_corpus as rp
     ref = rp.latest_tag()
+    if ref is None:
+        pytest.skip("no v* tag reachable (shallow clone) — CI's test job fetches full history; locally run `git fetch --tags`")
     report = rp.replay(ref)
     assert report["rows"] > 0, f"no fixture rows found at {ref}"
     for f in report["flips"]:

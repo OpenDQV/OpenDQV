@@ -32,12 +32,11 @@ FIXTURE_DIR = "tests/fixtures/conformance"
 CONTRACTS = ROOT / "opendqv" / "contracts"
 
 
-def latest_tag() -> str:
-    out = subprocess.run(["git", "tag", "--sort=-v:refname"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()
+def latest_tag() -> str | None:
+    """Latest v* tag, or None when the clone carries no tags (shallow CI checkout)."""
+    out = subprocess.run(["git", "tag", "--sort=-v:refname"], cwd=ROOT, capture_output=True, text=True).stdout.split()
     tags = [t for t in out if t.startswith("v")]
-    if not tags:
-        raise SystemExit("no v* tag found")
-    return tags[0]
+    return tags[0] if tags else None
 
 
 def files_at(ref: str) -> list[str]:
@@ -97,6 +96,8 @@ def main(argv: list[str]) -> int:
     as_json = "--json" in argv
     args = [a for a in argv if not a.startswith("--")]
     ref = args[0] if args else latest_tag()
+    if ref is None:
+        raise SystemExit("no v* tag found — run `git fetch --tags` or pass a ref")
     report = replay(ref)
     if as_json:
         print(json.dumps(report, indent=2, sort_keys=True))
