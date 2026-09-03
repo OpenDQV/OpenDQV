@@ -70,6 +70,10 @@ def replay(ref: str) -> dict:
     for path in files_at(ref):
         stem = Path(path).stem
         for line in read_at(ref, path):
+            if "record" not in line:
+                # Not a corpus row (e.g. frozen/regulatory_claims.jsonl carries
+                # base+patch claims, not records) — owned by its own test.
+                continue
             name = line.get("contract") or stem
             if not (CONTRACTS / f"{name}.yaml").exists():
                 flips.append({"contract": name, "kind": line.get("kind", "?"), "change": "contract removed"})
