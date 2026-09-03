@@ -120,7 +120,11 @@ def _parse_date(v):
     fire here while it fired on the managed engine, and a timestamp with a
     zone offset (``+01:00``) or fractional seconds could not be parsed at
     all. Accepted shapes now match the managed engine's: date; datetime
-    without zone; ``Z``; ``±hh:mm``; fractional seconds with either.
+    without zone; ``Z``; ``±hh:mm``; fractional seconds with either. Because
+    this is ``datetime.fromisoformat`` (3.11+), a space-separated datetime
+    (``2026-01-10 08:00:00``) and a basic-format date (``20260110``) parse
+    too — a superset of the managed engine's layouts, harmless for parity
+    since a bundled contract's ``regex`` format rule decides the shape first.
     """
     s = str(v).strip()
     try:

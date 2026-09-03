@@ -73,7 +73,7 @@ Both base `age` rules (`age_minimum` and `age_reasonable`) are replaced by the s
 
 Contexts are defined in a `contexts:` block at the end of the contract, after the `rules:` list. Each key under `contexts:` is a context name; each key under that is a field name whose rules are overridden.
 
-The following is the exact `contexts:` block from `contracts/customer.yaml`:
+The following is the exact `contexts:` block from `examples/contexts/customer.yaml`:
 
 ```yaml
   contexts:
@@ -316,4 +316,4 @@ curl -s -X DELETE "http://localhost:8000/api/v1/quality/stats?context=demo" \
 ## See also
 
 - [docs/naming_conventions.md](naming_conventions.md) — naming conventions for contracts, rules, and fields
-- [contracts/customer.yaml](../contracts/customer.yaml) — the reference contract with live `contexts:` examples
+- [contracts/customer.yaml](../examples/contexts/customer.yaml) — the reference contract with live `contexts:` examples
