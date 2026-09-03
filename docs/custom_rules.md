@@ -50,7 +50,7 @@ No Pydantic import changes are needed — `Optional` is already imported.
 
 ## Step 2: `opendqv/core/validator.py` — handler + `_RULE_HANDLERS`
 
-Open `opendqv/core/validator.py` and write a `_check_phone_e164(value, rule, record)` function next to the other `_check_*` handlers. A handler returns the rule's `error_message` string on failure and `None` on success. Then register it in the `_RULE_HANDLERS` dict — `_check_rule()` dispatches through that table and logs an `Unknown rule type` warning (and passes the record) for anything not in it.
+Open `opendqv/core/validator.py` and write a `_check_phone_e164(value, rule, record)` function next to the other `_check_*` handlers. A handler returns the rule's `error_message` string on failure and `None` on success. Then register it in the `_RULE_HANDLERS` dict **and** add the name to `RULE_TYPES` in `opendqv/core/rule_parser.py`. `RULE_TYPES` is the closed set `Rule()` accepts — a type outside it is refused at load (2.8.0) — and the validator asserts at import that the two agree, so forgetting either one fails immediately rather than silently.
 
 You do not need to guard against a missing value: `_check_rule()` applies D6 (blank-is-absent) before calling any handler, so an absent or whitespace-only value never reaches you. Keep the `_is_field_absent(value)` guard only if your handler can be called directly from elsewhere. Compile patterns with the `regex` library and match through `_safe_match(compiled, str_val)`, which applies the ReDoS timeout (SEC-001); note that the engine's own `regex` rule is an unanchored search, so anchor deliberately.
 

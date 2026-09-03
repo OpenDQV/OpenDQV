@@ -331,6 +331,11 @@ class TestExplainRule:
         defaults = dict(name="test_rule", type="not_empty", field="amount",
                         error_message="failed", severity="error")
         defaults.update(kwargs)
+        # 2.8.0: Rule() refuses types outside RULE_TYPES; the explainer still
+        # knows legacy/unknown names for explanations only, so bypass the model.
+        from opendqv.core.rule_parser import RULE_TYPES
+        if defaults["type"] not in RULE_TYPES:
+            return Rule.model_construct(**defaults)
         return Rule(**defaults)
 
     def test_min_rule_banking_amount(self):
