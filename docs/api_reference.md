@@ -22,12 +22,25 @@ Full interactive docs at `/docs` (Swagger) and `/redoc` (ReDoc) when the server 
 | `POST` | `/api/v1/contracts/{name}/{version}/reject` | Yes | Reject contract back to DRAFT; role: approver/admin |
 | `GET` | `/api/v1/contracts/{name}/history` | No | Append-only hash-chained audit log of all contract changes |
 | `GET` | `/api/v1/contracts/{name}/explain` | No | Plain-English description of all rules |
+| `GET` | `/api/v1/contracts/{name}/explain/{field}/{rule_name}` | No | Explanation, valid/invalid examples and constraint for one rule |
+| `GET` | `/api/v1/contracts/{name}/jsonschema` | No | Contract projected as JSON Schema |
+| `GET` | `/api/v1/contracts/{name}/versions` | No | List all versions of a contract |
+| `GET` | `/api/v1/contracts/{name}/at` | No | Contract as it was at a point in time / version |
+| `GET` | `/api/v1/contracts/{name}/diff` | No | Diff two versions of a contract |
+| `POST` | `/api/v1/contracts/{name}/version` | Yes | Create a new version (`?new_version=`); existing version → 400 |
 | `GET` | `/api/v1/contracts/{name}/lint` | No | Lint a contract — validate its YAML structure |
 | `GET` | `/api/v1/contracts/{name}/quality-trend` | No | Quality trend data for a contract |
 | `POST` | `/api/v1/contracts/reload` | Yes (admin) | Reload contracts from disk |
 | `POST` | `/api/v1/generate` | Yes | Generate platform-specific validation code |
 | `GET` | `/api/v1/stats` | Yes | Validation statistics |
-| `GET` | `/api/v1/analytics/quality-trend` | Yes | Global quality trend data |
+| `DELETE` | `/api/v1/quality/stats` | Yes (admin) | Reset quality statistics |
+| `GET` | `/api/v1/agents` | Yes | Distinct agent_id values seen |
+| `GET` | `/api/v1/analytics/summary` | Yes | Analytics summary |
+| `GET` | `/api/v1/analytics/rule-heatmap` | Yes | Rule failure heat-map |
+| `GET` | `/api/v1/rejection-summary` | Yes | Rejection summary |
+| `GET` | `/api/v1/audit/events` | Yes (auditor+) | List validation audit events |
+| `GET` | `/api/v1/audit/events/{event_id}` | Yes (auditor+) | Fetch one audit event |
+| `GET` | `/config` | No | Effective engine configuration |
 | `GET` | `/api/v1/analytics/rule-velocity` | Yes | Rule failure velocity (trend) |
 | `POST` | `/api/v1/tokens/generate` | Yes (admin) | Generate a Personal Access Token |
 | `POST` | `/api/v1/tokens/revoke` | Yes (admin) | Revoke a PAT by token value |
@@ -47,10 +60,18 @@ Full interactive docs at `/docs` (Swagger) and `/redoc` (ReDoc) when the server 
 | `POST` | `/api/v1/import/otel` | Yes (editor+) | Import OpenTelemetry semantic conventions |
 | `POST` | `/api/v1/import/ndc` | Yes (editor+) | Import NDC format |
 | `GET` | `/api/v1/export/odcs/{contract}` | No | Export contract as ODCS v3.1.0 YAML |
+| `GET` | `/api/v1/export/gx/{contract}` | No | Export contract as a GX expectation suite |
+| `POST` | `/api/v1/profile` | Yes | Profile records and propose rules |
+| `POST` | `/api/v1/profile/file` | Yes | Profile an uploaded CSV/Parquet file |
+| `GET` | `/api/v1/observation/summary` | Yes | Observation-mode summary |
+| `GET` | `/api/v1/observation/fields` | Yes | Observation-mode per-field stats |
+| `GET` | `/api/v1/observation/trend` | Yes | Observation-mode trend |
 | `GET` | `/api/v1/trace/verify` | Yes (auditor+) | Verify trace log hash-chain integrity |
 | `GET` | `/api/v1/registry` | No | Schema registry — list all contracts as versioned schemas |
 | `GET` | `/api/v1/registry/{name}` | No | Schema registry — get specific schema |
 | `GET` | `/api/v1/federation/events` | No | SSE stream of federation sync events |
+| `POST` | `/api/v1/federation/register` | Yes | Register a federated node |
+| `GET` | `/api/v1/federation/status` / `health` / `log` / `sync-status` | No | Federation node status, health, log, sync state |
 | `*` | `/graphql` | No | GraphQL endpoint (queries + mutations) |
 
 ---
@@ -72,10 +93,16 @@ Response:
   "errors": [],
   "warnings": [],
   "contract": "customer",
-  "version": "1.0",
-  "owner": "Data Governance"
+  "version": "1.1",
+  "owner": "Data Governance",
+  "engine_version": "<engine-version>",
+  "contract_hash": "…",
+  "event_id": "…",
+  "validated_at": "…"
 }
 ```
+
+(Abridged. Each error entry carries `field`, `rule`, `message`, `severity`, `error_code`, `suggested_fix`, and `counterpart_missing` — `true` when a cross-field rule failed because its counterpart was absent or blank. See [error_codes.md](error_codes.md).)
 
 Both `/validate` and `/validate/batch` include an `owner` field echoing the contract's owner —
 route alerts and disputes to the right team without a separate contract lookup.

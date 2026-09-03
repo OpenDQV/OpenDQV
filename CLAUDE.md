@@ -12,7 +12,7 @@ It validates records against YAML data contracts at the point of write — befor
 data enters the pipeline ("shift-left"). It is **not** a pipeline monitoring tool
 (that's Monte Carlo) or a pipeline test framework (that's dbt/Soda).
 
-**Version:** 2.6.0
+**Version:** 2.7.0
 **Stack:** FastAPI + Gunicorn/Uvicorn, Streamlit UI, SQLite/PostgreSQL, DuckDB (batch), MCP
 
 ---
@@ -36,17 +36,20 @@ opendqv/core/           Engine: validator, rule_parser, contracts, code_generato
                         isolation_log, quality_stats, quality_analytics,
                         worker_heartbeat, onboarding, jsonschema, linter, storage
 opendqv/core/importers/ 8 format importers: GX, dbt, Soda, CSV, ODCS, CSVW, OTel, NDC
-opendqv/contracts/      YAML data contracts (41 bundled, 22+ industry domains) — shipped in the wheel since v2.2.4
+opendqv/contracts/      YAML data contracts (41 bundled, 22+ industry domains) — shipped in the wheel since v2.2.4.
+                        Since v2.7.0 a MIRROR of the Cloud golden library (provenance in
+                        library_manifest.json); no bundled contract carries `contexts:` —
+                        the worked example is examples/contexts/customer.yaml
 opendqv/contracts/ref/  Lookup reference files (.txt) used by lookup rules
 opendqv/sdk/            Python SDK: sync client, async client, local validator
 opendqv/security/       JWT PAT auth (auth.py)
-opendqv/cli.py          CLI (~26 subcommands). opendqv/main.py = FastAPI app.
-opendqv/mcp_server.py   In-process MCP server (official mcp SDK, stdio)
+opendqv/cli.py          CLI (23 subcommands — `opendqv --help` is authoritative). opendqv/main.py = FastAPI app.
+opendqv/mcp_server.py   In-process MCP server (official mcp SDK 2.x, constructor-registered handlers, stdio)
 opendqv_mcp_proxy.py    Standalone REST-bridge MCP proxy (repo root, NOT in the wheel)
-docs/           76 markdown files: integration guides, security, operations
+docs/           Markdown docs (60+ top-level, plus rules/ and security/ subdirs): integration guides, security, operations
 examples/       Starter contracts + sample records by domain
 scripts/        Demo, wizard, perf-test, smoke tests, diagnostics
-tests/          4,100+ unit/integration tests (138 test files)
+tests/          4,900+ unit/integration tests (150+ test files)
 ui/             Streamlit governance workbench (app.py ~2,800 lines)
 ```
 
