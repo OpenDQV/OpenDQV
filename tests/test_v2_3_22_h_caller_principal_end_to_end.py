@@ -168,14 +168,12 @@ class TestMcpDocstringAlreadyQualifiesAuthClaim:
         'AUTH_MODE' or 'anonymous' — i.e. the qualifier that closes
         the reviewer's 'cannot be spoofed' over-claim concern."""
         import asyncio
-        from opendqv.mcp_server import server
-        from mcp.types import ListToolsRequest
+        from opendqv.mcp_server import _on_list_tools  # mcp 2: constructor-registered handlers
 
-        handlers = server.request_handlers
         result = asyncio.run(
-            handlers[ListToolsRequest](ListToolsRequest(method="tools/list"))
+            _on_list_tools(None, None)
         )
-        tools = {t.name: t for t in result.root.tools}
+        tools = {t.name: t for t in result.tools}
         validate_record = tools["validate_record"]
         desc = validate_record.description or ""
         assert "AUTH_MODE" in desc or "anonymous" in desc.lower(), (

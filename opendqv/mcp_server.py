@@ -302,21 +302,12 @@ if config.MCP_API_URL:
         )
 
 # ── MCP server setup ──────────────────────────────────────────────────
-server = Server(
-    "OpenDQV",
-    version=config.ENGINE_VERSION,
-    icons=[
-        types.Icon(
-            src="https://raw.githubusercontent.com/OpenDQV/OpenDQV/main/docs/assets/opendqv-favicon-128.png",
-            mimeType="image/png",
-            sizes=["128x128"],
-        )
-    ],
-)
+# `server` is constructed at the bottom of the module (mcp 2.x registers
+# handlers via constructor keyword arguments, not decorators).
 
 
-@server.list_tools()
 async def list_tools() -> list[types.Tool]:
+    """Tool catalogue (plain function; wrapped for mcp 2.x below)."""
     return [
         types.Tool(
             name="validate_record",
@@ -871,8 +862,8 @@ async def list_tools() -> list[types.Tool]:
     ]
 
 
-@server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
+    """Dispatch one tool call (plain function; wrapped for mcp 2.x below)."""
     try:
         if name == "validate_record":
             return await _tool_validate_record(arguments)
@@ -2019,6 +2010,45 @@ async def _tool_get_audit_event(args: dict) -> list[types.TextContent]:
         detail="get_audit_event requires the in-process MCP server to be configured with a remote REST client.",
         remediation="Set OPENDQV_API_URL and OPENDQV_API_TOKEN environment variables.",
     ))]
+
+
+# ── mcp 2.x wiring ────────────────────────────────────────────────────
+# mcp 2 replaced decorator registration with constructor keyword arguments,
+# dropped automatic return-value wrapping (handlers return ListToolsResult /
+# CallToolResult), and no longer turns handler exceptions into is_error
+# results. The plain functions above are kept unchanged (tests and the proxy
+# parity check call them directly); these adapters bridge them.
+
+async def _on_list_tools(ctx, params):  # noqa: ARG001
+    return types.ListToolsResult(tools=await list_tools())
+
+
+async def _on_call_tool(ctx, params):  # noqa: ARG001
+    try:
+        content = await call_tool(params.name, dict(params.arguments or {}))
+    except Exception as exc:  # a tool exception must not become a protocol error
+        content = [types.TextContent(type="text", text=_error_envelope(
+            error_code="INTERNAL_ERROR", kind="internal", status=500,
+            detail=f"{type(exc).__name__}: {exc}",
+            remediation="Retry; if it persists, report the tool name and arguments.",
+        ))]
+    is_error = any(str(getattr(c, "text", "")).lstrip().startswith('{"error"') for c in content)
+    return types.CallToolResult(content=content, is_error=is_error)
+
+
+server = Server(
+    "OpenDQV",
+    version=config.ENGINE_VERSION,
+    icons=[
+        types.Icon(
+            src="https://raw.githubusercontent.com/OpenDQV/OpenDQV/main/docs/assets/opendqv-favicon-128.png",
+            mimeType="image/png",
+            sizes=["128x128"],
+        )
+    ],
+    on_list_tools=_on_list_tools,
+    on_call_tool=_on_call_tool,
+)
 
 
 # ── Entry point ───────────────────────────────────────────────────────

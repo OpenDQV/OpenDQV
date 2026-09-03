@@ -53,14 +53,12 @@ def proxy_mod():
 def _in_process_tools():
     """Return {tool_name: tool_dict} from in-process server.list_tools()."""
     import asyncio
-    from opendqv.mcp_server import server
-    from mcp.types import ListToolsRequest
+    from opendqv.mcp_server import _on_list_tools  # mcp 2: constructor-registered handlers
 
-    handlers = server.request_handlers
     result = asyncio.run(
-        handlers[ListToolsRequest](ListToolsRequest(method="tools/list"))
+        _on_list_tools(None, None)
     )
-    return {t.name: t for t in result.root.tools}
+    return {t.name: t for t in result.tools}
 
 
 # ── P0-1: audit tool descriptions name AUTH_MODE behaviour explicitly ─

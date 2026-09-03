@@ -120,13 +120,11 @@ class TestDescriptionDocumentsEnvVar:
 
     def test_in_process_description_mentions_env_var(self):
         import asyncio
-        from opendqv.mcp_server import server
-        from mcp.types import ListToolsRequest
-        handlers = server.request_handlers
+        from opendqv.mcp_server import _on_list_tools  # mcp 2: constructor-registered handlers
         result = asyncio.run(
-            handlers[ListToolsRequest](ListToolsRequest(method="tools/list"))
+            _on_list_tools(None, None)
         )
-        descs = {t.name: (t.description or "") for t in result.root.tools}
+        descs = {t.name: (t.description or "") for t in result.tools}
         desc = descs.get("get_quality_metrics", "")
         assert "OPENDQV_CATALOG_URI_PREFIX" in desc, (
             f"get_quality_metrics description must surface the env var "
