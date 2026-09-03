@@ -11,7 +11,7 @@ OpenDQV and DataHub serve complementary roles: OpenDQV validates data at the sou
 ## Design Goals
 
 1. **Contract-first** — OpenDQV contracts are the source of truth; DataHub reflects their state, not the reverse
-2. **Incremental** — use `contract_hash` to skip unchanged contracts and avoid redundant API calls
+2. **Incremental** — use `schema_hash` to skip unchanged contracts and avoid redundant API calls
 3. **Federation-aware** — check `/federation/status` before pulling contracts from a federated node
 4. **Non-invasive** — no changes to OpenDQV internals; integration lives entirely in a thin sync script or connector
 
@@ -40,7 +40,7 @@ Push every active OpenDQV contract into DataHub as a dataset entity with `Datase
 | `name` | `DatasetProperties.name`; also used in `DatasetUrn` |
 | `description` | `DatasetProperties.description` |
 | `version` | `DatasetProperties.customProperties["contract_version"]` |
-| `contract_hash` | `DatasetProperties.customProperties["contract_hash"]` |
+| `schema_hash` | `DatasetProperties.customProperties["schema_hash"]` |
 | `owner` | `Ownership.owners[0].owner` (`TECHNICAL_OWNER`) |
 | `owner_team` | `Ownership.owners[1].owner` via `make_group_urn` |
 | `owner_email` | `DatasetProperties.customProperties["owner_email"]` |
@@ -73,7 +73,7 @@ emitter = DatahubRestEmitter(
 contracts = requests.get(
     f"{OPENDQV_URL}/api/v1/registry",
     headers={"Authorization": f"Bearer {OPENDQV_TOKEN}"},
-).json()
+).json()["registry"]
 
 for contract in contracts:
     # Skip archived contracts
@@ -91,7 +91,7 @@ for contract in contracts:
 
     custom_props = {
         "contract_version": contract.get("version", ""),
-        "contract_hash":    contract.get("contract_hash", ""),
+        "schema_hash":    contract.get("schema_hash", ""),
         "contract_status":  contract.get("status", ""),
         "owner_email":      contract.get("owner_email", ""),
     }
@@ -263,7 +263,7 @@ Map OpenDQV contract rules to DataHub Assertion entities for richer governance v
 
 ---
 
-## Approach 5 — Incremental Sync with `contract_hash`
+## Approach 5 — Incremental Sync with `schema_hash`
 
 Avoid pushing unchanged contracts by persisting the last-seen hash in a local state file.
 
@@ -287,12 +287,12 @@ state = load_state()
 contracts = requests.get(
     "http://localhost:8000/api/v1/registry",
     headers={"Authorization": f"Bearer {OPENDQV_TOKEN}"},
-).json()
+).json()["registry"]
 
 synced, skipped = 0, 0
 for contract in contracts:
     name = contract["name"]
-    current_hash = contract.get("contract_hash", "")
+    current_hash = contract.get("schema_hash", "")
     if state.get(name) == current_hash:
         skipped += 1
         continue

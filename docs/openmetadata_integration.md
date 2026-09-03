@@ -12,7 +12,7 @@ OpenDQV and OpenMetadata serve complementary roles: OpenDQV validates data at th
 
 1. **Contract-first** — OpenDQV contracts are the source of truth; OpenMetadata reflects their state, not the reverse
 2. **Native DQ** — use OpenMetadata's Test Case / Test Suite model for quality scores rather than custom properties, keeping quality data first-class in the catalog
-3. **Incremental** — read back `contract_hash` from OpenMetadata before writing to skip unchanged contracts and avoid redundant API calls
+3. **Incremental** — read back `schema_hash` from OpenMetadata before writing to skip unchanged contracts and avoid redundant API calls
 4. **Non-invasive** — no changes to OpenDQV internals; integration lives entirely in a thin sync script or connector
 
 ---
@@ -38,7 +38,7 @@ Before any sync can run, create 8 custom properties on the `Table` entity type i
 | `contract_name` | `string` | OpenDQV contract identifier |
 | `contract_version` | `string` | Semantic version string |
 | `contract_status` | `string` | `active`, `draft`, or `archived` |
-| `contract_hash` | `string` | SHA-256 hash of the contract YAML |
+| `schema_hash` | `string` | SHA-256 `entry_hash` of the contract's latest audit-chain entry |
 | `rule_count` | `string` | Total number of active rules |
 | `owner_team` | `string` | Owning team name |
 | `owner_email` | `string` | Owner contact email |
@@ -57,7 +57,7 @@ Push every active OpenDQV contract into the OpenMetadata `Table` entity that the
 | `name` | `contract_name` |
 | `version` | `contract_version` |
 | `status` | `contract_status` |
-| `contract_hash` | `contract_hash` |
+| `schema_hash` | `schema_hash` |
 | `rule_count` | `rule_count` |
 | `owner_team` | `owner_team` |
 | `owner_email` | `owner_email` |
@@ -91,7 +91,7 @@ metadata = OpenMetadata(server_config)
 contracts = requests.get(
     f"{OPENDQV_URL}/api/v1/registry",
     headers={"Authorization": f"Bearer {OPENDQV_TOKEN}"},
-).json()
+).json()["registry"]
 
 for contract in contracts:
     asset_id = contract.get("asset_id", "")
@@ -109,7 +109,7 @@ for contract in contracts:
             "contract_name":       contract["name"],
             "contract_version":    contract.get("version", ""),
             "contract_status":     contract.get("status", ""),
-            "contract_hash":       contract.get("contract_hash", ""),
+            "schema_hash":       contract.get("schema_hash", ""),
             "rule_count":          str(contract.get("rule_count", 0)),
             "owner_team":          contract.get("owner_team", ""),
             "owner_email":         contract.get("owner_email", ""),
@@ -421,7 +421,7 @@ for rule in contract_detail.get("rules", []):
 
 ## Approach 5 — Incremental Sync via Read-Back
 
-Instead of a local state file, read the `contract_hash` currently stored in OpenMetadata's `extension` and skip the write if it matches the OpenDQV hash. OpenMetadata is the source of state.
+Instead of a local state file, read the `schema_hash` currently stored in OpenMetadata's `extension` and skip the write if it matches the OpenDQV hash. OpenMetadata is the source of state.
 
 ```python
 # pip install openmetadata-ingestion requests
@@ -437,8 +437,8 @@ for contract in contracts:
     try:
         table = metadata.get_by_name(entity=Table, fqn=asset_id)
         if table and table.extension:
-            stored_hash = table.extension.__root__.get("contract_hash", "")
-            if stored_hash == contract.get("contract_hash", ""):
+            stored_hash = table.extension.__root__.get("schema_hash", "")
+            if stored_hash == contract.get("schema_hash", ""):
                 print(f"Skipping {contract['name']}: hash unchanged")
                 skipped += 1
                 continue

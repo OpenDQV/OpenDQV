@@ -95,7 +95,7 @@ If you're using the [demo Docker Compose](demo.md) (pre-seeded data, ports 8080/
 
 1. In the **OpenDQV Local** environment, change `base_url` to `http://localhost:8080`
 2. Leave `auth_token` blank (demo runs `AUTH_MODE=open`)
-3. Run **Validation statistics** (folder 9) — you should see ~690 total validations pre-seeded
+3. Run **Validation statistics** (folder 9) — you should see the demo's pre-seeded validation totals
 
 ---
 
@@ -107,9 +107,9 @@ If you're using the [demo Docker Compose](demo.md) (pre-seeded data, ports 8080/
 | 2 | Contracts | List, detail, explain, reload, history, quality-trend, diff |
 | 3 | Validate — Single Record | `POST /api/v1/validate` (5 example records) |
 | 4 | Validate — Batch | `POST /api/v1/validate/batch`, file upload |
-| 5 | Contract Lifecycle | submit-review, approve, reject |
-| 6 | Code Generation | Apex, JavaScript, Snowflake UDF |
-| 7 | Tokens | Generate, list, revoke |
-| 8 | Import / Export | GX, dbt, Soda, CSV, ODCS, CSVW, NDC |
+| 5 | Contract Lifecycle | `POST /api/v1/contracts/{name}/{version}/submit-review`, `/approve`, `/reject` |
+| 6 | Code Generation | `POST /api/v1/generate?contract_name=&target=` — salesforce (Apex), js, snowflake |
+| 7 | Tokens | Generate, list, `POST /tokens/revoke` (token value as text body), `POST /tokens/revoke/{username}` |
+| 8 | Import / Export | `POST /import/{gx,dbt,soda,csv,odcs,csvw,ndc}`, `GET /export/odcs/{contract_name}` (ODCS v3.1.0 YAML) |
 | 9 | Monitoring & Registry | stats, registry list, registry item |
 | 10 | GraphQL | List contracts, validation history |
