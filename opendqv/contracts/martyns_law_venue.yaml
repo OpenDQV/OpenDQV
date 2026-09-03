@@ -262,3 +262,19 @@ contract:
       type: date_format
       severity: error
       error_message: "compliance_review_date must be a valid date (YYYY-MM-DD)"
+    - name: communication_procedure_documented_required
+      field: communication_procedure_documented
+      type: not_empty
+      severity: error
+      error_message: communication_procedure_documented must be declared (true or false) — procedures for providing information to individuals on the premises are the fourth public protection procedure type (s.5(3)(d))
+    - name: communication_procedure_documented_valid
+      field: communication_procedure_documented
+      type: lookup
+      lookup_file: ref/allergen_boolean.txt
+      severity: error
+      error_message: communication_procedure_documented must be 'true' or 'false'
+    - name: sia_notification_reference_required
+      field: sia_registration_number
+      type: not_empty
+      severity: error
+      error_message: sia_registration_number is required for ALL qualifying premises — any person who becomes responsible for qualifying premises, standard or enhanced tier, must notify the Security Industry Authority (s.9(1)); record the SIA notification reference

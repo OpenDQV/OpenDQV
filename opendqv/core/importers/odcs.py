@@ -100,6 +100,7 @@ _STATUS_FROM_ODCS = {
 
 _DIMENSION: dict[str, str] = {
     "not_empty": "completeness",
+    "not_empty_string": "completeness",
     "required_if": "completeness",
     "unique": "uniqueness",
     "regex": "conformity",
@@ -126,6 +127,8 @@ _DATE_TYPES = {"date_format", "min_age", "max_age", "age_match", "date_diff"}
 
 
 def _infer_logical_type(rule_types: set[str]) -> str:
+    if "not_empty_string" in rule_types:
+        return "string"  # the type guard IS the assertion; it wins over numeric inference
     if rule_types & _NUMERIC_TYPES:
         return "number"
     if rule_types & _DATE_TYPES:
@@ -510,6 +513,8 @@ def import_odcs(contract_data: dict) -> dict:
     else:
         description = str(desc or "")
     owner, owner_email = _team_owner(contract_data.get("team"))
+    strict_schema = bool(_custom_property(contract_data, "opendqv.strict_schema") or False)
+    declared_fields = _custom_property(contract_data, "opendqv.allowed_fields") or _custom_property(contract_data, "opendqv.fields") or []
 
     rules: list[dict] = []
     skipped: list[str] = []
@@ -577,6 +582,10 @@ def import_odcs(contract_data: dict) -> dict:
     }
     if owner_email:
         contract["owner_email"] = owner_email
+    if strict_schema:
+        contract["strict_schema"] = True
+    if isinstance(declared_fields, list) and declared_fields:
+        contract["allowed_fields"] = [str(f) for f in declared_fields]
 
     return {
         "contract": contract,
@@ -618,7 +627,7 @@ def _project_native(prop: dict, ltype: str, rule: dict) -> None:
         return
     rtype = rule["type"]
     opts: dict = prop.setdefault("logicalTypeOptions", {})
-    if rtype == "not_empty":
+    if rtype in ("not_empty", "not_empty_string"):
         prop["required"] = True
     elif rtype == "unique":
         if not rule.get("group_by"):
@@ -669,6 +678,8 @@ def export_odcs(
     owner: str = "",
     owner_email: Optional[str] = None,
     odcs_metadata: Optional[dict] = None,
+    strict_schema: bool = False,
+    allowed_fields: list | None = None,
 ) -> dict:
     """Export OpenDQV rules to an ODCS v3.1.0 contract dict (schema-valid)."""
     by_field: "OrderedDict[str, list[dict]]" = OrderedDict()
@@ -728,6 +739,10 @@ def export_odcs(
         {"property": "opendqv.status", "value": str(status).lower()},
         {"property": "opendqv.engine", "value": "opendqv"},
     ]
+    if strict_schema:
+        doc["customProperties"].append({"property": "opendqv.strict_schema", "value": True})
+    if allowed_fields:
+        doc["customProperties"].append({"property": "opendqv.allowed_fields", "value": [str(f) for f in allowed_fields]})
     schema_obj: dict[str, Any] = {"name": contract_name, "logicalType": "object", "properties": properties}
     if object_quality:
         schema_obj["quality"] = object_quality
@@ -748,8 +763,11 @@ def contract_to_odcs_yaml(
     owner: str = "",
     owner_email: Optional[str] = None,
     odcs_metadata: Optional[dict] = None,
+    strict_schema: bool = False,
+    allowed_fields: list | None = None,
 ) -> str:
     """Export OpenDQV contract to ODCS v3.1.0 YAML string."""
     doc = export_odcs(contract_name, rules, version=version, status=status, description=description,
-                      owner=owner, owner_email=owner_email, odcs_metadata=odcs_metadata)
+                      owner=owner, owner_email=owner_email, odcs_metadata=odcs_metadata,
+                      strict_schema=strict_schema, allowed_fields=allowed_fields)
     return yaml.dump(doc, default_flow_style=False, sort_keys=False, allow_unicode=True)

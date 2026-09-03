@@ -122,8 +122,8 @@ if __name__ == "__main__":
         "currency": "GBP",
         "transaction_type": "transfer",
         "channel": "mobile",
+        "reference": "INV-2026-1001",
         "merchant_id": "MCHT-00124",
-        "merchant_category_code": "5411",
     }
 
     print(f"\nInput record:\n{json.dumps(bad_record, indent=2)}\n")

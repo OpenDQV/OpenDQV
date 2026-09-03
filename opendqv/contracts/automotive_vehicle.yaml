@@ -60,6 +60,11 @@ contract:
     inherited: false
     negate: false
     all_of: false
+  - name: year_required
+    field: year
+    type: not_empty
+    severity: error
+    error_message: year is required
   - name: year_range
     description: ''
     type: range
@@ -71,6 +76,11 @@ contract:
     inherited: false
     negate: false
     all_of: false
+  - name: mileage_km_required
+    field: mileage_km
+    type: not_empty
+    severity: error
+    error_message: mileage_km is required
   - name: mileage_km_min
     description: ''
     type: min
@@ -205,6 +215,16 @@ contract:
     field: colour
     severity: warning
     error_message: colour should be provided
+    inherited: false
+    negate: false
+    all_of: false
+  - name: vin_check_digit
+    description: 'ISO 3779 position-9 check digit (weighted transliteration, mod-11). Mandatory for North-American-market vehicles (FMVSS 115 / CMVSS 115); EU/ECE-market VINs may legitimately carry a non-computed character at position 9, so severity is warning, not error. A failed check on a North-American VIN indicates a transcription error (e.g. valid: 1M8GDM9AXKP042788).'
+    type: checksum
+    field: vin
+    checksum_algorithm: vin_mod11
+    severity: warning
+    error_message: 'vin fails the ISO 3779 position-9 check digit — expected for many EU-market VINs; for North-American-market vehicles this indicates a transcription error (valid example: 1M8GDM9AXKP042788)'
     inherited: false
     negate: false
     all_of: false

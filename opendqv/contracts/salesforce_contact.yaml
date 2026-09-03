@@ -102,6 +102,12 @@ contract:
       severity: warning
       error_message: "MailingCountry is recommended."
 
+    - name: Birthdate_required
+      field: Birthdate
+      type: not_empty
+      severity: error
+      error_message: Birthdate is required
+
     - name: birthdate_format
       field: Birthdate
       type: date_format

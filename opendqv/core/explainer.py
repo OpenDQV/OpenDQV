@@ -38,6 +38,8 @@ def explain_rule(rule) -> dict:
 
     if rt == "not_empty":
         result = _not_empty(field)
+    elif rt == "not_empty_string":
+        result = _not_empty_string(field)
     elif rt == "min":
         result = _min(field, rule.min_value)
     elif rt == "max":
@@ -110,6 +112,20 @@ def _not_empty(field: str) -> dict:
         "valid_examples": ["any_non_empty_string", 1, True],
         "invalid_examples": [None, "", "   "],
         "constraint": {},
+    }
+
+
+def _not_empty_string(field: str) -> dict:
+    return {
+        "rule_type": "not_empty_string",
+        "explanation": (
+            f"The '{field}' field is required, must be text, and must not be empty. "
+            "Numbers, booleans, lists and objects are rejected as the wrong type rather than "
+            "converted to text."
+        ),
+        "valid_examples": ["any_non_empty_string"],
+        "invalid_examples": [None, "", "   ", 0, False],
+        "constraint": {"type": "string"},
     }
 
 
@@ -722,6 +738,7 @@ def quick_fix(rule_type: str, error_message: str = "", compare_to: str = "") -> 
         return "Adjust the value so it satisfies the comparison in the error message."
     _fixes = {
         "not_empty": "Provide a non-empty value.",
+        "not_empty_string": "Provide a non-empty text value (numbers and booleans are not accepted as text).",
         "email": "Use a valid email address, e.g. user@example.com",
         "date_format": "Use ISO 8601 format: YYYY-MM-DD (e.g. 2026-03-24)",
         "min": "Increase the value to meet the minimum threshold.",

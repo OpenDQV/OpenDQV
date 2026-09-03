@@ -34,8 +34,12 @@ Checks performed:
 import re
 from dataclasses import dataclass, field
 from typing import Optional
+
 import yaml
 
+from opendqv.core.validator import (
+    _PRESENCE_RULE_TYPES,  # single source of truth (round-2 B2)
+)
 
 # Lightweight RFC-5322-ish email shape — enough to flag obvious typos / placeholders.
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -52,6 +56,7 @@ _UNIQUE_SCOPE_HINT_WORDS = frozenset({
 
 _KNOWN_RULE_TYPES = frozenset({
     "not_empty",
+    "not_empty_string",
     "regex",
     "min",
     "max",
@@ -75,6 +80,11 @@ _KNOWN_RULE_TYPES = frozenset({
     "geospatial_bounds",
     "allowed_values",
     "age_match",
+})
+
+# Rule types for which an empty string counts as "absent" (validator._is_field_absent):
+_FORMAT_RULE_TYPES = frozenset({
+    "regex", "date_format", "min_length", "max_length", "allowed_values", "lookup", "checksum",
 })
 
 _KNOWN_CHECKSUM_ALGORITHMS = frozenset({
@@ -104,7 +114,7 @@ _KNOWN_COMPARE_OPS = frozenset({
 @dataclass
 class LintIssue:
     """A single linting finding."""
-    severity: str          # "error" | "warning"
+    severity: str          # "error" | "warning" | "info" (advisory; never fails a lint)
     rule_name: Optional[str]  # None for contract-level issues
     code: str              # short identifier, e.g. "DUPLICATE_RULE_NAME"
     message: str
@@ -205,6 +215,84 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
                 f"file to '{yaml_internal_name}.yaml'."
             ),
         ))
+
+    # ── Contract-level (CRT180): strict_schema / fields shape ─────────────────
+    if isinstance(data.get("contract"), dict):
+        _strict = contract_node.get("strict_schema")
+        if _strict is not None and not isinstance(_strict, bool):
+            result.issues.append(LintIssue(
+                severity="error", rule_name=None, code="STRICT_SCHEMA_NOT_BOOL",
+                message=f"contract.strict_schema must be true or false, got {_strict!r}.",
+            ))
+        if "fields" in contract_node and "allowed_fields" not in contract_node:
+            result.issues.append(LintIssue(
+                severity="warning", rule_name=None, code="FIELDS_KEY_DEPRECATED",
+                message="contract.fields is a deprecated alias — rename it to allowed_fields.",
+            ))
+        _fields = contract_node.get("allowed_fields", contract_node.get("fields"))
+        if _fields is not None and (
+            not isinstance(_fields, list) or not all(isinstance(f, str) and f for f in _fields)
+        ):
+            result.issues.append(LintIssue(
+                severity="error", rule_name=None, code="ALLOWED_FIELDS_NOT_STRING_LIST",
+                message="contract.allowed_fields must be a list of non-empty field names.",
+            ))
+        elif _fields and not _strict:
+            result.issues.append(LintIssue(
+                severity="warning", rule_name=None, code="ALLOWED_FIELDS_WITHOUT_STRICT_SCHEMA",
+                message="contract.allowed_fields has no effect unless strict_schema: true.",
+            ))
+
+    # ── D6 (docs/contract_conformance.md): format-only fields accept "" ───────
+    # Core treats an empty string as absent for every non-presence rule, so a
+    # field that carries error-severity format rules but no not_empty /
+    # not_empty_string rule accepts "". Advisory (info): optional-when-present
+    # fields are a legitimate design, so this must never fail a lint or dirty
+    # the bundled library; it exists so an author who meant "required" sees it.
+    _rules_node = contract_node.get("rules") if isinstance(contract_node, dict) else None
+    if not isinstance(_rules_node, list):
+        _rules_node = data.get("rules") if isinstance(data.get("rules"), list) else []
+    # A field's presence is decided by a presence rule, or conditionally by
+    # required_if; a rule marked optional or carrying a condition has decided
+    # for itself.
+    _presence_fields = {
+        r.get("field") for r in _rules_node
+        if isinstance(r, dict) and (r.get("type") in _PRESENCE_RULE_TYPES or r.get("type") == "required_if")
+    }
+    # D7 (search semantics, round-2 S4): a pattern that does not start with
+    # `^` matches anywhere in the value — say so, advisory.
+    for r in _rules_node:
+        if isinstance(r, dict) and r.get("type") == "regex" and isinstance(r.get("pattern"), str):
+            _pat = r["pattern"]
+            if _pat and not _pat.startswith("^") and not _pat.startswith("builtin:"):
+                result.issues.append(LintIssue(
+                    severity="info", rule_name=r.get("name"), code="REGEX_NOT_START_ANCHORED",
+                    message=(
+                        f"rule '{r.get('name')}' pattern does not start with '^': regex rules use search "
+                        f"semantics, so it matches anywhere in the value. Prefix '^' (and suffix '$') to "
+                        f"require the whole value to match."
+                    ),
+                ))
+    _d6_seen: set = set()
+    for r in _rules_node:
+        if not isinstance(r, dict):
+            continue
+        _f = r.get("field")
+        if (
+            _f and _f not in _presence_fields and _f not in _d6_seen
+            and r.get("type") in _FORMAT_RULE_TYPES
+            and str(r.get("severity", "error")).lower() == "error"
+            and not r.get("optional") and not r.get("condition")
+        ):
+            _d6_seen.add(_f)
+            result.issues.append(LintIssue(
+                severity="info", rule_name=r.get("name"), code="FORMAT_ONLY_FIELD_ACCEPTS_EMPTY",
+                message=(
+                    f"field '{_f}' has error-severity format rules but no presence rule: an empty "
+                    f"string is treated as absent and passes. Add a not_empty or not_empty_string "
+                    f"rule on '{_f}' if empty values must be rejected (docs/contract_conformance.md, D6)."
+                ),
+            ))
 
     # ── Contract-level: owner_email present and well-shaped ──────────────────
     # Skip the check on top-level fragment YAML (just `rules:`) — there is no

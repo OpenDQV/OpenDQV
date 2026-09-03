@@ -50,6 +50,8 @@ def _make_contract(name="test_contract", version="1.0", status="active"):
         draft = "draft"
 
     contract = MagicMock()
+    contract.strict_schema = False   # CRT180: bool(MagicMock()) is True
+    contract.allowed_fields = []
     contract.name = name
     contract.version = version
     contract.status.value = status
@@ -127,6 +129,8 @@ class TestPostgresRecordVersion:
             "[]",                       # last_downstream
             rules_json,                 # last_rules
             contexts_json,              # last_contexts
+            0,                          # last_strict (CRT180)
+            "[]",                       # last_allowed (CRT180)
             "abc" * 21 + "d",           # last_entry_hash (64 chars)
         )
 
@@ -164,6 +168,7 @@ class TestPostgresGetAsOf:
             None, None, None, None,
             json.dumps([]), json.dumps({}),
             "node-1", "2026-01-01T12:00:00",
+            0, "[]",  # strict_schema, allowed_fields (CRT180)
         )
 
         with patch.dict("sys.modules", {"psycopg2": mock_psycopg2}):
@@ -204,6 +209,7 @@ class TestPostgresGetHistory:
                 "node-1", "2026-01-01T12:00:00",
                 "0" * 64, "abc" * 21 + "d", "0" * 64, 2,
                 "approver", None, None, None, None, None,
+                0, None,  # strict_schema, allowed_fields (CRT180)
             )
         ]
 

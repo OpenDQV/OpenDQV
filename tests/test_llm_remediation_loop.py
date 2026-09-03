@@ -212,9 +212,8 @@ class TestLoopIntegration:
             "amount": 100.0,
             "currency": "GBP",
             "transaction_type": "credit",
-            "channel": "online",
+            "channel": "online", "reference": "INV-2026-1001",
             "merchant_id": "MERCH-001",
-            "merchant_category_code": "5411",
         }
         mock_a = _claude_mock("{}")  # should never be called
         with patch.dict(sys.modules, {"anthropic": mock_a}):
@@ -234,9 +233,8 @@ class TestLoopIntegration:
             "amount": -1.0,   # below minimum
             "currency": "GBP",
             "transaction_type": "credit",
-            "channel": "online",
+            "channel": "online", "reference": "INV-2026-1001",
             "merchant_id": "MERCH-001",
-            "merchant_category_code": "5411",
         }
         fixed = {**bad_record, "amount": 10.0}
         with patch.dict(sys.modules, {"anthropic": _claude_mock(json.dumps(fixed))}):

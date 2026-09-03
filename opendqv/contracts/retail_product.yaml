@@ -88,12 +88,24 @@ contract:
       error_message: "category should be a standard retail department — use one of
         the defined GS1 UK taxonomy values for space planning and category reporting"
 
+    - name: price_required
+      field: price
+      type: not_empty
+      severity: error
+      error_message: price is required
+
     - name: price_min
       field: price
       type: min
       min: 0
       severity: error
       error_message: "price must be >= 0"
+
+    - name: currency_required
+      field: currency
+      type: not_empty
+      severity: error
+      error_message: currency is required
 
     - name: currency_format
       description: "ISO 4217 three-letter currency code. Required on all price fields
@@ -105,6 +117,12 @@ contract:
       severity: error
       error_message: "currency must be a valid ISO 4217 three-letter code (e.g.
         GBP, EUR, USD)"
+
+    - name: stock_quantity_required
+      field: stock_quantity
+      type: not_empty
+      severity: error
+      error_message: stock_quantity is required
 
     - name: stock_quantity_min
       field: stock_quantity
@@ -157,8 +175,21 @@ contract:
       severity: error
       error_message: "supplier_id is required"
 
+    - name: last_updated_required
+      field: last_updated
+      type: not_empty
+      severity: error
+      error_message: last_updated is required
+
     - name: last_updated_format
       field: last_updated
       type: date_format
       severity: error
       error_message: "last_updated must be a valid date (YYYY-MM-DD)"
+    - name: barcode_gtin_valid
+      description: "GS1 Mod-10 check-digit verification on the barcode. The final digit is computed (GS1 algorithm), not shape-matched — a mistyped or fabricated barcode fails at the point of write instead of at POS scan, WMS receiving, or supplier EDI. Complements barcode_gtin_format, which gates the GTIN length classes."
+      field: barcode
+      type: checksum
+      checksum_algorithm: mod10_gs1
+      severity: error
+      error_message: 'barcode has an invalid GS1 check digit (e.g. valid: 9521234567899, GS1 demonstration prefix 952) — full check-digit verification (was: shape-only format check)'

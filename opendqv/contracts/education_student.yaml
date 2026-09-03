@@ -48,6 +48,12 @@ contract:
       severity: error
       error_message: "email must be a valid email address"
 
+    - name: date_of_birth_required
+      field: date_of_birth
+      type: not_empty
+      severity: error
+      error_message: date_of_birth is required
+
     - name: date_of_birth_format
       field: date_of_birth
       type: date_format
@@ -60,11 +66,23 @@ contract:
       severity: error
       error_message: "course_code is required"
 
+    - name: enrollment_date_required
+      field: enrollment_date
+      type: not_empty
+      severity: error
+      error_message: enrollment_date is required
+
     - name: enrollment_date_format
       field: enrollment_date
       type: date_format
       severity: error
       error_message: "enrollment_date must be a valid date (YYYY-MM-DD)"
+
+    - name: gpa_required
+      field: gpa
+      type: not_empty
+      severity: error
+      error_message: gpa is required
 
     - name: gpa_range
       field: gpa

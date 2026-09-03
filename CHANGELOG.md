@@ -2,6 +2,158 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.5.0] - 2026-09-03
+
+**One aligned library and one aligned engine.** OpenDQV Core and the managed
+OpenDQV Cloud engine now produce the same verdict, code, severity and message
+on a shared 323-row conformance corpus (`docs/contract_conformance.md`).
+Getting there changed three engine semantics and the bundled starter library.
+There are no downstream users of either yet (project owner, 2026-09-03), so
+the break is taken now, in one release.
+
+### BREAKING
+
+1. **Regex rules use unanchored search** (was `re.match`, which silently
+   anchored the start). A pattern matches anywhere in the value — as ODCS
+   `pattern`, JSON Schema `pattern`, RE2 and the code generators read it.
+   Before: `pattern: "[a-z]+"` rejected `"1abc"`; now it accepts it (the
+   letters are found). Before: `negate: true` with `"@gmail\.com$"` could
+   never fire; now it does. **Upgrade step:** run `opendqv lint` — rule
+   `REGEX_NOT_START_ANCHORED` names every pattern that does not start with
+   `^`; add `^` (and `$`) where you meant the whole value.
+2. **A cross-field rule whose counterpart is absent or blank fails** (D10):
+   `compare`, `date_diff`, `age_match`, `cross_field_range`, `ratio_check`,
+   `field_sum`, `geospatial_bounds`, on both paths. `ratio_check` and
+   `field_sum` no longer silently treat a missing counterpart as `0`.
+3. **A blank or whitespace-only value is absent** for every rule outside the
+   presence class (`not_empty`, `not_empty_string`, `required_if`; plus
+   `conditional_value` and `unique`), on both paths (D6). A field that has
+   only format rules accepts `""` — say `not_empty` if it must not.
+4. **Explicit presence in the bundled library:** 110 `<field>_required`
+   not_empty rules across 29 starters, and `optional: true` on 8 format rules
+   whose text says the field is optional when present. A field's presence is
+   always declared; the library gate keeps it so. `customer` is the
+   hello-world and stays minimal: `name` required, everything else
+   optional-when-present — `validate customer '{"name":"Alice","age":30}'`
+   passes as documented.
+5. **`strict_schema: true` on the six regulated starters** —
+   `banking_transaction`, `dora_ict_incident`, `financial_services_customer`,
+   `financial_trade`, `mifid_transaction_report`, `sox_control_test` reject
+   undeclared fields (`OPENDQV_ADDITIONAL_PROPERTIES`). **Migration:** list
+   extra columns under `allowed_fields:` on your copy —
+
+   ```yaml
+   strict_schema: true
+   allowed_fields: [merchant_category_code, source_system]
+   ```
+
+   — or fork the starter with `strict_schema: false`. Starters are samples you
+   own.
+
+`library_manifest.json` (one SHA-256 per contract's rules, one for the
+library) is the machine-readable record of exactly which starters changed;
+it ships as a release asset.
+
+### Added / changed
+
+CRT180 — contract-format conformance across engines (see
+`docs/contract_conformance.md`).
+
+- **New rule type `not_empty_string`** — presence plus a JSON-string type guard.
+  Unlike `not_empty`, a non-string value (`0`, `false`, `[]`, `{}`) is rejected as
+  under the rule's own error code (typed message) instead of being
+  stringified and passed. Single-record
+  and batch paths agree; linter, JSON-Schema export (`type: string`, `minLength: 1`),
+  explainer, the five push-down code generators and the ODCS projection
+  (`required: true`) all know the type.
+- **New contract flag `strict_schema: true` + `allowed_fields:` allow-list** — reject
+  records carrying any field the contract does not declare (JSON Schema's
+  `additionalProperties: false`, enforced at the write boundary). One
+  `OPENDQV_ADDITIONAL_PROPERTIES` error per record naming every unknown field;
+  identical on the single-record and batch paths; cross-field references count
+  as declared. Both values are audit content: they join the canonical hash
+  payload only when set (pre-CRT180 contracts keep their v2 hashes unchanged),
+  persist on `contract_history`, restore from snapshots, round-trip through
+  YAML, JSON-Schema export (`additionalProperties: false`) and ODCS custom
+  properties. Linter checks the shapes. Docs: `docs/strict_schema.md`.
+- **Bundled contracts synced with the managed engine's starter library** — 22
+  rules added across nine contracts (check-digit rules `vin_check_digit`,
+  `instrument_id_isin_valid`, `product_code_gtin_valid`, `barcode_gtin_valid`,
+  `nhs_number_valid`; DORA 4h/24h/72h notification timing; Martyn's Law
+  required-field and SIA-reference rules; `ni_number_not_reserved_prefix`), two
+  `not_empty` → `not_empty_string` upgrades (`account_number_required` in
+  banking_transaction and financial_services_customer), and two regex rewrites
+  from positive lookahead to the portable `negate: true` form (semantics
+  unchanged, patterns now RE2-safe). Threshold, casing and format differences
+  that are judgement calls are listed, not applied, in
+  `docs/contract_conformance.md`.
+- **Review round 1 fixes.** `validate_batch` no longer skips a rule whose field
+  is absent from every record in the batch (K1 — a batch omitting a required
+  field validated clean). The Postgres contract-history backend persists
+  `strict_schema` / `allowed_fields` and hashes identically to SQLite. MCP and
+  GraphQL validate paths honour `strict_schema`; the REST draft fallback uses
+  the flags snapshotted at ACTIVE→DRAFT. `salesforce_lead.email_not_personal`
+  is now start-anchored (`.*@…`) so it actually fires under `re.match`.
+  `not_empty_string` emits the same typed message on both paths.
+- **`fields:` → `allowed_fields:`** on the strict-schema allow-list; the old key
+  is accepted as a deprecated alias (`FIELDS_KEY_DEPRECATED` lint warning) and
+  names are validated like rule fields. `Rule.optional` is accepted and
+  round-trips; semantics reserved (docs/contract_conformance.md, D2).
+- **Linter:** `STRICT_SCHEMA_NOT_BOOL`, `ALLOWED_FIELDS_NOT_STRING_LIST`,
+  `ALLOWED_FIELDS_WITHOUT_STRICT_SCHEMA`, `FIELDS_KEY_DEPRECATED`, and the
+  advisory `FORMAT_ONLY_FIELD_ACCEPTS_EMPTY` (new `info` severity — never fails
+  a lint) for fields with error-severity format rules and no presence rule.
+- **Conformance corpus + library manifest.** `tests/fixtures/conformance/*.jsonl`
+  now carry `{code, severity, message}` per finding, hand-written clean and
+  warning-only rows (`scripts/conformance_clean_rows.py`), and are verified on
+  the single path, as one-record batches and as a whole batch. The generator
+  fails if a rule type in the validator's handler table has no probe.
+  `library_manifest.json` (`scripts/library_manifest.py`, CI-checked) pins one
+  SHA-256 per bundled contract's rules for downstream mirrors.
+- **Regex semantics are unanchored search** (was `re.match`, which silently
+  anchored the start): a pattern matches anywhere in the value, as ODCS,
+  JSON Schema, RE2 and the code generators read it; use `^`/`$` to pin the
+  ends. New advisory lint `REGEX_NOT_START_ANCHORED`. No bundled pattern
+  changes meaning.
+- **Length rules refuse non-strings:** `min_length`/`max_length` on a number
+  report a typed message under the rule's code instead of measuring its
+  decimal rendering.
+- **D10 — cross-field rules fail on an absent or blank counterpart** (`compare`,
+  `date_diff`, `age_match`, `cross_field_range`, `ratio_check`, `field_sum`,
+  `geospatial_bounds`), on both paths; `ratio_check`/`field_sum` no longer
+  silently treat a missing counterpart as 0. Batch path: any rule type without
+  a native branch is evaluated per record with the single-path handler
+  (`age_match` had none and passed silently).
+- **Absence guard is structural:** no rule outside the presence class
+  (`not_empty`, `not_empty_string`, `required_if`; plus `conditional_value`
+  and `unique`) fires on an absent or blank value, on either path. Batch:
+  cross-field counterparts are materialised, `compare` fails on an absent
+  counterpart like the single path, `unique` never fabricates duplicates on
+  a field nobody sent, `not_empty`/`required_if` recognise tab/newline blanks.
+- **Explicit presence in the bundled library (CRT181):** 109 `<field>_required`
+  not_empty rules across 27 contracts and one `optional: true`
+  (`customer.loyalty_tier`), so a field's presence is always declared;
+  `tests/test_library_presence_explicit.py` gates it. Linter: `required_if`
+  counts as a presence decision and an `optional: true` or conditional rule
+  raises no `FORMAT_ONLY_FIELD_ACCEPTS_EMPTY`. Batch path: every non-presence
+  block treats a blank as absent (`checksum` did not). Fourth cross-engine run:
+  137/137 identical on verdict, code and severity.
+- **D6 closed on Core's own handlers:** `allowed_values`, `lookup` and `date_diff`
+  no longer fire on a blank / whitespace-only value (they already skipped
+  `None`); batch path aligned (`_batch_absent`), `forbidden_if` batch SQL trims
+  before comparing. Found by the third cross-engine run; see
+  `docs/contract_conformance.md`.
+- **Engine-generated message wording** (cross-engine alignment): type names in
+  `OPENDQV_TYPE_MISMATCH` and `not_empty_string` messages are JSON type names
+  (`string`, `number`, `boolean`, `array`, `object`, `null`) instead of Python
+  names (`str`, …); `OPENDQV_ADDITIONAL_PROPERTIES` and `not_empty_string`
+  messages quote field names with double quotes. Codes, severities and
+  contract-authored messages are unchanged.
+- **JSON-Schema strict export with contexts** declares the union of every
+  context's rule targets instead of refusing `additionalProperties: false`.
+
+---
+
 ## [2.4.0] - 2026-09-02
 
 ODCS compliance release (CRT179, minor tier — **breaking wire-format change**

@@ -10,6 +10,7 @@ contract:
   approved_by: opendqv-core-team
   approved_at: "2026-04-27T00:00:00+00:00"
   version: "1.0"
+  strict_schema: true
   description: >
     Sarbanes-Oxley Act 2002, Sections 302 and 404 — 15 USC 7262, Internal Control
     over Financial Reporting (ICFR) test record compliance contract. Public companies

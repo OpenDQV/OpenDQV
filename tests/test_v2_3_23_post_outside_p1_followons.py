@@ -73,7 +73,7 @@ class TestTypeMismatchSuggestedFix:
         ]
         type_mismatch_error = {
             "field": "age", "rule": "age_minimum",
-            "message": "min rule on field 'age' expected numeric value, got str",
+            "message": "min rule on field 'age' expected numeric value, got string",
             "severity": "error",
             "error_code": "OPENDQV_TYPE_MISMATCH",
         }

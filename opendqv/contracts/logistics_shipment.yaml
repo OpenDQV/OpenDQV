@@ -71,11 +71,23 @@ contract:
       severity: error
       error_message: "destination_country must be a valid ISO 3166-1 alpha-2 code (e.g. GB, US, DE)"
 
+    - name: dispatch_date_required
+      field: dispatch_date
+      type: not_empty
+      severity: error
+      error_message: dispatch_date is required
+
     - name: dispatch_date_format
       field: dispatch_date
       type: date_format
       severity: error
       error_message: "dispatch_date must be a valid date (YYYY-MM-DD)"
+
+    - name: estimated_delivery_required
+      field: estimated_delivery
+      type: not_empty
+      severity: error
+      error_message: estimated_delivery is required
 
     - name: estimated_delivery_format
       field: estimated_delivery
@@ -95,6 +107,12 @@ contract:
       severity: error
       error_message: "estimated_delivery must be on or after dispatch_date —
         delivery before dispatch corrupts carrier SLA and OTIF reporting"
+
+    - name: weight_kg_required
+      field: weight_kg
+      type: not_empty
+      severity: error
+      error_message: weight_kg is required
 
     - name: weight_kg_min
       field: weight_kg

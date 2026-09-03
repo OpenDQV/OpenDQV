@@ -26,6 +26,8 @@ def contract_to_jsonschema(contract, strict: bool = None) -> dict:
         a fork.
       - False → `additionalProperties: true` (explicit permissive).
     """
+    if strict is None and getattr(contract, "strict_schema", False):
+        strict = True  # CRT180: the contract itself declares strictness
     if strict is None:
         try:
             from opendqv.config import JSON_SCHEMA_STRICT as _default_strict
@@ -40,6 +42,24 @@ def contract_to_jsonschema(contract, strict: bool = None) -> dict:
     # `properties` exactly as before — the response shape only grows
     # `allOf` when conditional rules exist.
     all_of: list[dict[str, Any]] = []
+
+    # CRT180 (review S1): a strict export must accept exactly what the engine
+    # accepts — every declared field (rule targets, cross-field references,
+    # the allow-list) gets a property entry so additionalProperties: false
+    # does not reject a record the engine passes.
+    if strict:
+        from opendqv.core.validator import declared_field_set
+        for declared in sorted(declared_field_set(contract.rules, getattr(contract, "allowed_fields", None))):
+            properties.setdefault(declared, {})
+        # Contexts may add fields; a single context-free strict schema must
+        # accept anything ANY context accepts, so declare the union of every
+        # context's rule targets too (additionalProperties: false then rejects
+        # only fields no context declares).
+        for _ctx_rules in (getattr(contract, "contexts", None) or {}).values():
+            for _d in _ctx_rules or []:
+                _f = _d.get("field") if isinstance(_d, dict) else getattr(_d, "field", None)
+                if _f:
+                    properties.setdefault(_f, {})
 
     for rule in contract.rules:
         field = rule.field
@@ -156,7 +176,7 @@ def _build_conditional_block(rule, field: str, unmapped: list) -> dict | None:
 def _apply_rule(prop: dict, rule, field: str, required: list, unmapped: list) -> None:
     rt = rule.type
 
-    if rt == "not_empty":
+    if rt in ("not_empty", "not_empty_string"):
         if field not in required:
             required.append(field)
         # v2.3.22 Cluster K (N-9): emit minLength: 1 so downstream

@@ -62,11 +62,23 @@ contract:
       error_message: "mprn must be a 6-10 digit MPRN (Meter Point Reference Number)
         — invalid MPRNs cause Xoserve/UK Link gas data flow rejection"
 
+    - name: reading_date_required
+      field: reading_date
+      type: not_empty
+      severity: error
+      error_message: reading_date is required
+
     - name: reading_date_format
       field: reading_date
       type: date_format
       severity: error
       error_message: "reading_date must be a valid date (YYYY-MM-DD)"
+
+    - name: kwh_reading_required
+      field: kwh_reading
+      type: not_empty
+      severity: error
+      error_message: kwh_reading is required
 
     - name: kwh_reading_min
       field: kwh_reading
@@ -104,6 +116,12 @@ contract:
       error_message: "kwh_reading must be >= previous_reading — a lower current
         reading indicates meter rollover, meter replacement, or data entry error.
         All three cases must be resolved before Ofgem settlement submission."
+
+    - name: read_type_required
+      field: read_type
+      type: not_empty
+      severity: error
+      error_message: read_type is required
 
     - name: read_type_values
       description: "Meter read type classification per Ofgem Smart Metering and
@@ -169,6 +187,12 @@ contract:
       error_message: "meter_type must be one of: electricity, gas, heat, solar_export,
         ev_charger"
 
+    - name: reading_unit_required
+      field: reading_unit
+      type: not_empty
+      severity: error
+      error_message: reading_unit is required
+
     - name: reading_unit_valid
       field: reading_unit
       type: allowed_values
@@ -199,6 +223,12 @@ contract:
       error_message: "supply_type must be one of: domestic, sme, i_c, micro_generation,
         unmetered (Ofgem BSC — i_c sites above 100 MWh/year require half-hourly
         settlement)"
+
+    - name: previous_reading_required
+      field: previous_reading
+      type: not_empty
+      severity: error
+      error_message: previous_reading is required
 
     - name: previous_reading_min
       field: previous_reading

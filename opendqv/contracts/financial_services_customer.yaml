@@ -30,6 +30,7 @@ contract:
   approved_by: opendqv-core-team
   approved_at: "2026-04-27T00:00:00+00:00"
   version: "1.0"
+  strict_schema: true
   description: >
     Financial Services customer data quality rules for UK regulated financial services.
     Enforces demographic plausibility controls required under BCBS 239 (risk data
@@ -44,7 +45,7 @@ contract:
   rules:
     - name: account_number_required
       description: Account number must not be empty
-      type: not_empty
+      type: not_empty_string
       field: account_number
       severity: error
       error_message: "Account number is required"
@@ -56,6 +57,12 @@ contract:
       severity: error
       error_message: "Full name is required"
 
+    - name: email_required
+      field: email
+      type: not_empty
+      severity: error
+      error_message: email is required
+
     - name: valid_email
       description: Email must be a valid format
       type: regex
@@ -63,6 +70,12 @@ contract:
       pattern: "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$"
       severity: error
       error_message: "Invalid email format"
+
+    - name: phone_required
+      field: phone
+      type: not_empty
+      severity: error
+      error_message: phone is required
 
     - name: valid_phone
       description: Phone must be in E.164 format (international dialling)
@@ -125,6 +138,12 @@ contract:
       severity: error
       error_message: "Date of birth is outside the plausible range (1905-2099) or is a known sentinel/placeholder value — CDD remediation required"
 
+    - name: postcode_required
+      field: postcode
+      type: not_empty
+      severity: error
+      error_message: postcode is required
+
     - name: valid_uk_postcode
       description: Postcode must not be empty and must match the UK postcode format
       type: regex
@@ -135,6 +154,12 @@ contract:
       pattern: "^[A-Z]{1,2}[0-9][0-9A-Z]?\\s?[0-9][A-Z]{2}$"
       severity: error
       error_message: "Invalid UK postcode format (e.g. SW1A 1AA)"
+
+    - name: ni_number_required
+      field: ni_number
+      type: not_empty
+      severity: error
+      error_message: ni_number is required
 
     - name: valid_ni_number
       description: National Insurance number must match the HMRC-defined format

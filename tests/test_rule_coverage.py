@@ -437,6 +437,8 @@ class TestCompareRuleEdgeCases:
             type="compare", name="c",
             compare_to="missing_field", compare_op="gt",
         )
+        # D10 (conformance register, 2026-09-03): a missing or blank counterpart IS
+        # a comparison failure on both engines and both paths.
         assert result["valid"] is False
 
 
@@ -582,14 +584,16 @@ class TestBatchValidation:
         result = validate_batch(records, [rule], contract_name="test")
         assert result["summary"]["failed"] == 0
 
-    def test_compare_batch_null_other_skipped(self):
+    def test_compare_batch_null_other_fails(self):
         # CRT170/J3: cross-field counterpart absent — compare skips (the
         # comparison cannot be evaluated). A presence rule on the counterpart
         # field is the place to enforce its presence.
         rule = _rule(type="compare", compare_to="other", compare_op="gt")
         records = [{"value": 10, "other": None}]
         result = validate_batch(records, [rule], contract_name="test")
-        assert result["summary"]["failed"] == 0
+        # D10 (2026-09-03): a missing/blank counterpart IS a comparison failure on
+        # both paths and both engines; the batch path used to skip it (the K1 shape).
+        assert result["summary"]["failed"] == 1
 
     def test_compare_batch_missing_field_warns(self):
         """compare_to references a field not in data → warning, no crash."""
@@ -866,12 +870,16 @@ class TestBatchValidation:
         result = validate_batch(records, [rule], contract_name="test")
         assert result["summary"]["failed"] == 1
 
-    def test_field_not_in_data_skipped(self):
-        """Rule field absent from records → skipped (no crash, no failures)."""
+    def test_field_not_in_data_fails_like_single_path(self):
+        """Rule field absent from every record → the presence rule fails on each
+        record, exactly as validate_record does (CRT180 review B6 / K1). The
+        old behaviour — skip the rule, report the batch clean — let a batch
+        that omitted a required field validate green."""
         rule = _rule(type="not_empty", field="ghost_field")
         records = [{"value": "x"}]
         result = validate_batch(records, [rule], contract_name="test")
-        assert result["summary"]["failed"] == 0
+        assert result["summary"]["failed"] == 1
+        assert result["results"][0]["valid"] is validate_record(records[0], [rule])["valid"] is False
 
     def test_multiple_rules_mixed(self):
         """Multiple rules — one passes, one fails per record."""
@@ -1172,11 +1180,13 @@ class TestValidatorEdgeCases:
         r = validate_record({"value": None, "dob": "1999-01-01"}, [rule])
         assert r["valid"]
 
-    def test_age_match_none_dob_passes(self):
-        """age_match with dob_val=None → returns None/skip (line 730)."""
+    def test_age_match_none_dob_fails(self):
+        """D10 (2026-09-03): age_match with the dob counterpart absent FAILS —
+        a cross-field rule cannot hold without its counterpart (both engines,
+        both paths). Before D10 this asserted the skip."""
         rule = _rule(type="age_match", dob_field="dob")
         r = validate_record({"value": 25}, [rule])  # dob field absent
-        assert r["valid"]
+        assert not r["valid"]
 
     def test_age_match_invalid_date_fails(self):
         """age_match with invalid dob format → except branch (lines 739-740)."""
@@ -1417,4 +1427,6 @@ class TestAbsentFieldSkipping:
             {"value": 5, "other": None},
             type="compare", compare_to="other", compare_op="gt",
         )
+        # D10 (conformance register, 2026-09-03): a missing or blank counterpart IS
+        # a comparison failure on both engines and both paths.
         assert result["valid"] is False

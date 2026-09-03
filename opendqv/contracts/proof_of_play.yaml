@@ -20,6 +20,11 @@ contract:
   asset_id: urn:opendqv:proof_of_play
 
   rules:
+    - name: panel_id_required
+      field: panel_id
+      type: not_empty
+      severity: error
+      error_message: panel_id is required
     - name: panel_id_format
       type: regex
       field: panel_id
@@ -50,12 +55,24 @@ contract:
       pattern: "^(CLASSIC|DIGITAL|LED|PROJECTOR|AIRPORT|TRANSIT)$"
       error_message: "panel_type must be one of: CLASSIC, DIGITAL, LED, PROJECTOR, AIRPORT, TRANSIT"
 
+    - name: impression_start_required
+      field: impression_start
+      type: not_empty
+      severity: error
+      error_message: impression_start is required
+
     - name: impression_start_format
       type: regex
       field: impression_start
       pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
       description: "Impression start must be ISO 8601 datetime"
       error_message: "impression_start must be ISO 8601 e.g. 2024-06-01T09:00:00Z"
+
+    - name: impression_end_required
+      field: impression_end
+      type: not_empty
+      severity: error
+      error_message: impression_end is required
 
     - name: impression_end_format
       type: regex
@@ -72,6 +89,12 @@ contract:
       description: "Impression end must be strictly after impression start"
       error_message: "impression_end must be later than impression_start (inverted timestamps cause phantom billing)"
       severity: error
+
+    - name: transaction_type_required
+      field: transaction_type
+      type: not_empty
+      severity: error
+      error_message: transaction_type is required
 
     - name: transaction_type_allowed
       type: regex
@@ -105,6 +128,12 @@ contract:
         value: CHARGE
       error_message: "revenue_gbp > 500000 is unusually high — verify before processing"
 
+    - name: advertiser_id_required
+      field: advertiser_id
+      type: not_empty
+      severity: error
+      error_message: advertiser_id is required
+
     - name: advertiser_id_format
       type: regex
       field: advertiser_id
@@ -120,6 +149,12 @@ contract:
       type: not_empty
       field: campaign_ref
       error_message: "campaign_ref is required"
+
+    - name: dwell_seconds_required
+      field: dwell_seconds
+      type: not_empty
+      severity: error
+      error_message: dwell_seconds is required
 
     - name: dwell_seconds_min
       type: min

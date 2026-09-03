@@ -50,6 +50,12 @@ contract:
       severity: warning
       error_message: "phone should use E.164 format"
 
+    - name: created_date_required
+      field: created_date
+      type: not_empty
+      severity: error
+      error_message: created_date is required
+
     - name: created_date_format
       type: regex
       field: created_date
@@ -65,12 +71,24 @@ contract:
       severity: error
       error_message: "created_date cannot be in the future"
 
+    - name: status_required
+      field: status
+      type: not_empty
+      severity: error
+      error_message: status is required
+
     - name: status_lookup
       type: lookup
       field: status
       lookup_file: "ref/universal_status.txt"
       severity: error
       error_message: "status must be ACTIVE, INACTIVE, PENDING, or SUSPENDED"
+
+    - name: currency_required
+      field: currency
+      type: not_empty
+      severity: error
+      error_message: currency is required
 
     - name: currency_lookup
       type: lookup
@@ -79,6 +97,12 @@ contract:
       severity: error
       error_message: "currency must be a supported ISO 4217 code"
 
+    - name: amount_required
+      field: amount
+      type: not_empty
+      severity: error
+      error_message: amount is required
+
     - name: amount_range
       type: range
       field: amount
@@ -86,6 +110,12 @@ contract:
       max: 1000000
       severity: error
       error_message: "amount must be between 0 and 1,000,000"
+
+    - name: score_required
+      field: score
+      type: not_empty
+      severity: error
+      error_message: score is required
 
     - name: score_range
       type: range

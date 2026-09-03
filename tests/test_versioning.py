@@ -478,6 +478,8 @@ class TestHashDomainCompleteness:
         "reviewed_by", "reviewed_at",
         "approved_by", "approved_at",
         "rejected_by", "rejected_at", "rejection_reason",
+        # CRT180 review B3: snapshot-side strict settings — lifecycle metadata like last_active_snapshot
+        "last_active_strict_schema", "last_active_fields",
     })
 
     def test_every_data_contract_field_classified(self):

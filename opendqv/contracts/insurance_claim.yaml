@@ -39,11 +39,23 @@ contract:
       severity: error
       error_message: "policy_number is required"
 
+    - name: incident_date_required
+      field: incident_date
+      type: not_empty
+      severity: error
+      error_message: incident_date is required
+
     - name: incident_date_format
       field: incident_date
       type: date_format
       severity: error
       error_message: "incident_date must be a valid date (YYYY-MM-DD)"
+
+    - name: claim_date_required
+      field: claim_date
+      type: not_empty
+      severity: error
+      error_message: claim_date is required
 
     - name: claim_date_format
       field: claim_date
@@ -102,12 +114,24 @@ contract:
         life, travel, marine, cyber, professional_indemnity, employers_liability,
         business_interruption, other"
 
+    - name: claimed_amount_required
+      field: claimed_amount
+      type: not_empty
+      severity: error
+      error_message: claimed_amount is required
+
     - name: claimed_amount_min
       field: claimed_amount
       type: min
       min: 0
       severity: error
       error_message: "claimed_amount must be >= 0"
+
+    - name: currency_required
+      field: currency
+      type: not_empty
+      severity: error
+      error_message: currency is required
 
     - name: currency_format
       description: "ISO 4217 three-letter currency code. Required for Lloyd's market

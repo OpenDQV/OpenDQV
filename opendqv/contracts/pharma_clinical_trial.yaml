@@ -67,6 +67,12 @@ contract:
       error_message: "protocol_id does not match ClinicalTrials.gov format (NCT followed
         by 8 digits, e.g. NCT04470427) — verify if using EudraCT or other registry"
 
+    - name: trial_phase_required
+      field: trial_phase
+      type: not_empty
+      severity: error
+      error_message: trial_phase is required
+
     - name: trial_phase_values
       description: "ICH-GCP trial phase classification. Phase 1 = first-in-human safety;
         Phase 2 = proof of concept/dosing; Phase 3 = pivotal efficacy; Phase 4 = post-marketing
@@ -86,11 +92,23 @@ contract:
       error_message: "trial_phase must be one of: phase_1, phase_1_2, phase_2, phase_2_3,
         phase_3, phase_4, observational, expanded_access"
 
+    - name: visit_date_required
+      field: visit_date
+      type: not_empty
+      severity: error
+      error_message: visit_date is required
+
     - name: visit_date_format
       field: visit_date
       type: date_format
       severity: error
       error_message: "visit_date must be a valid date (YYYY-MM-DD)"
+
+    - name: age_required
+      field: age
+      type: not_empty
+      severity: error
+      error_message: age is required
 
     - name: age_range
       field: age
@@ -122,6 +140,12 @@ contract:
       error_message: "gender must be one of: male, female, non_binary, not_disclosed,
         unknown"
 
+    - name: informed_consent_required
+      field: informed_consent
+      type: not_empty
+      severity: error
+      error_message: informed_consent is required
+
     - name: informed_consent_values
       description: "ICH-GCP E6(R2) 4.8 — informed consent is a fundamental requirement.
         A record with informed_consent = 'no' or 'withdrawn' must not proceed to
@@ -138,12 +162,24 @@ contract:
       error_message: "informed_consent must be one of: yes, pending, withdrawn, not_required
         (ICH-GCP E6(R2) 4.8 — informed consent is mandatory before any trial procedure)"
 
+    - name: dose_mg_required
+      field: dose_mg
+      type: not_empty
+      severity: error
+      error_message: dose_mg is required
+
     - name: dose_mg_min
       field: dose_mg
       type: min
       min: 0
       severity: error
       error_message: "dose_mg must be >= 0"
+
+    - name: dose_unit_required
+      field: dose_unit
+      type: not_empty
+      severity: error
+      error_message: dose_unit is required
 
     - name: dose_unit_values
       description: "Standard pharmacological dose units. Prevents free-text unit
@@ -187,6 +223,12 @@ contract:
       error_message: "adverse_event_severity must be one of: none, mild, moderate,
         severe, life_threatening, fatal (MedDRA CTCAE grading — Grade 4/5 triggers
         SAE reporting obligations)"
+
+    - name: collection_date_required
+      field: collection_date
+      type: not_empty
+      severity: error
+      error_message: collection_date is required
 
     - name: collection_date_format
       field: collection_date

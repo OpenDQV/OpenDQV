@@ -12,7 +12,7 @@ import opendqv.config as config
 from opendqv.core._uuid7 import uuid7
 from opendqv.core.contracts import UnknownContextError, _compute_effective_rule_hash
 from opendqv.core.rule_parser import ContractStatus, Rule
-from opendqv.core.validator import validate_record, validate_batch
+from opendqv.core.validator import validate_record, validate_batch, strict_schema_kwargs, declared_field_set
 from opendqv.security.auth import get_current_user, get_current_role
 from opendqv.monitoring import stats
 
@@ -84,6 +84,11 @@ async def validate_single(
                         body.record, snap_rules,
                         contract_name=contract.name, context=body.context,
                         sensitive_fields=getattr(contract, 'sensitive_fields', []),
+                        # CRT180 review B3: the snapshot's OWN strict settings,
+                        # never the live draft's.
+                        **({"strict_schema": True,
+                            "declared_fields": declared_field_set(snap_rules, contract.last_active_fields)}
+                           if contract.last_active_strict_schema else {}),
                     )
                     logger.warning(
                         "draft-fallback contract=%s v%s — serving last-active snapshot",
@@ -128,6 +133,7 @@ async def validate_single(
         contract_name=contract.name,
         context=body.context,
         sensitive_fields=getattr(contract, 'sensitive_fields', []),
+        **strict_schema_kwargs(contract, rules),
     )
 
     elapsed_ms = (time.monotonic() - start) * 1000
@@ -320,6 +326,7 @@ async def validate_batch_endpoint(
         contract_name=contract.name,
         context=body.context,
         sensitive_fields=getattr(contract, 'sensitive_fields', []),
+        **strict_schema_kwargs(contract, rules),
     )
 
     elapsed_ms = (time.monotonic() - start) * 1000
@@ -470,7 +477,7 @@ async def validate_batch_file(
     df = _d._parse_upload(content, filename)
 
     records = df.to_dict(orient="records")
-    result = validate_batch(records, rules)
+    result = validate_batch(records, rules, **strict_schema_kwargs(dc, rules))
 
     return {
         "filename": filename,

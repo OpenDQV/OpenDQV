@@ -56,6 +56,12 @@ contract:
       severity: error
       error_message: "email must be a valid email address"
 
+    - name: ni_number_required
+      field: ni_number
+      type: not_empty
+      severity: error
+      error_message: ni_number is required
+
     - name: ni_number_format
       description: "UK National Insurance number format as validated by HMRC. Two
         prefix letters (with invalid prefix pairs excluded: BG, GB, NK, KN, TN,
@@ -65,7 +71,7 @@ contract:
         number causes RTI rejection and PAYE reconciliation failures."
       field: ni_number
       type: regex
-      pattern: '^(?!BG|GB|NK|KN|TN|NT|ZZ)[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z][0-9]{6}[A-D]$'
+      pattern: '^[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z][0-9]{6}[A-D]$'
       severity: error
       error_message: "ni_number must be a valid UK National Insurance number
         (e.g. AB123456C) — invalid NI numbers cause HMRC RTI payroll rejection"
@@ -82,11 +88,23 @@ contract:
       severity: error
       error_message: "job_title is required"
 
+    - name: start_date_required
+      field: start_date
+      type: not_empty
+      severity: error
+      error_message: start_date is required
+
     - name: start_date_format
       field: start_date
       type: date_format
       severity: error
       error_message: "start_date must be a valid date (YYYY-MM-DD)"
+
+    - name: salary_required
+      field: salary
+      type: not_empty
+      severity: error
+      error_message: salary is required
 
     - name: salary_min
       field: salary
@@ -171,6 +189,12 @@ contract:
         maternity_leave, paternity_leave, sick_leave, gardening_leave,
         notice_period, suspended, terminated, retired"
 
+    - name: right_to_work_status_required
+      field: right_to_work_status
+      type: not_empty
+      severity: error
+      error_message: right_to_work_status is required
+
     - name: right_to_work_values
       description: "Right-to-work classification under the Immigration Act 2014
         and Immigration, Asylum and Nationality Act 2006. Employers face a civil
@@ -192,3 +216,11 @@ contract:
         verified_eu_settled, verified_visa, verified_share_code, pending_verification,
         not_required, expired — unverified employees expose the employer to civil
         penalties up to £60,000 (Immigration Act 2014)"
+    - name: ni_number_not_reserved_prefix
+      description: 'Rejects NI numbers using any of the 7 HMRC-reserved 2-letter prefixes (BG, GB, NK, KN, TN, NT, ZZ). These prefixes are never issued to real taxpayers and their use in payroll submissions triggers HMRC RTI rejection. Paired with ni_number_format — together they implement the full HMRC validity check. Split from a single pattern because negative lookahead `(?!...)` is not portable across regex engines (RE2-class engines reject it); the `negate: true` flag achieves the same semantics portably.'
+      field: ni_number
+      type: regex
+      pattern: ^(BG|GB|NK|KN|TN|NT|ZZ)
+      negate: true
+      severity: error
+      error_message: ni_number uses an HMRC-reserved prefix (BG, GB, NK, KN, TN, NT, or ZZ) — these are never issued to real taxpayers and will be rejected by HMRC RTI

@@ -43,6 +43,14 @@ def _safe_match(compiled_pattern, str_val: str) -> bool:
     """
     Apply a compiled regex pattern to str_val with ReDoS protection.
 
+    Semantics are UNANCHORED SEARCH (review round 2, S4): the pattern may
+    match anywhere in the value, exactly as ODCS `pattern`, JSON Schema
+    `pattern`, RE2 and every code-generation target read it. Anchor with
+    `^` / `$` in the pattern to pin the ends; the linter names patterns
+    that do not start with `^`. (Until v2.4.x this was `re.match`, which
+    silently anchored the start and made every portable export looser than
+    the engine.)
+
     If the `regex` library is available, enforces _REGEX_TIMEOUT seconds.
     On timeout, returns False (treat as no-match / validation failure) and
     logs a warning so operators can identify pathological patterns.
@@ -51,16 +59,16 @@ def _safe_match(compiled_pattern, str_val: str) -> bool:
     if _HAS_REGEX_LIB:
         try:
             if isinstance(compiled_pattern, _regex_lib.Pattern):
-                return bool(compiled_pattern.match(str_val, timeout=_REGEX_TIMEOUT))
+                return bool(compiled_pattern.search(str_val, timeout=_REGEX_TIMEOUT))
             # Fallback: re.Pattern passed in (e.g. from validator.py line 354) — match via regex lib
-            return bool(_regex_lib.match(compiled_pattern.pattern, str_val, timeout=_REGEX_TIMEOUT))
+            return bool(_regex_lib.search(compiled_pattern.pattern, str_val, timeout=_REGEX_TIMEOUT))
         except TimeoutError:
             logger.warning(
                 "regex_timeout pattern=%r input_length=%d — treating as no-match",
                 compiled_pattern.pattern, len(str_val),
             )
             return False
-    return bool(compiled_pattern.match(str_val))
+    return bool(compiled_pattern.search(str_val))
 
 import duckdb
 import pandas as pd
@@ -144,6 +152,80 @@ class FieldError:
 
 # ── Single-record validation (pure Python, no DuckDB) ───────────────
 
+# ── CRT180: strict schema — declared-field set + kwargs helper ───────────
+_CROSS_FIELD_ATTRS = (
+    "compare_to", "date_diff_field", "cross_min_field", "cross_max_field",
+    "ratio_numerator", "ratio_denominator", "geo_lon_field", "dob_field",
+)
+_CONDITION_ATTRS = ("required_if", "forbidden_if", "condition")
+
+
+def declared_field_set(rules: list, extra_fields: list | None = None) -> set[str]:
+    """Every field name a contract declares — the strict-schema allow-list.
+
+    A field is declared when any rule targets it, references it across
+    fields (compare_to, date_diff_field, cross_min/max_field, ratio
+    numerator/denominator, geo_lon_field, dob_field, sum_fields, group_by,
+    or the `field` key of required_if / forbidden_if / condition), or when
+    it is listed in the contract's `allowed_fields:` allow-list. The calendar
+    sentinels `today` / `now` are not field names.
+    """
+    declared: set[str] = set()
+
+    def add(name):
+        if isinstance(name, str) and name and name not in ("today", "now"):
+            declared.add(name)
+
+    for rule in rules or []:
+        add(getattr(rule, "field", None))
+        for attr in _CROSS_FIELD_ATTRS:
+            add(getattr(rule, attr, None))
+        for attr in ("sum_fields", "group_by"):
+            for name in getattr(rule, attr, None) or []:
+                add(name)
+        for attr in _CONDITION_ATTRS:
+            spec = getattr(rule, attr, None)
+            if isinstance(spec, dict):
+                add(spec.get("field"))
+    for name in extra_fields or []:
+        add(name)
+    return declared
+
+
+def strict_schema_kwargs(contract, rules: list) -> dict:
+    """Keyword arguments for validate_record / validate_batch from a contract.
+
+    Empty for non-strict contracts, so call sites can splat it unconditionally.
+    """
+    if not getattr(contract, "strict_schema", False):
+        return {}
+    return {
+        "strict_schema": True,
+        "declared_fields": declared_field_set(rules, getattr(contract, "allowed_fields", None)),
+    }
+
+
+def _additional_properties_error(record: dict, declared_fields: set | None) -> dict | None:
+    unknown = sorted(k for k in record if k not in (declared_fields or set()))
+    if not unknown:
+        return None
+    shown = unknown[:10]
+    quoted = ", ".join(f'"{u}"' for u in shown)
+    if len(unknown) > len(shown):
+        quoted += f" and {len(unknown) - len(shown)} more"
+    entry = FieldError(
+        field="",
+        rule="additional_properties",
+        message=(
+            f"record contains {len(unknown)} unknown field(s) not declared in the contract: {quoted}"
+        ),
+        severity=Severity.ERROR.value,
+        error_code="OPENDQV_ADDITIONAL_PROPERTIES",
+    ).to_dict()
+    entry["unknown_fields"] = unknown  # full list, structured (review S2)
+    return entry
+
+
 def validate_record(
     record: dict,
     rules: list[Rule],
@@ -151,6 +233,8 @@ def validate_record(
     context: Optional[str] = None,
     record_index: int = 0,
     sensitive_fields: Optional[list] = None,
+    strict_schema: bool = False,
+    declared_fields: set | None = None,
 ) -> dict:
     """
     Validate a single record against rules. Pure Python — no DataFrame, no DuckDB.
@@ -164,6 +248,13 @@ def validate_record(
     """
     errors = []
     warnings = []
+
+    # CRT180: strict schema — undeclared fields are rejected before any rule
+    # runs, naming every unknown field so the producer sees all of them at once.
+    if strict_schema:
+        extra = _additional_properties_error(record, declared_fields)
+        if extra:
+            errors.append(extra)
 
     for rule in rules:
         value = record.get(rule.field)
@@ -461,8 +552,18 @@ def _semver_tuple(v):
 # date_format, compare, checksum, lookup, geospatial_bounds, age_match,
 # cross_field_range, conditional_lookup) skip when the field is absent
 # (None or whitespace-only string). The presence-class rules (not_empty,
-# required_if) are the single catcher for absence — this prevents
+# not_empty_string, required_if) are the single catcher for absence — this prevents
 # double-firing on missing fields.
+
+# Presence-class rules are the ONLY rules that fire on an absent or blank
+# value; every other rule skips it (D6, normative — review round 2 B2 made
+# this structural rather than per-handler). Shared with the linter.
+_PRESENCE_RULE_TYPES = frozenset({"not_empty", "not_empty_string", "required_if"})
+# Rules that must still see an absent value: presence rules, conditional_value
+# ("must equal X" — absent is a violation on both engines) and unique (a
+# set-based rule evaluated on the batch frame, never on one value).
+_ABSENT_EXEMPT_RULE_TYPES = _PRESENCE_RULE_TYPES | frozenset({"conditional_value", "unique"})
+
 
 def _is_field_absent(value) -> bool:
     """Field has no meaningful value to characterize for format-class rules."""
@@ -473,10 +574,71 @@ def _is_field_absent(value) -> bool:
     return False
 
 
+def _batch_absent(val) -> bool:
+    """Batch-path twin of _is_field_absent: None, NaN, or a blank string.
+
+    The two must agree or validate_record and validate_batch drift on blank
+    values (D6) — the conformance generator refuses to emit a corpus when
+    they do.
+    """
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return True
+    return isinstance(val, str) and val.strip() == ""
+
+
 def _check_not_empty(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if _is_field_absent(value):
         return rule.error_message
     return None
+
+
+def _check_not_empty_string(value, rule: Rule, record: dict | None = None) -> str | None:
+    """Presence + JSON-string type guard (CRT180 contract-format conformance).
+
+    Unlike not_empty, a non-string value is never coerced: 0, false, [] and
+    {} are rejected — under this rule's own error code, with a typed
+    message — rather than silently stringified into "0" / "False" / "[]"
+    and passed. Absent, null and
+    whitespace-only values fail with the rule's own message.
+    """
+    if value is None:
+        return rule.error_message
+    if not isinstance(value, str):
+        # Reported under the rule's own error code (not OPENDQV_TYPE_MISMATCH):
+        # the type guard IS this rule's assertion, so the code stays routable
+        # to the rule — matches the managed engine, which shipped this type
+        # first (cross-engine fixture run, CRT180).
+        return _not_empty_string_type_message(rule.field, value)
+    if value.strip() == "":
+        return rule.error_message
+    return None
+
+
+def _not_empty_string_type_message(field: str, value) -> str:
+    return (
+        f'field "{field}" must be a JSON string, got {_json_type_name(value)} — '
+        "send the value as a quoted string to preserve canonical form "
+        "(e.g. leading zeros: \"00012345\", not 12345)"
+    )
+
+
+def _json_type_name(value) -> str:
+    """JSON type name of a Python value (string/number/boolean/array/object/null).
+
+    Engine-generated messages name the JSON type, never the Python type, so
+    the wording is the same whichever engine produced it.
+    """
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, (int, float)):
+        return "number"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    return "null" if value is None else type(value).__name__
 
 
 def _check_regex(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
@@ -531,7 +693,7 @@ def _type_mismatch_msg(rule: Rule, value) -> str:
     return (
         f"{_TYPE_MISMATCH_PREFIX}"
         f"{rule.type} rule on field '{rule.field}' expected numeric "
-        f"value, got {type(value).__name__}"
+        f"value, got {_json_type_name(value)}"
     )
 
 
@@ -607,9 +769,18 @@ def _check_range(value, rule: Rule, record: Optional[dict] = None) -> Optional[s
     return None
 
 
+def _length_type_message(field: str, value) -> str:
+    return (
+        f'length rule on field "{field}" expects a JSON string, got {_json_type_name(value)} — '
+        "use min/max for numeric bounds, or send the value as a quoted string"
+    )
+
+
 def _check_min_length(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if _is_field_absent(value):
         return None
+    if not isinstance(value, str):
+        return _length_type_message(rule.field, value)  # D9: refuse, never coerce
     str_val = str(value)
     if len(str_val) < (rule.min_length or 0):
         return rule.error_message
@@ -619,6 +790,8 @@ def _check_min_length(value, rule: Rule, record: Optional[dict] = None) -> Optio
 def _check_max_length(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if _is_field_absent(value):
         return None
+    if not isinstance(value, str):
+        return _length_type_message(rule.field, value)  # D9: refuse, never coerce
     str_val = str(value)
     if len(str_val) > (rule.max_length or 99999):
         return rule.error_message
@@ -703,8 +876,8 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
             other = datetime.now(timezone.utc).isoformat()
     else:
         other = (record or {}).get(rule.compare_to)
-        if other is None:
-            return rule.error_message
+        if _is_field_absent(other):
+            return rule.error_message  # D10: a missing/blank counterpart IS a comparison failure (both engines)
 
     # v2.3.20 Cluster C (P1.2): same_date compare_op extracts the
     # YYYY-MM-DD portion from each side before comparing. Catches the
@@ -771,8 +944,8 @@ def _check_required_if(value, rule: Rule, record: Optional[dict] = None) -> Opti
 def _check_allowed_values(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if not rule.allowed_values:
         return None
-    if value is None:
-        return None
+    if _is_field_absent(value):
+        return None  # D6: blank is absent — presence rules are the single catcher
     allowed = [str(v) for v in rule.allowed_values]
     if str(value) not in allowed:
         return rule.error_message
@@ -783,8 +956,8 @@ def _check_lookup(value, rule: Rule, record: Optional[dict] = None) -> Optional[
     if not rule.lookup_file:
         logger.warning("lookup rule '%s' missing lookup_file", rule.name)
         return None
-    if value is None:
-        return None
+    if _is_field_absent(value):
+        return None  # D6: blank is absent — presence rules are the single catcher
     try:
         if rule.lookup_file.startswith("http://") or rule.lookup_file.startswith("https://"):
             ttl = rule.cache_ttl if rule.cache_ttl is not None else _HTTP_LOOKUP_DEFAULT_TTL
@@ -803,12 +976,21 @@ def _check_lookup(value, rule: Rule, record: Optional[dict] = None) -> Optional[
     return None
 
 
+def _checksum_type_message(field: str, value) -> str:
+    return (
+        f'checksum field "{field}" must be a JSON string, got {_json_type_name(value)} — '
+        "send the identifier as a quoted string to preserve canonical form (e.g. leading zeros)"
+    )
+
+
 def _check_checksum(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if not rule.checksum_algorithm:
         logger.warning("checksum rule '%s' missing checksum_algorithm", rule.name)
         return None
     if _is_field_absent(value):
         return None
+    if not isinstance(value, str):
+        return _checksum_type_message(rule.field, value)  # D9 family: refuse, never coerce
     if not _validate_checksum(str(value), rule.checksum_algorithm):
         return rule.error_message
     return None
@@ -839,7 +1021,9 @@ def _check_field_sum(value, rule: Rule, record: Optional[dict] = None) -> Option
         return None
     rec = record or {}
     try:
-        total = sum(float(rec.get(f, 0) or 0) for f in rule.sum_fields)
+        if any(_is_field_absent(rec.get(f)) for f in rule.sum_fields):
+            return rule.error_message  # D10: absent/blank counterpart → the rule fails
+        total = sum(float(rec.get(f)) for f in rule.sum_fields)
         tolerance = rule.sum_tolerance if rule.sum_tolerance is not None else 0.0
         if abs(total - rule.sum_equals) > tolerance:
             return rule.error_message
@@ -872,11 +1056,11 @@ def _check_date_diff(value, rule: Rule, record: Optional[dict] = None) -> Option
     if not rule.date_diff_field:
         logger.warning("date_diff rule '%s' missing date_diff_field", rule.name)
         return None
-    if value is None:
-        return None  # field absent — skip date_diff; required check is a separate rule
+    if _is_field_absent(value):
+        return None  # field absent or blank (D6) — skip date_diff; required check is a separate rule
     other_val = (record or {}).get(rule.date_diff_field)
-    if other_val is None:
-        return rule.error_message
+    if _is_field_absent(other_val):
+        return rule.error_message  # D10: a missing/blank counterpart IS a date_diff failure (both engines)
     try:
         d1 = _parse_date(value)
         d2 = _parse_date(other_val)
@@ -903,8 +1087,12 @@ def _check_ratio_check(value, rule: Rule, record: Optional[dict] = None) -> Opti
         return None
     rec = record or {}
     try:
-        num = float(rec.get(rule.ratio_numerator, 0) or 0)
-        den = float(rec.get(rule.ratio_denominator, 0) or 0)
+        num_raw = rec.get(rule.ratio_numerator)
+        den_raw = rec.get(rule.ratio_denominator)
+        if _is_field_absent(num_raw) or _is_field_absent(den_raw):
+            return rule.error_message  # D10: absent/blank counterpart → the rule fails
+        num = float(num_raw)
+        den = float(den_raw)
         if den == 0:
             return rule.error_message
         ratio = num / den
@@ -979,8 +1167,8 @@ def _check_age_match(value, rule: Rule, record: Optional[dict] = None) -> Option
     if _is_field_absent(value):
         return None
     dob_val = (record or {}).get(rule.dob_field)
-    if dob_val is None:
-        return None  # dob_required covers absence
+    if _is_field_absent(dob_val):
+        return rule.error_message  # D10: absent/blank counterpart → the rule fails (both engines)
     try:
         declared = int(float(value))
         dob = datetime.strptime(str(dob_val), "%Y-%m-%d")
@@ -997,6 +1185,7 @@ def _check_age_match(value, rule: Rule, record: Optional[dict] = None) -> Option
 # ── Dispatch table — single source of truth for known rule types ────────
 _RULE_HANDLERS: dict[str, Callable] = {
     "not_empty": _check_not_empty,
+    "not_empty_string": _check_not_empty_string,
     "regex": _check_regex,
     "min": _check_min,
     "max": _check_max,
@@ -1030,6 +1219,11 @@ def _check_rule(value, rule: Rule, record: Optional[dict] = None) -> Optional[st
     """
     if rule.cached_has_condition and not _check_condition(rule, record):
         return None  # condition not met — rule is inapplicable for this record
+
+    # D6, structural: no non-presence rule ever fires on an absent/blank value.
+    # Handlers may still guard individually; this is the guarantee.
+    if rule.type not in _ABSENT_EXEMPT_RULE_TYPES and _is_field_absent(value):
+        return None
 
     handler = _RULE_HANDLERS.get(rule.type)
     if handler is None:
@@ -1372,6 +1566,8 @@ def validate_batch(
     contract_name: str = "",
     context: Optional[str] = None,
     sensitive_fields: Optional[list] = None,
+    strict_schema: bool = False,
+    declared_fields: set | None = None,
 ) -> dict:
     """
     Validate a batch of records using DuckDB for performance.
@@ -1393,6 +1589,20 @@ def validate_batch(
 
     total = len(records)
     df = pd.DataFrame(records)
+    # CRT180 review B6 (K1): a rule whose field no record carries used to be
+    # skipped entirely — a batch that omitted a required field validated
+    # clean while each record single-validated was rejected. Materialise the
+    # column as NULL so every rule sees exactly what validate_record sees:
+    # presence-class rules fail, format-class rules skip the absent value.
+    # Review round 2 B4: cross-field counterparts (compare_to, date_diff_field,
+    # …) must be materialised too, or a batch missing the counterpart column
+    # validates clean where the single path fails. declared_field_set collects
+    # exactly the declared names; the sentinels are not columns.
+    synthesised: set[str] = set()
+    for _f in declared_field_set(rules) - {"today", "now"}:
+        if _f not in df.columns:
+            df[_f] = None
+            synthesised.add(_f)
     df["__idx__"] = range(total)
 
     con = duckdb.connect()
@@ -1402,19 +1612,26 @@ def validate_batch(
         # Per-row results: index -> {"errors": [], "warnings": []}
         row_results = {i: {"errors": [], "warnings": []} for i in range(total)}
 
+        # CRT180: strict schema — same per-record check as the single path.
+        if strict_schema:
+            for i, rec in enumerate(records):
+                extra = _additional_properties_error(rec if isinstance(rec, dict) else {}, declared_fields)
+                if extra:
+                    row_results[i]["errors"].append(extra)
+
         for rule in rules:
-            if rule.field not in df.columns:
-                logger.info("Skipping rule '%s' — field '%s' not in data", rule.name, rule.field)
-                continue
+            # (round-2 S7) every declared field is materialised above, so a
+            # rule's field is always a column here; the old "skip if column
+            # missing" branch was the K1 fail-open and is gone.
 
             # v2.3.23 outside-review #3: type-mismatch indices populated
             # by min/max/range branches of _batch_check_rule.
             failing_type_mismatches: dict[int, str] = {}
+            failing_messages: dict[int, str] = {}
             try:
                 failing_indices = _batch_check_rule(
                     con, df, rule, failing_type_mismatches=failing_type_mismatches,
-                    records=records,
-                )
+                    records=records, failing_messages=failing_messages, synthesised=synthesised)
             except Exception as e:
                 # Log only rule metadata — never include record field values.
                 logger.error("Error evaluating rule '%s' (field='%s'): %s", rule.name, rule.field, e)
@@ -1463,6 +1680,8 @@ def validate_batch(
                         "severity": rule.severity.value,
                         "error_code": "OPENDQV_TYPE_MISMATCH",
                     }
+                elif idx in failing_messages:
+                    row_entry = {**entry_template, "message": failing_messages[idx]}
                 else:
                     row_entry = entry_template
                 if rule.severity == Severity.ERROR:
@@ -1524,7 +1743,45 @@ def validate_batch(
     }
 
 
-def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches: Optional[dict] = None, records: Optional[list[dict]] = None) -> set[int]:
+# Rule types with a native DuckDB/pandas branch in _batch_check_rule_inner.
+# Anything else goes through the per-record fallback (single-path handler).
+_BATCH_BRANCH_TYPES = frozenset({
+    "allowed_values", "checksum", "compare", "conditional_value", "cross_field_range", "date_diff",
+    "date_format", "field_sum", "forbidden_if", "geospatial_bounds", "lookup", "max_length", "max",
+    "min_length", "min", "not_empty_string", "not_empty", "range", "ratio_check", "regex",
+    "required_if", "unique",
+})
+
+
+def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches: dict | None = None, records: list[dict] | None = None, failing_messages: dict | None = None, synthesised: set | None = None) -> set[int]:
+    """Batch twin of _check_rule with the same structural guarantee (D6):
+    rows whose value for the rule's field is absent or blank never fail a
+    non-presence rule, whatever the per-type branch did. Set-based rules
+    (unique) on a synthesised column are skipped — a column nobody sent
+    cannot carry duplicates (review round 2, B2/B5)."""
+    synthesised = synthesised or set()
+    if rule.type == "unique" and rule.field in synthesised:
+        return set()  # a column nobody sent cannot carry duplicates
+    failing = _batch_check_rule_inner(con, df, rule, failing_type_mismatches, records, failing_messages, synthesised)
+    if rule.type not in _ABSENT_EXEMPT_RULE_TYPES and rule.field and rule.field in df.columns:
+        # Judge absence from the RAW record when available: pandas stores a
+        # missing key and an explicit NaN identically, and an explicit NaN/inf
+        # on a numeric rule must stay a rejection (test_crt177).
+        if records is not None:
+            absent = {i for i in range(len(df)) if rule.field not in records[i] or _is_field_absent(records[i].get(rule.field))}
+        else:
+            col = df[rule.field]
+            absent = {i for i in range(len(df)) if _batch_absent(col.iloc[i])}
+        if absent:
+            failing = {i for i in failing if i not in absent}
+            for d in (failing_type_mismatches, failing_messages):
+                if d:
+                    for i in absent:
+                        d.pop(i, None)
+    return failing
+
+
+def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches: dict | None = None, records: list[dict] | None = None, failing_messages: dict | None = None, synthesised: set | None = None) -> set[int]:
     """Run a single rule against the batch via DuckDB. Returns set of failing row indices.
 
     v2.3.23 outside-review #3 (Sonnet aec401d0381905d97): for numeric
@@ -1542,10 +1799,28 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
     record semantics exactly — missing key → None → absent → pass;
     explicit NaN/inf → rejected as non-finite.
     """
+    synthesised = synthesised or set()
     field = rule.field
     failing = set()
     if failing_type_mismatches is None:
         failing_type_mismatches = {}
+    if failing_messages is None:
+        failing_messages = {}
+    if rule.type not in _BATCH_BRANCH_TYPES:
+        # Round-2 pattern-closer: a rule type with no native batch branch is
+        # evaluated per record with the single-path handler, so single/batch
+        # parity holds by construction for every present and future type.
+        # (age_match and conditional_lookup had no branch and passed silently.)
+        for idx in range(len(df)):
+            rec = records[idx] if records is not None else {c: df[c].iloc[idx] for c in df.columns if c != "__idx__"}
+            msg = _check_rule(rec.get(field), rule, rec)
+            if msg:
+                failing.add(idx)
+                if msg != rule.error_message:
+                    failing_messages[idx] = msg
+        # no early return: the min_age/max_age add-on at the tail applies to
+        # every rule type, exactly as validate_record applies _check_age after
+        # the type check.
 
     def _orig_val(idx):
         # Numeric branches read the raw record value so a missing key
@@ -1566,7 +1841,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
         compiled = rule.compiled_pattern or re.compile(rule.pattern)
         for idx, val in enumerate(df[field]):
             # CRT170/J3: skip absent fields (not_empty is the catcher).
-            if val is None or (isinstance(val, float) and pd.isna(val)):
+            if _batch_absent(val):  # D6: absent or blank
                 continue
             str_val = str(val)
             if str_val.strip() == "":
@@ -1612,19 +1887,61 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
                     failing_type_mismatches[idx] = failure
 
     elif rule.type == "not_empty":
-        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NULL OR TRIM(CAST("{field}" AS VARCHAR)) = ''"""
-        for r in con.execute(query).fetchall():
-            failing.add(r[0])
+        # Read the raw record value and use the single path's absence test:
+        # SQL TRIM strips spaces only, so a tab/newline-only value passed the
+        # batch check while the single path rejected it (round-2 B2 matrix).
+        for idx in range(len(df)):
+            if _batch_absent(_orig_val(idx)):
+                failing.add(idx)
+
+    elif rule.type == "not_empty_string":
+        # CRT180: presence + string-type guard. Read the raw record value —
+        # pandas collapses types inside object columns. Non-string values fail
+        # under the rule's own code (single-record parity).
+        for idx in range(len(df)):
+            val = _orig_val(idx)
+            if _batch_absent(val):  # D6: absent or blank
+                failing.add(idx)
+            elif not isinstance(val, str):
+                failing.add(idx)
+                # rule's own code, typed message — identical to the single path (review B5)
+                failing_messages[idx] = _not_empty_string_type_message(field, val)
+            elif val.strip() == "":
+                failing.add(idx)
 
     elif rule.type == "min_length" and rule.min_length is not None:
+        # D9: a non-string value is refused under the rule's own code with a
+        # typed message (never coerced to its decimal rendering) — same on
+        # the single path. Strings go through the SQL length check.
+        typed = set()
+        for idx in range(len(df)):
+            raw = _orig_val(idx)
+            if raw is not None and not _batch_absent(raw) and not isinstance(raw, str):
+                typed.add(idx)
+                if failing_messages is not None:
+                    failing_messages[idx] = _length_type_message(field, raw)
+        failing.update(typed)
         query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != '' AND LENGTH(CAST("{field}" AS VARCHAR)) < {rule.min_length}"""
         for r in con.execute(query).fetchall():
-            failing.add(r[0])
+            if r[0] not in typed:
+                failing.add(r[0])
 
     elif rule.type == "max_length" and rule.max_length is not None:
+        # D9: a non-string value is refused under the rule's own code with a
+        # typed message (never coerced to its decimal rendering) — same on
+        # the single path. Strings go through the SQL length check.
+        typed = set()
+        for idx in range(len(df)):
+            raw = _orig_val(idx)
+            if raw is not None and not _batch_absent(raw) and not isinstance(raw, str):
+                typed.add(idx)
+                if failing_messages is not None:
+                    failing_messages[idx] = _length_type_message(field, raw)
+        failing.update(typed)
         query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != '' AND LENGTH(CAST("{field}" AS VARCHAR)) > {rule.max_length}"""
         for r in con.execute(query).fetchall():
-            failing.add(r[0])
+            if r[0] not in typed:
+                failing.add(r[0])
 
     elif rule.type == "date_format":
         # Parity with the single-record path: honour the contract's
@@ -1651,7 +1968,9 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
     elif rule.type == "unique":
         if rule.group_by:
             # Unique within groups — duplicates within same group_by values
-            valid_cols = [g for g in rule.group_by if g in df.columns]
+            # A synthesised (never sent) group_by column is not a valid group key —
+            # the pre-existing fallback to global uniqueness applies (round-2 B5).
+            valid_cols = [g for g in rule.group_by if g in df.columns and g not in synthesised]
             if valid_cols:
                 # Single-pass grouping — O(n) instead of O(n²)
                 groups: dict[tuple, list[int]] = defaultdict(list)
@@ -1708,7 +2027,8 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
                     b_raw = df[rule.compare_to].iloc[idx]
                 if a_raw is None or (isinstance(a_raw, float) and pd.isna(a_raw)):
                     continue
-                if not is_temporal_sentinel and (b_raw is None or (isinstance(b_raw, float) and pd.isna(b_raw))):
+                if not is_temporal_sentinel and _batch_absent(b_raw):
+                    failing.add(idx)  # D10: missing/blank counterpart → fail, as the single path
                     continue
                 a_str = str(a_raw)[:10]
                 b_str = str(b_raw)[:10]
@@ -1734,8 +2054,8 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
                     if a_raw is None or (isinstance(a_raw, float) and pd.isna(a_raw)):
                         # CRT170/J3: absent field — skip (not_empty is the catcher).
                         continue
-                    if not is_temporal_sentinel and (b_raw is None or (isinstance(b_raw, float) and pd.isna(b_raw))):
-                        # CRT170/J3: cross-field counterpart absent — skip.
+                    if not is_temporal_sentinel and _batch_absent(b_raw):
+                        failing.add(idx)  # D10: missing/blank counterpart → fail, as the single path
                         continue
                     try:
                         a, b = float(a_raw), float(b_raw)
@@ -1760,19 +2080,23 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
             logger.warning("required_if rule '%s' references missing trigger field '%s'",
                            rule.name, trigger_field)
         else:
-            query = (
-                f'SELECT __idx__ FROM data '
-                f'WHERE CAST("{trigger_field}" AS VARCHAR) = $trigger_val '
-                f'AND ("{field}" IS NULL OR CAST("{field}" AS VARCHAR) = \'\')'
-            )
-            for r in con.execute(query, {"trigger_val": trigger_value}).fetchall():
+            # Single-path parity: the trigger is compared as a string and the
+            # target's absence uses _batch_absent (blank/whitespace = missing),
+            # not a SQL empty-string compare (round-2 B2 matrix).
+            for idx in range(len(df)):
+                trig = df[trigger_field].iloc[idx]
+                if trig is None or (isinstance(trig, float) and pd.isna(trig)):
+                    continue
+                if str(trig) == trigger_value and _batch_absent(_orig_val(idx)):
+                    failing.add(idx)
+            for r in ():
                 failing.add(r[0])
 
     elif rule.type == "allowed_values" and rule.allowed_values:
         allowed = {str(v) for v in rule.allowed_values}
         for idx in range(len(df)):
             val = df[field].iloc[idx]
-            if val is not None and not (isinstance(val, float) and pd.isna(val)):
+            if not _batch_absent(val):  # D6: blank is absent
                 if str(val) not in allowed:
                     failing.add(idx)
 
@@ -1785,8 +2109,8 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
                 valid_values = _load_lookup_set(rule.lookup_file, rule.lookup_field or "")
             for idx in range(len(df)):
                 val = df[field].iloc[idx]
-                if val is None or (isinstance(val, float) and pd.isna(val)):
-                    # CRT170/J3: absent field — skip (not_empty is the catcher).
+                if _batch_absent(val):
+                    # CRT170/J3 + D6: absent or blank field — skip (not_empty is the catcher).
                     continue
                 elif rule.all_of and isinstance(val, list):
                     if any(str(item) not in valid_values for item in val):
@@ -1800,24 +2124,31 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
             logger.error("lookup rule '%s' blocked by SEC-011 policy: %s", rule.name, exc)
             for idx in range(len(df)):
                 val = df[field].iloc[idx]
-                if val is None or (isinstance(val, float) and pd.isna(val)):
+                if _batch_absent(val):  # D6: absent or blank
                     continue
                 failing.add(idx)
         except (FileNotFoundError, KeyError, OSError, RuntimeError) as exc:
             logger.warning("lookup rule '%s' skipped (infrastructure error, not failing batch): %s", rule.name, exc)
 
     elif rule.type == "checksum" and rule.checksum_algorithm:
-        for idx, val in enumerate(df[field]):
-            if val is None or (isinstance(val, float) and pd.isna(val)):
-                # CRT170/J3: absent field — skip.
+        for idx in range(len(df)):
+            raw = _orig_val(idx)
+            if _batch_absent(raw):  # D6: absent or blank
                 continue
-            elif not _validate_checksum(str(val), rule.checksum_algorithm):
+            if not isinstance(raw, str):
+                # D9 family: a non-string identifier is refused with a typed
+                # message under the rule's own code (single-path parity).
+                failing.add(idx)
+                if failing_messages is not None:
+                    failing_messages[idx] = _checksum_type_message(field, raw)
+                continue
+            if not _validate_checksum(raw, rule.checksum_algorithm):
                 failing.add(idx)
 
     elif rule.type == "cross_field_range":
         for idx in range(len(df)):
             val = df[field].iloc[idx]
-            if val is None or (isinstance(val, float) and pd.isna(val)):
+            if _batch_absent(val):  # D6: absent or blank
                 # CRT170/J3: absent field — skip.
                 continue
             try:
@@ -1858,7 +2189,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
                 f'SELECT __idx__ FROM data '
                 f'WHERE CAST("{trigger_field}" AS VARCHAR) = $trigger_val '
                 f'AND "{field}" IS NOT NULL '
-                f'AND CAST("{field}" AS VARCHAR) != \'\''
+                f'AND TRIM(CAST("{field}" AS VARCHAR)) != \'\''
             )
             for r in con.execute(query, {"trigger_val": trigger_value}).fetchall():
                 failing.add(r[0])
@@ -1880,11 +2211,11 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
             for idx in range(len(df)):
                 val = df[field].iloc[idx]
                 other_val = df[rule.date_diff_field].iloc[idx]
-                if val is None or (isinstance(val, float) and pd.isna(val)):
-                    # CRT170/J3: target field absent — skip (not_empty is the catcher).
+                if _batch_absent(val):
+                    # CRT170/J3 + D6: target field absent or blank — skip (not_empty is the catcher).
                     continue
-                if other_val is None or (isinstance(other_val, float) and pd.isna(other_val)):
-                    # Cross-field counterpart absent — fail (the diff cannot be computed).
+                if _batch_absent(other_val):
+                    # D10: missing/blank counterpart → fail, as the single path (both engines).
                     failing.add(idx)
                     continue
                 try:
@@ -1927,7 +2258,7 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
     elif rule.type == "geospatial_bounds":
         for idx in range(len(df)):
             val = df[field].iloc[idx]
-            if val is None or (isinstance(val, float) and pd.isna(val)):
+            if _batch_absent(val):  # D6: absent or blank
                 # CRT170/J3: absent field — skip (not_empty is the catcher).
                 continue
             try:

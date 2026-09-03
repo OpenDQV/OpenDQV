@@ -91,6 +91,11 @@ contract:
     inherited: false
     negate: false
     all_of: false
+  - name: harvest_date_required
+    field: harvest_date
+    type: not_empty
+    severity: error
+    error_message: harvest_date is required
   - name: harvest_date_format
     description: ''
     type: date_format
@@ -100,6 +105,11 @@ contract:
     inherited: false
     negate: false
     all_of: false
+  - name: weight_kg_required
+    field: weight_kg
+    type: not_empty
+    severity: error
+    error_message: weight_kg is required
   - name: weight_kg_min
     description: ''
     type: min
@@ -119,6 +129,11 @@ contract:
     inherited: false
     negate: false
     all_of: false
+  - name: soil_ph_required
+    field: soil_ph
+    type: not_empty
+    severity: error
+    error_message: soil_ph is required
   - name: soil_ph_range
     description: ''
     type: range
@@ -130,6 +145,11 @@ contract:
     inherited: false
     negate: false
     all_of: false
+  - name: yield_kg_per_hectare_required
+    field: yield_kg_per_hectare
+    type: not_empty
+    severity: error
+    error_message: yield_kg_per_hectare is required
   - name: yield_kg_per_hectare_min
     description: ''
     type: min

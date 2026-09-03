@@ -10,6 +10,7 @@ contract:
   approved_by: opendqv-core-team
   approved_at: "2026-04-27T00:00:00+00:00"
   version: "1.1"
+  strict_schema: true
   description: >
     Financial trade record validation. Enforces instrument identifier standards
     (ISIN per ISO 6166 for securities), Legal Entity Identifier format (LEI per
@@ -31,11 +32,23 @@ contract:
       severity: error
       error_message: "trade_id is required"
 
+    - name: trade_date_required
+      field: trade_date
+      type: not_empty
+      severity: error
+      error_message: trade_date is required
+
     - name: trade_date_format
       field: trade_date
       type: date_format
       severity: error
       error_message: "trade_date must be a valid date (YYYY-MM-DD)"
+
+    - name: settlement_date_required
+      field: settlement_date
+      type: not_empty
+      severity: error
+      error_message: settlement_date is required
 
     - name: settlement_date_format
       field: settlement_date
@@ -74,6 +87,12 @@ contract:
         country code + 9 alphanumeric + 1 check digit, e.g. GB0002162385) — verify
         if using CUSIP, SEDOL, or internal identifier"
 
+    - name: instrument_type_required
+      field: instrument_type
+      type: not_empty
+      severity: error
+      error_message: instrument_type is required
+
     - name: instrument_type_values
       description: "Asset class classification aligned with MiFID II financial instrument
         taxonomy (Annex I Section C) and EMIR trade reporting categories."
@@ -98,6 +117,12 @@ contract:
         derivative_rates, derivative_credit, derivative_fx, derivative_commodity,
         etf, fund, fx_spot, fx_forward, repo, structured_product"
 
+    - name: trade_side_required
+      field: trade_side
+      type: not_empty
+      severity: error
+      error_message: trade_side is required
+
     - name: trade_side_values
       description: "Execution side. short_sell requires locate/borrow confirmation
         under MiFID II Article 12 short selling regulation and SEC Rule 203 (US).
@@ -115,12 +140,24 @@ contract:
       error_message: "trade_side must be one of: buy, sell, short_sell, cover, subscription,
         redemption"
 
+    - name: quantity_required
+      field: quantity
+      type: not_empty
+      severity: error
+      error_message: quantity is required
+
     - name: quantity_min
       field: quantity
       type: min
       min: 0
       severity: error
       error_message: "quantity must be >= 0"
+
+    - name: price_required
+      field: price
+      type: not_empty
+      severity: error
+      error_message: price is required
 
     - name: price_min
       field: price
@@ -186,3 +223,10 @@ contract:
       severity: warning
       error_message: "settlement_status must be one of: pending, affirmed, matched,
         settled, partially_settled, failed, cancelled, on_hold"
+    - name: instrument_id_isin_valid
+      description: 'ISO 6166 ISIN check-digit verification (Luhn-style mod-10 over expanded numeric encoding). The check digit is computed, not shape-matched — a mistyped ISIN fails at the point of write. Complements instrument_id_isin_format, which gates the country-code shape. Required for all exchange-listed securities under MiFID II RTS 22.'
+      field: instrument_id
+      type: checksum
+      checksum_algorithm: isin_luhn
+      severity: warning
+      error_message: 'instrument_id is not a valid ISIN (ISO 6166: 12 characters ending in a correct check digit, e.g. GB0002162385) — full check-digit verification (was: shape-only). Verify if using CUSIP, SEDOL, or internal identifier'
