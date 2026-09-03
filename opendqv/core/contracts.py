@@ -1411,32 +1411,39 @@ class ContractRegistry:
         logger.info("create_version contract=%s from=%s new=%s status=draft file=%s", name, base.version, new_version, path.name)
         return new
 
+    # Rule fields that are engine state, never contract content. Mirrors the
+    # ODCS exporter's engine-stamped set (importers/odcs.py) so both writers
+    # agree on what a contract file may carry.
+    _ENGINE_STAMPED_RULE_FIELDS = frozenset({
+        "inherited", "federation_tier", "provenance", "severity_floor", "lookup_auth_header",
+    })
+    _RULE_KEY_ORDER = ("name", "description", "type", "field", "severity", "error_message")
+
+    @classmethod
+    def _rule_to_yaml_dict(cls, r: Rule) -> dict:
+        """Full, lossless rule dict for disk: every set field, YAML aliases (min/max),
+        enums as strings, hot-path caches and engine-stamped fields dropped.
+
+        #149: the previous hand-written whitelist wrote only min/max/pattern/
+        min_length/max_length, so an MCP draft with a compare, lookup, condition,
+        checksum or optional lost those parameters on disk.
+        """
+        d = r.model_dump(by_alias=True, exclude_none=True, mode="json")
+        for k in list(d):
+            if k in cls._ENGINE_STAMPED_RULE_FIELDS or k.startswith("cached_") or k == "compiled_pattern":
+                d.pop(k, None)
+        # Keep the historical shape: these three are always present.
+        d.setdefault("description", r.description or "")
+        d.setdefault("error_message", r.error_message or "")
+        d.setdefault("negate", bool(r.negate))
+        d.setdefault("all_of", r.all_of)
+        ordered = {k: d[k] for k in cls._RULE_KEY_ORDER if k in d}
+        ordered.update({k: v for k, v in d.items() if k not in ordered})
+        return ordered
+
     def _contract_to_yaml(self, contract: DataContract) -> str:
         """Serialize a DataContract to canonical YAML for disk storage."""
-        rules_list = []
-        for r in contract.rules:
-            rule_dict: dict = {
-                "name": r.name,
-                "description": r.description or "",
-                "type": r.type,
-                "field": r.field,
-                "severity": r.severity.value if hasattr(r.severity, "value") else str(r.severity),
-                "error_message": r.error_message or "",
-                "inherited": r.inherited,
-                "negate": r.negate,
-                "all_of": r.all_of,
-            }
-            if r.min_value is not None:
-                rule_dict["min"] = r.min_value
-            if r.max_value is not None:
-                rule_dict["max"] = r.max_value
-            if r.pattern is not None:
-                rule_dict["pattern"] = r.pattern
-            if r.min_length is not None:
-                rule_dict["min_length"] = r.min_length
-            if r.max_length is not None:
-                rule_dict["max_length"] = r.max_length
-            rules_list.append(rule_dict)
+        rules_list = [self._rule_to_yaml_dict(r) for r in contract.rules]
 
         data = {
             "contract": {
