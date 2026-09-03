@@ -73,7 +73,7 @@ def _safe_match(compiled_pattern, str_val: str) -> bool:
 import duckdb
 import pandas as pd
 
-from .rule_parser import Rule, Severity, _BUILTIN_PATTERNS
+from .rule_parser import RULE_TYPES, Rule, Severity, _BUILTIN_PATTERNS
 from .trace_log import write_trace_entry
 
 logger = logging.getLogger(__name__)
@@ -1262,6 +1262,13 @@ _RULE_HANDLERS: dict[str, Callable] = {
 }
 
 
+# 2.8.0: the dispatch table and the model's closed set must agree, or a type
+# could exist in one and not the other (issue #163). Fails at import.
+assert frozenset(_RULE_HANDLERS) == RULE_TYPES, (
+    f"_RULE_HANDLERS/RULE_TYPES drift: only-handlers={sorted(set(_RULE_HANDLERS) - RULE_TYPES)} "
+    f"only-types={sorted(RULE_TYPES - set(_RULE_HANDLERS))}"
+)
+
 def _check_rule(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     """
     Check a single value against a single rule.
@@ -1278,8 +1285,9 @@ def _check_rule(value, rule: Rule, record: Optional[dict] = None) -> Optional[st
 
     handler = _RULE_HANDLERS.get(rule.type)
     if handler is None:
-        logger.warning("Unknown rule type '%s' for rule '%s'", rule.type, rule.name)
-        return None
+        # Unreachable for a Rule built through the model (RULE_TYPES gate);
+        # kept as a hard failure rather than a silent pass for any bypass.
+        raise ValueError(f"Unknown rule type '{rule.type}' for rule '{rule.name}'")
     return handler(value, rule, record)
 
 

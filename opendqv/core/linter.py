@@ -37,6 +37,7 @@ from typing import Optional
 
 import yaml
 
+from opendqv.core.rule_parser import RULE_TYPES
 from opendqv.core.validator import (
     _PRESENCE_RULE_TYPES,  # single source of truth (round-2 B2)
 )
@@ -54,33 +55,10 @@ _UNIQUE_SCOPE_HINT_WORDS = frozenset({
 
 # ── Supported rule types ──────────────────────────────────────────────────────
 
-_KNOWN_RULE_TYPES = frozenset({
-    "not_empty",
-    "not_empty_string",
-    "regex",
-    "min",
-    "max",
-    "range",
-    "min_length",
-    "max_length",
-    "date_format",
-    "unique",
-    "min_age",
-    "max_age",
-    "compare",
-    "required_if",
-    "lookup",
-    "checksum",
-    "cross_field_range",
-    "field_sum",
-    "forbidden_if",
-    "conditional_value",
-    "date_diff",
-    "ratio_check",
-    "geospatial_bounds",
-    "allowed_values",
-    "age_match",
-})
+# 2.8.0: derived from the model's closed set (issue #163) — the linter and the
+# engine can no longer disagree about what a rule type is. `min_age`/`max_age`
+# are add-on keys on `date_format`, not types.
+_KNOWN_RULE_TYPES = RULE_TYPES
 
 # Rule types for which an empty string counts as "absent" (validator._is_field_absent):
 _FORMAT_RULE_TYPES = frozenset({

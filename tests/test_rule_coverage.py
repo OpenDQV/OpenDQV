@@ -20,6 +20,10 @@ def _rule(**kwargs):
         error_message="failed", type="not_empty",
     )
     defaults.update(kwargs)
+    if defaults["type"] in ("min_age", "max_age"):
+        # 2.8.0: min_age/max_age are keys on a date_format rule, not types.
+        defaults.setdefault("format", "%Y-%m-%d")
+        defaults["type"] = "date_format"
     return Rule(**defaults)
 
 
@@ -1118,11 +1122,11 @@ class TestValidatorEdgeCases:
         r = validate_record({"value": 1.0, "num": "abc", "den": "xyz"}, [rule])
         assert not r["valid"]
 
-    def test_unknown_rule_type_passes(self):
-        """Rule with completely unknown type → warning logged, returns None (lines 743-751)."""
-        rule = _rule(type="completely_unknown_type_xyz_12345")
-        r = validate_record({"value": "anything"}, [rule])
-        assert r["valid"]
+    def test_unknown_rule_type_is_rejected_at_load(self):
+        """2.8.0: an unknown type is refused when the Rule is built — it used to load as a
+        disabled rule that passed everything (the silent-pass class)."""
+        with pytest.raises(ValueError, match="unknown rule type"):
+            _rule(type="completely_unknown_type_xyz_12345")
 
     def test_allowed_values_value_not_in_list_fails(self):
         """allowed_values with non-matching value → error (line 507)."""
@@ -1413,9 +1417,11 @@ class TestAbsentFieldSkipping:
         assert result["valid"] is True
 
     def test_age_skips_on_absent_target(self):
+        # 2.8.0: this test used a made-up type ("age") and passed only because
+        # unknown types were silently ignored — the exact class now refused.
         result = _validate(
             {"value": None},
-            type="age", age_min=18,
+            type="date_format", format="%Y-%m-%d", min_age=18,
         )
         assert result["valid"] is True
 

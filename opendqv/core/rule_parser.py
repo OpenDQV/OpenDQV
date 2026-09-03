@@ -100,6 +100,21 @@ _BUILTIN_PATTERNS = {
 _UNSAFE_FIELD_CHARS = re.compile(r'["\\\x00;\x01-\x08\x0b-\x1f\x7f]')
 
 
+# The closed set of rule types the engine dispatches. Single source of truth:
+# the validator asserts its handler table equals this set, the linter reads it,
+# and Rule() refuses anything else at construction (2.8.0). A typo in `type:`
+# used to load as a disabled rule that passed everything — the silent-pass
+# class closed for `condition:` keys in 2.6.0. Honour or refuse, never drop.
+# NOTE: `min_age` / `max_age` are add-on KEYS on a `date_format` rule, not types.
+RULE_TYPES = frozenset({
+    "not_empty", "not_empty_string", "regex", "min", "max", "range",
+    "min_length", "max_length", "date_format", "unique", "compare",
+    "required_if", "allowed_values", "lookup", "checksum", "cross_field_range",
+    "field_sum", "forbidden_if", "conditional_value", "date_diff", "ratio_check",
+    "conditional_lookup", "geospatial_bounds", "age_match",
+})
+
+
 class Severity(str, Enum):
     ERROR = "error"      # blocks the record
     WARNING = "warning"  # allows but flags
@@ -274,6 +289,14 @@ class Rule(BaseModel):
     def _post_parse(self) -> "Rule":
         """Pre-compile regex patterns and normalise compare_op symbols to word form.
         Warn on misconfigured rules that would be no-ops or fail silently."""
+        if self.type not in RULE_TYPES:
+            hint = ""
+            if self.type in ("min_age", "max_age"):
+                hint = f" ('{self.type}' is a key on a `date_format` rule, not a rule type)"
+            raise ValueError(
+                f"Rule '{self.name}': unknown rule type '{self.type}'{hint}. "
+                f"Known types: {', '.join(sorted(RULE_TYPES))}."
+            )
         if self.type == "regex":
             if not self.pattern:
                 logger.warning(

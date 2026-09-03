@@ -12,7 +12,7 @@ OpenDQV's rule dispatch is a module-level table, `_RULE_HANDLERS` in `opendqv/co
 Adding a rule type requires changes to **three files**, or four if you want push-down code generation:
 
 1. `opendqv/core/rule_parser.py` — add optional config fields to the `Rule` Pydantic model.
-2. `opendqv/core/validator.py` — write `_check_<type>()` and register it in `_RULE_HANDLERS`.
+2. `opendqv/core/validator.py` — write `_check_<type>()` and register it in `_RULE_HANDLERS` and add the name to `RULE_TYPES` in `opendqv/core/rule_parser.py` (the closed set `Rule()` accepts; the validator asserts the two agree at import).
 3. `opendqv/core/validator.py` (`_batch_check_rule_inner`) — add a corresponding DuckDB branch for batch validation.
 4. `opendqv/core/linter.py` — add the type to `_KNOWN_RULE_TYPES` so `opendqv lint` does not report `UNKNOWN_RULE_TYPE`.
 5. `opendqv/core/code_generator.py` *(optional)* — add a branch to emit Apex / JS / Snowflake code.
