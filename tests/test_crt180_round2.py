@@ -154,3 +154,40 @@ def test_s2_cli_lint_label_for_info(capsys):
     from opendqv import cli
     src = Path(cli.__file__).read_text(encoding="utf-8")
     assert '"info": "INFO   "' in src
+
+
+@pytest.mark.parametrize("rtype,rule_kwargs,rec", [
+    ("compare", {"compare_to": "g", "compare_op": "lt"}, {"f": 1}),
+    ("date_diff", {"date_diff_field": "g", "max": 1}, {"f": "2026-01-01"}),
+    ("age_match", {"dob_field": "g"}, {"f": 30}),
+    ("cross_field_range", {"cross_min_field": "g", "cross_max_field": "g"}, {"f": 5}),
+    ("ratio_check", {"ratio_numerator": "f", "ratio_denominator": "g", "max": 2}, {"f": 5}),
+    ("field_sum", {"sum_fields": ["g"], "sum_equals": "f"}, {"f": 5}),
+])
+def test_d10_counterpart_absent_or_blank_fails_on_both_paths(rtype, rule_kwargs, rec):
+    """D10: a cross-field rule whose COUNTERPART is absent or blank fails — one
+    reading for every cross-field type, single and batch. (The rule's own field
+    absent is the presence rule's business — D6.)"""
+    try:
+        rule = Rule(name="x", type=rtype, field="f", error_message="cross", **rule_kwargs)
+    except (ValueError, TypeError) as e:
+        pytest.skip(f"{rtype}: {e}")
+    for v in (None, "", "   "):
+        r = dict(rec)
+        if v is not None:
+            r["g"] = v
+        single = validate_record(r, [rule])
+        batch = validate_batch([r], [rule])["results"][0]
+        assert single["valid"] is False, f"{rtype}: counterpart {v!r} must fail (single)"
+        assert batch["valid"] is False, f"{rtype}: counterpart {v!r} must fail (batch)"
+
+
+def test_batch_fallback_covers_every_handler_type():
+    """Every rule type is either natively batched or falls back to the single
+    handler per record — no type can silently pass in batch again."""
+    from opendqv.core.validator import _BATCH_BRANCH_TYPES
+    assert _BATCH_BRANCH_TYPES <= set(_RULE_HANDLERS)
+    # age_match: no native branch → fallback → same verdict as the single path
+    rule = Rule(name="m", type="age_match", field="age", dob_field="dob", error_message="age/dob mismatch")
+    rec = {"age": 30, "dob": "1900-01-01"}
+    assert validate_batch([rec], [rule])["results"][0]["valid"] == validate_record(rec, [rule])["valid"] is False

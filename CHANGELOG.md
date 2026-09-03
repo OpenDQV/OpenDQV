@@ -66,6 +66,12 @@ CRT180 — contract-format conformance across engines (see
 - **Length rules refuse non-strings:** `min_length`/`max_length` on a number
   report a typed message under the rule's code instead of measuring its
   decimal rendering.
+- **D10 — cross-field rules fail on an absent or blank counterpart** (`compare`,
+  `date_diff`, `age_match`, `cross_field_range`, `ratio_check`, `field_sum`,
+  `geospatial_bounds`), on both paths; `ratio_check`/`field_sum` no longer
+  silently treat a missing counterpart as 0. Batch path: any rule type without
+  a native branch is evaluated per record with the single-path handler
+  (`age_match` had none and passed silently).
 - **Absence guard is structural:** no rule outside the presence class
   (`not_empty`, `not_empty_string`, `required_if`; plus `conditional_value`
   and `unique`) fires on an absent or blank value, on either path. Batch:

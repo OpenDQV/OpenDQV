@@ -1180,11 +1180,13 @@ class TestValidatorEdgeCases:
         r = validate_record({"value": None, "dob": "1999-01-01"}, [rule])
         assert r["valid"]
 
-    def test_age_match_none_dob_passes(self):
-        """age_match with dob_val=None → returns None/skip (line 730)."""
+    def test_age_match_none_dob_fails(self):
+        """D10 (2026-09-03): age_match with the dob counterpart absent FAILS —
+        a cross-field rule cannot hold without its counterpart (both engines,
+        both paths). Before D10 this asserted the skip."""
         rule = _rule(type="age_match", dob_field="dob")
         r = validate_record({"value": 25}, [rule])  # dob field absent
-        assert r["valid"]
+        assert not r["valid"]
 
     def test_age_match_invalid_date_fails(self):
         """age_match with invalid dob format → except branch (lines 739-740)."""

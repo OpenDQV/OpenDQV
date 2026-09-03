@@ -1021,7 +1021,9 @@ def _check_field_sum(value, rule: Rule, record: Optional[dict] = None) -> Option
         return None
     rec = record or {}
     try:
-        total = sum(float(rec.get(f, 0) or 0) for f in rule.sum_fields)
+        if any(_is_field_absent(rec.get(f)) for f in rule.sum_fields):
+            return rule.error_message  # D10: absent/blank counterpart → the rule fails
+        total = sum(float(rec.get(f)) for f in rule.sum_fields)
         tolerance = rule.sum_tolerance if rule.sum_tolerance is not None else 0.0
         if abs(total - rule.sum_equals) > tolerance:
             return rule.error_message
@@ -1085,8 +1087,12 @@ def _check_ratio_check(value, rule: Rule, record: Optional[dict] = None) -> Opti
         return None
     rec = record or {}
     try:
-        num = float(rec.get(rule.ratio_numerator, 0) or 0)
-        den = float(rec.get(rule.ratio_denominator, 0) or 0)
+        num_raw = rec.get(rule.ratio_numerator)
+        den_raw = rec.get(rule.ratio_denominator)
+        if _is_field_absent(num_raw) or _is_field_absent(den_raw):
+            return rule.error_message  # D10: absent/blank counterpart → the rule fails
+        num = float(num_raw)
+        den = float(den_raw)
         if den == 0:
             return rule.error_message
         ratio = num / den
@@ -1161,8 +1167,8 @@ def _check_age_match(value, rule: Rule, record: Optional[dict] = None) -> Option
     if _is_field_absent(value):
         return None
     dob_val = (record or {}).get(rule.dob_field)
-    if dob_val is None:
-        return None  # dob_required covers absence
+    if _is_field_absent(dob_val):
+        return rule.error_message  # D10: absent/blank counterpart → the rule fails (both engines)
     try:
         declared = int(float(value))
         dob = datetime.strptime(str(dob_val), "%Y-%m-%d")
@@ -1737,6 +1743,16 @@ def validate_batch(
     }
 
 
+# Rule types with a native DuckDB/pandas branch in _batch_check_rule_inner.
+# Anything else goes through the per-record fallback (single-path handler).
+_BATCH_BRANCH_TYPES = frozenset({
+    "allowed_values", "checksum", "compare", "conditional_value", "cross_field_range", "date_diff",
+    "date_format", "field_sum", "forbidden_if", "geospatial_bounds", "lookup", "max_length", "max",
+    "min_length", "min", "not_empty_string", "not_empty", "range", "ratio_check", "regex",
+    "required_if", "unique",
+})
+
+
 def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches: dict | None = None, records: list[dict] | None = None, failing_messages: dict | None = None, synthesised: set | None = None) -> set[int]:
     """Batch twin of _check_rule with the same structural guarantee (D6):
     rows whose value for the rule's field is absent or blank never fail a
@@ -1766,7 +1782,6 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
 
 
 def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches: dict | None = None, records: list[dict] | None = None, failing_messages: dict | None = None, synthesised: set | None = None) -> set[int]:
-    synthesised = synthesised or set()
     """Run a single rule against the batch via DuckDB. Returns set of failing row indices.
 
     v2.3.23 outside-review #3 (Sonnet aec401d0381905d97): for numeric
@@ -1784,12 +1799,28 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
     record semantics exactly — missing key → None → absent → pass;
     explicit NaN/inf → rejected as non-finite.
     """
+    synthesised = synthesised or set()
     field = rule.field
     failing = set()
     if failing_type_mismatches is None:
         failing_type_mismatches = {}
     if failing_messages is None:
         failing_messages = {}
+    if rule.type not in _BATCH_BRANCH_TYPES:
+        # Round-2 pattern-closer: a rule type with no native batch branch is
+        # evaluated per record with the single-path handler, so single/batch
+        # parity holds by construction for every present and future type.
+        # (age_match and conditional_lookup had no branch and passed silently.)
+        for idx in range(len(df)):
+            rec = records[idx] if records is not None else {c: df[c].iloc[idx] for c in df.columns if c != "__idx__"}
+            msg = _check_rule(rec.get(field), rule, rec)
+            if msg:
+                failing.add(idx)
+                if msg != rule.error_message:
+                    failing_messages[idx] = msg
+        # no early return: the min_age/max_age add-on at the tail applies to
+        # every rule type, exactly as validate_record applies _check_age after
+        # the type check.
 
     def _orig_val(idx):
         # Numeric branches read the raw record value so a missing key

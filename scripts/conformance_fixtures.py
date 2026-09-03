@@ -3,7 +3,7 @@
 
 For a bundled contract, emit one JSONL line per record:
 
-    {"kind": "clean" | "warning_only" | "probe" | "blank_probe",
+    {"kind": "clean" | "warning_only" | "probe" | "blank_probe" | "counterpart_probe",
      "record": {...},
      "expect": {"valid": bool,
                 "errors":   [{"code": ..., "severity": ..., "message": ...}, ...],
@@ -108,6 +108,37 @@ def blank_probes(contract) -> list[dict]:
     return out
 
 
+_COUNTERPART_ATTRS = ("compare_to", "date_diff_field", "dob_field", "min_field", "max_field", "ratio_field", "lon_field")
+
+
+def counterpart_probes(contract) -> list[dict]:
+    """Per cross-field rule: the rule's own field valid-ish ("x"), the COUNTERPART
+    absent, "", whitespace-only. D10: what a comparison does when the other side is
+    missing must be one thing on both engines, so every counterpart attribute is
+    exercised, not just the rule's own field."""
+    fields = sorted({r.field for r in contract.rules if r.field})
+    out: list[dict] = []
+    seen: set[tuple] = set()
+    for r in contract.rules:
+        for attr in _COUNTERPART_ATTRS:
+            other = getattr(r, attr, None)
+            if not other or other in ("today", "now") or (r.type, attr) in seen:
+                continue
+            seen.add((r.type, attr))
+            base = {f: "x" for f in fields}
+            absent = dict(base); absent.pop(other, None)
+            out.append(absent)
+            for v in ("", "   "):
+                out.append(base | {other: v})
+        sf = getattr(r, "sum_fields", None)
+        if sf and ("field_sum", "sum_fields") not in seen:
+            seen.add(("field_sum", "sum_fields"))
+            base = {f: "x" for f in fields}
+            absent = dict(base); absent.pop(sf[0], None)
+            out.append(absent)
+    return out
+
+
 def _entries(items: list[dict]) -> list[dict]:
     return sorted(
         ({"code": e["error_code"], "severity": e["severity"], "message": e["message"]} for e in items),
@@ -148,6 +179,8 @@ def build(contract, rules) -> list[dict]:
         lines.append({"kind": "probe", "record": rec, "expect": expectation(contract, rules, rec)})
     for rec in blank_probes(contract):
         lines.append({"kind": "blank_probe", "record": rec, "expect": expectation(contract, rules, rec)})
+    for rec in counterpart_probes(contract):
+        lines.append({"kind": "counterpart_probe", "record": rec, "expect": expectation(contract, rules, rec)})
     return lines
 
 
@@ -169,7 +202,7 @@ def main(names: list[str]) -> int:
         (outdir / f"{name}.jsonl").write_text(
             "\n".join(json.dumps(line, sort_keys=True) for line in lines) + "\n", encoding="utf-8"
         )
-        kinds = {k: sum(1 for line in lines if line["kind"] == k) for k in ("clean", "warning_only", "probe", "blank_probe")}
+        kinds = {k: sum(1 for line in lines if line["kind"] == k) for k in ("clean", "warning_only", "probe", "blank_probe", "counterpart_probe")}
         print(f"{name}: {len(lines)} records {kinds} -> {outdir / (name + '.jsonl')}")
     return 0
 

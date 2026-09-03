@@ -355,13 +355,23 @@ thing on both engines.
 - **B6** manifest keeps zero boundaries (`0 == False` trap), hashes
   `strict_schema` + `allowed_fields` + `contexts`. **B7** stray files removed.
 - **D10 (new, from the S1 blank sweep) — a cross-field rule whose
-  counterpart is missing or blank FAILS, on both paths.** The single path
-  always said so for `None`; the batch path passed it (the K1 shape, one
-  rule family over — B4); a blank counterpart was inconsistent on both. The
-  managed engine fails it too, so this is the joint reading. (The first cut
-  of this round tried "skip, presence rules are the single catcher"; four
-  older tests and the managed engine's own verdict said otherwise — D6
-  governs a rule's OWN field, not the counterpart a comparison needs.)
+  counterpart is absent or blank FAILS, for every cross-field type, on both
+  paths and both engines.** The evidence was messier than either engine's
+  docs: Core's single path failed `compare`/`date_diff` on `None` (four
+  deliberate tests) but silently zeroed an absent counterpart in
+  `ratio_check`/`field_sum` and skipped it in `age_match`; its batch path
+  skipped `compare` (the K1 shape) and had no `age_match` branch at all; the
+  managed engine skipped `compare` and `age_match` (its F18 counterpart
+  half, 2026-04-29) but failed `date_diff`/`ratio`/`range`/`sum`, and failed
+  a *blank* `compare` counterpart only by accident of string comparison.
+  Ruled FAIL on the maintainer's B4 and Core's deliberate tests; D6 governs
+  a rule's OWN field, not the counterpart a comparison needs. Pinned per
+  type on both sides and by the corpus's `counterpart_probe` rows. (A first
+  cut of this round went the other way; corrected the same morning.)
+- **Batch fallback (pattern-closer).** Any rule type without a native batch
+  branch is now evaluated per record with the single-path handler, so
+  single/batch parity holds by construction for every present and future
+  type — `age_match` had no branch and silently passed in batch.
 - **S1** negative control: a deliberately wrong expectation fails the suite.
 - **S3 — strict export with contexts is looser than the engine.** The union
   export accepts a field only a context declares while a no-context engine
