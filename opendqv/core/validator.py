@@ -43,6 +43,14 @@ def _safe_match(compiled_pattern, str_val: str) -> bool:
     """
     Apply a compiled regex pattern to str_val with ReDoS protection.
 
+    Semantics are UNANCHORED SEARCH (review round 2, S4): the pattern may
+    match anywhere in the value, exactly as ODCS `pattern`, JSON Schema
+    `pattern`, RE2 and every code-generation target read it. Anchor with
+    `^` / `$` in the pattern to pin the ends; the linter names patterns
+    that do not start with `^`. (Until v2.4.x this was `re.match`, which
+    silently anchored the start and made every portable export looser than
+    the engine.)
+
     If the `regex` library is available, enforces _REGEX_TIMEOUT seconds.
     On timeout, returns False (treat as no-match / validation failure) and
     logs a warning so operators can identify pathological patterns.
@@ -51,16 +59,16 @@ def _safe_match(compiled_pattern, str_val: str) -> bool:
     if _HAS_REGEX_LIB:
         try:
             if isinstance(compiled_pattern, _regex_lib.Pattern):
-                return bool(compiled_pattern.match(str_val, timeout=_REGEX_TIMEOUT))
+                return bool(compiled_pattern.search(str_val, timeout=_REGEX_TIMEOUT))
             # Fallback: re.Pattern passed in (e.g. from validator.py line 354) — match via regex lib
-            return bool(_regex_lib.match(compiled_pattern.pattern, str_val, timeout=_REGEX_TIMEOUT))
+            return bool(_regex_lib.search(compiled_pattern.pattern, str_val, timeout=_REGEX_TIMEOUT))
         except TimeoutError:
             logger.warning(
                 "regex_timeout pattern=%r input_length=%d — treating as no-match",
                 compiled_pattern.pattern, len(str_val),
             )
             return False
-    return bool(compiled_pattern.match(str_val))
+    return bool(compiled_pattern.search(str_val))
 
 import duckdb
 import pandas as pd
@@ -547,6 +555,16 @@ def _semver_tuple(v):
 # not_empty_string, required_if) are the single catcher for absence — this prevents
 # double-firing on missing fields.
 
+# Presence-class rules are the ONLY rules that fire on an absent or blank
+# value; every other rule skips it (D6, normative — review round 2 B2 made
+# this structural rather than per-handler). Shared with the linter.
+_PRESENCE_RULE_TYPES = frozenset({"not_empty", "not_empty_string", "required_if"})
+# Rules that must still see an absent value: presence rules, conditional_value
+# ("must equal X" — absent is a violation on both engines) and unique (a
+# set-based rule evaluated on the batch frame, never on one value).
+_ABSENT_EXEMPT_RULE_TYPES = _PRESENCE_RULE_TYPES | frozenset({"conditional_value", "unique"})
+
+
 def _is_field_absent(value) -> bool:
     """Field has no meaningful value to characterize for format-class rules."""
     if value is None:
@@ -751,9 +769,18 @@ def _check_range(value, rule: Rule, record: Optional[dict] = None) -> Optional[s
     return None
 
 
+def _length_type_message(field: str, value) -> str:
+    return (
+        f'length rule on field "{field}" expects a JSON string, got {_json_type_name(value)} — '
+        "use min/max for numeric bounds, or send the value as a quoted string"
+    )
+
+
 def _check_min_length(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if _is_field_absent(value):
         return None
+    if not isinstance(value, str):
+        return _length_type_message(rule.field, value)  # D9: refuse, never coerce
     str_val = str(value)
     if len(str_val) < (rule.min_length or 0):
         return rule.error_message
@@ -763,6 +790,8 @@ def _check_min_length(value, rule: Rule, record: Optional[dict] = None) -> Optio
 def _check_max_length(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if _is_field_absent(value):
         return None
+    if not isinstance(value, str):
+        return _length_type_message(rule.field, value)  # D9: refuse, never coerce
     str_val = str(value)
     if len(str_val) > (rule.max_length or 99999):
         return rule.error_message
@@ -847,8 +876,8 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
             other = datetime.now(timezone.utc).isoformat()
     else:
         other = (record or {}).get(rule.compare_to)
-        if other is None:
-            return rule.error_message
+        if _is_field_absent(other):
+            return None  # D10: counterpart absent/blank — presence rules are the single catcher
 
     # v2.3.20 Cluster C (P1.2): same_date compare_op extracts the
     # YYYY-MM-DD portion from each side before comparing. Catches the
@@ -1019,8 +1048,8 @@ def _check_date_diff(value, rule: Rule, record: Optional[dict] = None) -> Option
     if _is_field_absent(value):
         return None  # field absent or blank (D6) — skip date_diff; required check is a separate rule
     other_val = (record or {}).get(rule.date_diff_field)
-    if other_val is None:
-        return rule.error_message
+    if _is_field_absent(other_val):
+        return None  # D10: counterpart absent/blank — presence rules are the single catcher
     try:
         d1 = _parse_date(value)
         d2 = _parse_date(other_val)
@@ -1175,6 +1204,11 @@ def _check_rule(value, rule: Rule, record: Optional[dict] = None) -> Optional[st
     """
     if rule.cached_has_condition and not _check_condition(rule, record):
         return None  # condition not met — rule is inapplicable for this record
+
+    # D6, structural: no non-presence rule ever fires on an absent/blank value.
+    # Handlers may still guard individually; this is the guarantee.
+    if rule.type not in _ABSENT_EXEMPT_RULE_TYPES and _is_field_absent(value):
+        return None
 
     handler = _RULE_HANDLERS.get(rule.type)
     if handler is None:
@@ -1545,9 +1579,15 @@ def validate_batch(
     # clean while each record single-validated was rejected. Materialise the
     # column as NULL so every rule sees exactly what validate_record sees:
     # presence-class rules fail, format-class rules skip the absent value.
-    for _f in {r.field for r in rules if r.field}:
+    # Review round 2 B4: cross-field counterparts (compare_to, date_diff_field,
+    # …) must be materialised too, or a batch missing the counterpart column
+    # validates clean where the single path fails. declared_field_set collects
+    # exactly the declared names; the sentinels are not columns.
+    synthesised: set[str] = set()
+    for _f in declared_field_set(rules) - {"today", "now"}:
         if _f not in df.columns:
             df[_f] = None
+            synthesised.add(_f)
     df["__idx__"] = range(total)
 
     con = duckdb.connect()
@@ -1565,9 +1605,9 @@ def validate_batch(
                     row_results[i]["errors"].append(extra)
 
         for rule in rules:
-            if rule.field not in df.columns:
-                logger.info("Skipping rule '%s' — field '%s' not in data", rule.name, rule.field)
-                continue
+            # (round-2 S7) every declared field is materialised above, so a
+            # rule's field is always a column here; the old "skip if column
+            # missing" branch was the K1 fail-open and is gone.
 
             # v2.3.23 outside-review #3: type-mismatch indices populated
             # by min/max/range branches of _batch_check_rule.
@@ -1576,8 +1616,7 @@ def validate_batch(
             try:
                 failing_indices = _batch_check_rule(
                     con, df, rule, failing_type_mismatches=failing_type_mismatches,
-                    records=records, failing_messages=failing_messages,
-                )
+                    records=records, failing_messages=failing_messages, synthesised=synthesised)
             except Exception as e:
                 # Log only rule metadata — never include record field values.
                 logger.error("Error evaluating rule '%s' (field='%s'): %s", rule.name, rule.field, e)
@@ -1689,7 +1728,30 @@ def validate_batch(
     }
 
 
-def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches: dict | None = None, records: list[dict] | None = None, failing_messages: dict | None = None) -> set[int]:
+def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches: dict | None = None, records: list[dict] | None = None, failing_messages: dict | None = None, synthesised: set | None = None) -> set[int]:
+    """Batch twin of _check_rule with the same structural guarantee (D6):
+    rows whose value for the rule's field is absent or blank never fail a
+    non-presence rule, whatever the per-type branch did. Set-based rules
+    (unique) on a synthesised column are skipped — a column nobody sent
+    cannot carry duplicates (review round 2, B2/B5)."""
+    synthesised = synthesised or set()
+    if rule.type == "unique" and rule.field in synthesised:
+        return set()  # a column nobody sent cannot carry duplicates
+    failing = _batch_check_rule_inner(con, df, rule, failing_type_mismatches, records, failing_messages, synthesised)
+    if rule.type not in _ABSENT_EXEMPT_RULE_TYPES and rule.field and rule.field in df.columns:
+        col = df[rule.field]
+        absent = {i for i in range(len(df)) if _batch_absent(col.iloc[i])}
+        if absent:
+            failing = {i for i in failing if i not in absent}
+            for d in (failing_type_mismatches, failing_messages):
+                if d:
+                    for i in absent:
+                        d.pop(i, None)
+    return failing
+
+
+def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches: dict | None = None, records: list[dict] | None = None, failing_messages: dict | None = None, synthesised: set | None = None) -> set[int]:
+    synthesised = synthesised or set()
     """Run a single rule against the batch via DuckDB. Returns set of failing row indices.
 
     v2.3.23 outside-review #3 (Sonnet aec401d0381905d97): for numeric
@@ -1779,9 +1841,12 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
                     failing_type_mismatches[idx] = failure
 
     elif rule.type == "not_empty":
-        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NULL OR TRIM(CAST("{field}" AS VARCHAR)) = ''"""
-        for r in con.execute(query).fetchall():
-            failing.add(r[0])
+        # Read the raw record value and use the single path's absence test:
+        # SQL TRIM strips spaces only, so a tab/newline-only value passed the
+        # batch check while the single path rejected it (round-2 B2 matrix).
+        for idx in range(len(df)):
+            if _batch_absent(_orig_val(idx)):
+                failing.add(idx)
 
     elif rule.type == "not_empty_string":
         # CRT180: presence + string-type guard. Read the raw record value —
@@ -1799,14 +1864,38 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
                 failing.add(idx)
 
     elif rule.type == "min_length" and rule.min_length is not None:
+        # D9: a non-string value is refused under the rule's own code with a
+        # typed message (never coerced to its decimal rendering) — same on
+        # the single path. Strings go through the SQL length check.
+        typed = set()
+        for idx in range(len(df)):
+            raw = _orig_val(idx)
+            if raw is not None and not _batch_absent(raw) and not isinstance(raw, str):
+                typed.add(idx)
+                if failing_messages is not None:
+                    failing_messages[idx] = _length_type_message(field, raw)
+        failing.update(typed)
         query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != '' AND LENGTH(CAST("{field}" AS VARCHAR)) < {rule.min_length}"""
         for r in con.execute(query).fetchall():
-            failing.add(r[0])
+            if r[0] not in typed:
+                failing.add(r[0])
 
     elif rule.type == "max_length" and rule.max_length is not None:
+        # D9: a non-string value is refused under the rule's own code with a
+        # typed message (never coerced to its decimal rendering) — same on
+        # the single path. Strings go through the SQL length check.
+        typed = set()
+        for idx in range(len(df)):
+            raw = _orig_val(idx)
+            if raw is not None and not _batch_absent(raw) and not isinstance(raw, str):
+                typed.add(idx)
+                if failing_messages is not None:
+                    failing_messages[idx] = _length_type_message(field, raw)
+        failing.update(typed)
         query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != '' AND LENGTH(CAST("{field}" AS VARCHAR)) > {rule.max_length}"""
         for r in con.execute(query).fetchall():
-            failing.add(r[0])
+            if r[0] not in typed:
+                failing.add(r[0])
 
     elif rule.type == "date_format":
         # Parity with the single-record path: honour the contract's
@@ -1833,7 +1922,9 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
     elif rule.type == "unique":
         if rule.group_by:
             # Unique within groups — duplicates within same group_by values
-            valid_cols = [g for g in rule.group_by if g in df.columns]
+            # A synthesised (never sent) group_by column is not a valid group key —
+            # the pre-existing fallback to global uniqueness applies (round-2 B5).
+            valid_cols = [g for g in rule.group_by if g in df.columns and g not in synthesised]
             if valid_cols:
                 # Single-pass grouping — O(n) instead of O(n²)
                 groups: dict[tuple, list[int]] = defaultdict(list)
@@ -1890,8 +1981,8 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
                     b_raw = df[rule.compare_to].iloc[idx]
                 if a_raw is None or (isinstance(a_raw, float) and pd.isna(a_raw)):
                     continue
-                if not is_temporal_sentinel and (b_raw is None or (isinstance(b_raw, float) and pd.isna(b_raw))):
-                    continue
+                if not is_temporal_sentinel and _batch_absent(b_raw):
+                    continue  # D10: counterpart absent/blank → skip (single catcher), as the single path
                 a_str = str(a_raw)[:10]
                 b_str = str(b_raw)[:10]
                 # Both sides must look like YYYY-MM-DD; otherwise the
@@ -1916,9 +2007,8 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
                     if a_raw is None or (isinstance(a_raw, float) and pd.isna(a_raw)):
                         # CRT170/J3: absent field — skip (not_empty is the catcher).
                         continue
-                    if not is_temporal_sentinel and (b_raw is None or (isinstance(b_raw, float) and pd.isna(b_raw))):
-                        # CRT170/J3: cross-field counterpart absent — skip.
-                        continue
+                    if not is_temporal_sentinel and _batch_absent(b_raw):
+                        continue  # D10: counterpart absent/blank → skip (single catcher), as the single path
                     try:
                         a, b = float(a_raw), float(b_raw)
                     except (TypeError, ValueError):
@@ -1942,12 +2032,16 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
             logger.warning("required_if rule '%s' references missing trigger field '%s'",
                            rule.name, trigger_field)
         else:
-            query = (
-                f'SELECT __idx__ FROM data '
-                f'WHERE CAST("{trigger_field}" AS VARCHAR) = $trigger_val '
-                f'AND ("{field}" IS NULL OR CAST("{field}" AS VARCHAR) = \'\')'
-            )
-            for r in con.execute(query, {"trigger_val": trigger_value}).fetchall():
+            # Single-path parity: the trigger is compared as a string and the
+            # target's absence uses _batch_absent (blank/whitespace = missing),
+            # not a SQL empty-string compare (round-2 B2 matrix).
+            for idx in range(len(df)):
+                trig = df[trigger_field].iloc[idx]
+                if trig is None or (isinstance(trig, float) and pd.isna(trig)):
+                    continue
+                if str(trig) == trigger_value and _batch_absent(_orig_val(idx)):
+                    failing.add(idx)
+            for r in ():
                 failing.add(r[0])
 
     elif rule.type == "allowed_values" and rule.allowed_values:
@@ -2065,9 +2159,8 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
                 if _batch_absent(val):
                     # CRT170/J3 + D6: target field absent or blank — skip (not_empty is the catcher).
                     continue
-                if other_val is None or (isinstance(other_val, float) and pd.isna(other_val)):
-                    # Cross-field counterpart absent — fail (the diff cannot be computed).
-                    failing.add(idx)
+                if _batch_absent(other_val):
+                    # D10: counterpart absent/blank → skip; presence rules are the single catcher.
                     continue
                 try:
                     d1 = _parse_date(val)

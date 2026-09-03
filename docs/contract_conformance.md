@@ -249,8 +249,10 @@ behaviour question, not wording:
   … expects a JSON string, got number"). Same code, same severity, same
   verdict, different reason. Recommendation: the managed engine's reading —
   the same no-coercion rule `not_empty_string` already follows — so a
-  length rule never measures the decimal rendering of a number. Not applied
-  here; a maintainer decision.
+  length rule never measures the decimal rendering of a number. **Applied
+  (round 2, S5):** `min_length`/`max_length` on a non-string now report a
+  typed message under the rule's own code on both paths; the corpus row is
+  identical.
 
 Two things the run taught about the *harness*, not the engines: the
 managed engine resolves relative `lookup_file:` paths against its
@@ -325,6 +327,46 @@ field, and the managed engine is moving its implicit-required check from
 the validator to the authoring boundary so a customer's YAML means the same
 thing on both engines.
 
+## Review round 2 (2026-09-03) — what changed
+
+- **B1 — the six strict flips are OUT of this change.** `strict_schema: true`
+  on `banking_transaction`, `dora_ict_incident`, `financial_services_customer`,
+  `financial_trade`, `mifid_transaction_report`, `sox_control_test` rejected
+  records that validated the day before (the live-stack integration test
+  proved it). The feature ships with every bundled starter **off**; the flips
+  land in their own release with a breaking-change entry and a migration
+  note ("add extra columns to `allowed_fields:` or fork the starter"). Until
+  then the managed library's copies of those six are strict, and the
+  undeclared-field probe differs on two fixture rows — recorded, not hidden.
+- **B2 — the absence guard is structural.** `_check_rule` (single) and
+  `_batch_check_rule` (batch, a post-filter on the rule's field) skip every
+  absent/blank value for every rule type outside `_PRESENCE_RULE_TYPES` ∪
+  {`conditional_value`, `unique`}; the set is shared with the linter. The
+  per-type sweep in the corpus (`blank_probe` rows: absent, `""`, spaces,
+  tab/newline, wrong type — S1) found two more batch-half gaps on the way:
+  SQL `TRIM` strips spaces only (tab/newline-only passed `not_empty` in
+  batch), and `required_if`'s batch compare was `= ''` not blank-aware.
+- **B4 / B5 — K1 finished.** The batch path materialises
+  `declared_field_set(rules)` (cross-field counterparts included) and a
+  present target with an absent counterpart fails `compare` as the single
+  path does; `unique` on a synthesised column reports nothing (a column
+  nobody sent cannot carry duplicates), and a synthesised `group_by` column
+  is not a valid group key (existing global-unique fallback).
+- **B6** manifest keeps zero boundaries (`0 == False` trap), hashes
+  `strict_schema` + `allowed_fields` + `contexts`. **B7** stray files removed.
+- **D10 (new, from the S1 blank sweep) — a cross-field rule whose
+  counterpart is absent or blank SKIPS.** `compare` and `date_diff` used to
+  fail the record when the other side was missing (the single path) or pass
+  it (the batch path); under D6 the presence rule on the counterpart is the
+  single catcher, so both paths now skip. B4's parity is delivered in that
+  direction; the managed engine already reads it this way.
+- **S1** negative control: a deliberately wrong expectation fails the suite.
+- **S3 — strict export with contexts is looser than the engine.** The union
+  export accepts a field only a context declares while a no-context engine
+  call rejects it. Latent (no strict starter has contexts); noted here with
+  the "cross-field refs inside overrides not walked" caveat.
+- **S4 / S5 / S2 / S7** as above (D7, D9, CLI label, dead branch).
+
 ## Known issues
 
 **K1 — batch skipped absent fields (FIXED, review B6).** `validate_batch`
@@ -376,12 +418,19 @@ decision here.
 
 Decisions this round settled or opened:
 
-- **D2 — `optional`.** Added to the `Rule` model so the key round-trips.
-  Semantics deliberately **reserved**: Core does not implement
-  implicit-required, so `optional` has no effect here until the format says
-  what a format-only rule on an absent field means. The managed engine's
-  reading (absent + error-severity format rule → `OPENDQV_REQUIRED_FIELD_MISSING`)
-  stays on the register as Class A.
+- **D2 — implicit-required: CLOSED, and not by "reserved".** The format's
+  reading is normative: **a format rule never implies presence; presence is
+  declared** (`not_empty`, `not_empty_string`, `required_if`), and a field
+  meant to be optional-when-present says `optional: true` on its format
+  rule. The bundled library carries no undecided field (CRT181, folded in
+  here; `tests/test_library_presence_explicit.py`). The round-2 S6 proposal
+  — implicit-required behind a flag, default flipped on a release later —
+  was considered and declined by the project owner (2026-09-03): it would
+  parameterise in two engines what the YAML can simply state, and the
+  managed engine is moving its own implicit-required check from the
+  validator to the authoring boundary so a customer's YAML means the same
+  thing on both sides. `optional` stays accepted and round-tripped; on Core
+  it is documentation of intent, not a switch.
 - **D6 — an empty string is absent. Normative.** For every rule that is
   not presence-class (`not_empty`, `not_empty_string`, `required_if`), a
   value of `None` or a whitespace-only string is treated as *absent* and the
@@ -391,13 +440,15 @@ Decisions this round settled or opened:
   `FORMAT_ONLY_FIELD_ACCEPTS_EMPTY` (severity `info`, never a failure —
   optional-when-present is a legitimate design). The managed engine adopts
   this reading; the Class B rows in the run above flip to identical.
-- **D7 — regex anchoring (new).** Core evaluates `regex` with
-  start-anchored semantics: the pattern must describe the value from its
-  first character; `$` pins the end; a leading `.*` permits a prefix. An
-  engine that *searches* must anchor at the start to conform. Every pattern
-  in the bundled library is now either `^`-anchored or begins with `.*`, so
-  the two readings agree on the library; the format should state one, and
-  this document recommends Core's.
+- **D7 — regex semantics: UNANCHORED SEARCH is normative** (review round 2,
+  S4, ruled 2026-09-03). ODCS `pattern`, JSON Schema `pattern`, RE2 and
+  every code-generation target read a pattern as "matches anywhere"; Core's
+  `re.match` silently anchored the start and made every portable export
+  looser than the engine. Core now searches (`_safe_match`); `^`/`$` in the
+  pattern pin the ends; the linter names patterns that do not start with `^`
+  (`REGEX_NOT_START_ANCHORED`, info). Every bundled pattern is `^`-anchored
+  or `.*`-led, so nothing bundled moves. The managed engine reverts to
+  search as well.
 - **D8 — `date_format` vs. ISO regex in `dora_ict_incident` (new, D4
   list).** The contract's `date_format` fields accept `YYYY-MM-DD` or
   `YYYY-MM-DDTHH:MM:SS` with no zone designator, while its two regex-only

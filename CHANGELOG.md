@@ -58,6 +58,22 @@ CRT180 — contract-format conformance across engines (see
   fails if a rule type in the validator's handler table has no probe.
   `library_manifest.json` (`scripts/library_manifest.py`, CI-checked) pins one
   SHA-256 per bundled contract's rules for downstream mirrors.
+- **Regex semantics are unanchored search** (was `re.match`, which silently
+  anchored the start): a pattern matches anywhere in the value, as ODCS,
+  JSON Schema, RE2 and the code generators read it; use `^`/`$` to pin the
+  ends. New advisory lint `REGEX_NOT_START_ANCHORED`. No bundled pattern
+  changes meaning.
+- **Length rules refuse non-strings:** `min_length`/`max_length` on a number
+  report a typed message under the rule's code instead of measuring its
+  decimal rendering.
+- **Absence guard is structural:** no rule outside the presence class
+  (`not_empty`, `not_empty_string`, `required_if`; plus `conditional_value`
+  and `unique`) fires on an absent or blank value, on either path. Batch:
+  cross-field counterparts are materialised, `compare` fails on an absent
+  counterpart like the single path, `unique` never fabricates duplicates on
+  a field nobody sent, `not_empty`/`required_if` recognise tab/newline blanks.
+- **`strict_schema: true` is NOT switched on for any bundled starter** in
+  this release (deferred to a breaking-change release with a migration note).
 - **Explicit presence in the bundled library (CRT181):** 109 `<field>_required`
   not_empty rules across 27 contracts and one `optional: true`
   (`customer.loyalty_tier`), so a field's presence is always declared;

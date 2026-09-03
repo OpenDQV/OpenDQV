@@ -430,14 +430,17 @@ class TestCompareRuleEdgeCases:
         )
         assert result["valid"] is True
 
-    def test_compare_missing_other_field_fails(self):
+    def test_compare_missing_other_field_skips(self):
         """compare_to field absent → error."""
         result = _validate(
             {"value": "10"},
             type="compare", name="c",
             compare_to="missing_field", compare_op="gt",
         )
-        assert result["valid"] is False
+        # D10 (conformance register, 2026-09-03): an absent counterpart is not a
+        # comparison failure — the presence rule on the counterpart is the single
+        # catcher (D6). Before D10 this asserted False.
+        assert result["valid"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -1415,10 +1418,13 @@ class TestAbsentFieldSkipping:
 
     # ── Counterpart absence still fails (only TARGET absence is skipped) ───
 
-    def test_compare_fails_when_counterpart_absent(self):
+    def test_compare_skips_when_counterpart_absent(self):
         """Target present but counterpart absent → still a real error."""
         result = _validate(
             {"value": 5, "other": None},
             type="compare", compare_to="other", compare_op="gt",
         )
-        assert result["valid"] is False
+        # D10 (conformance register, 2026-09-03): an absent counterpart is not a
+        # comparison failure — the presence rule on the counterpart is the single
+        # catcher (D6). Before D10 this asserted False.
+        assert result["valid"] is True

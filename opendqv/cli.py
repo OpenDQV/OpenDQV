@@ -712,7 +712,7 @@ def cmd_lint(args):
         if result.issues:
             print()
             for issue in result.issues:
-                label = "ERROR  " if issue.severity == "error" else "WARNING"
+                label = {"error": "ERROR  ", "warning": "WARNING", "info": "INFO   "}.get(issue.severity, issue.severity.upper())
                 rule_tag = f"[{issue.rule_name}] " if issue.rule_name else ""
                 print(f"  {label}  {rule_tag}{issue.message}")
         else:

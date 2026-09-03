@@ -3,7 +3,7 @@
 
 For a bundled contract, emit one JSONL line per record:
 
-    {"kind": "clean" | "warning_only" | "probe",
+    {"kind": "clean" | "warning_only" | "probe" | "blank_probe",
      "record": {...},
      "expect": {"valid": bool,
                 "errors":   [{"code": ..., "severity": ..., "message": ...}, ...],
@@ -67,6 +67,14 @@ def unprobed_rule_types() -> set[str]:
     return set(_RULE_HANDLERS) - set(_VIOLATIONS)
 
 
+# One value of the WRONG JSON type per rule type (review round 2, S1): a
+# list for string/format rules, a string for numeric rules.
+_WRONG_TYPE: dict[str, object] = {
+    "min": "not-a-number", "max": "not-a-number", "range": "not-a-number",
+    "min_length": 42, "max_length": 42, "not_empty_string": 42, "checksum": 1234,
+}
+
+
 def probes(contract) -> list[dict]:
     fields = sorted({r.field for r in contract.rules if r.field})
     out = [{}]
@@ -76,6 +84,27 @@ def probes(contract) -> list[dict]:
         out.append(rec)
     out.append({f: "x" for f in fields})
     out.append({f: "x" for f in fields} | {"__undeclared__": 1})
+    return out
+
+
+def blank_probes(contract) -> list[dict]:
+    """Per rule TYPE present in the contract: the rule's field absent, "", whitespace-only,
+    and a wrong-type value, with every other declared field "x". This is the sweep that
+    closes the batch-half pattern (round-2 B2/S1): every handler sees every absence shape
+    on both paths, and a wrong type is never mistaken for absence."""
+    fields = sorted({r.field for r in contract.rules if r.field})
+    seen: set[str] = set()
+    out: list[dict] = []
+    for r in contract.rules:
+        if not r.field or r.type in seen:
+            continue
+        seen.add(r.type)
+        base = {f: "x" for f in fields}
+        absent = dict(base); absent.pop(r.field, None)
+        out.append(absent)
+        for v in ("", "   ", "\t\n"):
+            out.append(base | {r.field: v})
+        out.append(base | {r.field: _WRONG_TYPE.get(r.type, ["wrong", "type"])})
     return out
 
 
@@ -117,6 +146,8 @@ def build(contract, rules) -> list[dict]:
         lines.append({"kind": "warning_only", "record": rec, "expect": exp})
     for rec in probes(contract):
         lines.append({"kind": "probe", "record": rec, "expect": expectation(contract, rules, rec)})
+    for rec in blank_probes(contract):
+        lines.append({"kind": "blank_probe", "record": rec, "expect": expectation(contract, rules, rec)})
     return lines
 
 
@@ -138,7 +169,7 @@ def main(names: list[str]) -> int:
         (outdir / f"{name}.jsonl").write_text(
             "\n".join(json.dumps(line, sort_keys=True) for line in lines) + "\n", encoding="utf-8"
         )
-        kinds = {k: sum(1 for line in lines if line["kind"] == k) for k in ("clean", "warning_only", "probe")}
+        kinds = {k: sum(1 for line in lines if line["kind"] == k) for k in ("clean", "warning_only", "probe", "blank_probe")}
         print(f"{name}: {len(lines)} records {kinds} -> {outdir / (name + '.jsonl')}")
     return 0
 

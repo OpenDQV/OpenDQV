@@ -28,15 +28,29 @@ ROOT = Path(__file__).resolve().parent.parent
 CONTRACTS_DIR = ROOT / "opendqv" / "contracts"
 MANIFEST_PATH = ROOT / "library_manifest.json"
 
-_DROP = (None, "", [], {}, False)
+def _dropped(v) -> bool:
+    """Absent-equivalent values that must not move the digest: None, empty
+    string / list / dict, and an explicit False. NOT 0 / 0.0 — Python's
+    `0 == False`, so a membership test against a tuple containing False
+    would silently drop a zero boundary (`min: 0`); review round 2, B6."""
+    if v is None or v is False:
+        return True
+    return isinstance(v, (str, list, dict)) and len(v) == 0
 
 
 def _canonical_rule(rule: dict) -> dict:
-    return {k: v for k, v in sorted(rule.items()) if v not in _DROP}
+    return {k: v for k, v in sorted(rule.items()) if not _dropped(v)}
 
 
-def _rules_digest(rules: list[dict]) -> str:
-    payload = json.dumps([_canonical_rule(r) for r in rules], sort_keys=True, separators=(",", ":"))
+def _rules_digest(rules: list[dict], body: dict | None = None) -> str:
+    """Digest of everything that changes a verdict: the rules, plus the
+    contract-level strict flag, its allow-list, and any contexts block."""
+    payload = json.dumps({
+        "rules": [_canonical_rule(r) for r in rules],
+        "strict_schema": bool((body or {}).get("strict_schema", False)),
+        "allowed_fields": sorted((body or {}).get("allowed_fields") or (body or {}).get("fields") or []),
+        "contexts": (body or {}).get("contexts") or {},
+    }, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -52,7 +66,7 @@ def build_manifest() -> dict:
             "version": str(body.get("version", "")),
             "strict_schema": bool(body.get("strict_schema", False)),
             "rule_count": len(rules),
-            "rules_sha256": _rules_digest(rules),
+            "rules_sha256": _rules_digest(rules, body),
         })
     whole = hashlib.sha256(
         json.dumps(entries, sort_keys=True, separators=(",", ":")).encode("utf-8")

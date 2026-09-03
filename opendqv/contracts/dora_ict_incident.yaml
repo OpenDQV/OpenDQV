@@ -10,7 +10,6 @@ contract:
   approved_by: opendqv-core-team
   approved_at: "2026-04-27T00:00:00+00:00"
   version: "1.0"
-  strict_schema: true
   description: >
     Digital Operational Resilience Act (DORA) — Regulation (EU) 2022/2554, Article 17–19.
     ICT-related incident report compliance contract for financial entities operating in the EU.

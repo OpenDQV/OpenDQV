@@ -78,7 +78,7 @@ _KNOWN_RULE_TYPES = frozenset({
     "age_match",
 })
 
-_PRESENCE_RULE_TYPES = frozenset({"not_empty", "not_empty_string"})
+from opendqv.core.validator import _PRESENCE_RULE_TYPES  # single source of truth (round-2 B2)
 # Rule types for which an empty string counts as "absent" (validator._is_field_absent):
 _FORMAT_RULE_TYPES = frozenset({
     "regex", "date_format", "min_length", "max_length", "allowed_values", "lookup", "checksum",
@@ -256,6 +256,20 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
         r.get("field") for r in _rules_node
         if isinstance(r, dict) and (r.get("type") in _PRESENCE_RULE_TYPES or r.get("type") == "required_if")
     }
+    # D7 (search semantics, round-2 S4): a pattern that does not start with
+    # `^` matches anywhere in the value — say so, advisory.
+    for r in _rules_node:
+        if isinstance(r, dict) and r.get("type") == "regex" and isinstance(r.get("pattern"), str):
+            _pat = r["pattern"]
+            if _pat and not _pat.startswith("^") and not _pat.startswith("builtin:"):
+                result.issues.append(LintIssue(
+                    severity="info", rule_name=r.get("name"), code="REGEX_NOT_START_ANCHORED",
+                    message=(
+                        f"rule '{r.get('name')}' pattern does not start with '^': regex rules use search "
+                        f"semantics, so it matches anywhere in the value. Prefix '^' (and suffix '$') to "
+                        f"require the whole value to match."
+                    ),
+                ))
     _d6_seen: set = set()
     for r in _rules_node:
         if not isinstance(r, dict):

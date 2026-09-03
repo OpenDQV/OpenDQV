@@ -97,6 +97,7 @@ def test_fixture_proves_acceptance_not_only_rejection(path: Path):
     for line in by_kind["warning_only"]:
         assert line["expect"]["valid"] is True and line["expect"]["errors"] == [] and line["expect"]["warnings"]
     assert by_kind["probe"]
+    assert [line for line in lines if line["kind"] == "blank_probe"], f"{path.stem}: no blank probes (round-2 S1)"
 
 
 @pytest.mark.parametrize("path", FIXTURES, ids=lambda p: p.stem)
@@ -119,3 +120,19 @@ def test_k1_batch_matches_single_when_field_absent_from_every_record():
     assert single["valid"] is False
     assert [r["valid"] for r in batch["results"]] == [False, False]
     assert batch["results"][0]["errors"][0]["error_code"] == single["errors"][0]["error_code"]
+
+
+
+def test_negative_control_a_wrong_expectation_is_detected():
+    """Round-2 S1: the comparison must actually bite. Flip one recorded
+    verdict in memory and prove the reproduce-check fails on it."""
+    path = FIXTURES[0]
+    contract, rules = _contract_and_rules(path.stem)
+    kw = strict_schema_kwargs(contract, rules)
+    line = _load(path)[0]
+    tampered = dict(line["expect"], valid=not line["expect"]["valid"])
+    single = _shape(validate_record(line["record"], rules, contract_name=contract.name, **kw))
+    assert single == line["expect"]
+    assert single != tampered
+    tampered2 = dict(line["expect"], errors=line["expect"]["errors"] + [{"code": "OPENDQV_FAKE", "severity": "error", "message": "x"}])
+    assert single != tampered2
