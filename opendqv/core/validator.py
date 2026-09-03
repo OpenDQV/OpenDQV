@@ -877,7 +877,7 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
     else:
         other = (record or {}).get(rule.compare_to)
         if _is_field_absent(other):
-            return None  # D10: counterpart absent/blank — presence rules are the single catcher
+            return rule.error_message  # D10: a missing/blank counterpart IS a comparison failure (both engines)
 
     # v2.3.20 Cluster C (P1.2): same_date compare_op extracts the
     # YYYY-MM-DD portion from each side before comparing. Catches the
@@ -976,12 +976,21 @@ def _check_lookup(value, rule: Rule, record: Optional[dict] = None) -> Optional[
     return None
 
 
+def _checksum_type_message(field: str, value) -> str:
+    return (
+        f'checksum field "{field}" must be a JSON string, got {_json_type_name(value)} — '
+        "send the identifier as a quoted string to preserve canonical form (e.g. leading zeros)"
+    )
+
+
 def _check_checksum(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if not rule.checksum_algorithm:
         logger.warning("checksum rule '%s' missing checksum_algorithm", rule.name)
         return None
     if _is_field_absent(value):
         return None
+    if not isinstance(value, str):
+        return _checksum_type_message(rule.field, value)  # D9 family: refuse, never coerce
     if not _validate_checksum(str(value), rule.checksum_algorithm):
         return rule.error_message
     return None
@@ -1049,7 +1058,7 @@ def _check_date_diff(value, rule: Rule, record: Optional[dict] = None) -> Option
         return None  # field absent or blank (D6) — skip date_diff; required check is a separate rule
     other_val = (record or {}).get(rule.date_diff_field)
     if _is_field_absent(other_val):
-        return None  # D10: counterpart absent/blank — presence rules are the single catcher
+        return rule.error_message  # D10: a missing/blank counterpart IS a date_diff failure (both engines)
     try:
         d1 = _parse_date(value)
         d2 = _parse_date(other_val)
@@ -1739,8 +1748,14 @@ def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches
         return set()  # a column nobody sent cannot carry duplicates
     failing = _batch_check_rule_inner(con, df, rule, failing_type_mismatches, records, failing_messages, synthesised)
     if rule.type not in _ABSENT_EXEMPT_RULE_TYPES and rule.field and rule.field in df.columns:
-        col = df[rule.field]
-        absent = {i for i in range(len(df)) if _batch_absent(col.iloc[i])}
+        # Judge absence from the RAW record when available: pandas stores a
+        # missing key and an explicit NaN identically, and an explicit NaN/inf
+        # on a numeric rule must stay a rejection (test_crt177).
+        if records is not None:
+            absent = {i for i in range(len(df)) if rule.field not in records[i] or _is_field_absent(records[i].get(rule.field))}
+        else:
+            col = df[rule.field]
+            absent = {i for i in range(len(df)) if _batch_absent(col.iloc[i])}
         if absent:
             failing = {i for i in failing if i not in absent}
             for d in (failing_type_mismatches, failing_messages):
@@ -1982,7 +1997,8 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                 if a_raw is None or (isinstance(a_raw, float) and pd.isna(a_raw)):
                     continue
                 if not is_temporal_sentinel and _batch_absent(b_raw):
-                    continue  # D10: counterpart absent/blank → skip (single catcher), as the single path
+                    failing.add(idx)  # D10: missing/blank counterpart → fail, as the single path
+                    continue
                 a_str = str(a_raw)[:10]
                 b_str = str(b_raw)[:10]
                 # Both sides must look like YYYY-MM-DD; otherwise the
@@ -2008,7 +2024,8 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                         # CRT170/J3: absent field — skip (not_empty is the catcher).
                         continue
                     if not is_temporal_sentinel and _batch_absent(b_raw):
-                        continue  # D10: counterpart absent/blank → skip (single catcher), as the single path
+                        failing.add(idx)  # D10: missing/blank counterpart → fail, as the single path
+                        continue
                     try:
                         a, b = float(a_raw), float(b_raw)
                     except (TypeError, ValueError):
@@ -2083,11 +2100,18 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
             logger.warning("lookup rule '%s' skipped (infrastructure error, not failing batch): %s", rule.name, exc)
 
     elif rule.type == "checksum" and rule.checksum_algorithm:
-        for idx, val in enumerate(df[field]):
-            if _batch_absent(val):  # D6: absent or blank
-                # CRT170/J3: absent field — skip.
+        for idx in range(len(df)):
+            raw = _orig_val(idx)
+            if _batch_absent(raw):  # D6: absent or blank
                 continue
-            elif not _validate_checksum(str(val), rule.checksum_algorithm):
+            if not isinstance(raw, str):
+                # D9 family: a non-string identifier is refused with a typed
+                # message under the rule's own code (single-path parity).
+                failing.add(idx)
+                if failing_messages is not None:
+                    failing_messages[idx] = _checksum_type_message(field, raw)
+                continue
+            if not _validate_checksum(raw, rule.checksum_algorithm):
                 failing.add(idx)
 
     elif rule.type == "cross_field_range":
@@ -2160,7 +2184,8 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                     # CRT170/J3 + D6: target field absent or blank — skip (not_empty is the catcher).
                     continue
                 if _batch_absent(other_val):
-                    # D10: counterpart absent/blank → skip; presence rules are the single catcher.
+                    # D10: missing/blank counterpart → fail, as the single path (both engines).
+                    failing.add(idx)
                     continue
                 try:
                     d1 = _parse_date(val)

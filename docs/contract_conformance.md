@@ -355,11 +355,13 @@ thing on both engines.
 - **B6** manifest keeps zero boundaries (`0 == False` trap), hashes
   `strict_schema` + `allowed_fields` + `contexts`. **B7** stray files removed.
 - **D10 (new, from the S1 blank sweep) — a cross-field rule whose
-  counterpart is absent or blank SKIPS.** `compare` and `date_diff` used to
-  fail the record when the other side was missing (the single path) or pass
-  it (the batch path); under D6 the presence rule on the counterpart is the
-  single catcher, so both paths now skip. B4's parity is delivered in that
-  direction; the managed engine already reads it this way.
+  counterpart is missing or blank FAILS, on both paths.** The single path
+  always said so for `None`; the batch path passed it (the K1 shape, one
+  rule family over — B4); a blank counterpart was inconsistent on both. The
+  managed engine fails it too, so this is the joint reading. (The first cut
+  of this round tried "skip, presence rules are the single catcher"; four
+  older tests and the managed engine's own verdict said otherwise — D6
+  governs a rule's OWN field, not the counterpart a comparison needs.)
 - **S1** negative control: a deliberately wrong expectation fails the suite.
 - **S3 — strict export with contexts is looser than the engine.** The union
   export accepts a field only a context declares while a no-context engine

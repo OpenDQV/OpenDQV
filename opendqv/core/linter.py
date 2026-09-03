@@ -34,9 +34,12 @@ Checks performed:
 import re
 from dataclasses import dataclass, field
 from typing import Optional
-import yaml
-from opendqv.core.validator import _PRESENCE_RULE_TYPES  # single source of truth (round-2 B2)
 
+import yaml
+
+from opendqv.core.validator import (
+    _PRESENCE_RULE_TYPES,  # single source of truth (round-2 B2)
+)
 
 # Lightweight RFC-5322-ish email shape — enough to flag obvious typos / placeholders.
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")

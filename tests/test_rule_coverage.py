@@ -430,17 +430,16 @@ class TestCompareRuleEdgeCases:
         )
         assert result["valid"] is True
 
-    def test_compare_missing_other_field_skips(self):
+    def test_compare_missing_other_field_fails(self):
         """compare_to field absent → error."""
         result = _validate(
             {"value": "10"},
             type="compare", name="c",
             compare_to="missing_field", compare_op="gt",
         )
-        # D10 (conformance register, 2026-09-03): an absent counterpart is not a
-        # comparison failure — the presence rule on the counterpart is the single
-        # catcher (D6). Before D10 this asserted False.
-        assert result["valid"] is True
+        # D10 (conformance register, 2026-09-03): a missing or blank counterpart IS
+        # a comparison failure on both engines and both paths.
+        assert result["valid"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -585,14 +584,16 @@ class TestBatchValidation:
         result = validate_batch(records, [rule], contract_name="test")
         assert result["summary"]["failed"] == 0
 
-    def test_compare_batch_null_other_skipped(self):
+    def test_compare_batch_null_other_fails(self):
         # CRT170/J3: cross-field counterpart absent — compare skips (the
         # comparison cannot be evaluated). A presence rule on the counterpart
         # field is the place to enforce its presence.
         rule = _rule(type="compare", compare_to="other", compare_op="gt")
         records = [{"value": 10, "other": None}]
         result = validate_batch(records, [rule], contract_name="test")
-        assert result["summary"]["failed"] == 0
+        # D10 (2026-09-03): a missing/blank counterpart IS a comparison failure on
+        # both paths and both engines; the batch path used to skip it (the K1 shape).
+        assert result["summary"]["failed"] == 1
 
     def test_compare_batch_missing_field_warns(self):
         """compare_to references a field not in data → warning, no crash."""
@@ -1418,13 +1419,12 @@ class TestAbsentFieldSkipping:
 
     # ── Counterpart absence still fails (only TARGET absence is skipped) ───
 
-    def test_compare_skips_when_counterpart_absent(self):
+    def test_compare_fails_when_counterpart_absent(self):
         """Target present but counterpart absent → still a real error."""
         result = _validate(
             {"value": 5, "other": None},
             type="compare", compare_to="other", compare_op="gt",
         )
-        # D10 (conformance register, 2026-09-03): an absent counterpart is not a
-        # comparison failure — the presence rule on the counterpart is the single
-        # catcher (D6). Before D10 this asserted False.
-        assert result["valid"] is True
+        # D10 (conformance register, 2026-09-03): a missing or blank counterpart IS
+        # a comparison failure on both engines and both paths.
+        assert result["valid"] is False

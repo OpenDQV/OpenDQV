@@ -85,10 +85,11 @@ def test_b4_cross_field_counterpart_absent_matches_single_path():
     single = validate_record(rec, rules)
     batch = validate_batch([rec, rec], rules)["results"]
     assert [r["valid"] for r in batch] == [single["valid"]] * 2
-    # D10: an absent/blank counterpart is not a comparison failure — presence
-    # rules are the single catcher (D6) — so both paths say valid here.
-    assert single["valid"] is True
-    assert validate_record({"a": 1, "b": ""}, rules)["valid"] is True
+    # D10: a missing or blank counterpart IS a comparison failure — on both
+    # engines and both paths (the batch path used to pass it: the K1 shape).
+    assert single["valid"] is False
+    assert validate_record({"a": 1, "b": ""}, rules)["valid"] is False
+    assert validate_record({"a": 1, "b": 2}, rules)["valid"] is True
     assert validate_record({"a": 2, "b": 1}, rules)["valid"] is False  # a real violation still fails
     dd = [Rule(name="dd", type="date_diff", field="a", date_diff_field="b", max=1, error_message="dd")]
     rec = {"a": "2026-01-01"}
