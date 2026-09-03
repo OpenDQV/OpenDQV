@@ -25,7 +25,7 @@ message changes; the previous-release replay reports 0 flips against v2.5.1.
   and `ratio_check` branches were found to still zero an absent operand
   (`{a: 10}` with `b` absent passed in batch, failed single); both now fail
   it like the single path.
-- **Breaking-change detector (#146).** `tests/fixtures/conformance/minimal_clean.jsonl`
+- **Breaking-change detector (#146).** `tests/fixtures/conformance/frozen/minimal_clean.jsonl`
   freezes the smallest record each starter accepted at v2.5.1 (30 of 41;
   the 11 without an example record are in an explicit shrink-only
   allowlist), and `scripts/replay_previous_corpus.py` replays the previous

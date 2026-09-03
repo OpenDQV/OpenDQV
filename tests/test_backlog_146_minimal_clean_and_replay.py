@@ -10,9 +10,10 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
-FIXTURE = ROOT / "tests" / "fixtures" / "conformance" / "minimal_clean.jsonl"
+FIXTURE = ROOT / "tests" / "fixtures" / "conformance" / "frozen" / "minimal_clean.jsonl"
 BUNDLED = ROOT / "opendqv" / "contracts"
 
+# Lives in conformance/frozen/ so the generated-corpus glob never picks it up.
 # Starters with no frozen minimal record yet. SHRINK ONLY: a name may be removed
 # from this set (by adding its row), never added. New starters must ship a row.
 _UNSEEDED = {

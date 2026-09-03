@@ -40,7 +40,9 @@ def latest_tag() -> str | None:
 
 
 def files_at(ref: str) -> list[str]:
-    out = subprocess.run(["git", "ls-tree", "--name-only", ref, f"{FIXTURE_DIR}/"], cwd=ROOT, capture_output=True, text=True)
+    """Corpus files at ``ref``: the generated per-contract files plus the frozen
+    minimal_clean rows (kept in frozen/ so the generator's glob never sees them)."""
+    out = subprocess.run(["git", "ls-tree", "-r", "--name-only", ref, f"{FIXTURE_DIR}/"], cwd=ROOT, capture_output=True, text=True)
     return [p for p in out.stdout.split() if p.endswith(".jsonl")]
 
 

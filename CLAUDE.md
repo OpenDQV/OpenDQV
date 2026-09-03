@@ -101,7 +101,7 @@ python -m opendqv.cli validate customer '{"name":"Alice","age":30}'
 ### Rule conditions
 - `condition:` vocabulary is closed: `field`, `value`, `not_value`, `present` (bool). Unknown keys are a load error (v2.6.0).
 - D10: a cross-field rule fails when its counterpart is absent/blank on both paths; the error entry carries `counterpart_missing: true`. Use `condition: {field: <counterpart>, present: true}` for "compare only when both present".
-- `tests/fixtures/conformance/minimal_clean.jsonl` is frozen by hand, never regenerated; `scripts/replay_previous_corpus.py` fails the suite when a record the previous release accepted is now rejected.
+- `tests/fixtures/conformance/frozen/minimal_clean.jsonl` is frozen by hand, never regenerated; `scripts/replay_previous_corpus.py` fails the suite when a record the previous release accepted is now rejected.
 
 ### Contract lifecycle
 States: `draft` → `review` → `active` | `archived`
