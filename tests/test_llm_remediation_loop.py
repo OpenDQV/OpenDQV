@@ -233,7 +233,7 @@ class TestLoopIntegration:
             "amount": -1.0,   # below minimum
             "currency": "GBP",
             "transaction_type": "credit",
-            "channel": "online",
+            "channel": "online", "reference": "INV-2026-1001",
             "merchant_id": "MERCH-001",
         }
         fixed = {**bad_record, "amount": 10.0}
