@@ -43,7 +43,10 @@ def files_at(ref: str) -> list[str]:
     """Corpus files at ``ref``: the generated per-contract files plus the frozen
     minimal_clean rows (kept in frozen/ so the generator's glob never sees them)."""
     out = subprocess.run(["git", "ls-tree", "-r", "--name-only", ref, f"{FIXTURE_DIR}/"], cwd=ROOT, capture_output=True, text=True)
-    return [p for p in out.stdout.split() if p.endswith(".jsonl")]
+    # The claims fixture (frozen/regulatory_claims.jsonl, 2.7.0) carries
+    # base + patch rows, not records — it has its own test and is not a
+    # replay baseline.
+    return [p for p in out.stdout.split() if p.endswith(".jsonl") and not p.endswith("regulatory_claims.jsonl")]
 
 
 def read_at(ref: str, path: str) -> list[dict]:
@@ -70,6 +73,8 @@ def replay(ref: str) -> dict:
     for path in files_at(ref):
         stem = Path(path).stem
         for line in read_at(ref, path):
+            if "record" not in line:
+                continue  # not a record row (defensive: a future fixture shape must not break the replay)
             name = line.get("contract") or stem
             if not (CONTRACTS / f"{name}.yaml").exists():
                 flips.append({"contract": name, "kind": line.get("kind", "?"), "change": "contract removed"})
