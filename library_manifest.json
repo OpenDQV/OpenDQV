@@ -20,8 +20,8 @@
       "file": "banking_transaction.yaml",
       "name": "banking_transaction",
       "rule_count": 19,
-      "rules_sha256": "725f8637d5e43cd848120eec6c744475a2e6dfb2eaa250a6a989d0a5c17e8d65",
-      "strict_schema": false,
+      "rules_sha256": "4b679cbe59e8ee1c0fbebb4605f94173e842ea55152d071b6273fbcf8d68fcc4",
+      "strict_schema": true,
       "version": "1.1"
     },
     {
@@ -52,8 +52,8 @@
       "file": "dora_ict_incident.yaml",
       "name": "dora_ict_incident",
       "rule_count": 37,
-      "rules_sha256": "88f089f625d97f61a5efb306adacb6489925cca89be25a20c02b9727ddc44745",
-      "strict_schema": false,
+      "rules_sha256": "39d05d5076dd7130b8e1c412d15e77ba725a687d5ee818a966fe502ccd4c9449",
+      "strict_schema": true,
       "version": "1.0"
     },
     {
@@ -84,16 +84,16 @@
       "file": "financial_services_customer.yaml",
       "name": "financial_services_customer",
       "rule_count": 15,
-      "rules_sha256": "389af4575ae18b1318be14679d916b5f2e18d23e682d17e0d9edff08bd416d7e",
-      "strict_schema": false,
+      "rules_sha256": "8bada64474c1b08b588264e0dc51b6941dc7b4a50367f72c762a044678eef316",
+      "strict_schema": true,
       "version": "1.0"
     },
     {
       "file": "financial_trade.yaml",
       "name": "financial_trade",
       "rule_count": 23,
-      "rules_sha256": "6981de8cf611350ac9efe1526a49699c457f0209c11628a83c75ad86ba791e3a",
-      "strict_schema": false,
+      "rules_sha256": "8c31749da14ba542eab436b93a5d014cf41baaf5c2bb8579c4b6321c9288ea6c",
+      "strict_schema": true,
       "version": "1.1"
     },
     {
@@ -188,8 +188,8 @@
       "file": "mifid_transaction_report.yaml",
       "name": "mifid_transaction_report",
       "rule_count": 38,
-      "rules_sha256": "bb42e01218b67f5e3175e0a1a91c4ad5d4df3ca0d8062b1b09d67122a01cccfc",
-      "strict_schema": false,
+      "rules_sha256": "7920aac1ce93caa15cfefa5cbc8a284804b8a5f4fa4228806379724597678610",
+      "strict_schema": true,
       "version": "1.0"
     },
     {
@@ -292,8 +292,8 @@
       "file": "sox_control_test.yaml",
       "name": "sox_control_test",
       "rule_count": 34,
-      "rules_sha256": "1f18cca9a9b550c77c1126af4ae178a2911b74f57b09895d89822ec9f1458eb6",
-      "strict_schema": false,
+      "rules_sha256": "b778a0e2d0f7b6925f629aeda2d4cd016697d108d02150ac96455dac1d2143ae",
+      "strict_schema": true,
       "version": "1.0"
     },
     {
@@ -329,6 +329,6 @@
       "version": "1.0"
     }
   ],
-  "library_sha256": "4e509e29b588b8fadd3d3cd7b5eb31b465f6cd857d6ff0ada1b1b265a8d539cf",
+  "library_sha256": "ffe53e492d902fcb2df5ac9e5fa76080e871ec160b7dad01799de13630c2bf36",
   "manifest_version": 1
 }

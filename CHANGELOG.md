@@ -4,6 +4,28 @@ All notable changes to OpenDQV are documented here.
 
 ## [Unreleased]
 
+### BREAKING — six regulated starters are now `strict_schema: true`
+
+`banking_transaction`, `dora_ict_incident`, `financial_services_customer`,
+`financial_trade`, `mifid_transaction_report`, `sox_control_test` now reject
+records that carry fields the contract does not declare
+(`OPENDQV_ADDITIONAL_PROPERTIES`). A record that validated against the
+previous release with an extra column (e.g. `merchant_category_code` on
+`banking_transaction`) fails under this one with no change to your file.
+
+**Migration:** either list the extra columns under `allowed_fields:` on your
+copy of the starter —
+
+```yaml
+strict_schema: true
+allowed_fields: [merchant_category_code, source_system]
+```
+
+— or fork the starter with `strict_schema: false`. Starters are samples you
+own; the flag is a starting posture, not a rule you cannot change. The
+managed OpenDQV Cloud library has carried these six as strict since 2026-04;
+this aligns the bundled copies with it.
+
 CRT180 — contract-format conformance across engines (see
 `docs/contract_conformance.md`).
 
