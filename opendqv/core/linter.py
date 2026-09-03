@@ -35,6 +35,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 import yaml
+from opendqv.core.validator import _PRESENCE_RULE_TYPES  # single source of truth (round-2 B2)
 
 
 # Lightweight RFC-5322-ish email shape — enough to flag obvious typos / placeholders.
@@ -78,7 +79,6 @@ _KNOWN_RULE_TYPES = frozenset({
     "age_match",
 })
 
-from opendqv.core.validator import _PRESENCE_RULE_TYPES  # single source of truth (round-2 B2)
 # Rule types for which an empty string counts as "absent" (validator._is_field_absent):
 _FORMAT_RULE_TYPES = frozenset({
     "regex", "date_format", "min_length", "max_length", "allowed_values", "lookup", "checksum",

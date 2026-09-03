@@ -49,7 +49,7 @@ def _rule_for(rtype: str) -> Rule | None:
         return None
     try:
         return Rule(**base, **extra[rtype])
-    except Exception:
+    except (ValueError, TypeError):  # pydantic ValidationError is a ValueError
         return None
 
 
