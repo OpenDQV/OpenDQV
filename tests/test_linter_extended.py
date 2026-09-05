@@ -346,8 +346,9 @@ class TestLintAgeMinGtMax:
         yaml_str = (
             "rules:\n"
             "  - name: age_check\n"
-            "    type: min_age\n"
+            "    type: date_format\n"  # 2.8.0: min_age is a key on date_format, not a type
             "    field: dob\n"
+            "    format: '%Y-%m-%d'\n"
             "    min_age: 120\n"
             "    max_age: 18\n"
             "    error_message: bad\n"

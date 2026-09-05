@@ -308,9 +308,12 @@ OpenDQV is in Beta as of 2.0.0. The following stability commitments apply to the
   A cross-field rule (`compare`, `field_sum`, `ratio_check`, `date_diff`, …) whose
   counterpart is absent or blank **fails**, and the error entry carries
   `counterpart_missing: true`. See [`docs/contract_conformance.md`](docs/contract_conformance.md).
-- **Unknown rule types load with a warning and pass.** A typo in `type:` (e.g.
-  `min_lenght`) is logged at contract load, and the rule then passes every record —
-  a typo'd rule is a disabled rule. `opendqv lint` fails it. Always lint before deploy.
+- **Unknown rule types are refused at load (v2.8+).** A typo in `type:` (e.g.
+  `min_lenght`) is a load error naming the known types — on the REST rule
+  endpoints (422), the MCP draft tool, every importer, and a stored YAML file
+  (the contract does not load; the refusal is logged; `opendqv lint` catches it
+  before deploy). Until 2.7 such a rule loaded as a disabled rule that passed
+  everything. Both engines refuse the same day.
 
 ---
 

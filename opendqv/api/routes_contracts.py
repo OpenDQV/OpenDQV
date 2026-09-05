@@ -553,7 +553,8 @@ async def reload_contracts(request: Request, user=Depends(get_current_user), rol
     if role not in ("admin",):
         raise HTTPException(status_code=403, detail=f"Role '{role}' is not permitted. Required: admin.")
     _d.registry.reload()
-    return {"status": "reloaded", "contracts": _d.registry.list_contracts(include_all=True)}
+    return {"status": "reloaded", "contracts": _d.registry.list_contracts(include_all=True),
+            "failed": list(getattr(_d.registry, "load_failures", []))}
 
 
 @sub_router.post("/contracts/{name}/status")

@@ -145,7 +145,11 @@ class TestApiOnlyRules:
 class TestUnknownRuleType:
     @pytest.mark.parametrize("target", ["snowflake", "js", "salesforce"])
     def test_unknown_type_emits_todo(self, target):
-        out = generate_code([_rule("future_rule_type_xyz")], target=target)
+        # 2.8.0: Rule() refuses unknown types, so build the object without
+        # validation to exercise the generator's own unknown-type branch.
+        from opendqv.core.rule_parser import Rule
+        rule = Rule.model_construct(**{**_rule("regex", pattern="^a$"), "type": "future_rule_type_xyz"})
+        out = generate_code([rule], target=target)
         assert "TODO" in out
 
 

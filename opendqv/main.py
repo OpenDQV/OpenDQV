@@ -151,6 +151,17 @@ set_graphql_registry(registry)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+
+async def _snapshot_rule_error_handler(request, exc):
+    # 2.8.0: a historical snapshot carrying a rule this engine refuses is a
+    # 409, not a 500 — the audit record stands; this engine cannot replay it.
+    from fastapi.responses import JSONResponse
+    return JSONResponse(status_code=409, content={"detail": str(exc), "error_code": "SNAPSHOT_RULE_REFUSED"})
+
+
+from opendqv.core.contracts import SnapshotRuleError as _SnapshotRuleError  # noqa: E402
+app.add_exception_handler(_SnapshotRuleError, _snapshot_rule_error_handler)
+
 # Startup warnings when rate limiting is disabled on the hot path
 _rl_off = config._RATE_LIMIT_OFF_VALUES
 if config.RATE_LIMIT_VALIDATE.strip().lower() in _rl_off:

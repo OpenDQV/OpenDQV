@@ -741,7 +741,7 @@ if section == "Contracts":
                             )
                         _RULE_TYPES = [
                             "not_empty", "not_empty_string", "regex", "min_length", "max_length",
-                            "range", "lookup", "date_format", "email", "url",
+                            "range", "lookup", "date_format", "allowed_values", "compare",
                         ]
                         _RULE_TYPE_HELP = {
                             "not_empty": "Field must not be null or empty",
@@ -752,8 +752,8 @@ if section == "Contracts":
                             "range": "Numeric field must be within min/max bounds",
                             "lookup": "Field must be one of a fixed set of values",
                             "date_format": "Field must be a date in a given format",
-                            "email": "Field must be a valid email address",
-                            "url": "Field must be a valid URL",
+                            "allowed_values": "Field must be one of the listed values",
+                            "compare": "Field compared against another field (compare_to + compare_op)",
                         }
 
                         # ── Edit/delete per existing rule ─────────────────────

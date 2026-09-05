@@ -88,7 +88,7 @@ except ImportError:
     sys.exit(1)
 
 import opendqv.config as config
-from opendqv.core.contracts import CONTRACT_NAME_RE, ContractRegistry
+from opendqv.core.contracts import CONTRACT_NAME_RE, ContractRegistry, SnapshotRuleError
 from opendqv.core.validator import validate_record as _validate_record, validate_batch as _validate_batch, strict_schema_kwargs
 from opendqv.core.explainer import explain_rule
 from opendqv.core.rule_parser import ContractStatus, Rule as _Rule
@@ -903,6 +903,16 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
                 detail=f"Unknown tool: {name}",
                 remediation="Call list_tools to enumerate available tools.",
             ))]
+    except SnapshotRuleError as exc:
+        # 2.8.0: a historical snapshot carrying a rule this engine refuses —
+        # the record stands, this engine cannot replay it. 409, never a 500.
+        return [types.TextContent(type="text", text=_error_envelope(
+            error_code="SNAPSHOT_RULE_REFUSED",
+            kind="conflict",
+            status=409,
+            detail=str(exc),
+            remediation="Validate against the live contract, or replay the snapshot on the engine version that recorded it.",
+        ))]
     except Exception as exc:
         return [types.TextContent(type="text", text=_error_envelope(
             error_code="INTERNAL_ERROR",

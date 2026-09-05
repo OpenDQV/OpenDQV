@@ -20,6 +20,11 @@ def _rule(**kwargs) -> Rule:
         "error_message": "Field failed",
     }
     defaults.update(kwargs)
+    from opendqv.core.rule_parser import RULE_TYPES
+    if defaults["type"] not in RULE_TYPES:
+        # 2.8.0: Rule() refuses unknown/legacy types; the explainer still
+        # explains them (legacy names, forward-compat), so build unvalidated.
+        return Rule.model_construct(**defaults)
     return Rule(**defaults)
 
 

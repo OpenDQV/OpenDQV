@@ -87,14 +87,16 @@ class TestStatusWriteDoesNotCorruptNestedKeys:
         _write(cdir, "c5", {
             "name": "c5", "version": "1.0", "status": "active",
             "rules": [{"name": "r1", "field": "status", "type": "not_empty"}],
-            "contexts": {"eu": [{"name": "r2", "field": "status", "type": "not_empty"}]},
+            # a well-formed override (2.8.0 constructs contexts at load) that keeps a
+            # nested `status` key in the file: the rule's field and the override key
+            "contexts": {"eu": {"r1": {"error_message": "status is required in the EU"}}},
         })
         ContractRegistry(cdir).set_status("c5", "1.0", ContractStatus.ARCHIVED)
 
         raw = yaml.safe_load((cdir / "c5.yaml").read_text(encoding="utf-8"))["contract"]
         assert raw["status"] == "archived"                       # lifecycle status changed
         assert raw["rules"][0]["field"] == "status"              # rule field untouched
-        assert raw["contexts"]["eu"][0]["field"] == "status"     # context override untouched
+        assert raw["contexts"]["eu"]["r1"]["error_message"].startswith("status")   # context override untouched
 
     def test_write_is_atomic_no_tmp_left_behind(self, cdir):
         _write(cdir, "c6", {"name": "c6", "version": "1.0", "status": "draft", "rules": []})

@@ -1,6 +1,6 @@
 # Core Rule Types Reference
 
-Last reviewed: 2026-09-03 (engine 2.7.0)
+Last reviewed: 2026-09-05 (engine 2.8.0)
 
 OpenDQV ships 24 rule types (the `_RULE_HANDLERS` table in
 `opendqv/core/validator.py`). The 14 core ones are documented on this page;
@@ -49,9 +49,11 @@ and hold identically on the single-record and batch paths:
   absent or blank the rule **fails** with the rule's `error_message`, and the
   error entry carries `counterpart_missing: true` (REST, GraphQL and MCP).
   The rule's own `field` being absent is still D6 (skipped).
-- **Unknown rule types load with a warning and pass** every record. Run
-  `opendqv lint` — `UNKNOWN_RULE_TYPE` is a lint error — before deploying a
-  contract.
+- **Unknown rule types are refused at load (2.8.0).** `Rule()` raises with the
+  list of known types (`opendqv.core.rule_parser.RULE_TYPES`, the same set the
+  validator dispatches and the linter checks); `min_age`/`max_age` are keys on a
+  `date_format` rule, not types. A stored YAML with a typo does not load — the
+  refusal is logged and `opendqv lint` reports `UNKNOWN_RULE_TYPE`.
 - **`regex` is an unanchored search** (since 2.5.0; it was `match`). A
   pattern without `^…$` matches anywhere in the value. Anchor deliberately;
   `opendqv lint` flags `REGEX_NOT_START_ANCHORED` as an advisory.

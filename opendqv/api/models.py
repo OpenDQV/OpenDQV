@@ -501,6 +501,7 @@ class ContractReloadResponse(BaseModel):
     """Result of reloading contracts from disk."""
     status: str = Field(..., description="Always 'reloaded'")
     contracts: list[ContractInfo]
+    failed: list[dict] = Field(default_factory=list, description="Files that did not load: [{file, error}] (2.8.0)")
 
 
 # ── Explain error response ────────────────────────────────────────────

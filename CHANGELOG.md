@@ -2,6 +2,59 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.8.0] - Unreleased
+
+**Unknown rule types are refused at load — on both engines the same day.**
+Decision (Pilot / managed-engine maintainer, 2026-09-03): a typo in `type:`
+loaded as a disabled rule that passed every record — the same silent-pass
+class closed for `condition:` keys in 2.6.0. "Forward-compatible" is the
+argument for passing silently, and with two engines it is the argument
+against: an older engine would show green on records a newer one rejects.
+Honour or refuse, never silently drop.
+
+- `opendqv.core.rule_parser.RULE_TYPES` is the closed set. `Rule()` raises
+  `ValueError` naming the known types for anything else (`min_age` /
+  `max_age` get a hint: they are keys on a `date_format` rule, not types).
+  The validator asserts its dispatch table equals the set at import; the
+  linter's `UNKNOWN_RULE_TYPE` check reads it (closes #163 — the linter used
+  to know `min_age`/`max_age` and not `conditional_lookup`).
+- Every entry path refuses: REST `POST/PUT /contracts/{name}/rules` → 422,
+  MCP `create_contract_draft` → error envelope, all importers incl. ODCS
+  `custom/opendqv` implementations → 422, and **stored YAML**.
+- **Stored vs submitted (Core's answer):** a stored contract file with an
+  unknown type **fails to load at startup**, exactly like any other invalid
+  rule (bad regex, bad condition key) — the refusal is logged with the file
+  and the offending type, the contract is absent (validate → 404), nothing
+  is served with a rule silently missing. Run `opendqv lint` before deploy;
+  the bundled library is gated by `tests/test_contract_linter.py` and the
+  starter templates by `tests/test_starter_templates_load.py`. (The managed
+  engine refuses at submission and loads already-stored content leniently
+  with a journal warning — its tenants have live content; Core's contracts
+  are files under version control.)
+- Engine fallback: a `Rule` that bypasses the model and reaches the
+  validator with no handler now fails the record with `OPENDQV_RULE_ERROR`
+  instead of passing it.
+- **`contexts:` overrides are constructed at load** (blind review): an
+  override naming an unknown type used to pass silently and, with the gate
+  alone, would have failed every request naming that context. The loader
+  now builds each context's merged rules once; a bad override refuses the
+  file with the context named. `opendqv lint` checks override types too.
+- **Historical snapshots (blind review):** a snapshot recorded by an older
+  release that carries a now-refused rule is preserved in history but cannot
+  be replayed by this engine — `?hash=` / `as_of` return **409
+  `SNAPSHOT_RULE_REFUSED`** (REST) or the matching MCP error envelope, never
+  a 500 and never a silent pass.
+- `POST /contracts/reload` returns `failed: [{file, error}]` for every file
+  that did not load, so a refused stored contract is visible in the response
+  and not only in the server log.
+- UI rule-type dropdown no longer offers `email`/`url` (never rule types;
+  they were saved as a silent pass).
+
+Tests: `tests/test_unknown_rule_type_fail_closed.py` (model, REST, MCP,
+ODCS, stored-YAML load, linter/validator/model set equality). Three older
+tests that built rules with made-up types (`age`, `min_age` as a type) were
+passing only because of the silent pass; corrected.
+
 ## [2.7.0] - 2026-09-03
 
 **The starter library now has one owner, and it is not this repository.** The
