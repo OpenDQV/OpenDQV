@@ -2,7 +2,7 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [2.8.0] - Unreleased
+## [2.8.0] - 2026-09-05
 
 **Unknown rule types are refused at load — on both engines the same day.**
 Decision (Pilot / managed-engine maintainer, 2026-09-03): a typo in `type:`
