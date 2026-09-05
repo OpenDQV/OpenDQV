@@ -267,3 +267,28 @@ rules:
 ''')
     _both(rules, {"dob": " 1/01/1990"}, [])
     _both(rules, {"dob": " 1/01/" + str(date.today().year - 5)}, ["dob_fmt"])
+
+
+def test_duckdb_rejecting_a_layout_falls_back_to_the_single_path_on_any_python(monkeypatch):
+    """Force the DuckDB rejection (independent of which strptime directives the
+    running Python knows) and assert both the date_format branch and the age
+    add-on fall back to the single-path handlers with identical verdicts."""
+    import duckdb
+    real = duckdb.DuckDBPyConnection.execute
+    seen = []
+
+    def rejecting(self, query, *args, **kwargs):
+        if "TRY_STRPTIME" in str(query):
+            seen.append(query)
+            raise duckdb.Error("Unrecognized format for strftime/strptime")
+        return real(self, query, *args, **kwargs)
+
+    monkeypatch.setattr(duckdb.DuckDBPyConnection, "execute", rejecting)
+    rules = parse_rules('''
+rules:
+  - {name: dob_fmt, type: date_format, field: dob, format: "%d/%m/%Y", min_age: 18, error_message: under 18}
+''')
+    _both(rules, {"dob": "01/01/1990"}, [])
+    _both(rules, {"dob": "1990-01-01"}, ["dob_fmt"])                                   # shape rejected by the layout
+    _both(rules, {"dob": (date.today() - timedelta(days=3000)).strftime("%d/%m/%Y")}, ["dob_fmt"])  # under 18
+    assert seen, "the forced rejection never fired — the batch path did not reach TRY_STRPTIME"
