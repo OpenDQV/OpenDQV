@@ -255,7 +255,12 @@ def test_dropping_the_format_rule_from_a_live_list_clears_the_stamp():
 
 
 def test_python_only_strptime_directive_keeps_batch_and_single_in_parity():
-    # DuckDB rejects %e; the batch age add-on must fall back to the single-path check.
+    # DuckDB rejects %e; the batch date_format and age add-on must fall back to
+    # the single-path check. Python accepts %e only from 3.13 (CI runs 3.11).
+    try:
+        _parse_date(" 1/01/1990", "%e/%m/%Y")
+    except ValueError:
+        pytest.skip("this Python's strptime has no %e directive")
     rules = parse_rules('''
 rules:
   - {name: dob_fmt, type: date_format, field: dob, format: "%e/%m/%Y", min_age: 18, error_message: under 18}
