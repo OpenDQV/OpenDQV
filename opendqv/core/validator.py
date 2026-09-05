@@ -1264,7 +1264,8 @@ _RULE_HANDLERS: dict[str, Callable] = {
 
 # 2.8.0: the dispatch table and the model's closed set must agree, or a type
 # could exist in one and not the other (issue #163). Fails at import.
-assert frozenset(_RULE_HANDLERS) == RULE_TYPES, (
+if frozenset(_RULE_HANDLERS) != RULE_TYPES:  # a real raise, not an assert: python -O must not strip it
+    raise RuntimeError(
     f"_RULE_HANDLERS/RULE_TYPES drift: only-handlers={sorted(set(_RULE_HANDLERS) - RULE_TYPES)} "
     f"only-types={sorted(RULE_TYPES - set(_RULE_HANDLERS))}"
 )

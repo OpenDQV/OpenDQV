@@ -1,7 +1,7 @@
 # Adding a Custom Rule Type
 
-> **Last reviewed:** 2026-09-03 (engine 2.7.0).
-> Covers the four files you need to touch, a complete worked example (`phone_e164`), and pointers to existing rule implementations you can copy from.
+> **Last reviewed:** 2026-09-05 (engine 2.8.0).
+> Covers the two files you need to touch (three with push-down code generation), a complete worked example (`phone_e164`), and pointers to existing rule implementations you can copy from.
 
 OpenDQV's rule dispatch is a module-level table, `_RULE_HANDLERS` in `opendqv/core/validator.py`, mapping a type name to a `_check_<type>(value, rule, record)` function. There is no plugin registry. Adding a new rule type means editing source files — the tradeoff is that every rule type is trivially grep-able and auditable.
 
@@ -9,12 +9,12 @@ OpenDQV's rule dispatch is a module-level table, `_RULE_HANDLERS` in `opendqv/co
 
 ## Overview
 
-Adding a rule type requires changes to **three files**, or four if you want push-down code generation:
+Adding a rule type requires changes to **two files** (`rule_parser.py` for the closed `RULE_TYPES` set, `validator.py` for the handlers), or three if you want push-down code generation:
 
 1. `opendqv/core/rule_parser.py` — add optional config fields to the `Rule` Pydantic model.
 2. `opendqv/core/validator.py` — write `_check_<type>()` and register it in `_RULE_HANDLERS` and add the name to `RULE_TYPES` in `opendqv/core/rule_parser.py` (the closed set `Rule()` accepts; the validator asserts the two agree at import).
 3. `opendqv/core/validator.py` (`_batch_check_rule_inner`) — add a corresponding DuckDB branch for batch validation.
-4. `opendqv/core/linter.py` — add the type to `_KNOWN_RULE_TYPES` so `opendqv lint` does not report `UNKNOWN_RULE_TYPE`.
+4. `opendqv/core/linter.py` — nothing to add: the linter reads `RULE_TYPES` (2.8.0), so `opendqv lint` stops reporting `UNKNOWN_RULE_TYPE` the moment step 2 lands.
 5. `opendqv/core/code_generator.py` *(optional)* — add a branch to emit Apex / JS / Snowflake code.
 
 All changes are additive. Existing behaviour is unaffected.
@@ -102,7 +102,7 @@ elif rule.type == "phone_e164":
 
 Add this branch after the existing `elif rule.type == "max_length"` block and before the `elif rule.type == "date_format"` block to keep numeric/string/format rules grouped together. Single-record and batch paths must agree on every input — that is a conformance guarantee, so add a test that runs the same records through both.
 
-Then add `"phone_e164"` to `_KNOWN_RULE_TYPES` in `opendqv/core/linter.py`, otherwise `opendqv lint` reports `UNKNOWN_RULE_TYPE` (a lint error) on every contract that uses it.
+The linter needs no edit: it reads `RULE_TYPES`, so once `"phone_e164"` is in that set `opendqv lint` accepts it (until then it reports `UNKNOWN_RULE_TYPE`, a lint error, on every contract that uses it).
 
 ---
 

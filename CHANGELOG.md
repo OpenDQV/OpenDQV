@@ -34,6 +34,21 @@ Honour or refuse, never silently drop.
 - Engine fallback: a `Rule` that bypasses the model and reaches the
   validator with no handler now fails the record with `OPENDQV_RULE_ERROR`
   instead of passing it.
+- **`contexts:` overrides are constructed at load** (blind review): an
+  override naming an unknown type used to pass silently and, with the gate
+  alone, would have failed every request naming that context. The loader
+  now builds each context's merged rules once; a bad override refuses the
+  file with the context named. `opendqv lint` checks override types too.
+- **Historical snapshots (blind review):** a snapshot recorded by an older
+  release that carries a now-refused rule is preserved in history but cannot
+  be replayed by this engine — `?hash=` / `as_of` return **409
+  `SNAPSHOT_RULE_REFUSED`** (REST) or the matching MCP error envelope, never
+  a 500 and never a silent pass.
+- `POST /contracts/reload` returns `failed: [{file, error}]` for every file
+  that did not load, so a refused stored contract is visible in the response
+  and not only in the server log.
+- UI rule-type dropdown no longer offers `email`/`url` (never rule types;
+  they were saved as a silent pass).
 
 Tests: `tests/test_unknown_rule_type_fail_closed.py` (model, REST, MCP,
 ODCS, stored-YAML load, linter/validator/model set equality). Three older

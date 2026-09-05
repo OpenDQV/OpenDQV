@@ -337,6 +337,25 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
         else:
             seen_names[name] = i
 
+    # ── contexts: override types (2.8.0) ──────────────────────────────────────
+    # An override is merged and constructed at load; an unknown type there
+    # refuses the whole file, so name it here first.
+    contexts_node = (contract_node.get("contexts") if isinstance(contract_node, dict) else None) or {}
+    if isinstance(contexts_node, dict):
+        for ctx_name, overrides in contexts_node.items():
+            if not isinstance(overrides, dict):
+                continue
+            for key, override in overrides.items():
+                if isinstance(override, dict) and override.get("type") is not None \
+                        and override.get("type") not in _KNOWN_RULE_TYPES:
+                    result.issues.append(LintIssue(
+                        severity="error",
+                        rule_name=str(key),
+                        code="UNKNOWN_RULE_TYPE",
+                        message=(f"Context '{ctx_name}' override '{key}' sets unknown rule type "
+                                 f"'{override.get('type')}'. Known types: {sorted(_KNOWN_RULE_TYPES)}"),
+                    ))
+
     # ── Per-rule checks ───────────────────────────────────────────────────────
     for i, raw in enumerate(raw_rules):
         if not isinstance(raw, dict):
@@ -353,8 +372,10 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
 
         # Unknown rule type
         if rule_type not in _KNOWN_RULE_TYPES:
+            hint = (f" ('{rule_type}' is a key on a `date_format` rule, not a rule type)"
+                    if rule_type in ("min_age", "max_age") else "")
             err("UNKNOWN_RULE_TYPE",
-                f"Unknown rule type '{rule_type}'. Known types: {sorted(_KNOWN_RULE_TYPES)}")
+                f"Unknown rule type '{rule_type}'{hint}. Known types: {sorted(_KNOWN_RULE_TYPES)}")
             # Don't run further checks — they'd all be noise
             continue
 

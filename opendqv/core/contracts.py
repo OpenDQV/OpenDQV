@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from pydantic import BaseModel, field_validator
-from .rule_parser import Rule, Severity, ContractStatus
+from .rule_parser import Rule, Severity, ContractStatus, RULE_TYPES
 
 # Canonical contract-name charset. Letters, digits, hyphen, underscore only —
 # no path separators, no dots, so a name can never escape ``contracts_dir``
@@ -367,6 +367,13 @@ class DataContract(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class SnapshotRuleError(ValueError):
+    """A historical snapshot carries a rule this engine refuses to construct
+    (2.8.0: an unknown rule type recorded by an older release). Raised by
+    ``contract_by_hash`` / ``contract_as_of``; the REST layer maps it to 409
+    and MCP to an error envelope — never a 500, never a silent pass."""
+
+
 def _contract_from_snapshot(name: str, snap: dict) -> "DataContract":
     """Rebuild a DataContract from a chain entry snapshot.
 
@@ -386,7 +393,14 @@ def _contract_from_snapshot(name: str, snap: dict) -> "DataContract":
     metadata bug the reviewer named: pinned validation reported latest
     hashes, only ``effective_rule_hash`` reflected what actually ran.
     """
-    rules = [Rule(**r) for r in snap["rules"]]
+    try:
+        rules = [Rule(**r) for r in snap["rules"]]
+    except ValueError as exc:
+        raise SnapshotRuleError(
+            f"Historical snapshot of contract '{name}' (version {snap.get('version')}) carries a rule "
+            f"this engine refuses to load: {exc}. The snapshot is preserved in history but cannot be "
+            f"replayed by this engine version."
+        ) from None
     contract = DataContract(
         name=name,
         version=snap["version"],
@@ -956,9 +970,17 @@ class ContractRegistry:
         self.reload()
 
     def reload(self):
-        """Load/reload all contracts from the contracts directory."""
+        """Load/reload all contracts from the contracts directory.
+
+        A file that fails to load is logged and recorded in ``load_failures``
+        (``[{"file", "error"}]``) so ``POST /contracts/reload`` can report it;
+        the other contracts load. A ``contexts:`` override is constructed
+        here too (2.8.0), so an override naming an unknown rule type refuses
+        the whole file at load rather than failing every request that names
+        the context."""
         self._contracts = {}
         self._contract_paths = {}
+        self.load_failures: list[dict] = []
         if not self.contracts_dir.exists():
             logger.warning("Contracts directory not found: %s", self.contracts_dir)
             return
@@ -967,6 +989,7 @@ class ContractRegistry:
             try:
                 contract = self._load_file(path)
                 if contract:
+                    self._check_contexts(contract)
                     if contract.name not in self._contracts:
                         self._contracts[contract.name] = {}
                     self._contracts[contract.name][contract.version] = contract
@@ -976,6 +999,17 @@ class ContractRegistry:
                                 contract.name, contract.version, len(contract.rules))
             except Exception as e:
                 logger.error("Failed to load contract from %s: %s", path.name, e)
+                self.load_failures.append({"file": path.name, "error": str(e)})
+
+    def _check_contexts(self, contract: "DataContract") -> None:
+        """Construct every context's merged rule set once at load so an
+        override that the Rule model refuses (unknown type, bad pattern) is a
+        load error naming the context — not a per-request failure."""
+        for ctx in (contract.contexts or {}):
+            try:
+                self.get_rules_with_context(contract, ctx)
+            except ValueError as exc:
+                raise ValueError(f"context '{ctx}': {exc}") from None
 
     def _load_file(self, path: Path) -> Optional[DataContract]:
         """Parse a single contract YAML file."""
@@ -1108,6 +1142,23 @@ class ContractRegistry:
             if "format" in field_def and field_def.get("type") == "date":
                 rule_dict["type"] = "date_format"
                 rule_dict["format"] = field_def["format"]
+            if rule_dict["type"] not in RULE_TYPES:
+                # In this format `type:` is a DATA type (string, number, date,
+                # email…), not a rule type. Until 2.7.0 it reached the engine
+                # as an unknown rule type and passed silently; with the closed
+                # set (2.8.0) it would refuse the whole file. Emit one rule per
+                # enforceable constraint instead, and warn when there is none.
+                dtype = rule_dict.pop("type")
+                base = {k: v for k, v in rule_dict.items() if k not in ("min_length", "max_length", "min", "max")}
+                emitted = False
+                for key in ("min_length", "max_length", "min", "max"):
+                    if key in rule_dict:
+                        rules.append(Rule(**{**base, "type": key, key: rule_dict[key], "name": f"{base['name']}_{key}"}))
+                        emitted = True
+                if not emitted:
+                    logger.warning("%s: field '%s' declares data type '%s' with no enforceable constraint — no rule emitted",
+                                   path.name, field_name, dtype)
+                continue
             rules.append(Rule(**rule_dict))
 
         name = path.stem.replace("-", "_").replace(" ", "_")
@@ -1785,6 +1836,10 @@ class ContractRegistry:
             return contract.rules
 
         overrides = contract.contexts[context]
+        if not isinstance(overrides, dict):
+            # 2.8.0: a malformed block used to raise AttributeError per request
+            # (HTTP 500); as a ValueError it is refused at load with the context named.
+            raise ValueError(f"context overrides must be a mapping of rule-or-field name to override, got {type(overrides).__name__}")
         rules = list(contract.rules)
 
         # Override resolution order (CRT173):
