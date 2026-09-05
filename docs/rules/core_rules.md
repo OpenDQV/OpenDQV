@@ -459,6 +459,12 @@ Compare this field's value against another field or a sentinel (`today`, `now`).
 symbols are normalised to word form at parse time.
 
 **Type coercion order:**
+0. If either field carries a `date_format` rule with a `format:` (2.8.0), both
+   sides are parsed as dates — each with its own field's declared layout, an
+   undeclared side with ISO 8601 — and never reach the steps below. An operand
+   the layout cannot read fails the rule (the format rule names the shape), so
+   comparing a declared date field against a non-date field always fails. A
+   `date_format` rule with a `condition:` declares no layout here.
 1. Both values parsed as `float` (numeric comparison)
 2. Both parsed as ISO 8601 datetime (date comparison)
 3. If `algorithm: semver`, parsed as semver tuples

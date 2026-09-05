@@ -39,6 +39,7 @@ import yaml
 
 from opendqv.core.rule_parser import RULE_TYPES
 from opendqv.core.validator import (
+    _human_to_strptime,
     _PRESENCE_RULE_TYPES,  # single source of truth (round-2 B2)
 )
 
@@ -355,6 +356,30 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
                         message=(f"Context '{ctx_name}' override '{key}' sets unknown rule type "
                                  f"'{override.get('type')}'. Known types: {sorted(_KNOWN_RULE_TYPES)}"),
                     ))
+
+    # ── Declared date layouts (2.8.0) ─────────────────────────────────────────
+    # A field's first date_format `format` is the layout every cross-field date
+    # rule (compare, date_diff, age_match, min_age/max_age) parses it with. A
+    # second, different layout on the same field is silently ignored by the
+    # engine (first wins, warned once) — surface it here, before deploy.
+    layouts_seen: dict[str, tuple[str, str]] = {}
+    for raw in raw_rules:
+        if not isinstance(raw, dict) or raw.get("type") != "date_format" or not raw.get("format"):
+            continue
+        field_name = str(raw.get("field", ""))
+        fmt = _human_to_strptime(str(raw.get("format")))   # compare as the engine does
+        first = layouts_seen.get(field_name)
+        if first is None:
+            layouts_seen[field_name] = (fmt, str(raw.get("name", "")))
+        elif first[0] != fmt:
+            result.issues.append(LintIssue(
+                severity="warning",
+                rule_name=raw.get("name"),
+                code="DATE_LAYOUT_CONFLICT",
+                message=(f"Field '{field_name}' declares date_format layout '{fmt}' here but "
+                         f"'{first[0]}' on rule '{first[1]}'; cross-field date rules use the first "
+                         f"declared layout. Use one layout per field."),
+            ))
 
     # ── Per-rule checks ───────────────────────────────────────────────────────
     for i, raw in enumerate(raw_rules):

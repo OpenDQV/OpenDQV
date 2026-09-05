@@ -389,6 +389,28 @@ thing on both engines.
   vocabulary is closed (`field`, `value`, `not_value`, `present`); an unknown
   key is a load error. The batch `field_sum` / `ratio_check` branches, which
   still zeroed an absent operand in 2.5.0/2.5.1, now fail it like the single path.
+- **D11 (2.8.0, reported by the managed-engine maintainer) — cross-field date
+  rules parse with the field's declared `date_format` layout.** Until 2.7.0
+  `compare`, `date_diff`, `age_match` and the `min_age`/`max_age` add-on
+  assumed ISO regardless of what the field's format rule declared, so a
+  `DD/MM/YYYY` contract was internally inconsistent — and `compare` fell back
+  to string order, so an inverted UK pair passed silently. Now the first
+  `date_format` rule with a `format:` on a field fixes that field's layout;
+  every rule that reads the field as a date parses with it, per operand (a
+  declared side against an undeclared ISO side works), and a declared operand
+  never reaches the numeric or string fallback: unreadable → the rule fails.
+  Two different layouts on one field: first declared wins, warned once
+  (`opendqv lint` reports `DATE_LAYOUT_CONFLICT`), never rejected. A
+  `date_format` rule with a `condition:` declares no layout (its scope is the
+  records the condition selects). The layout map lives in a per-call context
+  variable — rule objects are never mutated, because a context's rule list
+  shares objects with the base list. The `min_age`/`max_age` add-on skips a
+  value it cannot read as a date on both paths (the format rule is the catcher
+  for shape). Pinned for
+  every engine by `tests/fixtures/conformance/frozen/engine_semantics.jsonl`
+  (self-contained rows: inline rules + record + verdict + codes — the first
+  fixture of that shape, because no bundled contract declares a non-ISO
+  layout on a field a cross-field rule reads).
 - **Batch fallback (pattern-closer).** Any rule type without a native batch
   branch is now evaluated per record with the single-path handler, so
   single/batch parity holds by construction for every present and future

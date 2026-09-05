@@ -55,6 +55,50 @@ ODCS, stored-YAML load, linter/validator/model set equality). Three older
 tests that built rules with made-up types (`age`, `min_age` as a type) were
 passing only because of the silent pass; corrected.
 
+### Engine — cross-field date rules honour the declared `date_format` layout (D11)
+
+Reported by the managed-engine maintainer (2026-09-05). Every cross-field
+date rule parsed with a hard-coded ISO assumption, so a contract declaring
+`DD/MM/YYYY` (or `YYYYMMDD`) was internally inconsistent: its `date_format`
+rule accepted a value its `compare`, `date_diff`, `min_age`/`max_age` and
+`age_match` rules could not read. `compare` did not even fail — it fell back
+to string order, so `start: 01/01/2027, end: 31/12/2026` **passed**
+`end gte start` and a correct pair failed.
+
+- The first `date_format` rule with a `format:` on a field fixes that field's
+  layout. `compare`, `date_diff`, `age_match` and the `min_age`/`max_age`
+  add-on parse each operand with its own field's layout (an undeclared
+  operand keeps the ISO path), on both validate paths (batch `min_age` binds
+  the layout as a DuckDB `TRY_STRPTIME` parameter).
+- A declared operand never reaches the numeric or string comparison; an
+  operand its layout cannot read fails the rule. `same_date` under a layout
+  compares the parsed dates rather than a `[:10]` slice.
+- Two different layouts on one field: first declared wins, warned once at
+  validate time; `opendqv lint` reports `DATE_LAYOUT_CONFLICT` (warning).
+- Layouts are resolved from the rule list on every validate call and held
+  in a per-call context variable (thread- and task-local, reset on return)
+  — rule objects are never mutated (a context's rule list shares objects
+  with the base list; blind review), nothing is serialised, no manifest or
+  YAML change. Measured cost on the 12-rule `customer` hot path: under 1%.
+- A `date_format` rule carrying a `condition:` declares no layout for the
+  cross-field rules (its layout is scoped to the records its condition
+  selects, which the cross-field rules cannot know) — blind review.
+- The `min_age`/`max_age` add-on now **skips** a value it cannot read as a
+  date on the single path, as the batch SQL always did (`date_expr IS NOT
+  NULL`): the field's format rule is the catcher for shape. The single path
+  used to fail it, so the paths disagreed on every unreadable dob — found by
+  `/code-review`. Batch age SQL parses the layout once per row (was up to 7×).
+- Verdict change on existing contracts: only where a field declares a
+  non-ISO layout **and** a cross-field rule reads it — no bundled contract
+  does (`telecoms_cdr` declares the ISO datetime layout; behaviour there is
+  unchanged, and a value its format rule rejects now also fails the compare
+  rather than being compared as a string).
+- New `frozen/engine_semantics.jsonl`: self-contained corpus rows (inline
+  rules + record + verdict + codes) pinning D11 for every engine that
+  replays the corpus. `tests/test_date_layout_cross_field.py` covers the
+  UK, compact and mixed-operand cases, sentinels, `same_date`, conflicts and
+  the serialisation exclusion.
+
 ## [2.7.0] - 2026-09-03
 
 **The starter library now has one owner, and it is not this repository.** The
