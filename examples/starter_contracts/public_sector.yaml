@@ -48,135 +48,174 @@ rules:
   # UK National Insurance Number (NIN): 2 letters, 6 digits, 1 letter.
   # The prefix letters exclude D, F, I, Q, U, V (by HMRC rules).
   # REPLACE THIS with your country's national ID format.
-  - field: national_id
-    rule: not_empty
+  - name: national_id_not_empty
+    type: not_empty
+    field: national_id
     severity: error
     description: "National identifier is mandatory for citizen service records."
+    error_message: "National identifier is mandatory for citizen service records."
 
-  - field: national_id
-    rule: regex
+  - name: national_id_regex
+    type: regex
+    field: national_id
     # UK NIN format — replace with your national ID regex
     pattern: "^[A-CEGHJ-PR-TW-Z]{2}[0-9]{6}[A-D]$"
     severity: error
     description: "National ID must match the required format for this jurisdiction."
+    error_message: "National ID must match the required format for this jurisdiction."
 
   # ── PERSONAL DETAILS ─────────────────────────────────────────────────────────
-  - field: date_of_birth
-    rule: not_empty
+  - name: date_of_birth_not_empty
+    type: not_empty
+    field: date_of_birth
     severity: error
     description: "Date of birth is required for eligibility verification."
+    error_message: "Date of birth is required for eligibility verification."
 
-  - field: date_of_birth
-    rule: regex
+  - name: date_of_birth_regex
+    type: regex
+    field: date_of_birth
     pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
     severity: error
     description: "Date of birth must be in YYYY-MM-DD format."
+    error_message: "Date of birth must be in YYYY-MM-DD format."
 
-  - field: date_of_birth
-    rule: compare
+  - name: date_of_birth_compare
+    type: compare
+    field: date_of_birth
     compare_op: lte
     compare_to: today
     severity: error
     description: "Date of birth cannot be in the future."
+    error_message: "Date of birth cannot be in the future."
 
-  - field: first_name
-    rule: not_empty
+  - name: first_name_not_empty
+    type: not_empty
+    field: first_name
     severity: error
     description: "First name is required."
+    error_message: "First name is required."
 
-  - field: last_name
-    rule: not_empty
+  - name: last_name_not_empty
+    type: not_empty
+    field: last_name
     severity: error
     description: "Last name is required."
+    error_message: "Last name is required."
 
   # ── ADDRESS ──────────────────────────────────────────────────────────────────
   # UK postcode format: outward code (1-2 letters, 1-2 digits) + space +
   # inward code (1 digit, 2 letters). Examples: SW1A 1AA, M1 1AE, EC2R 8AH
   # REPLACE with your country's postcode/zip code format.
-  - field: postcode
-    rule: regex
+  - name: postcode_regex
+    type: regex
+    field: postcode
     pattern: "^[A-Z]{1,2}[0-9][0-9A-Z]?\\s[0-9][A-Z]{2}$"
     severity: error
     description: "Postcode must be a valid UK postcode format (e.g., SW1A 1AA). Replace with your local format."
+    error_message: "Postcode must be a valid UK postcode format (e.g., SW1A 1AA). Replace with your local format."
 
-  - field: address_line1
-    rule: not_empty
+  - name: address_line1_not_empty
+    type: not_empty
+    field: address_line1
     severity: error
     description: "Address line 1 is required."
+    error_message: "Address line 1 is required."
 
   # ── BENEFIT / SERVICE CLASSIFICATION ─────────────────────────────────────────
   # UK benefit codes — replace with your jurisdiction's scheme codes.
   # These codes feed downstream payment systems directly.
-  - field: benefit_type
-    rule: lookup
+  - name: benefit_type_allowed_values
+    type: allowed_values
+    field: benefit_type
     # UK benefits: Job Seeker's Allowance, Universal Credit, Personal Independence
     # Payment, Employment Support Allowance, Child Benefit, Pension Credit,
     # Housing Benefit
-    lookup_values: [JSA, UC, PIP, ESA, CHB, PC, HB, DLA, AA, CA,
+    allowed_values: [JSA, UC, PIP, ESA, CHB, PC, HB, DLA, AA, CA,
                     MATERNITY, PATERNITY, BEREAVEMENT, COUNCIL_TAX]
     severity: error
     description: "Benefit type must be a recognised scheme code. Invalid codes prevent payment routing."
+    error_message: "Benefit type must be a recognised scheme code. Invalid codes prevent payment routing."
 
-  - field: household_income_band
-    rule: lookup
+  - name: household_income_band_allowed_values
+    type: allowed_values
+    field: household_income_band
     # Income bands A–E. Define thresholds in your scheme documentation.
     # Band A = lowest income; Band E = highest income.
-    lookup_values: [A, B, C, D, E, EXEMPT]
+    allowed_values: [A, B, C, D, E, EXEMPT]
     severity: error
     description: "Income band is required for means-tested benefit eligibility calculation."
+    error_message: "Income band is required for means-tested benefit eligibility calculation."
 
   # ── CASE MANAGEMENT ──────────────────────────────────────────────────────────
-  - field: application_date
-    rule: not_empty
+  - name: application_date_not_empty
+    type: not_empty
+    field: application_date
     severity: error
     description: "Application date is mandatory for SLA tracking and backdating rules."
+    error_message: "Application date is mandatory for SLA tracking and backdating rules."
 
-  - field: application_date
-    rule: regex
+  - name: application_date_regex
+    type: regex
+    field: application_date
     pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
     severity: error
     description: "Application date must be in YYYY-MM-DD format."
+    error_message: "Application date must be in YYYY-MM-DD format."
 
-  - field: case_status
-    rule: lookup
-    lookup_values: [PENDING, APPROVED, REJECTED, APPEAL, WITHDRAWN,
+  - name: case_status_allowed_values
+    type: allowed_values
+    field: case_status
+    allowed_values: [PENDING, APPROVED, REJECTED, APPEAL, WITHDRAWN,
                     SUSPENDED, UNDER_REVIEW, ESCALATED, CLOSED]
     severity: error
     description: "Case status must be a valid workflow state."
+    error_message: "Case status must be a valid workflow state."
 
-  - field: department_code
-    rule: not_empty
+  - name: department_code_not_empty
+    type: not_empty
+    field: department_code
     severity: error
     description: "Originating department code is required for inter-departmental routing and audit."
+    error_message: "Originating department code is required for inter-departmental routing and audit."
 
-  - field: department_code
-    rule: max_length
-    max: 8
+  - name: department_code_max_length
+    type: max_length
+    field: department_code
+    max_length: 8
     severity: error
     description: "Department code must not exceed 8 characters."
+    error_message: "Department code must not exceed 8 characters."
 
   # ── MAKER-CHECKER ────────────────────────────────────────────────────────────
   # The maker-checker model is standard in civil service approval hierarchies.
   # The case_worker_id is the "maker"; the approver_id is the "checker".
   # A case cannot proceed to APPROVED status without both fields populated.
-  - field: case_worker_id
-    rule: not_empty
+  - name: case_worker_id_not_empty
+    type: not_empty
+    field: case_worker_id
     severity: error
     description: "Case worker ID is required — maker-checker audit requirement."
+    error_message: "Case worker ID is required — maker-checker audit requirement."
 
-  - field: approver_id
-    rule: required_if
-    when_field: case_status
-    when_value: APPROVED
+  - name: approver_id_required_if
+    type: required_if
+    field: approver_id
     severity: error
     description: "Approver ID is required when case status is APPROVED (maker-checker compliance)."
+    required_if:
+      field: case_status
+      value: APPROVED
+    error_message: "Approver ID is required when case status is APPROVED (maker-checker compliance)."
 
   # ── GDPR ─────────────────────────────────────────────────────────────────────
   # GDPR Article 5(1)(d): personal data must be accurate and kept up to date.
   # Record the data source to support accuracy accountability.
-  - field: data_source
-    rule: lookup
-    lookup_values: [SELF_DECLARED, VERIFIED_DOCUMENT, GOVERNMENT_REGISTRY,
+  - name: data_source_allowed_values
+    type: allowed_values
+    field: data_source
+    allowed_values: [SELF_DECLARED, VERIFIED_DOCUMENT, GOVERNMENT_REGISTRY,
                     THIRD_PARTY_VERIFIED, ESTIMATED, HISTORICAL_TRANSFER]
     severity: warning
     description: "Data source indicates the verification level of this record (GDPR Article 5 accuracy principle)."
+    error_message: "Data source indicates the verification level of this record (GDPR Article 5 accuracy principle)."

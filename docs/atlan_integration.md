@@ -40,7 +40,7 @@ Before any sync can run, create the `OpenDQV` namespace in the Atlan Admin panel
 | `contract_name` | `String` | OpenDQV contract identifier |
 | `contract_version` | `String` | Semantic version string |
 | `contract_status` | `String` | `active`, `draft`, or `archived` |
-| `contract_hash` | `String` | SHA-256 hash of the contract YAML |
+| `schema_hash` | `String` | SHA-256 `entry_hash` of the contract's latest audit-chain entry |
 | `rule_count` | `Integer` | Total number of active rules |
 | `owner_team` | `String` | Owning team name |
 | `owner_email` | `String` | Owner contact email |
@@ -59,7 +59,7 @@ Push every active OpenDQV contract into the Atlan `Table` entity that the contra
 | `name` | `contract_name` |
 | `version` | `contract_version` |
 | `status` | `contract_status` |
-| `contract_hash` | `contract_hash` |
+| `schema_hash` | `schema_hash` |
 | `rule_count` | `rule_count` |
 | `owner_team` | `owner_team` |
 | `owner_email` | `owner_email` |
@@ -84,7 +84,7 @@ client = AtlanClient(base_url=ATLAN_URL, api_key=ATLAN_TOKEN)
 contracts = requests.get(
     f"{OPENDQV_URL}/api/v1/registry",
     headers={"Authorization": f"Bearer {OPENDQV_TOKEN}"},
-).json()
+).json()["registry"]
 
 for contract in contracts:
     asset_id = contract.get("asset_id", "")
@@ -101,7 +101,7 @@ for contract in contracts:
         cm["contract_name"]       = contract["name"]
         cm["contract_version"]    = contract.get("version", "")
         cm["contract_status"]     = contract.get("status", "")
-        cm["contract_hash"]       = contract.get("contract_hash", "")
+        cm["schema_hash"]       = contract.get("schema_hash", "")
         cm["rule_count"]          = contract.get("rule_count", 0)
         cm["owner_team"]          = contract.get("owner_team", "")
         cm["owner_email"]         = contract.get("owner_email", "")
@@ -320,7 +320,7 @@ for field_name, rules in rules_by_field.items():
 
 ## Approach 5 — Incremental Sync via Read-Back from Atlan
 
-Instead of a local state file, read the `contract_hash` currently stored in Atlan and skip the write if it matches the OpenDQV hash.
+Instead of a local state file, read the `schema_hash` currently stored in Atlan and skip the write if it matches the OpenDQV hash.
 
 ```python
 # pip install pyatlan requests
@@ -344,7 +344,7 @@ for contract in contracts:
     if current_page:
         existing = current_page[0]
         cm = existing.get_custom_metadata("OpenDQV") or {}
-        if cm.get("contract_hash") == contract.get("contract_hash"):
+        if cm.get("schema_hash") == contract.get("schema_hash"):
             print(f"Skipping {contract['name']}: hash unchanged")
             continue
 

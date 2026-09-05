@@ -8,7 +8,7 @@ OpenDQV integrates with Salesforce across a spectrum — from zero infrastructur
 
 ### 1. Use the built-in salesforce_contact contract
 
-OpenDQV ships `contracts/salesforce_contact.yaml` with 18 production-grade validation rules out of the box — no setup required. To write your own:
+OpenDQV ships `opendqv/contracts/salesforce_contact.yaml` (v1.1, 19 production-grade validation rules) out of the box — no setup required. The bundled contract carries no `contexts:` block; the worked context example below is `examples/contexts/salesforce_contact.yaml`, which you can copy over the bundled file (or into your own contracts directory) to enable `salesforce_prod` / `salesforce_sandbox`. To write your own:
 
 ```yaml
 contract:
@@ -61,7 +61,9 @@ curl -X POST http://localhost:8000/api/v1/contracts/reload
 ### 3. Validate a record
 
 ```bash
-# Production context — enforces 18+ age
+# Production context — enforces 18+ age (requires the examples/contexts contract;
+# against the bundled contract the context is undeclared and the response
+# carries a context_warning and applies base rules only)
 curl -X POST http://localhost:8000/api/v1/validate \
   -H "Content-Type: application/json" \
   -d '{
@@ -71,12 +73,22 @@ curl -X POST http://localhost:8000/api/v1/validate \
   }'
 ```
 
-Response (blocked — contact is under 18):
+Response (blocked — contact is under 18; abridged, the envelope also carries `event_id`, `contract_hash`, `engine_version` etc.):
 ```json
 {
   "valid": false,
-  "errors": [{"field": "Birthdate", "rule": "birthdate_format", "message": "Contact must be 18+ in production.", "severity": "error"}],
-  "warnings": []
+  "errors": [
+    {"field": "LastName", "rule": "last_name_required", "message": "LastName is required.", "severity": "error",
+     "error_code": "OPENDQV_NOT_EMPTY_LAST_NAME_REQUIRED", "suggested_fix": "Provide a non-empty value.", "counterpart_missing": null},
+    {"field": "Birthdate", "rule": "birthdate_format", "message": "Contact must be 18+ in production.", "severity": "error",
+     "error_code": "OPENDQV_DATE_FORMAT_BIRTHDATE_FORMAT", "suggested_fix": "Use ISO 8601 format: YYYY-MM-DD (e.g. 2026-03-24)", "counterpart_missing": null},
+    {"field": "AccountName", "rule": "account_name_not_empty", "message": "AccountName is required in production — no orphan contacts allowed.", "severity": "error",
+     "error_code": "OPENDQV_NOT_EMPTY_ACCOUNT_NAME_NOT_EMPTY", "suggested_fix": "Provide a non-empty value.", "counterpart_missing": null}
+  ],
+  "warnings": [{"field": "MailingStreet", "rule": "mailing_street_required", "message": "MailingStreet is recommended for contacts.", "severity": "warning", "error_code": "OPENDQV_NOT_EMPTY_MAILING_STREET_REQUIRED", "suggested_fix": "Provide a non-empty value.", "counterpart_missing": null}],
+  "contract": "salesforce_contact",
+  "version": "1.1",
+  "engine_version": "<engine-version>"
 }
 ```
 
@@ -301,7 +313,8 @@ public class OpenDQVCallout {
      * before DML commits.
      *
      * Pass an optional context (e.g. 'salesforce_prod', 'salesforce_sandbox') to
-     * apply context-specific validation rules from the contract.
+     * apply context-specific validation rules from the contract. The bundled
+     * contract declares no contexts — see examples/contexts/salesforce_contact.yaml.
      *
      * Returns the 'results' array from the OpenDQV batch response, or null on failure.
      * Caller must check each result's 'valid' field and call record.addError() as needed.
@@ -377,7 +390,8 @@ trigger OpenDQVContactTrigger on Contact (before insert, before update) {
     }
 
     // Pass a context to apply environment-specific rules (e.g. 18+ age in prod).
-    // Use 'salesforce_sandbox' for test orgs, 'salesforce_prod' for production.
+    // Use 'salesforce_sandbox' for test orgs, 'salesforce_prod' for production
+    // (contexts from examples/contexts/salesforce_contact.yaml; undeclared contexts fall back to base rules).
     List<Object> results = OpenDQVCallout.validate('salesforce_contact', records, 'salesforce_prod');
 
     if (results == null) {

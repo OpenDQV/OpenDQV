@@ -170,7 +170,7 @@ Operational notes:
 - The counter is **per-process** — a multi-worker deployment (`WEB_CONCURRENCY=4`) gives each worker its own independent counter. This is the expected behaviour for the current single-node deployment.
 - The counter is **not persisted** — a process restart clears it.
 - There is no admin API to inspect or reset counters. If a legitimate agent hits the cap prematurely (e.g. from a retry loop or test harness), restart the API process to clear it: `docker compose restart api`.
-- The limit is intentionally conservative for the v1.0 release. It will be configurable in a future release.
+- The limit is hard-coded (`_DRAFT_RATE_LIMIT = 10` in `opendqv/mcp_server.py`) and intentionally conservative; making it configurable is a roadmap item.
 
 ### Checking Rate Limit Status
 
@@ -467,6 +467,8 @@ done && echo "Postgres ready"
 ### Schema initialisation
 
 `PostgresContractHistoryBackend` auto-creates the `contract_history` table on first use via `_init_db()`. No manual DDL is required.
+
+**Migration note:** on every start the backend also runs `ALTER TABLE contract_history ADD COLUMN IF NOT EXISTS …` for columns added since the table was first created (`owner_email`, `owner_team`, `asset_id`, `downstream_consumers`, `content_hash`, `domain_version`, and the 2.5.0 `strict_schema` / `allowed_fields`). The database role OpenDQV connects with must therefore hold `ALTER` on that table; a locked-down role that only has DML will fail at startup after an upgrade.
 
 ### SQLite → Postgres migration
 

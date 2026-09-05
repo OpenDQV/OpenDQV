@@ -58,32 +58,40 @@ rules:
   # ── CLAIM IDENTIFICATION ─────────────────────────────────────────────────────
   # CLM- prefix followed by 8 digits. Adjust prefix to match your internal
   # claims reference system (e.g., ^[A-Z]{2,4}-[0-9]{6,10}$ for alphanumeric).
-  - field: claim_id
-    rule: not_empty
+  - name: claim_id_not_empty
+    type: not_empty
+    field: claim_id
     severity: error
     description: "Claim ID is mandatory. Every FNOL must receive a unique reference at point of registration."
+    error_message: "Claim ID is mandatory. Every FNOL must receive a unique reference at point of registration."
 
-  - field: claim_id
-    rule: regex
+  - name: claim_id_regex
+    type: regex
+    field: claim_id
     pattern: "^CLM-[0-9]{8}$"
     severity: error
     description: "Claim ID must match format CLM-XXXXXXXX (8 digits). Example: CLM-20240001."
+    error_message: "Claim ID must match format CLM-XXXXXXXX (8 digits). Example: CLM-20240001."
 
   # ── POLICY IDENTIFICATION ────────────────────────────────────────────────────
   # Alphanumeric policy reference: 8–15 characters. Adjust to your scheme's
   # format. For production, replace with a lookup_file against your policy admin
   # system to ensure the policy actually exists.
-  - field: policy_number
-    rule: not_empty
+  - name: policy_number_not_empty
+    type: not_empty
+    field: policy_number
     severity: error
     description: "Policy number is mandatory. A claim cannot be processed without a linked policy."
+    error_message: "Policy number is mandatory. A claim cannot be processed without a linked policy."
 
-  - field: policy_number
-    rule: regex
+  - name: policy_number_regex
+    type: regex
+    field: policy_number
     # 8–15 alphanumeric characters, uppercase letters and digits only
     pattern: "^[A-Z0-9]{8,15}$"
     severity: error
     description: "Policy number must be 8–15 alphanumeric characters (uppercase). Example: POL20240001."
+    error_message: "Policy number must be 8–15 alphanumeric characters (uppercase). Example: POL20240001."
 
   # ── CLAIM TYPE ───────────────────────────────────────────────────────────────
   # ACORD-aligned classification covering personal lines and commercial.
@@ -91,9 +99,10 @@ rules:
   # BUSINESS_INTERRUPTION: commercial line for loss of revenue following
   # an insured peril (e.g., fire, flood). CYBER: covers data breach costs,
   # ransomware, business interruption from IT failure.
-  - field: claim_type
-    rule: lookup
-    lookup_values:
+  - name: claim_type_allowed_values
+    type: allowed_values
+    field: claim_type
+    allowed_values:
       - MOTOR_FAULT
       - MOTOR_NO_FAULT
       - PROPERTY_DAMAGE
@@ -108,76 +117,98 @@ rules:
       - CYBER
     severity: error
     description: "Claim type must be an ACORD-aligned product line classification."
+    error_message: "Claim type must be an ACORD-aligned product line classification."
 
   # ── INCIDENT DATE ────────────────────────────────────────────────────────────
-  - field: incident_date
-    rule: not_empty
+  - name: incident_date_not_empty
+    type: not_empty
+    field: incident_date
     severity: error
     description: "Incident date is mandatory. Required for limitation period calculation (UK Limitation Act 1980)."
+    error_message: "Incident date is mandatory. Required for limitation period calculation (UK Limitation Act 1980)."
 
-  - field: incident_date
-    rule: regex
+  - name: incident_date_regex
+    type: regex
+    field: incident_date
     pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
     severity: error
     description: "Incident date must be in YYYY-MM-DD format."
+    error_message: "Incident date must be in YYYY-MM-DD format."
 
-  - field: incident_date
-    rule: compare
+  - name: incident_date_compare
+    type: compare
+    field: incident_date
     compare_op: lte
     compare_to: today
     severity: error
     description: "Incident date cannot be in the future."
+    error_message: "Incident date cannot be in the future."
 
   # ── REPORT DATE ─────────────────────────────────────────────────────────────
   # The date the claim was reported to the insurer (FNOL date).
   # Must be on or after the incident date. Cross-field validation (report_date
   # >= incident_date) requires the cross_field_range rule — see ROADMAP below.
-  - field: report_date
-    rule: not_empty
+  - name: report_date_not_empty
+    type: not_empty
+    field: report_date
     severity: error
     description: "Report date (FNOL date) is mandatory. FCA ICOBS 8.1 requires acknowledgement within 5 business days of FNOL."
+    error_message: "Report date (FNOL date) is mandatory. FCA ICOBS 8.1 requires acknowledgement within 5 business days of FNOL."
 
-  - field: report_date
-    rule: regex
+  - name: report_date_regex
+    type: regex
+    field: report_date
     pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
     severity: error
     description: "Report date must be in YYYY-MM-DD format."
+    error_message: "Report date must be in YYYY-MM-DD format."
 
-  - field: report_date
-    rule: cross_field_range
-    min_field: incident_date
+  - name: report_date_compare
+    type: compare
+    field: report_date
+    compare_to: incident_date
     severity: error
     description: "Report date cannot be earlier than incident date."
+    compare_op: gte
+    error_message: "Report date cannot be earlier than incident date."
 
   # ── CLAIM FINANCIALS ─────────────────────────────────────────────────────────
   # claim_amount_requested: the gross amount claimed by the policyholder.
   # Max of 50,000,000 (50M) covers standard single-risk limits for most
   # personal and SME commercial lines. Catastrophe or marine/aviation claims
   # may require a higher max — adjust to your treaty reinsurance limit.
-  - field: claim_amount_requested
-    rule: not_empty
+  - name: claim_amount_requested_not_empty
+    type: not_empty
+    field: claim_amount_requested
     severity: error
     description: "Claim amount requested is mandatory. Required for reserve setting and Solvency II technical provisions."
+    error_message: "Claim amount requested is mandatory. Required for reserve setting and Solvency II technical provisions."
 
-  - field: claim_amount_requested
-    rule: range
+  - name: claim_amount_requested_range
+    type: range
+    field: claim_amount_requested
     min: 0
     max: 50000000
     severity: error
     description: "Claim amount requested must be between 0 and 50,000,000. Values above this threshold require escalation to a senior handler."
+    error_message: "Claim amount requested must be between 0 and 50,000,000. Values above this threshold require escalation to a senior handler."
 
-  - field: claim_currency
-    rule: lookup
+  - name: claim_currency_allowed_values
+    type: allowed_values
+    field: claim_currency
     # ISO 4217 codes. Expand for your book of business.
-    lookup_values: [USD, EUR, GBP, AUD, CAD, ZAR, SGD]
+    allowed_values: [USD, EUR, GBP, AUD, CAD, ZAR, SGD]
     severity: error
     description: "Claim currency must be a supported ISO 4217 code."
+    error_message: "Claim currency must be a supported ISO 4217 code."
 
   # ── CLAIMANT ─────────────────────────────────────────────────────────────────
-  - field: claimant_id
-    rule: not_empty
+  - name: claimant_id_not_empty
+    type: not_empty
+    field: claimant_id
     severity: error
     description: "Claimant ID is mandatory. Required to link the claim to a verified party and prevent duplicate FNOL entries."
+    error_message: "Claimant ID is mandatory. Required to link the claim to a verified party and prevent duplicate FNOL entries."
 
   # ── POLICY STATUS AT INCIDENT ────────────────────────────────────────────────
   # Was the policy in force when the incident occurred?
@@ -185,11 +216,13 @@ rules:
   # before incident. SUSPENDED: cover temporarily suspended (e.g., SORN for motor).
   # Claims on LAPSED, CANCELLED, or SUSPENDED policies must be reviewed before
   # any payment is authorised — these are high fraud-risk scenarios.
-  - field: policy_status_at_incident
-    rule: lookup
-    lookup_values: [ACTIVE, LAPSED, CANCELLED, SUSPENDED]
+  - name: policy_status_at_incident_allowed_values
+    type: allowed_values
+    field: policy_status_at_incident
+    allowed_values: [ACTIVE, LAPSED, CANCELLED, SUSPENDED]
     severity: error
     description: "Policy status at time of incident must be recorded. Claims on non-ACTIVE policies require mandatory handler review."
+    error_message: "Policy status at time of incident must be recorded. Claims on non-ACTIVE policies require mandatory handler review."
 
   # ── FRAUD INDICATOR ─────────────────────────────────────────────────────────
   # Output from the fraud scoring engine (e.g., CIFAS National Fraud Database,
@@ -198,11 +231,13 @@ rules:
   #   MEDIUM        → referral to Special Investigations Unit (SIU)
   #   HIGH          → SIU investigation mandatory before any payment
   #   CONFIRMED     → claim denied, refer to IFED (Insurance Fraud Enforcement)
-  - field: fraud_indicator
-    rule: lookup
-    lookup_values: [NONE, LOW, MEDIUM, HIGH, CONFIRMED]
+  - name: fraud_indicator_allowed_values
+    type: allowed_values
+    field: fraud_indicator
+    allowed_values: [NONE, LOW, MEDIUM, HIGH, CONFIRMED]
     severity: error
     description: "Fraud indicator is mandatory. Drives claims workflow routing to Special Investigations Unit. See ABI fraud guidelines."
+    error_message: "Fraud indicator is mandatory. Drives claims workflow routing to Special Investigations Unit. See ABI fraud guidelines."
 
   # ── CLAIM STATUS ─────────────────────────────────────────────────────────────
   # FNOL: First Notice of Loss received, not yet allocated.
@@ -210,9 +245,10 @@ rules:
   # PARTIALLY_APPROVED: some heads of loss approved, others under review.
   # PAID: settlement amount disbursed to claimant.
   # APPEALED: claimant has invoked FCA dispute resolution process.
-  - field: claim_status
-    rule: lookup
-    lookup_values:
+  - name: claim_status_allowed_values
+    type: allowed_values
+    field: claim_status
+    allowed_values:
       - FNOL
       - UNDER_INVESTIGATION
       - APPROVED
@@ -224,6 +260,7 @@ rules:
       - APPEALED
     severity: error
     description: "Claim status must be a valid workflow state. Status transitions must follow the claims lifecycle (FNOL → UNDER_INVESTIGATION → ... → CLOSED)."
+    error_message: "Claim status must be a valid workflow state. Status transitions must follow the claims lifecycle (FNOL → UNDER_INVESTIGATION → ... → CLOSED)."
 
   # ── RESERVE AMOUNT ──────────────────────────────────────────────────────────
   # Initial case reserve set by the claims handler at point of allocation.
@@ -231,52 +268,64 @@ rules:
   # provisions. Systematic under-reserving (setting reserves too low) is a
   # key indicator of deteriorating claims experience and triggers PRA scrutiny.
   # Max of 100,000,000 (100M) covers treaty reinsurance layers.
-  - field: reserve_amount
-    rule: not_empty
+  - name: reserve_amount_not_empty
+    type: not_empty
+    field: reserve_amount
     severity: error
     description: "Reserve amount is mandatory. Solvency II Article 76 requires best-estimate liabilities for all reported claims."
+    error_message: "Reserve amount is mandatory. Solvency II Article 76 requires best-estimate liabilities for all reported claims."
 
-  - field: reserve_amount
-    rule: range
+  - name: reserve_amount_range
+    type: range
+    field: reserve_amount
     min: 0
     max: 100000000
     severity: error
     description: "Reserve amount must be between 0 and 100,000,000. Part of Solvency II technical provisions — accuracy is a regulatory obligation."
+    error_message: "Reserve amount must be between 0 and 100,000,000. Part of Solvency II technical provisions — accuracy is a regulatory obligation."
 
   # ── HANDLER ──────────────────────────────────────────────────────────────────
-  - field: handler_id
-    rule: not_empty
+  - name: handler_id_not_empty
+    type: not_empty
+    field: handler_id
     severity: error
     description: "Handler ID is mandatory once a claim moves beyond FNOL. Required for audit trail and FCA supervisory accountability."
+    error_message: "Handler ID is mandatory once a claim moves beyond FNOL. Required for audit trail and FCA supervisory accountability."
 
   # ── DOCUMENTATION ────────────────────────────────────────────────────────────
   # Solvency II requires evidence of substantiation for all claims payments.
   # PARTIAL: some required documents received (e.g., police report outstanding).
   # Claims should not be approved while documents_received = NO or PARTIAL
   # without documented handler justification.
-  - field: documents_received
-    rule: lookup
-    lookup_values: [YES, NO, PARTIAL]
+  - name: documents_received_allowed_values
+    type: allowed_values
+    field: documents_received
+    allowed_values: ["YES", "NO", PARTIAL]
     severity: warning
     description: "Documentation status must be recorded. Solvency II requires evidential substantiation of claims payments. Incomplete documentation delays settlement and may indicate fraud."
+    error_message: "Documentation status must be recorded. Solvency II requires evidential substantiation of claims payments. Incomplete documentation delays settlement and may indicate fraud."
 
   # ── EXCESS / DEDUCTIBLE ──────────────────────────────────────────────────────
   # The amount the policyholder bears before the insurer pays.
   # Also called the deductible in US terminology.
   # Max 100,000 covers standard compulsory and voluntary excess levels.
-  - field: excess_amount
-    rule: range
+  - name: excess_amount_range
+    type: range
+    field: excess_amount
     min: 0
     max: 100000
     severity: warning
     description: "Excess amount must be between 0 and 100,000. Values above this range suggest a data entry error or an unusual high-net-worth policy structure."
+    error_message: "Excess amount must be between 0 and 100,000. Values above this range suggest a data entry error or an unusual high-net-worth policy structure."
 
   # ── THIRD PARTY ──────────────────────────────────────────────────────────────
   # Was a third party involved in the incident?
   # Relevant for subrogation (recovering costs from a negligent third party),
   # Motor Insurers' Bureau (MIB) notifications, and liability apportionment.
-  - field: third_party_involved
-    rule: lookup
-    lookup_values: [YES, NO, UNKNOWN]
+  - name: third_party_involved_allowed_values
+    type: allowed_values
+    field: third_party_involved
+    allowed_values: ["YES", "NO", UNKNOWN]
     severity: warning
     description: "Third party involvement must be recorded. Required for subrogation assessment and Motor Insurers' Bureau (MIB) notification obligations."
+    error_message: "Third party involvement must be recorded. Required for subrogation assessment and Motor Insurers' Bureau (MIB) notification obligations."

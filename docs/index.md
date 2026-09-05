@@ -45,8 +45,17 @@ Short visual walkthroughs of OpenDQV in action across the integrations it suppor
 | `unique` | No duplicate values in batch (batch mode only) |
 | `min_age` / `max_age` | Date field implies age constraint |
 | `compare` | **Cross-field:** `field` op `compare_to` (gt, lt, gte, lte, eq, neq) |
-| `required_if` | **Conditional:** field required when another field equals a value |
+| `required_if` / `forbidden_if` | **Conditional:** field required (or forbidden) when another field equals a value |
+| `conditional_value` | **Conditional:** field must hold a given value when another field holds a given value |
 | `lookup` | **Reference:** value must appear in a file (txt, CSV) or HTTP endpoint |
+| `allowed_values` | Value must be in a fixed list |
+| `checksum` | Check-digit integrity: IBAN, GTIN/GS1, NHS, ISIN, LEI, VIN, CPF, ISRC |
+| `cross_field_range` | Value must lie between two other fields in the same record |
+| `field_sum` | Sum of named fields must equal a target (within optional tolerance) |
+| `ratio_check` | Ratio of two numeric fields within a range |
+| `date_diff` | Difference between two date fields within a range |
+| `age_match` | Declared age consistent with a date-of-birth field |
+| `geospatial_bounds` | Lat/lon pair within a bounding box |
 
 ### Cross-Field Rules
 
@@ -108,12 +117,12 @@ seconds (default 300). Mount local files via Docker volume for production use.
 | `description` | no | Human-readable summary |
 | `owner` | no | Team or individual responsible — surfaced in error responses for escalation routing |
 | `owner_team` | no | Team identifier for BCBS 239 / governance audit. Synced to Marmot as `contractOwnerTeam` in the OpenLineage quality facet. |
-| `status` | no | `active` (default), `draft`, or `archived` |
+| `status` | no | `active` (default), `draft`, `review`, or `archived` — ACTIVE and REVIEW are immutable |
 | `asset_id` | no | Catalog reference — link to Collibra, Atlan, DataHub, Marmot, or dbt model ref. Required for Marmot lineage push. |
 | `downstream_consumers` | no | List of Marmot MRNs for downstream consumers of this asset (e.g. dashboards, dbt models). `push_quality_lineage.py` stitches direct lineage edges to each consumer automatically. Target MRNs must exist in Marmot. |
 | `catalog_visible` | no | Boolean, default `true`. Set to `false` to exclude this contract from `push_quality_lineage.py` pushes and from Marmot `discover_data` responses via the proxy filter. |
 | `rules` | yes | List of validation rules |
-| `contexts` | no | Per-source-system or per-region rule overrides |
+| `contexts` | no | Per-source-system or per-region rule overrides. No bundled contract declares one; the worked example is `examples/contexts/customer.yaml` |
 
 ### `asset_id` — Catalog Linkage
 
@@ -185,9 +194,9 @@ GET /api/v1/contracts/{name}/history
 
 | Document | Purpose |
 |----------|---------|
-| [API Reference](api_reference.md) | All 50 REST endpoints, batch validation, importers |
+| [API Reference](api_reference.md) | REST endpoints, batch validation, importers |
 | [Python SDK](sdk.md) | Sync/async clients, LocalValidator, guard decorator |
-| [CLI Reference](cli.md) | All 18 CLI commands — validate, import, export, lifecycle, code generation |
+| [CLI Reference](cli.md) | Every CLI command — validate, import, export, lifecycle, code generation |
 | [MCP Server](mcp.md) | Claude Desktop and Cursor integration; contract discovery; write guardrails |
 
 ## Getting Started
@@ -210,7 +219,7 @@ rules, lookup rules, and the `allowed_values` pattern.
 |----------|---------|
 | [Administration](administration.md) | Auth modes, RBAC roles, token management, maker-checker workflow |
 | [Production Deployment](production_deployment.md) | Token auth, TLS, Docker Compose, hardening |
-| [Streamlit Workbench](ui.md) | Governance UI — 12 sections, monitoring, code export, import |
+| [Streamlit Workbench](ui.md) | Governance UI — 13 sections, monitoring, code export, import |
 | [Code Generation](code_generation.md) | Push-down validation for Salesforce, JS, Snowflake, Spark SQL, BigQuery |
 | [Observability](observability.md) | Prometheus metrics, alert rules, trace log, Grafana starter panels |
 | [Runbook](runbook.md) | Deployment, day-2 operations, incident response |
@@ -232,13 +241,14 @@ See [SECURITY.md](../SECURITY.md) for the vulnerability disclosure policy and de
 
 ### CI Security Pipeline
 
-Every push and pull request runs four security layers automatically:
+Every push and pull request runs five security layers automatically:
 
 | Layer | Tool | What it catches |
 |---|---|---|
 | Static analysis | bandit | Insecure Python patterns (hardcoded secrets, `eval`, subprocess injection) |
 | Dependency CVEs | pip-audit | Known CVEs in Python packages at install time |
 | Container image scan | **Trivy** | OS-layer CVEs in `python:3.11-slim` + secrets accidentally baked into the image |
+| Container image scan | **grype** | Second opinion on image CVEs (`--fail-on high --only-fixed`) |
 | SBOM | cyclonedx-bom | Full software bill of materials, archived as a CI artifact |
 
 Trivy results are uploaded to the **GitHub Security tab** (SARIF format) after every run. CRITICAL findings with an available fix block the build; HIGH findings without a fix are surfaced as warnings only (`--ignore-unfixed`). This matches the approach recommended in the [Vulnerability Response Playbook](security/vulnerability_response_playbook.md).
@@ -279,4 +289,4 @@ OpenDQV Core is the source-layer anchor of the modern data quality stack — des
 
 ## Strict schema
 
-Set `strict_schema: true` on a contract to reject records that carry fields the contract does not declare (`OPENDQV_ADDITIONAL_PROPERTIES`). Add `fields: [..]` for names allowed without a rule. Default is permissive. Full description: [strict_schema.md](strict_schema.md).
+Set `strict_schema: true` on a contract to reject records that carry fields the contract does not declare (`OPENDQV_ADDITIONAL_PROPERTIES`). Add `allowed_fields: [..]` for names allowed without a rule. Default is permissive. Full description: [strict_schema.md](strict_schema.md).

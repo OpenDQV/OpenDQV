@@ -52,7 +52,7 @@ docker compose exec api python -m pytest tests/ -v
 ## Running Tests
 
 ```bash
-# Full suite (3,390+ tests)
+# Full suite (4,900+ tests)
 pytest tests/ -v
 
 # Specific test file
@@ -93,11 +93,11 @@ Pre-release gate — runs the full three-part suite locally with one command:
 bash scripts/run_smoke_tests.sh
 ```
 
-- **Part 1:** 3,390+ unit tests in a clean Python 3.11 container (`Dockerfile.smoketest`)
-- **Part 2:** 42 HTTP checks via Docker Compose — auth modes, write guardrails, CLI, batch upload, webhook SSRF, rate limiting, federation SSE, UI
+- **Part 1:** the full unit suite (4,900+ tests) in a clean Python 3.11 container (`Dockerfile.smoketest`)
+- **Part 2:** 20 HTTP checks via Docker Compose — auth modes, write guardrails, CLI, batch upload, webhook SSRF, rate limiting, federation SSE, UI
 - **Part 3:** `pip install .` in a clean container, verifies the `opendqv` CLI entry point
 
-All 43 checks must pass before the `ALL SMOKE TESTS PASSED` line appears.
+All three parts must pass before the `ALL SMOKE TESTS PASSED` line appears.
 
 **Important:** the smoke test starts its own Docker Compose stack on ports 8000 and 8501. Ensure no other stack is running on those ports before running — the script will fail immediately with a clear message if they are occupied (`docker compose down` to clear).
 
@@ -116,7 +116,7 @@ All 43 checks must pass before the `ALL SMOKE TESTS PASSED` line appears.
 - **Python style:** Follow PEP 8. Use type hints for function signatures.
 - **Keep it simple:** Only add what's needed. Don't over-engineer.
 - **Write tests:** New features need tests. Bug fixes need a regression test.
-- **Contracts are YAML:** Rule definitions live in `contracts/*.yaml`, not in Python code.
+- **Contracts are YAML:** Rule definitions live in `opendqv/contracts/*.yaml`, not in Python code.
 - **Starter contracts have one owner, and contributions are still welcome here.**
   Since 2.7.0 `opendqv/contracts/` is a mirror of the golden OpenDQV Cloud
   starter library (`library_manifest.json` records the export in its `source`
@@ -126,7 +126,14 @@ All 43 checks must pass before the `ALL SMOKE TESTS PASSED` line appears.
   shows it landed (`source.export_ref`, `library_version`). Do not expect a
   starter PR to be merged into `opendqv/contracts/` directly — the digest
   check on the managed side would fail the build — expect it to land through
-  the export within the next release.
+  the export within the next release. If your change touches a bundled
+  contract's rules, it must move together with three fixture files —
+  `tests/fixtures/conformance/frozen/minimal_clean.jsonl` (re-freeze with
+  `scripts/freeze_minimal_clean.py`), `tests/fixtures/conformance/frozen/accepted_breaks.json`
+  (a deliberate verdict change, scoped to its error codes and tied to the
+  current CHANGELOG version), and `tests/fixtures/conformance/frozen/regulatory_claims.jsonl`
+  (a claim row per regulatory rule) — regenerated together via
+  `scripts/conformance_fixtures.py`.
 
 ### Project Conventions
 
@@ -165,6 +172,7 @@ only when the condition is met; otherwise it is silently skipped.
 A condition dict has exactly one of:
 - `value: X` — apply rule only when `field == X`
 - `not_value: X` — apply rule only when `field != X`
+- `present: true` / `present: false` — apply rule only when `field` is present (or absent/blank)
 
 Works in both single-record and batch (DuckDB) modes.
 
@@ -232,28 +240,26 @@ advertiser IDs, or market codes that change too frequently to hardcode in YAML).
 Notes:
 - Files are loaded once and cached in-process. Call `_load_lookup_set.cache_clear()` to invalidate.
 - For production use, mount the reference file as a Docker volume (e.g. `-v ./data:/app/data`).
-- REST-based lookups with configurable TTL are planned for a future release.
+- `lookup_file` may also be an HTTP(S) URL; `cache_ttl` controls how long the fetched list is cached. See `docs/rules/`.
 
 ### `allowed_values` — static values only
 
-The `regex` rule type with a pipe-delimited alternation pattern is how OpenDQV
-enforces a fixed allowed-values list:
+`allowed_values` checks a field against a fixed list declared in the contract:
 
 ```yaml
 - name: market_allowed
-  type: regex
+  type: allowed_values
   field: market
-  pattern: "^(UK|DE|FR|ES)$"
+  allowed_values: [UK, DE, FR, ES]
   error_message: "market must be UK, DE, FR or ES"
 ```
 
-> **Important:** There is no `allowed_values` rule type with dynamic/database-backed
-> lookups. For a static list, use `regex` with an alternation pattern as shown above.
-> For a dynamic list that changes at runtime, use `lookup` with a reference file.
+> **Important:** `allowed_values` has no dynamic/database-backed mode. For a list
+> that changes at runtime, use `lookup` with a reference file or HTTP endpoint.
 
 ### Adding a New Rule Type
 
-1. Add the type check in `opendqv/core/validator.py` -- both `_check_rule()` (single) and `_batch_check_rule()` (batch)
+1. Add the type check in `opendqv/core/validator.py` -- both `_check_rule()` (single) and `_batch_check_rule_inner()` (batch SQL)
 2. Add code generation in `opendqv/core/code_generator.py` -- `_generate_salesforce()`, `_js_rule_check()`, and `_generate_snowflake()`
 3. Add tests in `tests/test_core.py`
 4. Update the Rule Types table in `README.md`
@@ -289,14 +295,14 @@ Reference implementation: `opendqv/core/importers/csv_rules.py`
        }
    ```
 5. **Wire into `opendqv/api/routes_imports.py`** — add an import endpoint following the existing `POST /api/v1/import/csv` pattern
-6. **Add tests** in `tests/test_importers.py` with a representative sample input
+6. **Add tests** in a new `tests/test_<format>_import.py` (see `test_gx_import.py`, `test_odcs_import.py`) with a representative sample input
 7. **Add sample input** in `tests/sample_data/` if useful for manual testing
 
 The `skipped` list is important — callers need to know which rules could not be translated, not just the ones that succeeded.
 
 ### Adding a New Contract
 
-1. Create a YAML file in `contracts/`
+1. Create a YAML file in `opendqv/contracts/` (see the mirror note above — starter changes land via the golden-library export)
 2. Follow the `contract:` format (see `salesforce_contact.yaml` for a complete example)
 3. Restart the API or call `POST /api/v1/contracts/reload`
 4. Add sample data in `tests/sample_data/` if useful for testing
@@ -305,7 +311,7 @@ The `skipped` list is important — callers need to know which rules could not b
 
 1. **Create a feature branch** from `main`
 2. **Make your changes** with tests
-3. **Run the full test suite:** `pytest tests/ -v` -- all 3,390+ tests must pass
+3. **Run the full test suite:** `pytest tests/ -v` -- every test must pass
 4. **Keep PRs focused** on a single change
 5. **Write a clear description** of what changed and why
 
@@ -367,7 +373,7 @@ Changes to the following files require extra care and a higher bar for review:
 |------|-----|
 | `opendqv/core/validator.py` | The validation engine. Any change to rule evaluation logic must include a test for the specific case being changed — both a passing and a failing case. Pay particular attention to datetime comparison, checksum algorithms, and batch vs. single-record parity. |
 | `opendqv/security/auth.py` | Authentication and RBAC. Changes must not weaken token validation, role enforcement, or the revocation mechanism. |
-| `opendqv/api/routes.py` | Route wiring and sub-routers (`routes_*.py`). ACTIVE contract immutability guards (HTTP 409) must not be relaxed. |
+| `opendqv/api/routes.py` | Route wiring and sub-routers (`routes_*.py`). ACTIVE and REVIEW contract immutability guards (HTTP 409) must not be relaxed. |
 
 If you are unsure whether your change affects these files, open a Discussion before submitting a PR.
 

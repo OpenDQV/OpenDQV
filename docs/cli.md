@@ -1,7 +1,7 @@
 # CLI Reference
 
-> **Last reviewed:** 2026-04-11.
-> Covers all 20 commands available in `cli.py`. Run `opendqv --help` or `python -m opendqv.cli --help` for the same information inline.
+> **Last reviewed:** 2026-09-03 (engine 2.7.0).
+> Covers every subcommand in `opendqv/cli.py`. Run `opendqv --help` or `python -m opendqv.cli --help` for the same information inline.
 
 OpenDQV ships a standalone CLI for contract management, validation, imports, exports, lifecycle governance, and code generation. All commands operate on the local filesystem and SQLite database — no running API server is required.
 
@@ -25,7 +25,7 @@ python -m opendqv.cli <command> [options]
 
 ```bash
 opendqv --version
-# opendqv 2.1.0
+# opendqv <engine-version>
 # Trust is easier to build than to repair.
 ```
 
@@ -35,9 +35,9 @@ opendqv --version
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `OPENDQV_CONTRACTS_DIR` | `./contracts` | Directory where YAML contract files are read from and written to |
+| `OPENDQV_CONTRACTS_DIR` | the bundled `opendqv/contracts/` package directory | Directory where YAML contract files are read from and written to |
 | `OPENDQV_DB_PATH` | `opendqv.db` | Path to the SQLite database (contract history, audit chain) |
-| `OPENDQV_AUTH_MODE` | `none` | Authentication mode for the API server (`none` or `token`); does not affect CLI directly, but `token-generate` writes to the same DB |
+| `AUTH_MODE` | `open` | Authentication mode for the API server (`open` or `token`); does not affect CLI directly, but `token-generate` writes to the same DB |
 
 ---
 
@@ -45,7 +45,7 @@ opendqv --version
 
 | Command | Arguments | Flags | Description |
 |---|---|---|---|
-| `init` | — | `--dir`, `--force` | Bootstrap a `contracts/` directory with a starter contract |
+| `init` | — | `--dir`, `--force`, `--all` | Bootstrap a `contracts/` directory with a starter contract (`--all` copies every bundled contract) |
 | `list` | — | — | List all contracts with name, version, status, and rule count |
 | `show` | `<contract>` | — | Show contract metadata and a table of all rules with type, field, and severity |
 | `validate` | `<contract> <json>` | `--context` | Validate a JSON record string against a contract; exits 0 on PASS, 1 on FAIL |
@@ -58,6 +58,9 @@ opendqv --version
 | `export-odcs` | `<contract>` | `--context`, `--output`/`-o` | Export contract as ODCS v3.1.0 YAML (validates with `datacontract lint`) |
 | `export-dbt` | `<contract>` | `--context`, `--output`/`-o` | Export contract as a dbt `schema.yml` |
 | `generate` | `<contract> <target>` | `--context` | Generate push-down validation code for `salesforce`, `js`, or `snowflake` |
+| `validate-file` | `<contract> <path>` | `--context`, `--output-failures`, `--observe-only` | Validate a CSV or Parquet file against a contract (no API server required) |
+| `fork` | `<src> <dst>` | `--force` | Copy a contract to a new name as a clean DRAFT v1.0 (preserves comments) |
+| `lint` | `<contract>` | `--format` | Lint a contract YAML for logical errors before deployment |
 | `onboard` | — | — | Launch the interactive setup wizard; first validation in ~90 seconds |
 | `submit-review` | `<contract>` | `--version` (required), `--proposed-by` | Transition a DRAFT contract to REVIEW status |
 | `approve` | `<contract>` | `--version` (required), `--approved-by` | Transition a REVIEW contract to ACTIVE status |
@@ -76,9 +79,18 @@ Bootstraps a `contracts/` directory with a starter contract. Designed for pip us
 
 ```bash
 opendqv init
-# Created contracts/customer.yaml — edit it or add more contracts.
-# Validate: opendqv validate customer '{"name":"Alice","email":"alice@example.com","age":30}'
+#   Created contracts/customer.yaml
+#
+# Next steps:
+#   export OPENDQV_CONTRACTS_DIR=/path/to/contracts
+#   opendqv list
+#   opendqv validate customer '{"name": "Alice", "email": "alice@example.com", "age": 30}'
+#
+# Add more contracts by creating .yaml files in the contracts directory.
+# Or run `opendqv init --all` to copy all bundled regulated contracts.
 ```
+
+Use `--all` to copy every bundled contract instead of the single starter.
 
 Override the target directory:
 
@@ -181,7 +193,7 @@ opendqv import-soda soda_checks.yml
 
 ### `import-csv <file>`
 
-Reads a CSV file where each row defines one rule. The contract name defaults to the CSV filename stem; override with `--name`.
+Reads a CSV file where each row defines one rule. Columns: `field, rule_type, value, severity, error_message` (`value` is the pattern, threshold, or list the rule type needs). The contract name defaults to the CSV filename stem; override with `--name`. The saved contract is `active` at version `1.0`.
 
 ```bash
 opendqv import-csv rules/customer_rules.csv --name customer_v2
@@ -251,7 +263,7 @@ opendqv submit-review customer --version 1.0.0 --proposed-by alice
 
 ### `approve <contract>`
 
-Transitions a `REVIEW` contract to `ACTIVE` status. Once active, a contract is immutable — rule mutations via the API return HTTP 409.
+Transitions a `REVIEW` contract to `ACTIVE` status. Once in `REVIEW` or `ACTIVE`, a contract is immutable — rule mutations via the API return HTTP 409 (reject a `REVIEW` contract back to `DRAFT` to edit it).
 
 ```bash
 opendqv approve customer --version 1.0.0 --approved-by bob
@@ -358,17 +370,18 @@ For live, always-in-sync governance use the API integration rather than generate
 
 ## Worked Workflow: CSV to Active Contract
 
-This example walks through a complete lifecycle: import rules from a spreadsheet, validate a record, promote the contract to active.
+This example walks through a complete lifecycle: import rules from a spreadsheet, validate a record, fork a working copy and promote it through review to active.
 
 **Step 1 — Prepare a CSV rules file.**
 
 Create `customer_rules.csv`:
 
 ```
-name,type,field,min,max,pattern,severity,error_message
-name_required,not_empty,name,,,,,Name is required
-email_format,regex,email,,,^[^@\s]+@[^@\s]+\.[^@\s]+$,error,Invalid email address
-age_range,range,age,18,120,,error,Age must be between 18 and 120
+field,rule_type,value,severity,error_message
+name,not_empty,,error,Name is required
+email,regex,^[^@\s]+@[^@\s]+\.[^@\s]+$,error,Invalid email address
+age,min,18,error,Age must be at least 18
+age,max,120,error,Age must be at most 120
 ```
 
 **Step 2 — Import the CSV.**
@@ -376,9 +389,9 @@ age_range,range,age,18,120,,error,Age must be between 18 and 120
 ```bash
 opendqv import-csv customer_rules.csv --name customer
 # Contract: customer
-# Saved to: contracts/customer.yaml
-# Total rules:    3
-# Imported rules: 3
+# Saved to: /path/to/contracts/customer.yaml
+# Total rules:    4
+# Imported rules: 4
 # Skipped:        0
 ```
 
@@ -387,13 +400,15 @@ opendqv import-csv customer_rules.csv --name customer
 ```bash
 opendqv show customer
 # Contract: customer
-# Version:  1.0.0
-# Status:   draft
+# Version:  1.0
+# Status:   active
+# Owner:    imported-from-csv
 # ...
-#   RULE            TYPE       FIELD   SEVERITY
-#   name_required   not_empty  name    error
-#   email_format    regex      email   error
-#   age_range       range      age     error
+#   RULE            TYPE       FIELD  SEVERITY
+#   name_not_empty  not_empty  name   error
+#   email_regex     regex      email  error
+#   age_min         min        age    error
+#   age_max         max        age    error
 ```
 
 **Step 4 — Test with a valid record.**
@@ -416,16 +431,24 @@ opendqv validate customer '{"name":"","email":"not-an-email","age":15}'
 # Errors:
 #   - [name] Name is required
 #   - [email] Invalid email address
-#   - [age] Age must be between 18 and 120
+#   - [age] Age must be at least 18
 echo $?
 # 1
 ```
 
-**Step 6 — Submit for review.**
+**Step 6 — Fork a DRAFT and submit it for review.**
+
+The CSV importer saves the contract as `active`, so it is usable immediately. To take a change through maker-checker, fork it into a DRAFT first:
 
 ```bash
-opendqv submit-review customer --version 1.0.0 --proposed-by alice
-# Contract 'customer' v1.0.0 submitted for review.
+opendqv fork customer customer_v2
+# Forked customer -> customer_v2
+#   Source: /path/to/contracts/customer.yaml
+#   New:    /path/to/contracts/customer_v2.yaml
+#
+# The new contract is DRAFT at version 1.0.
+opendqv submit-review customer_v2 --version 1.0 --proposed-by alice
+# Contract 'customer_v2' v1.0 submitted for review.
 #   Status   : review
 #   Proposed : alice
 ```
@@ -433,8 +456,8 @@ opendqv submit-review customer --version 1.0.0 --proposed-by alice
 **Step 7 — Approve the contract.**
 
 ```bash
-opendqv approve customer --version 1.0.0 --approved-by bob
-# Contract 'customer' v1.0.0 approved.
+opendqv approve customer_v2 --version 1.0 --approved-by bob
+# Contract 'customer_v2' v1.0 approved.
 #   Status    : active
 #   Approved  : bob
 ```

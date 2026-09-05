@@ -103,7 +103,7 @@ This document covers the seven primary attack surfaces identified during the ini
 - Sensitive field **names** are moved to `sensitive_fields_suppressed`; their validation outcomes are suppressed from `failed_rules`.
 - HTTP Authorization headers are never passed to any logger call.
 - The hash chain detects any modification, reordering, or truncation.
-- **HMAC signing (SEC-004):** When `OPENDQV_TRACE_HMAC_KEY` is set, each entry is signed with HMAC-SHA256. An attacker without the key cannot forge valid entries.
+- **HMAC signing:** When `OPENDQV_TRACE_HMAC_KEY` is set, each entry is signed with HMAC-SHA256. An attacker without the key cannot forge valid entries.
 - A startup WARNING is emitted if TRACE_LOG is enabled without an HMAC key.
 
 **Residual risk:** Low (with HMAC key set) to Medium (without). Without HMAC, an adversary with filesystem write access could reconstruct a valid chain after deleting entries. The field names and contract names visible in the log may assist reconnaissance.
@@ -138,8 +138,8 @@ This document covers the seven primary attack surfaces identified during the ini
 - `AUTH_MODE=token` enforces Bearer token authentication on all protected endpoints.
 - `AUTH_MODE=open` is documented as unsafe for public-facing deployments and triggers a `maker_checker_enforced: false` flag in `/health`.
 - Rate limiting via `slowapi` is applied to all validation and default endpoints.
-- `/trace/verify` requires authentication (SEC-005).
-- `/explain` is auth-gated by default; `OPENDQV_EXPLAIN_PUBLIC=true` allows unauthenticated access if explicitly configured (SEC-010).
+- `/trace/verify` requires authentication and the `auditor`/`approver`/`admin` role.
+- `/explain` is auth-gated by default; `OPENDQV_EXPLAIN_PUBLIC=true` allows unauthenticated access if explicitly configured.
 
 **Residual risk:** Medium. The in-memory rate limiter has a known 4× effective rate with multiple Gunicorn workers (see SECURITY.md section 1). JWT tokens do not support revocation without a database check; revoked tokens may be accepted until expiry if the DB is unavailable.
 
@@ -160,8 +160,8 @@ This document covers the seven primary attack surfaces identified during the ini
 2. The batch endpoint generates a query: `SELECT __idx__ FROM data WHERE "target"--" IS NULL ...`
 3. The double-quote terminates the identifier; `--` comments out the remainder, altering query semantics.
 
-**Current mitigation (fixed 2026-03-10):**
-- `Rule._post_parse()` in `core/rule_parser.py` validates field names at contract parse time.
+**Current mitigation (fixed 2026-03-10; widened 2026-09-02, v2.4.1 — SEC-004):**
+- `Rule._post_parse()` in `core/rule_parser.py` validates every field reference a rule carries — `field`, `required_if`/`condition` trigger fields, `compare_to`, and cross-field names — at contract parse time. `date_format.format` is passed as a bound SQL parameter, never interpolated.
 - Field names containing `"`, `\`, `;`, null bytes (`\x00`), or other control characters raise a `ValueError` and prevent the contract from loading.
 - Allowed characters: letters, digits, underscore, hyphen, space, dot — all safe when double-quoted as SQL identifiers.
 - 7 regression tests added in `TestFieldNameSQLInjection` in `tests/test_security.py`.

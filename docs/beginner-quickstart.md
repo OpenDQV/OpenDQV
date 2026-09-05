@@ -27,7 +27,7 @@ You need Python 3.11 or higher. To check if you have it:
 Scroll down to **Assets** and click **Source code (zip)**.
 
 Unzip it somewhere you can find it (your Desktop is fine). You'll see a folder called
-`OpenDQV-1.x.y` (where 1.x.y is the version number).
+`OpenDQV-2.x.y` (where 2.x.y is the version number).
 
 ---
 
@@ -39,16 +39,16 @@ will open and text will scroll — this is normal. First run takes 2–3 minutes
 **Mac** — open Spotlight (⌘ Space), search for Terminal, and type:
 
 ```bash
-cd ~/Desktop/OpenDQV-1.x.y
+cd ~/Desktop/OpenDQV-2.x.y
 bash install.sh
 ```
 
-*(replace `Desktop/OpenDQV-1.x.y` with the actual folder path)*
+*(replace `Desktop/OpenDQV-2.x.y` with the actual folder path)*
 
 **Linux:**
 
 ```bash
-cd /path/to/OpenDQV-1.x.y
+cd /path/to/OpenDQV-2.x.y
 bash install.sh
 ```
 

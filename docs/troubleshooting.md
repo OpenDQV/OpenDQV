@@ -120,19 +120,17 @@ python -c "import yaml; yaml.safe_load(open('contracts/mycontract.yaml'))"
 
 ---
 
-## 5. `409 Conflict: Contract is ACTIVE — create a new version to modify rules`
+## 5. `409 Conflict: Contract 'x' is ACTIVE. Rule mutations are not permitted`
 
 **Symptom:** An API call to add, update, or delete a rule returns 409.
 
-**Cause:** ACTIVE contracts are immutable by design. This is an intentional write guardrail.
+**Cause:** ACTIVE and REVIEW contracts are immutable by design. This is an intentional write guardrail. (A REVIEW contract can be rejected back to DRAFT and edited there.)
 
 **Fix:** To modify rules on an ACTIVE contract, fork it first:
 ```bash
-curl -X POST http://localhost:8000/api/v1/contracts/<name>/version \
-  -H "Content-Type: application/json" \
-  -d '{"bump": "minor", "created_by": "your-name"}'
+curl -X POST "http://localhost:8000/api/v1/contracts/<name>/version?new_version=2.0"
 ```
-This creates a new DRAFT at the next version number. Edit the DRAFT, then submit for review and approve.
+This writes `<name>_v2.0.yaml` as a new DRAFT (an existing version number is rejected with 400). Edit the DRAFT, then submit for review and approve.
 
 ---
 
@@ -142,13 +140,13 @@ This creates a new DRAFT at the next version number. Edit the DRAFT, then submit
 
 **Check 1:** Is the MCP server running?
 ```bash
-python mcp_server.py
+python -m opendqv.mcp_server
 ```
 It must be running as a separate process from the main API.
 
-**Check 2:** Is the API reachable from the MCP server? The MCP server calls the OpenDQV REST API internally. Ensure `API_URL` is correctly set in the environment (default: `http://localhost:8000`).
+**Check 2:** Is the API reachable from the MCP server? The MCP server calls the OpenDQV REST API internally. In remote mode, ensure `OPENDQV_MCP_API_URL` (and `OPENDQV_MCP_TOKEN` if the API runs in token mode) is set; without it the server runs self-contained against the local contracts directory.
 
-**Check 3:** For write operations, confirm the MCP server is configured with `ALLOW_MCP_WRITES=true` and that you have reviewed the write guardrail documentation before enabling writes.
+**Check 3:** For write operations (`create_contract_draft`), the contract name must start with `MCP_` and `OPENDQV_AGENT_IDENTITY` (or `created_by`) must be set — otherwise the write is refused. Review the write guardrail documentation before enabling writes.
 
 ---
 

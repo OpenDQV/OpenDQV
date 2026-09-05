@@ -73,23 +73,28 @@ rules:
   # across all major GDS platforms (Amadeus: 6 chars, Sabre: 6 chars,
   # Travelport/Galileo: 6 chars). Examples: X7K2QA, BH34TL, 9GXPQR.
   # Lower-case letters, spaces, or special characters will fail GDS lookup.
-  - field: booking_reference
-    rule: not_empty
+  - name: booking_reference_not_empty
+    type: not_empty
+    field: booking_reference
     severity: error
     description: "Booking reference (PNR) is mandatory. All booking records must carry a PNR for GDS retrieval and check-in."
+    error_message: "Booking reference (PNR) is mandatory. All booking records must carry a PNR for GDS retrieval and check-in."
 
-  - field: booking_reference
-    rule: regex
+  - name: booking_reference_regex
+    type: regex
+    field: booking_reference
     # IATA PNR: exactly 6 uppercase alphanumeric characters
     pattern: "^[A-Z0-9]{6}$"
     severity: error
     description: "Booking reference must be exactly 6 uppercase alphanumeric characters (IATA PNR format, e.g., X7K2QA). Required by all major GDS platforms."
+    error_message: "Booking reference must be exactly 6 uppercase alphanumeric characters (IATA PNR format, e.g., X7K2QA). Required by all major GDS platforms."
 
   # ── BOOKING TYPE ─────────────────────────────────────────────────────────────
   # PACKAGE triggers EU Package Travel Directive 2015/2302/EU protections.
-  - field: booking_type
-    rule: lookup
-    lookup_values:
+  - name: booking_type_allowed_values
+    type: allowed_values
+    field: booking_type
+    allowed_values:
       - FLIGHT
       - HOTEL
       - CAR_HIRE
@@ -101,6 +106,7 @@ rules:
       - EXCURSION    # Day trip / activity
     severity: error
     description: "Booking type must be a recognised travel product. PACKAGE bookings trigger EU Package Travel Directive 2015/2302/EU consumer protection obligations."
+    error_message: "Booking type must be a recognised travel product. PACKAGE bookings trigger EU Package Travel Directive 2015/2302/EU consumer protection obligations."
 
   # ── ORIGIN AND DESTINATION AIRPORT ──────────────────────────────────────────
   # IATA airport codes (IATA SSIM Chapter 2): exactly 3 uppercase letters.
@@ -108,112 +114,141 @@ rules:
   # SIN (Singapore Changi), CDG (Paris Charles de Gaulle).
   # A 3-letter code is required for all FLIGHT bookings; it is optional
   # (or may contain a non-airport identifier) for other booking types.
-  - field: origin_airport
-    rule: regex
+  - name: origin_airport_regex
+    type: regex
+    field: origin_airport
     pattern: "^$|^[A-Z]{3}$"
     severity: error
     description: "Origin airport must be a valid 3-letter IATA airport code (e.g., LHR, JFK, DXB). Required for FLIGHT bookings."
+    error_message: "Origin airport must be a valid 3-letter IATA airport code (e.g., LHR, JFK, DXB). Required for FLIGHT bookings."
 
   # destination_airport is required when booking_type is FLIGHT.
-  - field: destination_airport
-    rule: required_if
-    when_field: booking_type
-    when_value: FLIGHT
+  - name: destination_airport_required_if
+    type: required_if
+    field: destination_airport
     severity: error
     description: "Destination airport is required for FLIGHT bookings."
+    required_if:
+      field: booking_type
+      value: FLIGHT
+    error_message: "Destination airport is required for FLIGHT bookings."
 
-  - field: destination_airport
-    rule: regex
+  - name: destination_airport_regex
+    type: regex
+    field: destination_airport
     pattern: "^$|^[A-Z]{3}$"
     severity: error
     description: "Destination airport must be a valid 3-letter IATA airport code (e.g., LHR, JFK, DXB)."
+    error_message: "Destination airport must be a valid 3-letter IATA airport code (e.g., LHR, JFK, DXB)."
 
   # ── DEPARTURE DATETIME ───────────────────────────────────────────────────────
   # ISO 8601 with mandatory timezone offset — required for cross-border
   # itinerary construction and DST-safe arrival time calculations.
-  - field: departure_datetime
-    rule: not_empty
+  - name: departure_datetime_not_empty
+    type: not_empty
+    field: departure_datetime
     severity: error
     description: "Departure datetime is mandatory for all bookings."
+    error_message: "Departure datetime is mandatory for all bookings."
 
-  - field: departure_datetime
-    rule: regex
+  - name: departure_datetime_regex
+    type: regex
+    field: departure_datetime
     # ISO 8601 datetime with mandatory timezone: Z or ±HH:MM
     pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
     severity: error
     description: "Departure datetime must be ISO 8601 with timezone (e.g., 2026-06-15T08:30:00Z or 2026-06-15T09:30:00+01:00)."
+    error_message: "Departure datetime must be ISO 8601 with timezone (e.g., 2026-06-15T08:30:00Z or 2026-06-15T09:30:00+01:00)."
 
-  - field: departure_datetime
-    rule: compare
+  - name: departure_datetime_compare
+    type: compare
+    field: departure_datetime
     compare_op: gte
     compare_to: now
     severity: warning
     description: "Departure datetime is in the past. Expected for historical records only — flag for new booking pipelines."
+    error_message: "Departure datetime is in the past. Expected for historical records only — flag for new booking pipelines."
 
   # ── RETURN DATETIME ──────────────────────────────────────────────────────────
   # return_datetime is mandatory for PACKAGE bookings under the EU Package
   # Travel Directive (the end date of the package must be defined).
   # It is optional for one-way flights, hotels, and transfers.
-  - field: return_datetime
-    rule: required_if
-    when_field: booking_type
-    when_value: PACKAGE
+  - name: return_datetime_required_if
+    type: required_if
+    field: return_datetime
     severity: error
     description: "Return datetime is required for PACKAGE bookings (EU Package Travel Directive 2015/2302/EU — the package end date must be defined)."
+    required_if:
+      field: booking_type
+      value: PACKAGE
+    error_message: "Return datetime is required for PACKAGE bookings (EU Package Travel Directive 2015/2302/EU — the package end date must be defined)."
 
-  - field: return_datetime
-    rule: cross_field_range
+  - name: return_datetime_compare
+    type: compare
+    field: return_datetime
     compare_op: gte
-    compare_to_field: departure_datetime
+    compare_to: departure_datetime
     severity: error
     description: "Return datetime must be on or after departure datetime."
+    error_message: "Return datetime must be on or after departure datetime."
 
   # ── PASSENGER COUNT ──────────────────────────────────────────────────────────
   # Range 1–500: minimum 1 (a booking with zero passengers is invalid).
   # Maximum 500 covers full charter aircraft (e.g., Airbus A380 max ~853,
   # but 500 is a conservative ceiling for most OTA/airline systems).
   # Reduce to 9 for leisure OTA use cases (max group booking).
-  - field: passenger_count
-    rule: range
+  - name: passenger_count_range
+    type: range
+    field: passenger_count
     min: 1
     max: 500
     severity: error
     description: "Passenger count must be between 1 and 500. Zero passengers is invalid. Adjust max for your use case (9 for leisure groups, 500 for charters)."
+    error_message: "Passenger count must be between 1 and 500. Zero passengers is invalid. Adjust max for your use case (9 for leisure groups, 500 for charters)."
 
   # ── CABIN CLASS ──────────────────────────────────────────────────────────────
   # Cabin class is only meaningful for FLIGHT bookings.
   # IATA fare basis codes map to these 4 cabins in all major GDS systems.
-  - field: cabin_class
-    rule: required_if
-    when_field: booking_type
-    when_value: FLIGHT
+  - name: cabin_class_required_if
+    type: required_if
+    field: cabin_class
     severity: error
     description: "Cabin class is required for FLIGHT bookings."
+    required_if:
+      field: booking_type
+      value: FLIGHT
+    error_message: "Cabin class is required for FLIGHT bookings."
 
-  - field: cabin_class
-    rule: lookup
-    lookup_values:
+  - name: cabin_class_allowed_values
+    type: allowed_values
+    field: cabin_class
+    allowed_values:
       - ECONOMY
       - PREMIUM_ECONOMY
       - BUSINESS
       - FIRST
     severity: error
     description: "Cabin class must be one of: ECONOMY, PREMIUM_ECONOMY, BUSINESS, FIRST."
+    error_message: "Cabin class must be one of: ECONOMY, PREMIUM_ECONOMY, BUSINESS, FIRST."
 
   # ── HOTEL STAR RATING ────────────────────────────────────────────────────────
   # Hotel star rating is only required for HOTEL bookings.
   # Ratings 1–5 align with the AA Hotel Star Rating and Hotelstars Union
   # classification used across Europe.
-  - field: hotel_star_rating
-    rule: required_if
-    when_field: booking_type
-    when_value: HOTEL
+  - name: hotel_star_rating_required_if
+    type: required_if
+    field: hotel_star_rating
     severity: error
     description: "Hotel star rating is required for HOTEL bookings."
+    required_if:
+      field: booking_type
+      value: HOTEL
+    error_message: "Hotel star rating is required for HOTEL bookings."
 
-  - field: hotel_star_rating
-    rule: lookup
-    lookup_values:
+  - name: hotel_star_rating_allowed_values
+    type: allowed_values
+    field: hotel_star_rating
+    allowed_values:
       - "1"
       - "2"
       - "3"
@@ -222,28 +257,34 @@ rules:
       - UNRATED    # Hostels, serviced apartments, boutique properties
     severity: error
     description: "Hotel star rating must be 1–5 or UNRATED (AA Hotel Star Rating / Hotelstars Union classification)."
+    error_message: "Hotel star rating must be 1–5 or UNRATED (AA Hotel Star Rating / Hotelstars Union classification)."
 
   # ── TOTAL PRICE ──────────────────────────────────────────────────────────────
   # Range 0–10,000,000: zero is valid for reward-only bookings (fully
   # redeemed via loyalty points / miles). Upper limit of £10 million
   # covers ultra-luxury charters and high-end cruise packages.
-  - field: total_price
-    rule: not_empty
+  - name: total_price_not_empty
+    type: not_empty
+    field: total_price
     severity: error
     description: "Total price is mandatory for revenue recognition and ATOL/ABTA financial protection calculations."
+    error_message: "Total price is mandatory for revenue recognition and ATOL/ABTA financial protection calculations."
 
-  - field: total_price
-    rule: range
+  - name: total_price_range
+    type: range
+    field: total_price
     min: 0
     max: 10000000
     severity: error
     description: "Total price must be between 0 and 10,000,000. Zero is valid for fully points-redeemed bookings."
+    error_message: "Total price must be between 0 and 10,000,000. Zero is valid for fully points-redeemed bookings."
 
   # ── CURRENCY ─────────────────────────────────────────────────────────────────
   # ISO 4217 currency codes covering major travel markets.
-  - field: currency
-    rule: lookup
-    lookup_values:
+  - name: currency_allowed_values
+    type: allowed_values
+    field: currency
+    allowed_values:
       - USD    # United States
       - EUR    # Eurozone
       - GBP    # United Kingdom
@@ -260,14 +301,16 @@ rules:
       - ZAR    # South Africa
     severity: error
     description: "Currency must be a supported ISO 4217 code covering major travel markets."
+    error_message: "Currency must be a supported ISO 4217 code covering major travel markets."
 
   # ── BOOKING STATUS ───────────────────────────────────────────────────────────
   # Standard booking lifecycle states used across airlines and OTA platforms.
   # TICKETED is airline-specific — a confirmed booking becomes ticketed when
   # the airline issues an e-ticket (13-digit BSP ticket number).
-  - field: booking_status
-    rule: lookup
-    lookup_values:
+  - name: booking_status_allowed_values
+    type: allowed_values
+    field: booking_status
+    allowed_values:
       - PENDING      # Booking initiated, payment not yet confirmed
       - CONFIRMED    # Payment confirmed, not yet ticketed
       - TICKETED     # E-ticket issued (airlines only)
@@ -278,6 +321,7 @@ rules:
       - WAITLISTED   # Booking on waitlist — seat/room not yet guaranteed
     severity: error
     description: "Booking status must be a recognised lifecycle state."
+    error_message: "Booking status must be a recognised lifecycle state."
 
   # ── PAYMENT METHOD ───────────────────────────────────────────────────────────
   # PCI DSS v4.0 NOTE: Raw payment card numbers (PANs) must NEVER appear in
@@ -285,9 +329,10 @@ rules:
   # PCI DSS Requirement 3.3: Do not retain sensitive authentication data
   # (full PAN, CVV, PIN) after authorisation. Any 16-digit number appearing
   # in a booking record field must be rejected at the API gateway.
-  - field: payment_method
-    rule: lookup
-    lookup_values:
+  - name: payment_method_allowed_values
+    type: allowed_values
+    field: payment_method
+    allowed_values:
       - CARD            # Credit/debit card — tokenised reference only, no PAN
       - BANK_TRANSFER
       - WALLET          # e.g., PayPal, Apple Pay, Google Pay
@@ -297,47 +342,57 @@ rules:
       - BNPL            # Buy Now Pay Later (e.g., Klarna, Affirm)
     severity: error
     description: "Payment method must be a recognised payment instrument. CARD payments must use a tokenised reference — raw PANs are prohibited under PCI DSS v4.0 Requirement 3.3."
+    error_message: "Payment method must be a recognised payment instrument. CARD payments must use a tokenised reference — raw PANs are prohibited under PCI DSS v4.0 Requirement 3.3."
 
   # ── AIRLINE CODE ─────────────────────────────────────────────────────────────
   # IATA Airline Designator: exactly 2 characters.
   # Format: 2 letters (e.g., BA = British Airways, EK = Emirates,
   # SQ = Singapore Airlines) or 1 letter + 1 digit (e.g., 2I = Star Peru).
   # Required for FLIGHT bookings; optional for other booking types.
-  - field: airline_code
-    rule: required_if
-    when_field: booking_type
-    when_value: FLIGHT
+  - name: airline_code_required_if
+    type: required_if
+    field: airline_code
     severity: error
     description: "Airline code is required for FLIGHT bookings."
+    required_if:
+      field: booking_type
+      value: FLIGHT
+    error_message: "Airline code is required for FLIGHT bookings."
 
-  - field: airline_code
-    rule: regex
+  - name: airline_code_regex
+    type: regex
+    field: airline_code
     # IATA 2-char designator: 2 letters or letter+digit
     pattern: "^$|^[A-Z0-9]{2}$"
     severity: error
     description: "Airline code must be a 2-character IATA airline designator (e.g., BA, EK, SQ, 2I)."
+    error_message: "Airline code must be a 2-character IATA airline designator (e.g., BA, EK, SQ, 2I)."
 
   # ── LOYALTY PROGRAMME ID ─────────────────────────────────────────────────────
   # Loyalty programme membership number — optional field.
   # Maximum 20 characters covers the longest frequent-flyer/hotel loyalty
   # membership numbers (e.g., BA Executive Club: 9 digits, Marriott Bonvoy:
   # 9 digits, Emirates Skywards: 16 digits).
-  - field: loyalty_programme_id
-    rule: max_length
-    max: 20
+  - name: loyalty_programme_id_max_length
+    type: max_length
+    field: loyalty_programme_id
+    max_length: 20
     severity: warning
     description: "Loyalty programme membership ID must not exceed 20 characters. Field is optional but must conform to this length if provided."
+    error_message: "Loyalty programme membership ID must not exceed 20 characters. Field is optional but must conform to this length if provided."
 
   # ── LEAD PASSENGER EMAIL ─────────────────────────────────────────────────────
   # Lead passenger email is required for booking confirmation delivery and
   # GDPR Article 14 processing notice requirements.
   # PII — must be handled under GDPR data minimisation principles.
   # Basic format validation only — MX record validation out of scope here.
-  - field: lead_passenger_email
-    rule: regex
+  - name: lead_passenger_email_regex
+    type: regex
+    field: lead_passenger_email
     pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
     severity: error
     description: "Lead passenger email must be in a valid format (e.g., john.smith@example.com). Required for booking confirmation and GDPR Article 14 processing notice."
+    error_message: "Lead passenger email must be in a valid format (e.g., john.smith@example.com). Required for booking confirmation and GDPR Article 14 processing notice."
 
   # ── GDPR MARKETING CONSENT ────────────────────────────────────────────────────
   # GDPR Article 7: Conditions for consent.
@@ -347,11 +402,13 @@ rules:
   # NOT_ASKED: consent was not solicited at booking (permissible but recorded
   # so that downstream marketing systems do not incorrectly assume consent).
   # A missing or null consent field must not be treated as YES.
-  - field: gdpr_marketing_consent
-    rule: lookup
-    lookup_values:
-      - YES       # Explicit opt-in — marketing communications permitted
-      - NO        # Explicit opt-out
+  - name: gdpr_marketing_consent_allowed_values
+    type: allowed_values
+    field: gdpr_marketing_consent
+    allowed_values:
+      - "YES"       # Explicit opt-in — marketing communications permitted
+      - "NO"        # Explicit opt-out
       - NOT_ASKED # Consent not solicited — treat as NO for marketing
     severity: error
     description: "GDPR marketing consent status is mandatory. Must be YES (opted in), NO (opted out), or NOT_ASKED. A missing value must not be treated as consent (GDPR Article 7 / CJEU Planet49)."
+    error_message: "GDPR marketing consent status is mandatory. Must be YES (opted in), NO (opted out), or NOT_ASKED. A missing value must not be treated as consent (GDPR Article 7 / CJEU Planet49)."

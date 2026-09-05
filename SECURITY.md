@@ -95,8 +95,8 @@ OpenDQV Core's audit-event and metrics endpoints assume a **single-tenant trust 
 
 **Mitigation:**
 
-- Single-tenant deployments are the supported v2.3.x model. Run one engine per tenant, isolated by network or process boundary.
-- Multi-tenant deployments must wait for the v2.4 per-contract scoping work tracked in `routes_audit_events.py` module docstring. v2.4 will gate audit and metrics by per-contract role grant.
+- Single-tenant deployments are the supported model. Run one engine per tenant, isolated by network or process boundary.
+- Per-contract auditor scoping (gating audit and metrics by per-contract role grant) is not yet implemented; the caveat is tracked in the `routes_audit_events.py` module docstring. Multi-tenant deployments should not rely on it.
 - The `auth_mode` field on `GET /api/v1/audit/events` responses (added in v2.3.23) gives consuming systems machine-readable evidence of the trust mode in effect; regulated deployments should refuse to render an audit-event response with `auth_mode: "open"`.
 
 ### 4. SQLite Persistence — Single-File, No Encryption at Rest
@@ -202,7 +202,7 @@ OpenDQV explicitly follows some standards and intentionally diverges from others
 
 | Standard | Status | Notes |
 |---|---|---|
-| **RFC 5321** — Simple Mail Transfer Protocol (email address format) | **Intentionally simplified** | The default email regex (`^[^@]+@[^@]+\.[^@]+$`) accepts most practical email addresses but does not implement the full RFC 5321 local-part grammar (quoted strings, IP domain literals, comments). This is deliberate — RFC 5321-compliant email parsers accept addresses that most production systems reject.
+| **RFC 5321** — Simple Mail Transfer Protocol (email address format) | **Intentionally simplified** | The `builtin:email` regex (`^[^@\s]+@[^@\s]+\.[^@\s]+$`) accepts most practical email addresses but does not implement the full RFC 5321 local-part grammar (quoted strings, IP domain literals, comments). This is deliberate — RFC 5321-compliant email parsers accept addresses that most production systems reject.
 
 > **Salesforce overlap note:** Salesforce's native email validation is also an RFC 5321 approximation. When OpenDQV runs as a Salesforce Before trigger, Salesforce's check fires first for truly malformed addresses; our rule validates what Salesforce passes. |
 | **ISO 8601** — Date and time format | **Followed in spirit** | The `date_format` rule validates that values are parseable as dates, not that they conform to a specific ISO 8601 profile. Rules with `date_format` accept `YYYY-MM-DD` and most ISO 8601 variants. Strict ISO 8601 profile enforcement (e.g. time zones required) is done via `regex` rules in the contract. |
@@ -220,7 +220,7 @@ OpenDQV explicitly follows some standards and intentionally diverges from others
 
 ## Dependency Provenance
 
-Dependencies are specified in `requirements.txt`. `pip-audit` runs in CI on every push and pull request (see `.github/workflows/ci.yml` — "Security audit" step) to detect known CVEs in the dependency tree. The audit result is visible in each GitHub Actions run. An SBOM (Software Bill of Materials) is generated with each release.
+Dependencies are declared in `pyproject.toml` and pinned by the poetry lockfile; `requirements.txt` is generated from it (never hand-edited) and CI checks the two stay in sync. `pip-audit` runs in CI on every push and pull request (see `.github/workflows/ci.yml` — "Security audit" step) to detect known CVEs in the dependency tree. The audit result is visible in each GitHub Actions run. An SBOM (Software Bill of Materials) is generated with each release.
 
 ---
 
@@ -253,6 +253,7 @@ Before any deployment that will handle real financial data or be accessible to u
 
 - [ ] `POST /api/v1/contracts/customer/status?status=active` with a validator credential returns HTTP 403
 - [ ] `POST /api/v1/contracts/customer/version?new_version=99.0` with a validator credential returns HTTP 403
+- [ ] `POST /api/v1/contracts/customer/rules` against an ACTIVE (or REVIEW) contract returns HTTP 409 — ACTIVE and REVIEW contracts are immutable; edit via a new version or reject REVIEW back to DRAFT
 - [ ] `POST /api/v1/validate` with a valid record and a known contract returns HTTP 200 with `valid: true`
 - [ ] A log line for the validation above contains `trace_id=`, `caller=`, `ip=`, `record_id=`, `contract=`, `valid=`
 

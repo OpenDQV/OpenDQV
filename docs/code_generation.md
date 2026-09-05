@@ -26,7 +26,8 @@ curl -s -X POST "http://localhost:8000/api/v1/generate" \
   -H "Authorization: Bearer <token>" \
   -G --data-urlencode "contract_name=salesforce_contact" \
      --data-urlencode "target=salesforce" \
-     --data-urlencode "context=salesforce_prod"
+     --data-urlencode "context=salesforce_prod"   # optional; the bundled contract declares no contexts —
+                                                  # see examples/contexts/salesforce_contact.yaml
 
 # JavaScript (Node.js, browser, etc.)
 curl -s -X POST "http://localhost:8000/api/v1/generate" \
@@ -61,7 +62,7 @@ curl -s -X POST "http://localhost:8000/api/v1/generate" \
 python -m opendqv.cli generate <contract> <target> [--context <context>]
 
 # Examples
-python -m opendqv.cli generate salesforce_contact salesforce --context salesforce_prod
+python -m opendqv.cli generate salesforce_contact salesforce   # add --context salesforce_prod with examples/contexts/salesforce_contact.yaml loaded
 python -m opendqv.cli generate customer js
 python -m opendqv.cli generate customer snowflake
 ```

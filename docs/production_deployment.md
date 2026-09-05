@@ -93,19 +93,20 @@ OpenDQV enforces a maker-checker model with six roles:
 Key separation of duties:
 - **`editor` and `approver` must be different people.** An editor submits contracts for review; an approver reviews and promotes them. Neither can do both — this is the maker-checker principle.
 - **`approver` cannot author.** Approvers can only review and approve/reject. They cannot add or edit rules. If they have concerns, they reject with a reason and return the contract to the editor.
-- **ACTIVE contracts are immutable.** No role — including `admin` — may add, update, or delete rules on an ACTIVE contract. Attempts return `409 Conflict`.
+- **ACTIVE and REVIEW contracts are immutable.** No role — including `admin` — may add, update, or delete rules on an ACTIVE or REVIEW contract. Attempts return `409 Conflict` (a registry-level gate, so REST, GraphQL, MCP and CLI all see it). To edit a REVIEW contract, reject it back to DRAFT.
 - Use separate tokens for each source system (`validator` role) — one token per integration for clean audit trails and independent revocation.
 
 ## 4a. Contract Mutation Security Model
 
-ACTIVE contracts enforce structural immutability for rule sets. This protects production validation behaviour from silent in-place changes — whether from misconfigured agents, compromised credentials, or bulk migration scripts.
+ACTIVE and REVIEW contracts enforce structural immutability for rule sets. This protects production validation behaviour from silent in-place changes — whether from misconfigured agents, compromised credentials, or bulk migration scripts.
 
 ### The fork workflow (canonical path for rule changes)
 
 To change the rules on an ACTIVE contract:
 
 ```bash
-# 1. Create a new draft version (bumps version string, resets status to DRAFT)
+# 1. Create a new DRAFT version — a NEW object written to {name}_v1.1.yaml.
+#    The ACTIVE base version is not touched. 400 if version 1.1 already exists.
 curl -X POST "http://localhost:8000/api/v1/contracts/{name}/version?new_version=1.1" \
   -H "Authorization: Bearer $APPROVER_TOKEN"
 
@@ -115,12 +116,14 @@ curl -X POST "http://localhost:8000/api/v1/contracts/{name}/rules" \
   -H "Content-Type: application/json" \
   -d '{"name": "new_rule", "field": "amount", "type": "min", "min_value": 0, ...}'
 
-# 3. Activate the new version (maker-checker — requires approver role)
-curl -X POST "http://localhost:8000/api/v1/contracts/{name}/status?status=active" \
-  -H "Authorization: Bearer $APPROVER_TOKEN"
+# 3. Submit for review (editor), then approve (maker-checker — requires approver role)
+curl -X POST "http://localhost:8000/api/v1/contracts/{name}/1.1/submit-review" \
+  -H "Authorization: Bearer $EDITOR_TOKEN"
+curl -X POST "http://localhost:8000/api/v1/contracts/{name}/1.1/approve" \
+  -H "Authorization: Bearer $APPROVER_TOKEN" -H "Content-Type: application/json" -d '{}'
 ```
 
-The old ACTIVE version is automatically set to ARCHIVED at step 1. Both versions remain in the history table with full hash-chained audit trails.
+Step 1 never mutates the base version: `create_version` deep-copies it, strips the approval trail, and writes a separate `{name}_v{version}.yaml` in DRAFT. The old ACTIVE version keeps serving `/validate` until step 3 — activation is the moment the previous ACTIVE version is set to ARCHIVED (at most one version of a name is ACTIVE). Both versions remain in the history table with full hash-chained audit trails. The version string must match `[A-Za-z0-9][A-Za-z0-9._-]{0,49}`.
 
 ### Draft patch counter
 

@@ -45,17 +45,17 @@ Roles are embedded in the JWT payload at token creation time. Elevation requires
 
 ## Known limitations
 
-### `passlib` — `crypt` deprecation warning on Python 3.11+
+### `passlib` — unmaintained; `crypt` deprecation and `bcrypt` 5.x incompatibility
 
 **Severity:** None (warning only, no functional impact)
 
-OpenDQV uses `passlib[bcrypt]` for password hashing. Passlib 1.7.4 (the latest release) unconditionally imports Python's built-in `crypt` module at load time, even when the bcrypt scheme is the only one configured. Python deprecated `crypt` in 3.11 and removed it in 3.13.
+OpenDQV declares `passlib[bcrypt]` and constructs a `CryptContext(schemes=["bcrypt"])` in `security/auth.py`. Passlib 1.7.4 (the latest release) tries to import Python's built-in `crypt` module at load time; Python deprecated `crypt` in 3.11 and removed it in 3.13. Separately, passlib's bcrypt backend self-test breaks against `bcrypt` ≥ 5.0 (`ValueError: password cannot be longer than 72 bytes`) on the first `hash()` call.
 
-**Impact:** A `DeprecationWarning` appears in test output on Python 3.11. On Python 3.13, passlib's unconditional `crypt` import raises an `ImportError` at startup — use Python 3.11 or 3.12 for production deployments until this is resolved upstream.
+**Impact:** None in practice. A `DeprecationWarning` may appear in test output on Python 3.11/3.12. On Python 3.13 the `crypt` import is trapped and the module loads normally — the project is verified on 3.13 (Linux and Windows) and Python 3.11+ is supported for production. Authentication is JWT PAT based; `pwd_context.hash()` is never called on any request path, so the bcrypt 5.x self-test failure is never reached.
 
 **Root cause:** Passlib has been effectively unmaintained since 2020 and the fix has not been released. This is a known community issue.
 
-**Mitigation:** OpenDQV's `CryptContext` is configured with `schemes=["bcrypt"]` only — the `crypt` code path is never invoked at runtime. The warning is cosmetic. A drop-in replacement (`passlib` fork or migration to `bcrypt` directly) is planned for a future release.
+**Mitigation:** OpenDQV's `CryptContext` is configured with `schemes=["bcrypt"]` only and is not exercised at runtime. The warning is cosmetic. Removing the `passlib` dependency (or migrating to `bcrypt` directly) is planned for a future release.
 
 ---
 
@@ -89,12 +89,16 @@ Revokes all tokens for a given username. Requires the `admin` role. This endpoin
 | SEC-001 | ReDoS timeout | All regex rules evaluated via the `regex` library with a 0.5 s per-pattern timeout (configurable: `OPENDQV_REGEX_TIMEOUT`). Prevents catastrophic backtracking. |
 | SEC-002 | Path traversal — contract files | `pathlib.resolve()` + containment check against `config.CONTRACTS_DIR`. Rejects any path that resolves outside the contracts directory. |
 | SEC-003 | Authentication | JWT PATs with configurable expiry. `AUTH_MODE=open` disables auth for local development only. |
-| SEC-004 | SQL injection — field names | DuckDB batch queries use `$param` binding for all user-supplied values. Field names are validated against the contract schema before use. |
+| SEC-004 | SQL injection — field references | DuckDB batch queries use `$param` binding for all user-supplied values. Every field reference a rule carries (`field`, trigger fields, `compare_to`, cross-field names) is charset-checked at parse time and quoted as an identifier; `date_format.format` is a bound SQL parameter. |
 | SEC-005 | RBAC enforcement | Role claims are verified on every authenticated request. No role elevation is possible without re-issuing a token. |
 | SEC-006 | Path traversal — importers | Importer endpoints resolve file paths and verify containment before reading. |
 | SEC-007 | Input size limits | Request body size is capped. Batch validation payloads are bounded by `OPENDQV_MAX_BATCH_SIZE`. |
 | SEC-008 | Webhook SSRF protection | Outbound webhook URLs are validated against a blocklist: RFC 1918 private ranges, loopback (`127.0.0.0/8`, `::1`), and link-local (`169.254.0.0/16`, `fe80::/10`) are all rejected. |
 | SEC-009 | Token role whitelist | `/tokens/generate` validates the `role` parameter against an enumerated set (`validator`, `reader`, `auditor`, `editor`, `approver`, `admin`). Unknown roles return HTTP 422. Prevents phantom roles from appearing in the audit log. |
+| SEC-010 | Role guards | `POST /import/*`, `POST /webhooks`, `DELETE /webhooks` require `editor` or `admin`; `POST /contracts/reload` and `GET/POST /tokens/*` require `admin`. Enforced in `api/deps.py` helpers shared by every sub-router. |
+| SEC-011 | `lookup_auth_header` secret exfiltration | `${VAR}` substitution in a lookup rule's auth header is gated by three fail-closed controls: only `OPENDQV_LOOKUP_`-prefixed env vars are substitutable; substitution is disabled entirely under `AUTH_MODE=open` unless `OPENDQV_ALLOW_LOOKUP_SECRETS` is set; a secret-bearing lookup may only target a host on `OPENDQV_LOOKUP_EGRESS_ALLOWLIST` (empty ⇒ none permitted). Redirects on credential-bearing lookups are refused. |
+| — | Contract name charset | `CONTRACT_NAME_RE` in `core/contracts.py` is the single contract-name charset (`[A-Za-z0-9_-]{1,100}`). Every core write path that takes a caller-supplied name — REST, GraphQL, MCP `create_contract_draft`, CLI — checks it before touching the filesystem. |
+| — | ACTIVE / REVIEW immutability | Rule mutations on an ACTIVE or REVIEW contract return `409 Conflict` at the registry level (`ContractImmutableError`), so every surface is covered. To edit a REVIEW contract, reject it back to DRAFT. |
 
 ---
 

@@ -37,10 +37,10 @@ Requires a running OpenDQV API server. One API serves Salesforce Apex, Python, N
 Runs the full validation engine in-process. Zero network dependency. Useful for CI tests, ETL scripts, Pandas DataFrames, and edge deployments.
 
 ```python
-from sdk.local import LocalValidator
+from opendqv.sdk.local import LocalValidator
 
-validator = LocalValidator()  # reads OPENDQV_CONTRACTS_DIR or ./contracts/
-result = validator.validate({"email": "alice@example.com", "age": 25}, contract="customer")
+validator = LocalValidator()  # reads OPENDQV_CONTRACTS_DIR, else the bundled opendqv/contracts/
+result = validator.validate({"name": "Alice", "email": "alice@example.com", "age": 25}, contract="customer")
 
 # Batch — works directly with DataFrames
 import pandas as pd
@@ -65,10 +65,10 @@ curl -X POST http://localhost:8000/api/v1/validate/batch \
 
 # Discover available contracts
 curl http://localhost:8000/api/v1/contracts
-# → [{name, version, status, rule_count, owner, asset_id, contract_hash}, ...]
+# → [{name, version, status, rule_count, owner, asset_id, description}, ...]  (contract_hash is on GET /contracts/{name})
 
 # Understand why a rule failed and how to fix it
-curl http://localhost:8000/api/v1/contracts/customer/explain/email/email_format
+curl http://localhost:8000/api/v1/contracts/customer/explain/email/valid_email
 # → {"explanation": "...", "valid_examples": [...], "invalid_examples": [...]}
 ```
 
@@ -78,7 +78,7 @@ An MCP server is available. It gives agents native access to all OpenDQV tools w
 
 ```bash
 pip install opendqv[mcp]
-python mcp_server.py
+python -m opendqv.mcp_server
 ```
 
 Claude Desktop config (`~/.claude/claude_desktop_config.json`):
@@ -87,14 +87,14 @@ Claude Desktop config (`~/.claude/claude_desktop_config.json`):
   "mcpServers": {
     "opendqv": {
       "command": "python",
-      "args": ["/path/to/OpenDQV/mcp_server.py"],
+      "args": ["-m", "opendqv.mcp_server"],
       "env": {"OPENDQV_AGENT_IDENTITY": "your.email@example.com"}
     }
   }
 }
 ```
 
-MCP tools exposed: `validate_record`, `validate_batch`, `list_contracts`, `get_contract`, `explain_error`, `create_contract_draft`, `get_quality_metrics`
+MCP tools exposed: `validate_record`, `validate_batch`, `list_contracts`, `get_contract`, `get_contract_jsonschema`, `explain_error`, `create_contract_draft`, `get_quality_metrics`, `get_quality_trend`, `get_rule_velocity`, `list_agents`, `list_audit_events`, `get_audit_event`, `list_versions`, `compare_contracts`
 
 Agents can bootstrap new contracts via `create_contract_draft` when no matching contract exists. Names must start with `MCP_`. Drafts are testable immediately and require human approval before going ACTIVE.
 
@@ -106,8 +106,10 @@ Full guide: `docs/llm_integration.md`
 
 Single record:
 ```json
-{"valid": false, "errors": [{"field": "email", "rule": "email_format", "message": "...", "severity": "error"}], "contract": "customer", "version": "1.0", "contract_hash": "sha256:..."}
+{"valid": false, "errors": [{"field": "email", "rule": "valid_email", "message": "...", "severity": "error", "error_code": "OPENDQV_REGEX_VALID_EMAIL", "suggested_fix": "...", "counterpart_missing": null}], "contract": "customer", "version": "1.1", "contract_hash": "...", "engine_version": "<engine-version>"}
 ```
+
+`counterpart_missing` is `true` when a cross-field rule failed because its counterpart field was absent or blank.
 
 Batch:
 ```json
@@ -118,7 +120,7 @@ MCP responses add `governance_tip` (always) and `draft_notice` (only for DRAFT c
 
 ## Rule types
 
-`not_empty`, `not_empty_string` (type-guarded), `regex`, `min`, `max`, `range`, `min_length`, `max_length`, `date_format`, `unique` (batch), `min_age`, `max_age`, `compare` (cross-field), `required_if` (conditional), `lookup` (file or HTTP reference list), `checksum`, `cross_field_range`, `field_sum`, `forbidden_if`, `conditional_value`, `date_diff`, `ratio_check`, `conditional_lookup`, `geospatial_bounds`, `age_match`
+The 24 types in the engine's dispatch table: `age_match`, `allowed_values`, `checksum`, `compare`, `conditional_lookup`, `conditional_value`, `cross_field_range`, `date_diff`, `date_format`, `field_sum`, `forbidden_if`, `geospatial_bounds`, `lookup`, `max`, `max_length`, `min`, `min_length`, `not_empty`, `not_empty_string`, `range`, `ratio_check`, `regex`, `required_if`, `unique`. `min_age` / `max_age` are keys on a `date_format` rule, not types; `unique` is batch-only.
 
 ## Ecosystem position
 
@@ -164,7 +166,7 @@ OpenDQV is the **write-time** layer. It blocks records before they enter any sys
 - `contract_hash` — SHA-256 of the exact ruleset used. Echo it alongside records for point-in-time audit. Use it to skip catalog syncs when a contract has not changed.
 - `trace_id` — pass via `X-Trace-Id` header or query param; echoed in response headers and trace log. Use your orchestrator run ID, Kafka offset, or request ID for end-to-end correlation.
 - `severity: error` — blocks the write (returns 422). `severity: warning` — passes but appears in `warnings` array.
-- `status` — `draft` (testable, not production), `review` (pending approval), `active` (production-ready).
+- `status` — `draft` (testable, not production), `review` (pending approval), `active` (production-ready), `archived` (retired). ACTIVE and REVIEW contracts are immutable.
 
 ## Contract authoring (YAML)
 

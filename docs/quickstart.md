@@ -38,7 +38,7 @@ Docker will download the necessary components (about 400 MB on the first run —
 
 ```
 ✔ Container opendqv-api-1       Started
-✔ Container opendqv-workbench-1 Started
+✔ Container opendqv-ui-1        Started
 ```
 
 **If you don't have Docker (Python 3.11+ only):** use the bootstrap script. The first run takes 2–3 minutes to install dependencies.
@@ -104,7 +104,7 @@ If you prefer the terminal, this single command validates the same record via th
 ```bash
 curl -s -X POST http://localhost:8000/api/v1/validate \
   -H "Content-Type: application/json" \
-  -d '{"contract": "customer", "version": "1.0", "record": {"id": "cust-001", "name": "Joe Bloggs", "email": "joe@example.com", "age": 32}}'
+  -d '{"contract": "customer", "record": {"id": "cust-001", "name": "Joe Bloggs", "email": "joe@example.com", "age": 32}}'
 ```
 
 > This assumes `AUTH_MODE=open` (the default for local dev). For `AUTH_MODE=token` deployments, add `-H "Authorization: Bearer <your-token>"` to the request.
@@ -115,7 +115,7 @@ The response will tell you whether the record is valid and list any rule violati
 
 ## Troubleshooting
 
-Five issues come up most often.
+Six issues come up most often.
 
 1. **"Docker is not running"** — Open Docker Desktop and wait for the whale icon in your menu bar to stop animating, then retry `docker compose up`.
 
@@ -125,7 +125,7 @@ Five issues come up most often.
 
 4. **"API not reachable" banner in the workbench** — Run `docker compose logs api` in your terminal to see what went wrong. The most common causes are a port conflict (see above) or Docker not having fully started yet.
 
-5. **Blank workbench or no contracts listed** — Run `docker compose restart workbench`. On the very first start, the workbench may come up before the contracts are fully loaded. A restart fixes this.
+5. **Blank workbench or no contracts listed** — Run `docker compose restart ui`. On the very first start, the workbench may come up before the contracts are fully loaded. A restart fixes this.
 
 6. **Workbench changes not appearing after editing `ui/app.py`** — The UI image is
    baked at build time. After editing any file under `ui/`, rebuild the image before

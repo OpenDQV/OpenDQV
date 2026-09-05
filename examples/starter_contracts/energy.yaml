@@ -42,16 +42,20 @@ rules:
 
   # Ireland MPRN: exactly 11 digits. No spaces or separators.
   # Example: 10123456789
-  - field: mprn
-    rule: not_empty
+  - name: mprn_not_empty
+    type: not_empty
+    field: mprn
     severity: error
     description: "MPRN (Meter Point Reference Number) is mandatory. An invalid MPRN cannot be assigned to a supply point."
+    error_message: "MPRN (Meter Point Reference Number) is mandatory. An invalid MPRN cannot be assigned to a supply point."
 
-  - field: mprn
-    rule: regex
+  - name: mprn_regex
+    type: regex
+    field: mprn
     pattern: "^[0-9]{11}$"
     severity: error
     description: "MPRN must be exactly 11 digits with no spaces or separators."
+    error_message: "MPRN must be exactly 11 digits with no spaces or separators."
 
   # GB MPAN: 21 digits in 3 groups of 2 + 13 core.
   # Structure: [2 profile class][2 MTC][2 LLFC][13 core MPAN]
@@ -70,96 +74,119 @@ rules:
   #   description: "MPAN must be exactly 21 digits."
 
   # ── METER IDENTIFICATION ─────────────────────────────────────────────────────
-  - field: meter_serial
-    rule: not_empty
+  - name: meter_serial_not_empty
+    type: not_empty
+    field: meter_serial
     severity: error
     description: "Meter serial number is required for asset tracking and dispute resolution."
+    error_message: "Meter serial number is required for asset tracking and dispute resolution."
 
-  - field: meter_serial
-    rule: regex
+  - name: meter_serial_regex
+    type: regex
+    field: meter_serial
     # Alphanumeric, 8–15 characters (covers SMETS1 and SMETS2 formats)
     pattern: "^[A-Z0-9]{8,15}$"
     severity: error
     description: "Meter serial number must be 8–15 alphanumeric characters."
+    error_message: "Meter serial number must be 8–15 alphanumeric characters."
 
   # ── READ TIMESTAMP ───────────────────────────────────────────────────────────
-  - field: read_timestamp
-    rule: not_empty
+  - name: read_timestamp_not_empty
+    type: not_empty
+    field: read_timestamp
     severity: error
     description: "Read timestamp is mandatory — required for settlement period assignment."
+    error_message: "Read timestamp is mandatory — required for settlement period assignment."
 
-  - field: read_timestamp
-    rule: regex
+  - name: read_timestamp_regex
+    type: regex
+    field: read_timestamp
     pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
     severity: error
     description: "Read timestamp must be ISO 8601 with timezone (e.g., 2026-03-09T14:30:00Z)."
+    error_message: "Read timestamp must be ISO 8601 with timezone (e.g., 2026-03-09T14:30:00Z)."
 
-  - field: read_timestamp
-    rule: compare
+  - name: read_timestamp_compare
+    type: compare
+    field: read_timestamp
     compare_op: lte
     compare_to: now
     severity: error
     description: "Read timestamp cannot be in the future. BSC settlement requirement."
+    error_message: "Read timestamp cannot be in the future. BSC settlement requirement."
 
   # ── READ TYPE ────────────────────────────────────────────────────────────────
   # Industry standard codes for the reliability of a meter read.
   # Estimated and substituted reads must be reported to regulators (CRU/Ofgem)
   # as a percentage of total reads — a key data quality metric.
-  - field: read_type
-    rule: lookup
-    lookup_values: [A, E, D, N]
+  - name: read_type_allowed_values
+    type: allowed_values
+    field: read_type
+    allowed_values: [A, E, D, "N"]
     severity: error
     description: "Read type: A=Actual, E=Estimated, D=Data Substitution, N=Null. Required for CRU/Ofgem data quality reporting."
+    error_message: "Read type: A=Actual, E=Estimated, D=Data Substitution, N=Null. Required for CRU/Ofgem data quality reporting."
 
   # ── CONSUMPTION ──────────────────────────────────────────────────────────────
   # Residential meter: 0–200 kWh per half-hour period is generous but safe.
   # Irish average is ~0.23 kWh per half-hour (11 kWh/day ÷ 48).
   # For industrial/commercial meters, adjust max significantly (up to 50,000+).
-  - field: consumption_kwh
-    rule: range
+  - name: consumption_kwh_range
+    type: range
+    field: consumption_kwh
     min: 0.0
     max: 200.0
     severity: error
     description: "Consumption for a residential meter must be between 0 and 200 kWh per half-hour period. Values above this threshold suggest a unit error or industrial meter — adjust max for your meter class."
+    error_message: "Consumption for a residential meter must be between 0 and 200 kWh per half-hour period. Values above this threshold suggest a unit error or industrial meter — adjust max for your meter class."
 
   # Negative consumption is physically possible for export meters (solar/wind).
   # For supply-only meters, consumption must be >= 0.
   # For meters that can export, change min to -200.
-  - field: consumption_kwh
-    rule: compare
-    compare_op: gte
-    compare_to: 0
+  - name: consumption_kwh_min
+    type: min
+    field: consumption_kwh
+    min: 0
     severity: error
     description: "Consumption cannot be negative for supply-only meters. For export meters, set min: -200 in the range rule."
+    error_message: "Consumption cannot be negative for supply-only meters. For export meters, set min: -200 in the range rule."
 
   # ── SETTLEMENT PERIOD ────────────────────────────────────────────────────────
   # BSC settlement periods: 1–48 for standard days, 1–46 for BST change-back,
   # 1–50 for BST change-forward. Upper bound 50 covers all cases.
-  - field: settlement_period
-    rule: range
+  - name: settlement_period_range
+    type: range
+    field: settlement_period
     min: 1
     max: 50
     severity: error
     description: "Settlement period must be between 1 and 50. Standard days have 48 periods; clock-change days have 46 or 50."
+    error_message: "Settlement period must be between 1 and 50. Standard days have 48 periods; clock-change days have 46 or 50."
 
   # ── DATA SOURCE ──────────────────────────────────────────────────────────────
-  - field: data_source
-    rule: lookup
-    lookup_values: [SMETS1, SMETS2, AMR, MANUAL, HH, PREPAYMENT, ALF]
+  - name: data_source_allowed_values
+    type: allowed_values
+    field: data_source
+    allowed_values: [SMETS1, SMETS2, AMR, MANUAL, HH, PREPAYMENT, ALF]
     severity: error
     description: "Data source identifies the metering technology. Required for settlement validation class assignment."
+    error_message: "Data source identifies the metering technology. Required for settlement validation class assignment."
 
-  - field: supply_type
-    rule: lookup
-    lookup_values: [ELECTRICITY, GAS]
+  - name: supply_type_allowed_values
+    type: allowed_values
+    field: supply_type
+    allowed_values: [ELECTRICITY, GAS]
     severity: error
     description: "Supply type is required — electricity and gas settlement run on separate systems."
+    error_message: "Supply type is required — electricity and gas settlement run on separate systems."
 
   # ── DISTRIBUTION NETWORK ─────────────────────────────────────────────────────
-  - field: dno_code
-    rule: not_empty
+  - name: dno_code_not_empty
+    type: not_empty
+    field: dno_code
     severity: warning
     description: "Distribution Network Operator code is required for loss factor application in settlement."
+    error_message: "Distribution Network Operator code is required for loss factor application in settlement."
 
   # ── QUALITY TRACKING ─────────────────────────────────────────────────────────
   # Use the OpenDQV quality trend API to track your ratio of estimated vs

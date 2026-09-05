@@ -65,12 +65,16 @@ range failures, …); the `RULE_NAME` segment lets you route on the specific rul
       "rule": "valid_email",
       "message": "email must match pattern ^[\\w.+-]+@[\\w-]+\\.[\\w.]+$",
       "severity": "error",
-      "error_code": "OPENDQV_REGEX_VALID_EMAIL"
+      "error_code": "OPENDQV_REGEX_VALID_EMAIL",
+      "suggested_fix": "Check the expected format in the error message and match it exactly.",
+      "counterpart_missing": null
     }
   ],
   "warnings": []
 }
 ```
+
+`counterpart_missing` is `true` on a cross-field failure (`compare`, `field_sum`, `ratio_check`, `date_diff`, `cross_field_range`, …) whose counterpart field was absent or blank; `null` otherwise.
 
 ---
 
@@ -128,4 +132,4 @@ Code matching `OPENDQV_<TYPE>_001` no longer exists.
 
 ## `OPENDQV_ADDITIONAL_PROPERTIES`
 
-Emitted once per record by a contract with `strict_schema: true` when the record carries fields the contract does not declare. `field` is empty, `rule` is `additional_properties`, and the message names every unknown field. Fix the producer, add a rule for the field, or list it under the contract's `fields:` allow-list. See `docs/strict_schema.md`.
+Emitted once per record by a contract with `strict_schema: true` when the record carries fields the contract does not declare. `field` is empty, `rule` is `additional_properties`, and the message names every unknown field. Fix the producer, add a rule for the field, or list it under the contract's `allowed_fields:` allow-list. See `docs/strict_schema.md`.

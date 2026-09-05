@@ -34,116 +34,148 @@ rules:
   # E.164 international number format: + followed by country code and subscriber
   # number, total 8–15 digits. No spaces, dashes, or brackets.
   # Examples: +447911123456 (UK mobile), +2348012345678 (Nigeria mobile)
-  - field: calling_number
-    rule: not_empty
+  - name: calling_number_not_empty
+    type: not_empty
+    field: calling_number
     severity: error
     description: "Calling number is mandatory for all CDR records."
+    error_message: "Calling number is mandatory for all CDR records."
 
-  - field: calling_number
-    rule: regex
+  - name: calling_number_regex
+    type: regex
+    field: calling_number
     pattern: "^\\+[1-9][0-9]{7,14}$"
     severity: error
     description: "Calling number must be in E.164 format (+[country code][number])."
+    error_message: "Calling number must be in E.164 format (+[country code][number])."
 
-  - field: called_number
-    rule: not_empty
+  - name: called_number_not_empty
+    type: not_empty
+    field: called_number
     severity: error
     description: "Called number is mandatory."
+    error_message: "Called number is mandatory."
 
-  - field: called_number
-    rule: regex
+  - name: called_number_regex
+    type: regex
+    field: called_number
     pattern: "^\\+[1-9][0-9]{7,14}$"
     severity: error
     description: "Called number must be in E.164 format."
+    error_message: "Called number must be in E.164 format."
 
   # ── TIMING ──────────────────────────────────────────────────────────────────
-  - field: call_start_time
-    rule: not_empty
+  - name: call_start_time_not_empty
+    type: not_empty
+    field: call_start_time
     severity: error
     description: "Call start time is mandatory — revenue and regulatory obligation."
+    error_message: "Call start time is mandatory — revenue and regulatory obligation."
 
-  - field: call_start_time
-    rule: regex
+  - name: call_start_time_regex
+    type: regex
+    field: call_start_time
     # ISO 8601 datetime with timezone: 2026-03-09T14:30:00Z or +01:00
     pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
     severity: error
     description: "Call start time must be ISO 8601 datetime with timezone."
+    error_message: "Call start time must be ISO 8601 datetime with timezone."
 
-  - field: call_start_time
-    rule: compare
+  - name: call_start_time_compare
+    type: compare
+    field: call_start_time
     compare_op: lte
     compare_to: now
     severity: error
     description: "Call start time cannot be in the future."
+    error_message: "Call start time cannot be in the future."
 
-  - field: duration_seconds
-    rule: not_empty
+  - name: duration_seconds_not_empty
+    type: not_empty
+    field: duration_seconds
     severity: error
     description: "Call duration is required."
+    error_message: "Call duration is required."
 
-  - field: duration_seconds
-    rule: range
+  - name: duration_seconds_range
+    type: range
+    field: duration_seconds
     min: 0
     # 86400 = 24 hours. Calls longer than this are data errors.
     max: 86400
     severity: error
     description: "Call duration must be between 0 and 86,400 seconds (24 hours)."
+    error_message: "Call duration must be between 0 and 86,400 seconds (24 hours)."
 
   # ── CALL CLASSIFICATION ──────────────────────────────────────────────────────
-  - field: call_type
-    rule: lookup
+  - name: call_type_allowed_values
+    type: allowed_values
+    field: call_type
     # GSMA CDR call type classifications
-    lookup_values: [VOICE, SMS, DATA, MMS, ROAMING_VOICE, ROAMING_DATA,
+    allowed_values: [VOICE, SMS, DATA, MMS, ROAMING_VOICE, ROAMING_DATA,
                     ROAMING_SMS, VOICEMAIL, CONFERENCE, PREMIUM_RATE,
                     INTERNATIONAL, EMERGENCY]
     severity: error
     description: "Call type must be a GSMA-defined CDR classification."
+    error_message: "Call type must be a GSMA-defined CDR classification."
 
-  - field: record_type
-    rule: lookup
+  - name: record_type_allowed_values
+    type: allowed_values
+    field: record_type
     # CDR record perspective: who generated the record
-    lookup_values: [ORIGINATING, TERMINATING, TRANSIT, FORWARDED, ROAMING_VISITOR]
+    allowed_values: [ORIGINATING, TERMINATING, TRANSIT, FORWARDED, ROAMING_VISITOR]
     severity: error
     description: "Record type indicates the network node's perspective on the call."
+    error_message: "Record type indicates the network node's perspective on the call."
 
   # ── NETWORK IDENTIFICATION ───────────────────────────────────────────────────
   # MCC-MNC (Mobile Country Code - Mobile Network Code)
   # MCC: 3 digits. MNC: 2 or 3 digits.
   # Examples: 234-20 (UK Three), 621-30 (Nigeria MTN)
-  - field: network_code
-    rule: regex
+  - name: network_code_regex
+    type: regex
+    field: network_code
     pattern: "^[0-9]{3}-[0-9]{2,3}$"
     severity: error
     description: "Network code must be MCC-MNC format (e.g., 234-20 for UK Three)."
+    error_message: "Network code must be MCC-MNC format (e.g., 234-20 for UK Three)."
 
-  - field: serving_cell_id
-    rule: not_empty
+  - name: serving_cell_id_not_empty
+    type: not_empty
+    field: serving_cell_id
     severity: warning
     description: "Serving cell ID required for network analysis and regulatory reporting."
+    error_message: "Serving cell ID required for network analysis and regulatory reporting."
 
   # ── CHARGING ────────────────────────────────────────────────────────────────
-  - field: charge_amount
-    rule: range
+  - name: charge_amount_range
+    type: range
+    field: charge_amount
     min: 0
     # 1000 in local currency units. Adjust max for your pricing model.
     # Values above this threshold likely indicate a unit error or fraud.
     max: 1000
     severity: warning
     description: "Charge amount should be between 0 and 1,000 currency units. High values require review."
+    error_message: "Charge amount should be between 0 and 1,000 currency units. High values require review."
 
-  - field: charge_currency
-    rule: lookup
-    lookup_values: [USD, EUR, GBP, NGN, KES, GHS, ZAR, INR, JPY, CNY, BRL, SEK]
+  - name: charge_currency_allowed_values
+    type: allowed_values
+    field: charge_currency
+    allowed_values: [USD, EUR, GBP, NGN, KES, GHS, ZAR, INR, JPY, CNY, BRL, SEK]
     severity: error
     description: "Charge currency must be a supported ISO 4217 code."
+    error_message: "Charge currency must be a supported ISO 4217 code."
 
   # ── QUALITY INDICATORS ───────────────────────────────────────────────────────
-  - field: data_completeness_flag
-    rule: lookup
+  - name: data_completeness_flag_allowed_values
+    type: allowed_values
+    field: data_completeness_flag
     # Indicates whether the CDR is a complete record or a partial reconstruction
-    lookup_values: [COMPLETE, PARTIAL, RECONSTRUCTED, ESTIMATED]
+    allowed_values: [COMPLETE, PARTIAL, RECONSTRUCTED, ESTIMATED]
     severity: warning
     description: "Data completeness flag indicates CDR record reliability."
+    error_message: "Data completeness flag indicates CDR record reliability."
 
   # For Ofcom regulatory reporting: CDRs with PARTIAL or RECONSTRUCTED flags
   # must be reported separately. Use the quality trend API to track the ratio

@@ -63,123 +63,154 @@ asset_id: "urn:opendqv:example:social_media:social_media_age_compliance"
 rules:
 
   # ── USER IDENTIFICATION ──────────────────────────────────────────────────────
-  - field: user_id
-    rule: not_empty
+  - name: user_id_not_empty
+    type: not_empty
+    field: user_id
     severity: error
     description: "user_id is mandatory — every registration record must be traceable."
+    error_message: "user_id is mandatory — every registration record must be traceable."
 
   # ── AGE GATE ──────────────────────────────────────────────────────────────────
   # Declared age provides a quick first-pass gate and cross-field consistency
   # check. DOB remains the authoritative age signal (see dob_age_gate below).
-  - field: age
-    rule: not_empty
+  - name: age_not_empty
+    type: not_empty
+    field: age
     severity: error
     description: "Declared age is required."
+    error_message: "Declared age is required."
 
-  - field: age
-    rule: range
+  - name: age_range
+    type: range
+    field: age
     min: 13
     max: 150
     severity: error
     description: "Declared age must be 13 or above for platform access."
+    error_message: "Declared age must be 13 or above for platform access."
 
   # Cross-field consistency: declared age must match computed age from DOB
   # within ±1 year (birthday timing edge cases). A large mismatch — e.g.
   # age=36 with dob=1980-01-01 (computed 46) — indicates falsified data.
-  - field: age
-    rule: age_match
+  - name: age_age_match
+    type: age_match
+    field: age
     dob_field: dob
     severity: error
     description: "Declared age is inconsistent with date of birth — possible falsified age declaration (Ofcom due diligence)."
+    error_message: "Declared age is inconsistent with date of birth — possible falsified age declaration (Ofcom due diligence)."
 
   # ── DATE OF BIRTH ─────────────────────────────────────────────────────────────
   # DOB is the tamper-resistant age signal. The dob_age_gate rule derives actual
   # age from DOB and enforces min_age: 13 directly.
   # ISO 8601 date format: YYYY-MM-DD.
-  - field: dob
-    rule: not_empty
+  - name: dob_not_empty
+    type: not_empty
+    field: dob
     severity: error
     description: "Date of birth is required for age assurance audit records."
+    error_message: "Date of birth is required for age assurance audit records."
 
-  - field: dob
-    rule: regex
+  - name: dob_regex
+    type: regex
+    field: dob
     # Accepts YYYY-MM-DD: e.g. 2001-07-14
     pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
     severity: error
     description: "Date of birth must be in ISO 8601 format: YYYY-MM-DD."
+    error_message: "Date of birth must be in ISO 8601 format: YYYY-MM-DD."
 
   # Cross-field age gate: derives actual age from dob and enforces minimum 13.
   # This catches cases where the age field is correct but dob is inconsistent
   # (e.g. age=36, dob=2020-01-01). Verification status does not override this.
-  - field: dob
-    rule: date_format
-    format: "YYYY-MM-DD"
+  - name: dob_date_format
+    type: date_format
+    field: dob
+    format: "%Y-%m-%d"
     min_age: 13
     severity: error
     description: "Date of birth indicates user is under 13. Platform access denied regardless of declared age (UK Online Safety Act minimum age)."
+    error_message: "Date of birth indicates user is under 13. Platform access denied regardless of declared age (UK Online Safety Act minimum age)."
 
   # ── IDENTITY VERIFICATION STATUS ─────────────────────────────────────────────
   # Ofcom's draft age assurance guidance requires platforms to record whether
   # age has been verified (TRUE) or is self-declared (FALSE).
   # Self-declared age is permitted for low-risk features but must be flagged
   # so that downstream systems can apply appropriate content restrictions.
-  - field: verified_identity
-    rule: not_empty
+  - name: verified_identity_not_empty
+    type: not_empty
+    field: verified_identity
     severity: error
     description: "verified_identity must be recorded for every registration (TRUE or FALSE)."
+    error_message: "verified_identity must be recorded for every registration (TRUE or FALSE)."
 
-  - field: verified_identity
-    rule: lookup
-    lookup_values: [TRUE, FALSE]
+  - name: verified_identity_allowed_values
+    type: allowed_values
+    field: verified_identity
+    allowed_values: ["TRUE", "FALSE"]   # quoted — bare TRUE/FALSE are YAML booleans
     severity: error
     description: "verified_identity must be TRUE (identity verified) or FALSE (self-declared)."
+    error_message: "verified_identity must be TRUE (identity verified) or FALSE (self-declared)."
 
   # Advisory warning: self-declared age records should be reviewed or subject
   # to additional content restrictions under the platform's age assurance policy.
   # This rule fires when verified_identity is not TRUE (i.e., is self-declared).
-  - field: verified_identity
-    rule: lookup
-    lookup_values: [TRUE]
+  - name: verified_identity_allowed_values_2
+    type: allowed_values
+    field: verified_identity
+    allowed_values: ["TRUE"]
     severity: warning
     description: "Identity is self-declared (verified_identity=FALSE). Under Ofcom age assurance guidance, self-declared records should trigger enhanced content restrictions or be escalated for verification."
+    error_message: "Identity is self-declared (verified_identity=FALSE). Under Ofcom age assurance guidance, self-declared records should trigger enhanced content restrictions or be escalated for verification."
 
   # ── VERIFICATION METHOD ───────────────────────────────────────────────────────
   # Required only when verified_identity=TRUE.
   # Must be one of the platform's approved age verification methods.
   # See: ref/verification_methods.txt
-  - field: verification_method
-    rule: required_if
-    when_field: verified_identity
-    when_value: TRUE
+  - name: verification_method_required_if
+    type: required_if
+    field: verification_method
     severity: error
     description: "verification_method is required when verified_identity is TRUE. Record the method used to comply with Ofcom audit trail requirements."
+    required_if:
+      field: verified_identity
+      value: "TRUE"
+    error_message: "verification_method is required when verified_identity is TRUE. Record the method used to comply with Ofcom audit trail requirements."
 
-  - field: verification_method
-    rule: lookup
+  - name: verification_method_lookup
+    type: lookup
+    field: verification_method
     lookup_file: "ref/verification_methods.txt"
     severity: error
     description: "verification_method must be an approved method (DOCUMENT_CHECK, BIOMETRIC, CREDIT_BUREAU, MOBILE_NETWORK_OPERATOR, BANK_VERIFICATION, GOVERNMENT_ID)."
+    error_message: "verification_method must be an approved method (DOCUMENT_CHECK, BIOMETRIC, CREDIT_BUREAU, MOBILE_NETWORK_OPERATOR, BANK_VERIFICATION, GOVERNMENT_ID)."
 
   # ── VERIFICATION TIMESTAMP ────────────────────────────────────────────────────
   # Required only when verified_identity=TRUE.
   # ISO 8601 datetime with timezone: YYYY-MM-DDTHH:MM:SSZ or ±HH:MM offset.
   # Timestamp is needed for audit trails — Ofcom may require evidence of when
   # verification occurred, especially for under-18 users.
-  - field: verification_timestamp
-    rule: required_if
-    when_field: verified_identity
-    when_value: TRUE
+  - name: verification_timestamp_required_if
+    type: required_if
+    field: verification_timestamp
     severity: error
     description: "verification_timestamp is required when verified_identity is TRUE. Ofcom audit trails must record when age verification occurred."
+    required_if:
+      field: verified_identity
+      value: "TRUE"
+    error_message: "verification_timestamp is required when verified_identity is TRUE. Ofcom audit trails must record when age verification occurred."
 
   # Condition ensures this regex only fires when verified_identity=TRUE,
   # preventing false errors when the timestamp is absent for unverified records.
-  - field: verification_timestamp
-    rule: regex
+  - name: verification_timestamp_regex
+    type: regex
+    field: verification_timestamp
     # ISO 8601 datetime: YYYY-MM-DDTHH:MM:SS followed by Z or ±HH:MM timezone offset
     # Examples: 2026-03-10T14:23:00Z, 2026-03-10T14:23:00+00:00
     pattern: "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](Z|[+-][0-9]{2}:[0-9]{2})$"
-    when_field: verified_identity
-    when_value: TRUE
     severity: error
     description: "verification_timestamp must be a valid ISO 8601 datetime with timezone (e.g., 2026-03-10T14:23:00Z)."
+    condition:
+      field: verified_identity
+      value: "TRUE"
+    error_message: "verification_timestamp must be a valid ISO 8601 datetime with timezone (e.g., 2026-03-10T14:23:00Z)."

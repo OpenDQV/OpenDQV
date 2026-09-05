@@ -220,11 +220,11 @@ The MCP server gives Claude Desktop and Cursor native access to all six OpenDQV 
 **Start the server:**
 
 ```bash
-# Install the MCP extra
-pip install opendqv[mcp]
+# Install the MCP extra (requires the mcp 2.x SDK; pulled in by the extra)
+pip install "opendqv[mcp]"
 
 # Start the MCP server
-python mcp_server.py
+python -m opendqv.mcp_server
 ```
 
 **Register in Claude Desktop** (`~/.claude/claude_desktop_config.json`):
@@ -234,7 +234,7 @@ python mcp_server.py
   "mcpServers": {
     "OpenDQV": {
       "command": "python",
-      "args": ["/path/to/OpenDQV/mcp_server.py"]
+      "args": ["-m", "opendqv.mcp_server"]
     }
   }
 }
@@ -242,20 +242,19 @@ python mcp_server.py
 
 **Register in Cursor** (Settings → MCP → Add Server):
 - Name: `OpenDQV`
-- Command: `python /path/to/OpenDQV/mcp_server.py`
+- Command: `python -m opendqv.mcp_server`
 
-> **Path note:** The `args` path is machine-specific. Update it when cloning on a new machine.
-> In Cursor you can use `${workspaceFolder}/mcp_server.py` if your project root is the OpenDQV repo.
+> **Interpreter note:** `python` must resolve to the environment where `opendqv[mcp]` is installed. Use the venv's absolute interpreter path in `command` if it does not.
 
-Once registered, Claude and Cursor can call `validate_record`, `validate_batch`, `list_contracts`, `get_contract`, `explain_error`, and `create_contract_draft` as native tools — no API key or extra configuration needed.
+Once registered, Claude and Cursor see all 15 tools as native tools — `validate_record`, `validate_batch`, `list_contracts`, `get_contract`, `list_versions`, `get_contract_jsonschema`, `compare_contracts`, `explain_error`, `get_quality_metrics`, `get_quality_trend`, `get_rule_velocity`, `list_agents`, `list_audit_events`, `get_audit_event`, and `create_contract_draft` — no API key or extra configuration needed. See [`docs/mcp.md`](mcp.md) for the full table.
 
 **Verify your connection:**
 
 After registering, confirm the server is reachable by asking Claude Desktop to call `list_contracts`. You should receive a list of available contracts (e.g. `customer`, `banking_transaction`, etc.).
 
 - **Success:** A list of contracts is returned — the MCP server is connected and the tools are live.
-- **Failure — no tools appear:** Claude Desktop does not show any OpenDQV tools in the tool picker. Check that `mcp_server.py` is running (`python mcp_server.py` in a separate terminal), that the path in `claude_desktop_config.json` is correct, and that you restarted Claude Desktop after editing the config.
-- **Failure — empty response or error:** Run `python mcp_server.py` manually and check the output for import errors. Ensure `opendqv[mcp]` is installed in the same Python environment the config points to.
+- **Failure — no tools appear:** Claude Desktop does not show any OpenDQV tools in the tool picker. Check that the server starts (`python -m opendqv.mcp_server` in a separate terminal), that the path in `claude_desktop_config.json` is correct, and that you restarted Claude Desktop after editing the config.
+- **Failure — empty response or error:** Run `python -m opendqv.mcp_server` manually and check the output for import errors. Ensure `opendqv[mcp]` is installed in the same Python environment the config points to.
 
 **Attribution (required for write tools):**
 
@@ -272,7 +271,7 @@ In Claude Desktop, add it to the `env` block in `claude_desktop_config.json`:
   "mcpServers": {
     "OpenDQV": {
       "command": "python",
-      "args": ["/path/to/OpenDQV/mcp_server.py"],
+      "args": ["-m", "opendqv.mcp_server"],
       "env": {
         "OPENDQV_AGENT_IDENTITY": "your.email@example.com"
       }
@@ -294,7 +293,7 @@ Before writing any record to a database, file, or external API:
 2. If the response has "valid": false, do NOT write the record.
 3. For each error in the errors list, call:
    GET http://localhost:8000/api/v1/contracts/<contract>/explain/<field>/<rule>
-   to understand how to fix it.
+   (e.g. .../contracts/customer/explain/email/valid_email) to understand how to fix it.
 4. Fix the record and re-validate before writing.
 
 Available contracts: GET http://localhost:8000/api/v1/contracts
@@ -438,7 +437,7 @@ if __name__ == "__main__":
 5. Escalate — after `MAX_RETRIES` the record is handed to a human review queue, not silently dropped or written corrupt
 
 **Why `explain_error` makes the difference:**
-Without it, the prompt to Claude is "here's a record, it failed validation, fix it." With it, Claude receives `"valid examples: [0.01, 0.02, 0.1]"` and `"common cause: failed type coercion from a string (e.g. '£0.01' instead of 0.01)"` — the model has the exact constraint and a likely cause. Fix rate on attempt 1 is dramatically higher.
+Without it, the prompt to Claude is "here's a record, it failed validation, fix it." With it, Claude receives `explanation`, `valid_examples`, `invalid_examples`, `constraint` and — when the contract author wrote one — `curated_message` (e.g. `"valid_examples": [0.01, 0.02, 0.1]`) — the model has the exact constraint and the human-authored remediation. Fix rate on attempt 1 is dramatically higher.
 
 ---
 
@@ -449,37 +448,55 @@ Every validation response has the same shape:
 ```json
 {
   "valid": false,
+  "event_id": "01a06810-13d1-7fe2-b944-8ea42a8d59ee",
+  "record_id": null,
   "errors": [
     {
       "field": "amount",
       "rule": "amount_min",
       "message": "amount must be > 0",
-      "severity": "error"
+      "severity": "error",
+      "error_code": "OPENDQV_MIN_AMOUNT_MIN",
+      "suggested_fix": "Provide a value of at least 0.",
+      "counterpart_missing": null
     }
   ],
   "warnings": [],
   "contract": "banking_transaction",
-  "version": "1.0",
-  "contract_hash": "sha256:abc123...",
-  "engine_version": "<engine-version>"
+  "version": "1.2",
+  "owner": "...",
+  "engine_version": "<engine-version>",
+  "contract_hash": "632d10cc…",
+  "entry_hash": "632d10cc…",
+  "content_hash": "9c6caec3…",
+  "effective_rule_hash": "f6aa2752…",
+  "validated_at": "2026-09-03T16:17:59.251637+00:00",
+  "latency_ms": 0.1,
+  "caller_principal": "anonymous",
+  "mode": "enforcement",
+  "would_have_failed": true,
+  "persisted": true
 }
 ```
 
 - `valid: false` means at least one `error`-severity rule failed. Do not write the record.
 - `valid: true` with non-empty `warnings` means the record passed but has quality concerns. Write it, but review the warnings.
-- `contract_hash` is the SHA-256 hash of the exact ruleset used. Store this alongside the record for point-in-time audit evidence.
-- To understand any error: `GET /api/v1/contracts/{contract}/explain/{field}/{rule}`
+- `contract_hash` is the bare hex SHA-256 of the exact contract entry used (it equals `entry_hash`; `content_hash` covers the rule body only, `effective_rule_hash` the rules actually applied after context/filter scoping). Store it alongside the record for point-in-time audit evidence.
+- Each error carries a stable `error_code` and a `suggested_fix`. `counterpart_missing: true` marks a cross-field rule that failed because its counterpart field was absent or blank (otherwise `null`).
+- To understand any error: `GET /api/v1/contracts/{contract}/explain/{field}/{rule}` (e.g. `/contracts/customer/explain/email/valid_email`) — returns `rule_type`, `explanation`, `valid_examples`, `invalid_examples`, `constraint`, `curated_message`; the MCP `explain_error` tool returns the same shape.
 
-**MCP tool responses include two additional fields:**
+**MCP tool responses differ from the REST envelope:**
 
-When calling `validate_record` or `validate_batch` through the MCP server (Claude Desktop, Cursor, or any MCP-compatible agent), the response includes two extra keys not present in the REST API:
+When calling `validate_record` or `validate_batch` through the MCP server (Claude Desktop, Cursor, or any MCP-compatible agent), the response is a slimmer envelope — `valid`, `errors`, `warnings`, `contract`, `version`, `effective_rule_hash` — plus two agent-facing keys not present in the REST API. MCP error entries carry `severity` and `error_code` (and `counterpart_missing: true` on cross-field failures) but not `suggested_fix`:
 
 ```json
 {
   "valid": true,
   "errors": [],
+  "warnings": [],
   "contract": "banking_transaction",
-  "version": "1.0",
+  "version": "1.2",
+  "effective_rule_hash": "f6aa2752…",
   "governance_tip": "Empty required fields cause silent NULL propagation into analytics — catching them at ingestion is 10× cheaper than tracing them downstream.",
   "draft_notice": "This contract is in DRAFT. Validate freely here, but activate it before relying on results in production."
 }
@@ -556,7 +573,7 @@ if not result["valid"]:
         print(hint["explanation"])
 ```
 
-The `mcp` package is only needed if you run `mcp_server.py`. You do not need it to call the REST API.
+The `mcp` package (2.x) is only needed if you run `python -m opendqv.mcp_server`. You do not need it to call the REST API.
 
 ---
 
@@ -611,7 +628,7 @@ review_resp = requests.post(
 # → contract transitions to REVIEW status
 
 # Step 5: Human approves via workbench UI or REST
-# POST /api/v1/contracts/MCP_satellite_telemetry/approve
+# POST /api/v1/contracts/MCP_satellite_telemetry/1.0/approve
 # {"approved_by": "governance@acme.example.com"}
 # → contract becomes ACTIVE, visible in shared library
 

@@ -12,7 +12,7 @@ OpenDQV and Marmot serve complementary roles: OpenDQV validates data at the writ
 ## Design Goals
 
 1. **Contract-first** — OpenDQV contracts are the source of truth; Marmot reflects their state, not the reverse
-2. **Incremental** — use `contract_hash` to skip unchanged contracts and avoid redundant API calls
+2. **Incremental** — use `schema_hash` to skip unchanged contracts and avoid redundant API calls
 3. **Non-invasive** — no changes to OpenDQV internals; integration lives in a thin sync script
 4. **MCP-native** — both tools expose MCP servers; AI agents can query both in a single workflow
 
@@ -56,7 +56,7 @@ contract:
 | `name` | Asset name / `metadata.name` |
 | `description` | Asset description |
 | `version` | Custom metadata `contract_version` |
-| `contract_hash` | Custom metadata `contract_hash` (used for skip logic) |
+| `schema_hash` | Custom metadata `schema_hash` (used for skip logic) |
 | `status` | Custom metadata `contract_status`; `archived` contracts skipped |
 | `owner` | Custom metadata `contract_owner` |
 | `owner_email` | Custom metadata `contract_owner_email` |
@@ -82,7 +82,7 @@ headers_marmot = {
 contracts = requests.get(
     f"{OPENDQV_URL}/api/v1/registry",
     headers=headers_dqv,
-).json()
+).json()["registry"]
 
 for contract in contracts:
     if contract.get("status") == "archived":
@@ -95,7 +95,7 @@ for contract in contracts:
         "type": "dataset",
         "metadata": {
             "contract_version":     contract.get("version", ""),
-            "contract_hash":        contract.get("contract_hash", ""),
+            "schema_hash":        contract.get("schema_hash", ""),
             "contract_status":      contract.get("status", ""),
             "contract_owner":       contract.get("owner", ""),
             "contract_owner_email": contract.get("owner_email", ""),
@@ -301,10 +301,10 @@ validation failures in the last 24 hours. Top failing rule: email_format."
   "mcpServers": {
     "opendqv": {
       "command": "python",
-      "args": ["-m", "mcp_server"],
+      "args": ["-m", "opendqv.mcp_server"],
       "env": {
-        "OPENDQV_URL": "http://localhost:8000",
-        "OPENDQV_TOKEN": "<OPENDQV_TOKEN>"
+        "OPENDQV_MCP_API_URL": "http://localhost:8000",
+        "OPENDQV_MCP_TOKEN": "<OPENDQV_TOKEN>"
       }
     },
     "marmot": {
@@ -336,7 +336,7 @@ This means the MCP server can run on a laptop with no OpenDQV contracts installe
   "mcpServers": {
     "opendqv": {
       "command": "python3",
-      "args": ["/path/to/OpenDQV/mcp_server.py"],
+      "args": ["-m", "opendqv.mcp_server"],
       "env": {
         "OPENDQV_AGENT_IDENTITY": "your.email@example.com",
         "OPENDQV_MCP_API_URL": "http://<linux-ip>:8000"
@@ -351,7 +351,7 @@ This means the MCP server can run on a laptop with no OpenDQV contracts installe
 }
 ```
 
-On Mac: `pip install mcp httpx` — only two dependencies needed for remote mode.
+On Mac: `pip install "opendqv[mcp]"` — installs the package plus the mcp 2.x SDK and httpx; nothing else is needed for remote mode.
 Find your Linux IP: `ip route get 1 | awk '{print $7; exit}'`
 
 ---
@@ -374,7 +374,7 @@ Postgres (source)
     │  every INSERT validated against customer_master v1.2 ✓
     ▼
 [OpenDQV contract: customer_master]   ← visible in Marmot lineage
-    │  contract_hash: a3f9...  status: active
+    │  schema_hash: a3f9...  status: active
     │  12 rules  last_validated: 2026-03-23T14:32:00Z
     ▼
 Snowflake (analytics.public.customers)
@@ -416,7 +416,7 @@ lineage_node = {
     "metadata": {
         "contract_name":    contract["name"],
         "contract_version": contract.get("version", ""),
-        "contract_hash":    contract.get("contract_hash", ""),
+        "schema_hash":    contract.get("schema_hash", ""),
         "contract_status":  contract.get("status", ""),
         "rule_count":       str(len(contract.get("rules", []))),
         "opendqv_url":      f"{OPENDQV_URL}/api/v1/contracts/{contract['name']}",
@@ -473,7 +473,7 @@ This is the pattern that closes the loop between write-time enforcement (OpenDQV
 
 ---
 
-## Incremental Sync with `contract_hash`
+## Incremental Sync with `schema_hash`
 
 Avoid pushing unchanged contracts by persisting the last-seen hash in a local state file. Add this wrapper around any of the approaches above.
 
@@ -496,12 +496,12 @@ state = load_state()
 contracts = requests.get(
     f"{OPENDQV_URL}/api/v1/registry",
     headers={"Authorization": f"Bearer {OPENDQV_TOKEN}"},
-).json()
+).json()["registry"]
 
 synced, skipped = 0, 0
 for contract in contracts:
     name = contract["name"]
-    current_hash = contract.get("contract_hash", "")
+    current_hash = contract.get("schema_hash", "")
     if state.get(name) == current_hash:
         skipped += 1
         continue
@@ -632,7 +632,7 @@ Both MCP servers must be registered in your agent's config:
   "mcpServers": {
     "opendqv": {
       "command": "python",
-      "args": ["/path/to/OpenDQV/mcp_server.py"],
+      "args": ["-m", "opendqv.mcp_server"],
       "env": {"OPENDQV_AGENT_IDENTITY": "your.email@example.com"}
     },
     "marmot": {

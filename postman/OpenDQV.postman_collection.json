@@ -8,7 +8,8 @@
   "variable": [
     { "key": "base_url", "value": "http://localhost:8000", "type": "string" },
     { "key": "auth_token", "value": "", "type": "string" },
-    { "key": "contract_name", "value": "customer", "type": "string" }
+    { "key": "contract_name", "value": "customer", "type": "string" },
+    { "key": "contract_version", "value": "1.0", "type": "string" }
   ],
   "auth": {
     "type": "bearer",
@@ -299,9 +300,9 @@
           "request": {
             "method": "POST",
             "url": {
-              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/submit-review",
+              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/{{contract_version}}/submit-review",
               "host": ["{{base_url}}"],
-              "path": ["api", "v1", "contracts", "{{contract_name}}", "submit-review"]
+              "path": ["api", "v1", "contracts", "{{contract_name}}", "{{contract_version}}", "submit-review"]
             },
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "description": "Transitions a DRAFT contract to REVIEW state. In AUTH_MODE=token this requires editor or admin role. A different user (approver role) must approve or reject."
@@ -312,9 +313,9 @@
           "request": {
             "method": "POST",
             "url": {
-              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/approve",
+              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/{{contract_version}}/approve",
               "host": ["{{base_url}}"],
-              "path": ["api", "v1", "contracts", "{{contract_name}}", "approve"]
+              "path": ["api", "v1", "contracts", "{{contract_name}}", "{{contract_version}}", "approve"]
             },
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "description": "Transitions a REVIEW contract to ACTIVE state. Requires approver or admin role. Once ACTIVE the contract is immutable — rule mutations return 409."
@@ -325,9 +326,9 @@
           "request": {
             "method": "POST",
             "url": {
-              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/reject",
+              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/{{contract_version}}/reject",
               "host": ["{{base_url}}"],
-              "path": ["api", "v1", "contracts", "{{contract_name}}", "reject"]
+              "path": ["api", "v1", "contracts", "{{contract_name}}", "{{contract_version}}", "reject"]
             },
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
@@ -348,14 +349,13 @@
           "request": {
             "method": "POST",
             "url": {
-              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/generate",
+              "raw": "{{base_url}}/api/v1/generate?contract_name={{contract_name}}&target=salesforce",
               "host": ["{{base_url}}"],
-              "path": ["api", "v1", "contracts", "{{contract_name}}", "generate"]
-            },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"target\": \"apex\"\n}"
+              "path": ["api", "v1", "generate"],
+              "query": [
+                { "key": "contract_name", "value": "{{contract_name}}" },
+                { "key": "target", "value": "salesforce" }
+              ]
             },
             "description": "Generates a Salesforce Apex trigger/class that enforces the contract rules natively in your Salesforce org. Use the salesforce_contact contract for best results."
           }
@@ -365,14 +365,13 @@
           "request": {
             "method": "POST",
             "url": {
-              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/generate",
+              "raw": "{{base_url}}/api/v1/generate?contract_name={{contract_name}}&target=js",
               "host": ["{{base_url}}"],
-              "path": ["api", "v1", "contracts", "{{contract_name}}", "generate"]
-            },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"target\": \"javascript\"\n}"
+              "path": ["api", "v1", "generate"],
+              "query": [
+                { "key": "contract_name", "value": "{{contract_name}}" },
+                { "key": "target", "value": "js" }
+              ]
             },
             "description": "Generates a JavaScript validation module compatible with Node.js and browser environments."
           }
@@ -382,14 +381,13 @@
           "request": {
             "method": "POST",
             "url": {
-              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/generate",
+              "raw": "{{base_url}}/api/v1/generate?contract_name={{contract_name}}&target=snowflake",
               "host": ["{{base_url}}"],
-              "path": ["api", "v1", "contracts", "{{contract_name}}", "generate"]
-            },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"target\": \"snowflake\"\n}"
+              "path": ["api", "v1", "generate"],
+              "query": [
+                { "key": "contract_name", "value": "{{contract_name}}" },
+                { "key": "target", "value": "snowflake" }
+              ]
             },
             "description": "Generates a Snowflake JavaScript UDF that enforces the contract rules inside Snowflake. Use with Snowflake External Functions or as a native UDF."
           }
@@ -432,14 +430,18 @@
         {
           "name": "Revoke token",
           "request": {
-            "method": "DELETE",
+            "method": "POST",
             "url": {
-              "raw": "{{base_url}}/api/v1/tokens/:token_id",
+              "raw": "{{base_url}}/api/v1/tokens/revoke",
               "host": ["{{base_url}}"],
-              "path": ["api", "v1", "tokens", ":token_id"],
-              "variable": [{ "key": "token_id", "value": "REPLACE_WITH_TOKEN_ID" }]
+              "path": ["api", "v1", "tokens", "revoke"]
             },
-            "description": "Permanently revokes a PAT by ID. Requires admin role. Revoked tokens are invalidated immediately."
+            "header": [{ "key": "Content-Type", "value": "text/plain" }],
+            "body": {
+              "mode": "raw",
+              "raw": "REPLACE_WITH_TOKEN_VALUE"
+            },
+            "description": "Permanently revokes a PAT by token value (plain-text body). Requires admin role. Revoked tokens are invalidated immediately. To revoke every token for a user: POST /api/v1/tokens/revoke/{username}."
           }
         }
       ]
@@ -453,16 +455,16 @@
           "request": {
             "method": "POST",
             "url": {
-              "raw": "{{base_url}}/api/v1/import/great-expectations",
+              "raw": "{{base_url}}/api/v1/import/gx",
               "host": ["{{base_url}}"],
-              "path": ["api", "v1", "import", "great-expectations"]
+              "path": ["api", "v1", "import", "gx"]
             },
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"suite\": {\n    \"expectation_suite_name\": \"customer_suite\",\n    \"expectations\": [\n      {\n        \"expectation_type\": \"expect_column_values_to_not_be_null\",\n        \"kwargs\": { \"column\": \"email\" }\n      },\n      {\n        \"expectation_type\": \"expect_column_values_to_match_regex\",\n        \"kwargs\": { \"column\": \"email\", \"regex\": \"^[\\\\w.+-]+@[\\\\w-]+\\\\.[\\\\w.]+$\" }\n      }\n    ]\n  },\n  \"contract_name\": \"customer_from_gx\"\n}"
+              "raw": "{\n  \"expectation_suite_name\": \"customer_suite\",\n  \"expectations\": [\n    {\n      \"expectation_type\": \"expect_column_values_to_not_be_null\",\n      \"kwargs\": { \"column\": \"email\" }\n    },\n    {\n      \"expectation_type\": \"expect_column_values_to_match_regex\",\n      \"kwargs\": { \"column\": \"email\", \"regex\": \"^[\\\\w.+-]+@[\\\\w-]+\\\\.[\\\\w.]+$\" }\n    }\n  ]\n}"
             },
-            "description": "Converts a Great Expectations expectation suite into an OpenDQV contract. Supported expectation types: not_null, regex match, value range, accepted values."
+            "description": "Converts a Great Expectations expectation suite into an OpenDQV contract. Supported expectation types: not_null, regex match, value range, accepted values. The body is the raw GX suite (no wrapper) — the contract name comes from expectation_suite_name. Add ?save=true to write the YAML to the contracts directory."
           }
         },
         {
@@ -521,11 +523,11 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/api/v1/contracts/{{contract_name}}/export/odcs",
+              "raw": "{{base_url}}/api/v1/export/odcs/{{contract_name}}",
               "host": ["{{base_url}}"],
-              "path": ["api", "v1", "contracts", "{{contract_name}}", "export", "odcs"]
+              "path": ["api", "v1", "export", "odcs", "{{contract_name}}"]
             },
-            "description": "Exports a contract as Open Data Contract Standard (ODCS) YAML. Compatible with data catalogues that support the ODCS specification."
+            "description": "Exports a contract as Open Data Contract Standard v3.1.0 YAML (schema-valid ODCS 3.x). Compatible with data catalogues that support the ODCS specification."
           }
         },
         {

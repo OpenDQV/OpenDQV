@@ -122,7 +122,7 @@ For tool reference, write guardrails, remote/enterprise mode, and the Marmot com
 
 ## Your First Validation
 
-**1. Write a contract** — drop a YAML file in your contracts directory (run `opendqv init --all` to copy the 43 bundled contracts, or `opendqv init` for a single starter):
+**1. Write a contract** — drop a YAML file in your contracts directory (run `opendqv init --all` to copy every bundled contract, or `opendqv init` for a single starter):
 
 ```yaml
 contract:
@@ -169,14 +169,16 @@ curl -s -X POST http://localhost:8000/api/v1/validate \
 {
   "valid": false,
   "errors": [
-    {"field": "email",  "rule": "valid_email",    "message": "Invalid email format",        "severity": "error"},
-    {"field": "amount", "rule": "amount_positive", "message": "Order amount must be positive", "severity": "error"},
-    {"field": "status", "rule": "status_valid",    "message": "Invalid order status",        "severity": "error"}
+    {"field": "email",  "rule": "valid_email",    "message": "Invalid email format",        "severity": "error", "error_code": "OPENDQV_REGEX_VALID_EMAIL"},
+    {"field": "amount", "rule": "amount_positive", "message": "Order amount must be positive", "severity": "error", "error_code": "OPENDQV_MIN_AMOUNT_POSITIVE"},
+    {"field": "status", "rule": "status_valid",    "message": "Invalid order status",        "severity": "error", "error_code": "OPENDQV_ALLOWED_VALUES_STATUS_VALID"}
   ],
   "contract": "order",
   "version": "1.0"
 }
 ```
+
+(Abridged — the real response also carries `contract_hash`, `engine_version`, `validated_at`, and per-error `suggested_fix`.)
 
 **4. Fix the record — it passes:**
 
@@ -203,21 +205,24 @@ The `customer` contract ships pre-seeded if you want to skip step 1. The [quicks
 | `regex` | Field matches (or does not match) a pattern. Built-ins: `builtin:email`, `builtin:uuid`, `builtin:ipv4`, `builtin:url` |
 | `min` / `max` / `range` | Numeric bounds |
 | `min_length` / `max_length` | String length |
+| `min_age` / `max_age` | Keys on a `date_format` rule (not rule types): age derived from the date within bounds |
 | `date_format` | Parseable date/datetime. Falls back through common formats if no explicit format is set |
 | `allowed_values` | Value must be in a fixed list |
 | `lookup` | Value must appear in a local file or HTTP endpoint (with TTL cache) |
 | `compare` | Cross-field: `field` op `compare_to` — supports `gt`, `lt`, `gte`, `lte`, `eq`, `neq`, and `today`/`now` sentinels |
 | `required_if` / `forbidden_if` | Conditional: required or forbidden when another field equals a value |
+| `conditional_value` | Field must hold a given value when another field holds a given value |
 | `checksum` | Check-digit integrity: IBAN, GTIN/GS1, NHS, ISIN, LEI, VIN, CPF, ISRC |
 | `unique` | No duplicates within a batch (batch mode only) |
 | `cross_field_range` | Value must be between two other fields in the same record |
 | `field_sum` | Sum of named fields must equal a target (within optional tolerance) |
 | `geospatial_bounds` | Lat/lon pair within a bounding box |
 | `date_diff` | Difference between two date fields within a range |
+| `ratio_check` | Ratio of two numeric fields within a range |
 | `age_match` | Declared age consistent with date-of-birth field |
 
 Rules have `severity: error` (blocks the record) or `severity: warning` (flags but allows).
-Any rule can include a `condition` block to apply it only when another field equals a given value.
+Any rule can include a `condition` block so it applies only when a condition on another field holds — `value`, `not_value`, or `present: true|false`.
 
 Full reference: [docs/rules/](docs/rules/)
 
@@ -249,7 +254,7 @@ OpenDQV Core owns layer one. Your catalog handles layer two, your pipeline tools
 
 ## Contracts
 
-43 production-ready contracts ship inside the `opendqv` package covering GDPR, HIPAA, SOX, MiFID II,
+41 production-ready contracts ship inside the `opendqv` package covering GDPR, HIPAA, SOX, MiFID II,
 UK Building Safety Act, Martyn's Law, Natasha's Law, Ofcom Online Safety Act, EU DORA,
 and 20+ other regulatory frameworks across UK, EU, and US. `pip install opendqv` gives you all of them
 — `opendqv list` works with zero configuration.
@@ -276,12 +281,12 @@ methodology, and monthly volume extrapolation.
 |---|---|
 | [Quickstart](docs/quickstart.md) | Build your first contract in 15 minutes |
 | [Rules Reference](docs/rules/) | All rule types with parameters and examples |
-| [Compliance Contracts](docs/compliance-contracts.md) | 44 contracts with regulatory context |
+| [Compliance Contracts](docs/compliance-contracts.md) | Regulatory context for the compliance-critical bundled contracts |
 | [API Reference](docs/index.md) | REST endpoints, SDK, GraphQL, webhooks |
 | [Security](SECURITY.md) | Deployment checklist, threat model, RBAC |
 | [Production Deployment](docs/production_deployment.md) | Token auth, TLS, Docker Compose, hardening |
 | [Integrations](docs/index.md) | Salesforce, Kafka, Snowflake, dbt, Databricks, MCP, and more |
-| [All docs →](docs/) | 76 documentation files |
+| [All docs →](docs/) | The full documentation set |
 
 ---
 
@@ -295,19 +300,17 @@ OpenDQV is in Beta as of 2.0.0. The following stability commitments apply to the
 - **MCP tools** — tool names and parameters are stable within `v2.x`.
 - **Security fixes** — backported to the latest 2.x line on a best-effort basis.
 
-### Known limitations in v2.2.x
+### Presence and null handling (v2.5+)
 
-- **Rule null handling is inconsistent.** Most format rules fail when the target
-  field is missing; a few (`max_length`, `allowed_values`) pass silently;
-  `field_sum` and `ratio_check` coerce missing operands to `0`. Single-record
-  and batch paths disagree in a few cases. See
-  [`docs/rules/core_rules.md`](docs/rules/core_rules.md#null-handling-current-v22x-behaviour)
-  for the full matrix and the safe pattern to use today. v2.3.0 will make this
-  consistent (loud-by-default with an `optional: true` opt-out).
-- **Unknown rule types pass silently at runtime.** A typo in `type:` (e.g.
-  `min_lenght`) is caught by `opendqv lint` but not by the engine — a typo'd
-  rule is a disabled rule. Always lint before deploy. v2.3.0 will reject
-  unknown types at contract load.
+- **Presence is explicit.** A format rule (`regex`, `min`, `max_length`, `date_format`, …)
+  never implies that a field must exist — add `not_empty` / `not_empty_string` when it must.
+  Every non-presence rule treats a missing, `null`, or blank value as absent and passes.
+  A cross-field rule (`compare`, `field_sum`, `ratio_check`, `date_diff`, …) whose
+  counterpart is absent or blank **fails**, and the error entry carries
+  `counterpart_missing: true`. See [`docs/contract_conformance.md`](docs/contract_conformance.md).
+- **Unknown rule types load with a warning and pass.** A typo in `type:` (e.g.
+  `min_lenght`) is logged at contract load, and the rule then passes every record —
+  a typo'd rule is a disabled rule. `opendqv lint` fails it. Always lint before deploy.
 
 ---
 

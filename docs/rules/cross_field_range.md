@@ -35,7 +35,7 @@ At least one of `cross_min_field` or `cross_max_field` must be provided.
 - The rule fails if the field value is less than the value of `cross_min_field` (when specified).
 - The rule fails if the field value is greater than the value of `cross_max_field` (when specified).
 - Bounds are inclusive on both sides.
-- If either bound field is absent or null in the record, that bound is skipped (not enforced).
+- If either bound field is absent or blank in the record the rule fails (D10) and the error entry carries `counterpart_missing: true`. An absent anchor `field` is skipped (D6).
 - Works with numeric fields. Field values are compared as floats.
 
 ## Use cases by industry

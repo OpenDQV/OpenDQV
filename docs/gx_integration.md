@@ -39,7 +39,7 @@ If your team already has GX expectation suites, use them to bootstrap OpenDQV co
 curl -s -X POST http://localhost:8000/api/v1/import/gx \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
-  -d '{"suite_json": "<contents of your GX expectation suite JSON>"}' \
+  -d @path/to/expectation_suite.json \
   | jq .yaml
 
 # Via CLI
@@ -263,9 +263,9 @@ See [`webhooks.md`](webhooks.md) for full webhook configuration options.
 
 ---
 
-## Approach 5 — Incremental via `contract_hash`
+## Approach 5 — Incremental via `schema_hash`
 
-Avoid re-exporting GX suites for contracts that have not changed. Poll `GET /api/v1/registry` and compare `contract_hash`:
+Avoid re-exporting GX suites for contracts that have not changed. Poll `GET /api/v1/registry` and compare `schema_hash`:
 
 ```python
 import requests, json, subprocess
@@ -275,11 +275,11 @@ REGISTRY_URL = "http://localhost:8000/api/v1/registry"
 HASH_STORE = Path(".gx_export_hashes.json")
 
 known_hashes = json.loads(HASH_STORE.read_text()) if HASH_STORE.exists() else {}
-contracts = requests.get(REGISTRY_URL, headers={"Authorization": "Bearer <token>"}).json()
+contracts = requests.get(REGISTRY_URL, headers={"Authorization": "Bearer <token>"}).json()["registry"]
 
 for contract in contracts:
     name = contract["name"]
-    current_hash = contract["contract_hash"]
+    current_hash = contract["schema_hash"]
 
     if known_hashes.get(name) == current_hash:
         continue  # unchanged — skip
@@ -312,7 +312,7 @@ for region, base_url in INSTANCES.items():
     contracts = requests.get(
         f"{base_url}/api/v1/registry",
         headers={"Authorization": "Bearer <token>"},
-    ).json()
+    ).json()["registry"]
     for contract in contracts:
         subprocess.run(
             ["opendqv", "--url", base_url,

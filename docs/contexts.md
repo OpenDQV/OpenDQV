@@ -316,4 +316,4 @@ curl -s -X DELETE "http://localhost:8000/api/v1/quality/stats?context=demo" \
 ## See also
 
 - [docs/naming_conventions.md](naming_conventions.md) — naming conventions for contracts, rules, and fields
-- [contracts/customer.yaml](../examples/contexts/customer.yaml) — the reference contract with live `contexts:` examples
+- [examples/contexts/customer.yaml](../examples/contexts/customer.yaml) — the reference contract with live `contexts:` examples
