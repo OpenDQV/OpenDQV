@@ -152,24 +152,23 @@ rules:
             validate_record({"d": "01/01/2000"}, rules)
         warnings = [r for r in caplog.records if "two date_format layouts" in r.getMessage()]
         assert len(warnings) == 1
-        assert rules[2].cached_date_layout == "%d/%m/%Y"
+        assert resolve_date_layouts(rules) == {"d": "%d/%m/%Y"}
 
-    def test_stamps_are_excluded_from_serialisation(self):
+    def test_rules_are_never_mutated_and_layouts_do_not_leak_past_the_call(self):
+        from opendqv.core.validator import _date_layouts_var
         rules = parse_rules(UK)
+        before = [r.model_dump(by_alias=True, mode="json") for r in rules]
         validate_record({"start": "01/01/2027", "end": "31/12/2026", "dob": "01/01/1990", "age": 36}, rules)
-        for r in rules:
-            dumped = r.model_dump(by_alias=True, exclude_none=True, mode="json")
-            assert "cached_date_layout" not in dumped and "cached_other_date_layout" not in dumped
+        assert [r.model_dump(by_alias=True, mode="json") for r in rules] == before
+        assert _date_layouts_var.get() == {}   # reset on return: a direct handler call sees the ISO path
 
-    def test_rebuilt_rule_list_is_restamped(self):
+    def test_rebuilt_rule_list_resolves_afresh(self):
         rules = parse_rules(UK)
-        validate_record({"start": "01/01/2027", "end": "31/12/2026"}, rules)
-        assert rules[2].cached_date_layout == "%d/%m/%Y"
+        assert validate_record({"start": "01/01/2027", "end": "31/12/2026"}, rules)["valid"] is False
         # a draft edit replaces the rule objects: drop the format rules → ISO path again
         rebuilt = [Rule(**r.model_dump(by_alias=True, exclude_none=True)) for r in rules if r.type != "date_format"]
         out = validate_record({"start": "2027-01-01", "end": "2026-12-31"}, rebuilt)
         assert [e["rule"] for e in out["errors"]] == ["end_after_start", "span"]
-        assert rebuilt[0].cached_date_layout is None
 
     def test_parse_date_with_layout_is_utc_midnight(self):
         dt = _parse_date("11/12/2026", "%d/%m/%Y")
@@ -243,15 +242,81 @@ def test_context_rebuilt_rules_with_reused_addresses_are_stamped_every_call():
         del b
 
 
-def test_dropping_the_format_rule_from_a_live_list_clears_the_stamp():
+def test_dropping_the_format_rule_from_a_live_list_returns_to_iso():
     rules = parse_rules(UK)
     validate_record({"start": "01/01/2027", "end": "31/12/2026"}, rules)
-    compare_rule = rules[2]
-    assert compare_rule.cached_date_layout == "%d/%m/%Y"
     rules[:] = [r for r in rules if r.type != "date_format"]   # in-place draft edit keeps the compare object
     out = validate_record({"start": "2027-01-01", "end": "2026-12-31"}, rules)
-    assert compare_rule.cached_date_layout is None
     assert [e["rule"] for e in out["errors"]] == ["end_after_start", "span"]
+
+
+def test_compare_object_shared_between_base_and_context_lists_under_threads():
+    """Blind review (PR #166): get_rules_with_context shallow-copies the base list,
+    so the compare rule is the SAME object in both lists. Stamping it per call was
+    a lost-update race; layouts now live in a per-call ContextVar. 8 threads,
+    alternating base (ISO) and context (UK) lists that share the compare object."""
+    import threading
+    base = parse_rules('''
+rules:
+  - {name: fmt_s, type: date_format, field: start, error_message: s}
+  - {name: fmt_e, type: date_format, field: end, error_message: e}
+  - {name: cmp, type: compare, field: start, compare_to: end, compare_op: lt, error_message: order}
+''')
+    uk = list(base)
+    for i in (0, 1):
+        uk[i] = Rule(**{**base[i].model_dump(by_alias=True, exclude_none=True), "format": "DD/MM/YYYY"})
+    assert uk[2] is base[2]
+    bad = []
+
+    def run(rules, record, expect_valid):
+        for _ in range(3000):
+            if validate_record(record, rules)["valid"] is not expect_valid:
+                bad.append(record)
+                return
+
+    ts = [threading.Thread(target=run, args=(base, {"start": "2024-01-10", "end": "2024-01-20"}, True)) for _ in range(4)]
+    ts += [threading.Thread(target=run, args=(uk, {"start": "10/01/2024", "end": "20/01/2024"}, True)) for _ in range(4)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    assert not bad, f"wrong verdicts under interleaving: {bad[:3]}"
+
+
+def test_conditional_date_format_declares_no_layout_for_cross_field_rules():
+    # Blind review: a UK-branch layout was being applied to the US branch's ISO values.
+    rules = parse_rules('''
+rules:
+  - {name: uk_fmt, type: date_format, field: d, format: "DD/MM/YYYY", condition: {field: region, value: UK}, error_message: uk}
+  - {name: not_future, type: compare, field: d, compare_to: today, compare_op: lte, error_message: future}
+''')
+    assert resolve_date_layouts(rules) == {}
+    _both(rules, {"d": "2000-01-01", "region": "US"}, [])
+
+
+def test_linter_conflict_compares_normalised_layouts():
+    # Blind review: 'YYYY-MM-DD' and '%Y-%m-%d' are the same layout to the engine.
+    from opendqv.core.linter import lint_contract_yaml
+    res = lint_contract_yaml('''
+contract:
+  name: t
+  rules:
+    - {name: a, type: date_format, field: d, format: "YYYY-MM-DD", error_message: a}
+    - {name: b, type: date_format, field: d, format: "%Y-%m-%d", error_message: b}
+''', "t")
+    assert not [i for i in res.issues if i.code == "DATE_LAYOUT_CONFLICT"]
+
+
+def test_age_add_on_skips_an_unreadable_dob_on_both_paths():
+    # /code-review: the single path failed an unparseable dob on min_age while the
+    # batch SQL skipped it; the format rule is the catcher for shape on both paths now.
+    rules = parse_rules('''
+rules:
+  - {name: dob_fmt, type: date_format, field: dob, format: "%d/%m/%Y", error_message: fmt}
+  - {name: dob_age, type: not_empty, field: dob, min_age: 18, error_message: under 18}
+''')
+    _both(rules, {"dob": "1990-01-01"}, ["dob_fmt"])
+    _both(rules, {"dob": "01/01/1990"}, [])
 
 
 def test_python_only_strptime_directive_keeps_batch_and_single_in_parity():

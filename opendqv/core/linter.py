@@ -39,6 +39,7 @@ import yaml
 
 from opendqv.core.rule_parser import RULE_TYPES
 from opendqv.core.validator import (
+    _human_to_strptime,
     _PRESENCE_RULE_TYPES,  # single source of truth (round-2 B2)
 )
 
@@ -366,7 +367,7 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
         if not isinstance(raw, dict) or raw.get("type") != "date_format" or not raw.get("format"):
             continue
         field_name = str(raw.get("field", ""))
-        fmt = str(raw.get("format"))
+        fmt = _human_to_strptime(str(raw.get("format")))   # compare as the engine does
         first = layouts_seen.get(field_name)
         if first is None:
             layouts_seen[field_name] = (fmt, str(raw.get("name", "")))

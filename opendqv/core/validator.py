@@ -18,6 +18,7 @@ import time
 import urllib.request
 import urllib.error
 import urllib.parse
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from collections import defaultdict
 from functools import lru_cache
@@ -162,6 +163,15 @@ def _parse_date(v, fmt: Optional[str] = None):
 # reading rules as excluded cached fields, so the hot path pays one pass.
 _CROSS_FIELD_DATE_TYPES = frozenset({"compare", "date_diff", "age_match"})
 _layout_conflicts_warned: set = set()
+_NO_LAYOUTS: dict = {}
+# The declared layouts for the validate call in progress. A ContextVar, not a
+# stamp on the Rule objects: `get_rules_with_context` shallow-copies the base
+# list, so a compare rule is the SAME object in the base list and in a context
+# list whose counterpart layout differs — per-call mutation of that object is a
+# lost-update race under threads (blind review of PR #166). The variable is
+# thread- and task-local and reset when the call returns, so handlers called
+# outside a validate call see no layouts (the ISO path).
+_date_layouts_var: ContextVar[dict] = ContextVar("opendqv_date_layouts", default=_NO_LAYOUTS)
 
 
 def _counterpart_field(rule: Rule) -> Optional[str]:
@@ -183,6 +193,12 @@ def resolve_date_layouts(rules: list) -> dict[str, str]:
     for r in rules:
         if r.type != "date_format" or not r.format:
             continue
+        if r.condition:
+            # A conditional format rule scopes its layout to the records its
+            # condition selects; the cross-field rules cannot know that scope,
+            # so it declares nothing for them (blind review: a US-branch ISO
+            # value was being parsed with the UK-branch layout).
+            continue
         fmt = _human_to_strptime(r.format)
         prev = layouts.get(r.field)
         if prev is None:
@@ -199,25 +215,13 @@ def resolve_date_layouts(rules: list) -> dict[str, str]:
     return layouts
 
 
-def _stamp_date_layouts(rules: list) -> None:
-    """Stamp ``cached_date_layout`` / ``cached_other_date_layout`` on every rule
-    that reads a field as a date. Runs on every call, deliberately unmemoised:
-    a context merge mints fresh Rule objects each request and CPython reuses
-    their addresses at once, and a draft edit that drops a ``date_format``
-    rule leaves the surviving ``compare`` object holding a stale stamp — any
-    identity- or token-keyed cache can serve either. One pass over the rules
-    reading two attributes each; writes only when a stamp changes."""
-    layouts = resolve_date_layouts(rules)
-    for r in rules:
-        if r.type in _CROSS_FIELD_DATE_TYPES or r.cached_has_age_constraint:
-            own = layouts.get(r.field)
-            if r.cached_date_layout != own:
-                r.cached_date_layout = own
-            cp = _counterpart_field(r)
-            other = layouts.get(cp) if cp else None
-            if r.cached_other_date_layout != other:
-                r.cached_other_date_layout = other
-
+def _layouts_for(rule: Rule) -> tuple[Optional[str], Optional[str]]:
+    """(own-field layout, counterpart layout) for the validate call in progress."""
+    layouts = _date_layouts_var.get()
+    if not layouts:
+        return None, None
+    cp = _counterpart_field(rule)
+    return layouts.get(rule.field), (layouts.get(cp) if cp else None)
 
 def _delta_days(d1, d2) -> float:
     """Signed difference d1 − d2 in fractional days (both paths use this)."""
@@ -364,64 +368,67 @@ def validate_record(
         if extra:
             errors.append(extra)
 
-    _stamp_date_layouts(rules)
-    for rule in rules:
-        value = record.get(rule.field)
-        try:
-            failure = _check_rule(value, rule, record)
-            if not failure and rule.cached_has_age_constraint:
-                failure = _check_age(value, rule)
-        except Exception:
-            # Fail closed. An unexpected error inside a checker must never
-            # crash the worker — an unhandled exception surfaces as HTTP 500,
-            # a remotely-triggerable DoS. The batch path already fails closed
-            # on exception; bring the single-record path to parity by
-            # rejecting the record with a generic message (CWE-209: never
-            # echo the exception detail to the caller).
-            logger.exception(
-                "validate_record: checker raised on rule=%s field=%s — failing closed",
-                rule.name, rule.field,
-            )
-            errors.append(FieldError(
-                field=rule.field,
-                rule=rule.name,
-                message="Rule could not be evaluated; record rejected (fail-closed).",
-                severity=Severity.ERROR.value,
-                error_code="OPENDQV_RULE_ERROR",
-            ).to_dict())
-            continue
+    _layout_token = _date_layouts_var.set(resolve_date_layouts(rules))
+    try:
+        for rule in rules:
+            value = record.get(rule.field)
+            try:
+                failure = _check_rule(value, rule, record)
+                if not failure and rule.cached_has_age_constraint:
+                    failure = _check_age(value, rule)
+            except Exception:
+                # Fail closed. An unexpected error inside a checker must never
+                # crash the worker — an unhandled exception surfaces as HTTP 500,
+                # a remotely-triggerable DoS. The batch path already fails closed
+                # on exception; bring the single-record path to parity by
+                # rejecting the record with a generic message (CWE-209: never
+                # echo the exception detail to the caller).
+                logger.exception(
+                    "validate_record: checker raised on rule=%s field=%s — failing closed",
+                    rule.name, rule.field,
+                )
+                errors.append(FieldError(
+                    field=rule.field,
+                    rule=rule.name,
+                    message="Rule could not be evaluated; record rejected (fail-closed).",
+                    severity=Severity.ERROR.value,
+                    error_code="OPENDQV_RULE_ERROR",
+                ).to_dict())
+                continue
 
-        if failure:
-            # v2.3.23 outside-review #3: detect type-mismatch sentinel.
-            # Numeric checkers prefix the message when the value is
-            # non-numeric. Strip the prefix and override error_code so
-            # consumers can branch on a real type-error vs a real
-            # value-violation.
-            counterpart_missing = False
-            if failure.startswith(_TYPE_MISMATCH_PREFIX):
-                entry_message = failure[len(_TYPE_MISMATCH_PREFIX):]
-                entry_error_code = "OPENDQV_TYPE_MISMATCH"
-            elif failure.startswith(_COUNTERPART_MISSING_PREFIX):
-                entry_message = failure[len(_COUNTERPART_MISSING_PREFIX):]
-                entry_error_code = rule.cached_error_code
-                counterpart_missing = True
-            else:
-                entry_message = failure
-                entry_error_code = rule.cached_error_code
-            entry = FieldError(
-                field=rule.field,
-                rule=rule.name,
-                message=entry_message,
-                severity=rule.cached_severity_value,
-                error_code=entry_error_code,
-                counterpart_missing=counterpart_missing,
-            ).to_dict()
+            if failure:
+                # v2.3.23 outside-review #3: detect type-mismatch sentinel.
+                # Numeric checkers prefix the message when the value is
+                # non-numeric. Strip the prefix and override error_code so
+                # consumers can branch on a real type-error vs a real
+                # value-violation.
+                counterpart_missing = False
+                if failure.startswith(_TYPE_MISMATCH_PREFIX):
+                    entry_message = failure[len(_TYPE_MISMATCH_PREFIX):]
+                    entry_error_code = "OPENDQV_TYPE_MISMATCH"
+                elif failure.startswith(_COUNTERPART_MISSING_PREFIX):
+                    entry_message = failure[len(_COUNTERPART_MISSING_PREFIX):]
+                    entry_error_code = rule.cached_error_code
+                    counterpart_missing = True
+                else:
+                    entry_message = failure
+                    entry_error_code = rule.cached_error_code
+                entry = FieldError(
+                    field=rule.field,
+                    rule=rule.name,
+                    message=entry_message,
+                    severity=rule.cached_severity_value,
+                    error_code=entry_error_code,
+                    counterpart_missing=counterpart_missing,
+                ).to_dict()
 
-            if rule.severity == Severity.ERROR:
-                errors.append(entry)
-            else:
-                warnings.append(entry)
+                if rule.severity == Severity.ERROR:
+                    errors.append(entry)
+                else:
+                    warnings.append(entry)
 
+    finally:
+        _date_layouts_var.reset(_layout_token)
     # TRACE_LOG — write audit entry if enabled
     fields_validated = [r.field for r in rules]
     failed_rule_fields = [e["field"] for e in errors + warnings]
@@ -1017,7 +1024,7 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
     # Slice [:10] works for "YYYY-MM-DD" and "YYYY-MM-DDTHH:MM:SS..." —
     # both yield the same date portion. Bare-string compare without a
     # datetime parse keeps the implementation honest and small.
-    la, lb = rule.cached_date_layout, rule.cached_other_date_layout
+    la, lb = _layouts_for(rule)
     if la or lb:
         # 2.8.0: a declared date layout on either operand — both sides are
         # dates. Parse each with its own layout (an undeclared operand keeps
@@ -1213,8 +1220,9 @@ def _check_date_diff(value, rule: Rule, record: Optional[dict] = None) -> Option
     if _is_field_absent(other_val):
         return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: a missing/blank counterpart IS a date_diff failure (both engines)
     try:
-        d1 = _parse_date(value, rule.cached_date_layout)
-        d2 = _parse_date(other_val, rule.cached_other_date_layout)
+        la, lb = _layouts_for(rule)
+        d1 = _parse_date(value, la)
+        d2 = _parse_date(other_val, lb)
         delta = _delta_days(d1, d2)  # signed, fractional: positive if d1 is later
 
         unit = rule.date_diff_unit or "days"
@@ -1326,7 +1334,7 @@ def _check_age_match(value, rule: Rule, record: Optional[dict] = None) -> Option
     try:
         declared = int(float(value))
         # 2.8.0: the dob field's declared layout; ISO date when undeclared.
-        dob = _parse_date(dob_val, rule.cached_other_date_layout or "%Y-%m-%d")
+        dob = _parse_date(dob_val, _layouts_for(rule)[1] or "%Y-%m-%d")
         today = datetime.now(timezone.utc)
         computed = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
         tol = rule.age_tolerance if rule.age_tolerance is not None else 0
@@ -1706,14 +1714,18 @@ def _age_layout(rule: Rule) -> str:
     other rule type), else the ISO date (2.8.0)."""
     if rule.format:
         return _human_to_strptime(rule.format)
-    return rule.cached_date_layout or "%Y-%m-%d"
+    return _layouts_for(rule)[0] or "%Y-%m-%d"
 
 
 def _check_age(value, rule: Rule) -> Optional[str]:
     """Check min_age/max_age constraints. Runs after the type check passes.
 
     CRT170/J3: skip when field is absent — the not_empty/required_if rules
-    are the catcher for absence."""
+    are the catcher for absence. 2.8.0: skip when the value cannot be read
+    as a date, as the batch SQL always did (``date_expr IS NOT NULL``) — the
+    field's format rule is the catcher for shape; the add-on judges age only
+    when it can read one. The single path used to fail here, so the two
+    paths disagreed on every unparseable dob."""
     if rule.min_age is None and rule.max_age is None:
         return None
     if _is_field_absent(value):
@@ -1727,7 +1739,7 @@ def _check_age(value, rule: Rule) -> Optional[str]:
         if rule.max_age is not None and age > rule.max_age:
             return rule.error_message
     except (ValueError, TypeError):
-        return rule.error_message
+        return None  # unreadable as a date: the format rule's job, not the add-on's
     return None
 
 
@@ -1792,93 +1804,96 @@ def validate_batch(
                 if extra:
                     row_results[i]["errors"].append(extra)
 
-        _stamp_date_layouts(rules)
-        for rule in rules:
-            # (round-2 S7) every declared field is materialised above, so a
-            # rule's field is always a column here; the old "skip if column
-            # missing" branch was the K1 fail-open and is gone.
+        _layout_token = _date_layouts_var.set(resolve_date_layouts(rules))
+        try:
+            for rule in rules:
+                # (round-2 S7) every declared field is materialised above, so a
+                # rule's field is always a column here; the old "skip if column
+                # missing" branch was the K1 fail-open and is gone.
 
-            # v2.3.23 outside-review #3: type-mismatch indices populated
-            # by min/max/range branches of _batch_check_rule.
-            failing_type_mismatches: dict[int, str] = {}
-            failing_messages: dict[int, str] = {}
-            failing_counterpart_missing: set[int] = set()   # #145
-            try:
-                failing_indices = _batch_check_rule(
-                    con, df, rule, failing_type_mismatches=failing_type_mismatches,
-                    records=records, failing_messages=failing_messages, synthesised=synthesised,
-                    failing_counterpart_missing=failing_counterpart_missing)
-            except Exception as e:
-                # Log only rule metadata — never include record field values.
-                logger.error("Error evaluating rule '%s' (field='%s'): %s", rule.name, rule.field, e)
-                failing_indices = set(range(total))
+                # v2.3.23 outside-review #3: type-mismatch indices populated
+                # by min/max/range branches of _batch_check_rule.
+                failing_type_mismatches: dict[int, str] = {}
+                failing_messages: dict[int, str] = {}
+                failing_counterpart_missing: set[int] = set()   # #145
+                try:
+                    failing_indices = _batch_check_rule(
+                        con, df, rule, failing_type_mismatches=failing_type_mismatches,
+                        records=records, failing_messages=failing_messages, synthesised=synthesised,
+                        failing_counterpart_missing=failing_counterpart_missing)
+                except Exception as e:
+                    # Log only rule metadata — never include record field values.
+                    logger.error("Error evaluating rule '%s' (field='%s'): %s", rule.name, rule.field, e)
+                    failing_indices = set(range(total))
 
-            # Apply condition filter: exclude rows where the condition is not met.
-            if rule.condition and failing_indices:
-                cond_field = rule.condition.get("field", "")
-                if "present" in rule.condition:
-                    # #144: presence judged from the raw record (D6 absence reading),
-                    # exactly as _check_condition does on the single path.
-                    want = bool(rule.condition["present"])
-                    eligible = {
-                        i for i in range(total)
-                        if (not _is_field_absent((records[i] if records is not None else {}).get(cond_field))) == want
-                    }
-                    failing_indices = failing_indices & eligible
-                if cond_field in df.columns:
-                    cond_series = df[cond_field].astype(str)
-                    if "value" in rule.condition:
-                        # Keep only rows where condition field == value
-                        eligible = set(df.index[cond_series == str(rule.condition["value"])])
+                # Apply condition filter: exclude rows where the condition is not met.
+                if rule.condition and failing_indices:
+                    cond_field = rule.condition.get("field", "")
+                    if "present" in rule.condition:
+                        # #144: presence judged from the raw record (D6 absence reading),
+                        # exactly as _check_condition does on the single path.
+                        want = bool(rule.condition["present"])
+                        eligible = {
+                            i for i in range(total)
+                            if (not _is_field_absent((records[i] if records is not None else {}).get(cond_field))) == want
+                        }
                         failing_indices = failing_indices & eligible
-                    elif "not_value" in rule.condition:
-                        # Exclude rows where condition field == not_value
-                        excluded = set(df.index[cond_series == str(rule.condition["not_value"])])
-                        failing_indices = failing_indices - excluded
-                elif "value" in rule.condition:
-                    # condition field absent from every record: actual == "" on the
-                    # single path, so `value: X` never matches → nothing fails.
-                    failing_indices = set()
+                    if cond_field in df.columns:
+                        cond_series = df[cond_field].astype(str)
+                        if "value" in rule.condition:
+                            # Keep only rows where condition field == value
+                            eligible = set(df.index[cond_series == str(rule.condition["value"])])
+                            failing_indices = failing_indices & eligible
+                        elif "not_value" in rule.condition:
+                            # Exclude rows where condition field == not_value
+                            excluded = set(df.index[cond_series == str(rule.condition["not_value"])])
+                            failing_indices = failing_indices - excluded
+                    elif "value" in rule.condition:
+                        # condition field absent from every record: actual == "" on the
+                        # single path, so `value: X` never matches → nothing fails.
+                        failing_indices = set()
 
-            entry_template = {
-                "field": rule.field,
-                "rule": rule.name,
-                "message": rule.error_message,
-                "severity": rule.severity.value,
-                # CRT170/J4: reuse the cached, rule-instance-shaped code so
-                # the batch path and single-record path always agree.
-                "error_code": rule.cached_error_code,
-            }
+                entry_template = {
+                    "field": rule.field,
+                    "rule": rule.name,
+                    "message": rule.error_message,
+                    "severity": rule.severity.value,
+                    # CRT170/J4: reuse the cached, rule-instance-shaped code so
+                    # the batch path and single-record path always agree.
+                    "error_code": rule.cached_error_code,
+                }
 
-            for idx in failing_indices:
-                # v2.3.23 outside-review #3: per-row type-mismatch override.
-                # If this index was flagged as a type mismatch by the min/
-                # max/range branch, swap the error_code + message to the
-                # type-mismatch shape. Other rows on the same rule (real
-                # value violations) keep the rule's own code.
-                if idx in failing_type_mismatches:
-                    raw_msg = failing_type_mismatches[idx]
-                    if raw_msg.startswith(_TYPE_MISMATCH_PREFIX):
-                        type_msg = raw_msg[len(_TYPE_MISMATCH_PREFIX):]
+                for idx in failing_indices:
+                    # v2.3.23 outside-review #3: per-row type-mismatch override.
+                    # If this index was flagged as a type mismatch by the min/
+                    # max/range branch, swap the error_code + message to the
+                    # type-mismatch shape. Other rows on the same rule (real
+                    # value violations) keep the rule's own code.
+                    if idx in failing_type_mismatches:
+                        raw_msg = failing_type_mismatches[idx]
+                        if raw_msg.startswith(_TYPE_MISMATCH_PREFIX):
+                            type_msg = raw_msg[len(_TYPE_MISMATCH_PREFIX):]
+                        else:
+                            type_msg = raw_msg
+                        row_entry = {
+                            "field": rule.field,
+                            "rule": rule.name,
+                            "message": type_msg,
+                            "severity": rule.severity.value,
+                            "error_code": "OPENDQV_TYPE_MISMATCH",
+                        }
+                    elif idx in failing_messages:
+                        row_entry = {**entry_template, "message": failing_messages[idx]}
                     else:
-                        type_msg = raw_msg
-                    row_entry = {
-                        "field": rule.field,
-                        "rule": rule.name,
-                        "message": type_msg,
-                        "severity": rule.severity.value,
-                        "error_code": "OPENDQV_TYPE_MISMATCH",
-                    }
-                elif idx in failing_messages:
-                    row_entry = {**entry_template, "message": failing_messages[idx]}
-                else:
-                    row_entry = entry_template
-                if idx in failing_counterpart_missing:
-                    row_entry = {**row_entry, "counterpart_missing": True}   # #145
-                if rule.severity == Severity.ERROR:
-                    row_results[idx]["errors"].append(row_entry)
-                else:
-                    row_results[idx]["warnings"].append(row_entry)
+                        row_entry = entry_template
+                    if idx in failing_counterpart_missing:
+                        row_entry = {**row_entry, "counterpart_missing": True}   # #145
+                    if rule.severity == Severity.ERROR:
+                        row_results[idx]["errors"].append(row_entry)
+                    else:
+                        row_results[idx]["warnings"].append(row_entry)
+        finally:
+            _date_layouts_var.reset(_layout_token)
     finally:
         con.close()
 
@@ -2219,7 +2234,7 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                 failing.add(r[0])
 
     elif rule.type == "compare" and rule.compare_to and rule.compare_op and (
-            rule.cached_date_layout or rule.cached_other_date_layout):
+            any(_layouts_for(rule))):
         # 2.8.0: a declared date layout on either operand — share the
         # single-path parse (layout per operand, no numeric/string fallback).
         if rule.compare_to not in ("today", "now") and rule.compare_to not in df.columns:
@@ -2455,8 +2470,9 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                     failing_counterpart_missing.add(idx)   # #145
                     continue
                 try:
-                    d1 = _parse_date(val, rule.cached_date_layout)
-                    d2 = _parse_date(other_val, rule.cached_other_date_layout)
+                    la, lb = _layouts_for(rule)
+                    d1 = _parse_date(val, la)
+                    d2 = _parse_date(other_val, lb)
                     delta = _delta_days(d1, d2)  # signed, fractional — identical to the single path
                     diff = delta / 365.25 if unit == "years" else delta
                     fail = False
@@ -2545,25 +2561,18 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
             date_expr = f'CAST(TRY_STRPTIME(CAST("{field}" AS VARCHAR), $agefmt) AS DATE)'
             age_params = {"agefmt": age_fmt}
         age_conditions = []
+        age_expr = ("DATE_DIFF('year', __d__, CURRENT_DATE) "
+                    "- CASE WHEN (MONTH(CURRENT_DATE), DAY(CURRENT_DATE)) < (MONTH(__d__), DAY(__d__)) THEN 1 ELSE 0 END")
         if rule.min_age is not None:
-            age_conditions.append(
-                f'DATE_DIFF(\'year\', {date_expr}, CURRENT_DATE) '
-                f'- CASE WHEN (MONTH(CURRENT_DATE), DAY(CURRENT_DATE)) < (MONTH({date_expr}), DAY({date_expr})) THEN 1 ELSE 0 END '
-                f'< {rule.min_age}'
-            )
+            age_conditions.append(f'{age_expr} < {rule.min_age}')
         if rule.max_age is not None:
-            age_conditions.append(
-                f'DATE_DIFF(\'year\', {date_expr}, CURRENT_DATE) '
-                f'- CASE WHEN (MONTH(CURRENT_DATE), DAY(CURRENT_DATE)) < (MONTH({date_expr}), DAY({date_expr})) THEN 1 ELSE 0 END '
-                f'> {rule.max_age}'
-            )
+            age_conditions.append(f'{age_expr} > {rule.max_age}')
         if age_conditions:
+            # the layout is parsed once per row in the subquery (was up to 7×)
             age_query = (
-                f'SELECT __idx__ FROM data '
-                f'WHERE "{field}" IS NOT NULL '
-                f'AND TRIM(CAST("{field}" AS VARCHAR)) != \'\' '
-                f'AND {date_expr} IS NOT NULL '
-                f"AND ({' OR '.join(age_conditions)})"
+                f'SELECT __idx__ FROM (SELECT __idx__, {date_expr} AS __d__ FROM data '
+                f'WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != \'\') '
+                f"WHERE __d__ IS NOT NULL AND ({' OR '.join(age_conditions)})"
             )
             try:
                 for r in con.execute(age_query, age_params).fetchall():

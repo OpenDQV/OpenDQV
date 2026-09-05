@@ -400,7 +400,13 @@ thing on both engines.
   declared side against an undeclared ISO side works), and a declared operand
   never reaches the numeric or string fallback: unreadable → the rule fails.
   Two different layouts on one field: first declared wins, warned once
-  (`opendqv lint` reports `DATE_LAYOUT_CONFLICT`), never rejected. Pinned for
+  (`opendqv lint` reports `DATE_LAYOUT_CONFLICT`), never rejected. A
+  `date_format` rule with a `condition:` declares no layout (its scope is the
+  records the condition selects). The layout map lives in a per-call context
+  variable — rule objects are never mutated, because a context's rule list
+  shares objects with the base list. The `min_age`/`max_age` add-on skips a
+  value it cannot read as a date on both paths (the format rule is the catcher
+  for shape). Pinned for
   every engine by `tests/fixtures/conformance/frozen/engine_semantics.jsonl`
   (self-contained rows: inline rules + record + verdict + codes — the first
   fixture of that shape, because no bundled contract declares a non-ISO
