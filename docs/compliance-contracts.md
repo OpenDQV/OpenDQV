@@ -1,7 +1,7 @@
 # Compliance Contracts Reference
 
 OpenDQV ships 41 production-ready contracts in `opendqv/contracts/` (installed with the
-wheel; a mirror of the OpenDQV Cloud golden library — see `library_manifest.json`) covering agriculture, automotive,
+wheel; a mirror of the OpenDQV Cloud golden library — see `library_manifest.json` at the repo root) covering agriculture, automotive,
 banking, building safety, corporate compliance, data protection, education, energy, financial
 controls, FMCG, food safety, healthcare, HR, insurance, logistics, manufacturing, media,
 pharma, public safety, public sector, real estate, retail, telecoms, travel, water utility,

@@ -1,6 +1,6 @@
 # CLI Reference
 
-> **Last reviewed:** 2026-04-11.
+> **Last reviewed:** 2026-09-03 (engine 2.7.0).
 > Covers every subcommand in `opendqv/cli.py`. Run `opendqv --help` or `python -m opendqv.cli --help` for the same information inline.
 
 OpenDQV ships a standalone CLI for contract management, validation, imports, exports, lifecycle governance, and code generation. All commands operate on the local filesystem and SQLite database — no running API server is required.

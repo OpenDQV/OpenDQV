@@ -80,3 +80,14 @@ def test_template_has_no_bare_yaml_booleans(template):
             for k in ("value", "not_value"):
                 v = (r.get(block) or {}).get(k)
                 assert not isinstance(v, bool), f"{template.name}: {r['name']} {block}.{k} is bare boolean {v!r}"
+
+
+@pytest.mark.parametrize("template", TEMPLATES, ids=lambda p: p.name)
+def test_required_if_block_only_on_required_if_rules(template):
+    """/code-review of #162: a `required_if:` block on any other rule type is
+    inert (only the required_if handler reads it) — gating is `condition:`."""
+    import yaml
+    raw = yaml.safe_load(template.read_text(encoding="utf-8"))
+    rules = (raw.get("contract") or raw).get("rules") or []
+    stray = [r["name"] for r in rules if isinstance(r, dict) and "required_if" in r and r.get("type") != "required_if"]
+    assert stray == [], f"{template.name}: required_if block on non-required_if rule(s) {stray} — use condition:"

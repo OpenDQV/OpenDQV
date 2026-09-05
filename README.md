@@ -205,7 +205,7 @@ The `customer` contract ships pre-seeded if you want to skip step 1. The [quicks
 | `regex` | Field matches (or does not match) a pattern. Built-ins: `builtin:email`, `builtin:uuid`, `builtin:ipv4`, `builtin:url` |
 | `min` / `max` / `range` | Numeric bounds |
 | `min_length` / `max_length` | String length |
-| `min_age` / `max_age` | Age derived from a date-of-birth field within bounds |
+| `min_age` / `max_age` | Keys on a `date_format` rule (not rule types): age derived from the date within bounds |
 | `date_format` | Parseable date/datetime. Falls back through common formats if no explicit format is set |
 | `allowed_values` | Value must be in a fixed list |
 | `lookup` | Value must appear in a local file or HTTP endpoint (with TTL cache) |
@@ -281,7 +281,7 @@ methodology, and monthly volume extrapolation.
 |---|---|
 | [Quickstart](docs/quickstart.md) | Build your first contract in 15 minutes |
 | [Rules Reference](docs/rules/) | All rule types with parameters and examples |
-| [Compliance Contracts](docs/compliance-contracts.md) | Every bundled contract with its regulatory context |
+| [Compliance Contracts](docs/compliance-contracts.md) | Regulatory context for the compliance-critical bundled contracts |
 | [API Reference](docs/index.md) | REST endpoints, SDK, GraphQL, webhooks |
 | [Security](SECURITY.md) | Deployment checklist, threat model, RBAC |
 | [Production Deployment](docs/production_deployment.md) | Token auth, TLS, Docker Compose, hardening |

@@ -38,7 +38,7 @@ opendqv/core/           Engine: validator, rule_parser, contracts, code_generato
 opendqv/core/importers/ 8 format importers: GX, dbt, Soda, CSV, ODCS, CSVW, OTel, NDC
 opendqv/contracts/      YAML data contracts (41 bundled, 22+ industry domains) — shipped in the wheel since v2.2.4.
                         Since v2.7.0 a MIRROR of the Cloud golden library (provenance in
-                        library_manifest.json); no bundled contract carries `contexts:` —
+                        library_manifest.json at the repo root, not in the wheel); no bundled contract carries `contexts:` —
                         the worked example is examples/contexts/customer.yaml
 opendqv/contracts/ref/  Lookup reference files (.txt) used by lookup rules
 opendqv/sdk/            Python SDK: sync client, async client, local validator

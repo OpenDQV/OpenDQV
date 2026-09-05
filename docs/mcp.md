@@ -139,7 +139,7 @@ Write tools:
 
 | Tool | What it does |
 |------|--------------|
-| `create_contract_draft` | Propose a new DRAFT contract. The name must match the contract-name charset (letters, digits, hyphens, underscores; 1–100 chars) **and** start with `MCP_`; `created_by` (or `OPENDQV_AGENT_IDENTITY`) is required; review required before activation. |
+| `create_contract_draft` | *(in-process server only — the standalone REST-bridge proxy does not expose it; a good first issue)* Propose a new DRAFT contract. The name must match the contract-name charset (letters, digits, hyphens, underscores; 1–100 chars) **and** start with `MCP_`; `created_by` (or `OPENDQV_AGENT_IDENTITY`) is required; review required before activation. |
 
 ## Write guardrails
 

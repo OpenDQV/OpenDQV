@@ -21,8 +21,8 @@ Full interactive docs at `/docs` (Swagger) and `/redoc` (ReDoc) when the server 
 | `POST` | `/api/v1/contracts/{name}/{version}/approve` | Yes | Approve contract (REVIEW → ACTIVE); role: approver/admin |
 | `POST` | `/api/v1/contracts/{name}/{version}/reject` | Yes | Reject contract back to DRAFT; role: approver/admin |
 | `GET` | `/api/v1/contracts/{name}/history` | No | Append-only hash-chained audit log of all contract changes |
-| `GET` | `/api/v1/contracts/{name}/explain` | No | Plain-English description of all rules |
-| `GET` | `/api/v1/contracts/{name}/explain/{field}/{rule_name}` | No | Explanation, valid/invalid examples and constraint for one rule |
+| `GET` | `/api/v1/contracts/{name}/explain` | Yes (auth-gated by default) | Plain-English description of all rules |
+| `GET` | `/api/v1/contracts/{name}/explain/{field}/{rule_name}` | Yes (auth-gated by default) | Explanation, valid/invalid examples and constraint for one rule |
 | `GET` | `/api/v1/contracts/{name}/jsonschema` | No | Contract projected as JSON Schema |
 | `GET` | `/api/v1/contracts/{name}/versions` | No | List all versions of a contract |
 | `GET` | `/api/v1/contracts/{name}/at` | No | Contract as it was at a point in time / version |
@@ -48,7 +48,7 @@ Full interactive docs at `/docs` (Swagger) and `/redoc` (ReDoc) when the server 
 | `GET` | `/api/v1/tokens` | Yes (admin) | List all tokens |
 | `POST` | `/api/v1/webhooks` | Yes (editor+) | Register a webhook |
 | `GET` | `/api/v1/webhooks` | Yes | List webhooks |
-| `DELETE` | `/api/v1/webhooks/{id}` | Yes (editor+) | Delete a webhook |
+| `DELETE` | `/api/v1/webhooks` | Yes (editor+) | Delete a webhook (body: `{"url": ...}`) |
 | `GET` | `/health` | No | Health check |
 | `GET` | `/metrics` | No | Prometheus metrics |
 | `POST` | `/api/v1/import/gx` | Yes (editor+) | Import Great Expectations suite JSON |

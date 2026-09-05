@@ -45,7 +45,7 @@
 - [REVIEW lifecycle](review_lifecycle.md) — maker-checker approval workflow
 - [/explain endpoint](explain_endpoint.md) — plain-English contract descriptions for compliance officers
 - [validate_in_states](../../README.md#rules) — restrict validation to specific contract statuses
-- [federation_tier](../federation.md#federation-tier) — REGULATORY/COMMERCIAL/COMMUNITY classification
+- [federation_tier](../federation.md) — REGULATORY/COMMERCIAL/COMMUNITY classification
 
 ## Patterns
 - [distribution_check](../patterns/distribution_check.md) — out of scope; use OpenDQV + Evidently

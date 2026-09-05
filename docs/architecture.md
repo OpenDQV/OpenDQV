@@ -41,7 +41,7 @@ OpenDQV/
 │   │   └── importers/             # 8 format importers (GX, dbt, Soda, CSV, ODCS, CSVW, OTel, NDC)
 │   │
 │   ├── contracts/                 # Bundled YAML contracts — a mirror of the OpenDQV Cloud
-│   │   │                          #   golden library; provenance in library_manifest.json
+│   │   │                          #   golden library; provenance in repo-root library_manifest.json (not in the wheel)
 │   │   └── ref/                   # Lookup reference files used by lookup rules
 │   │
 │   ├── security/
@@ -51,7 +51,7 @@ OpenDQV/
 │   │   ├── client.py              # Synchronous + asynchronous Python SDK (httpx-based)
 │   │   └── local.py               # Zero-network in-process validation (LocalValidator)
 │   │
-│   ├── cli.py                     # CLI (~26 subcommands)
+│   ├── cli.py                     # CLI (23 subcommands)
 │   ├── config.py                  # All configuration via environment variables
 │   ├── main.py                    # FastAPI app entry point, lifespan, /health, GraphQL mount
 │   ├── monitoring.py              # Prometheus metrics + in-memory validation stats
