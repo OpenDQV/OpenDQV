@@ -70,9 +70,10 @@ def replay(ref: str) -> dict:
     for path in files_at(ref):
         stem = Path(path).stem
         for line in read_at(ref, path):
-            if "record" not in line:
-                # Not a corpus row (e.g. frozen/regulatory_claims.jsonl carries
-                # base+patch claims, not records) — owned by its own test.
+            if "record" not in line or "rules" in line:
+                # not a contract-bound record row: the claims fixture (base +
+                # patch) and the self-contained engine_semantics rows (inline
+                # rules) each have their own test and are not replay baselines
                 continue
             name = line.get("contract") or stem
             if not (CONTRACTS / f"{name}.yaml").exists():

@@ -110,9 +110,16 @@ _COMPARE_OPS = {
 }
 
 
-def _parse_date(v):
-    """Parse an ISO-8601 date or datetime into a timezone-aware datetime (UTC
-    assumed when the value carries no zone; a bare date is midnight UTC).
+def _parse_date(v, fmt: Optional[str] = None):
+    """Parse a date or datetime into a timezone-aware datetime (UTC assumed
+    when the value carries no zone; a bare date is midnight UTC).
+
+    ``fmt`` (2.8.0): the strptime layout the field's ``date_format`` rule
+    declares, resolved by :func:`resolve_date_layouts`. When given, the value
+    is parsed with exactly that layout — a contract that declares
+    ``DD/MM/YYYY`` is then internally consistent: what its format rule
+    accepts, its ``compare`` / ``date_diff`` / ``age_match`` / ``min_age``
+    rules can read. Without it, the ISO path below.
 
     2.7.0 (round 4, found by the regulatory-claims fixture): this used to
     return a *date*, so every ``date_diff`` was whole-day granular and a
@@ -127,6 +134,14 @@ def _parse_date(v):
     since a bundled contract's ``regex`` format rule decides the shape first.
     """
     s = str(v).strip()
+    if fmt:
+        try:
+            dt = datetime.strptime(s, fmt)
+        except ValueError:
+            raise ValueError(f"Cannot parse date {v!r} with declared layout {fmt!r}") from None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
     try:
         dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
     except ValueError:
@@ -134,6 +149,74 @@ def _parse_date(v):
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+# ── Declared date layouts (2.8.0) ───────────────────────────────────────
+# A field's ``date_format`` rule declares the layout its values carry. Every
+# rule that *reads* that field as a date — compare, date_diff, age_match,
+# and the min_age/max_age add-on — must parse with the same layout, or the
+# contract is internally inconsistent (the format rule accepts ``11/12/2026``
+# and the compare rule cannot read it; worse, compare used to fall back to
+# string order, so an inverted DD/MM/YYYY pair passed silently). Layouts are
+# resolved from the rule list once per distinct list and stamped onto the
+# reading rules as excluded cached fields, so the hot path pays one pass.
+_CROSS_FIELD_DATE_TYPES = frozenset({"compare", "date_diff", "age_match"})
+_layout_conflicts_warned: set = set()
+
+
+def _counterpart_field(rule: Rule) -> Optional[str]:
+    if rule.type == "compare":
+        return None if rule.compare_to in ("today", "now") else rule.compare_to
+    if rule.type == "date_diff":
+        return rule.date_diff_field
+    if rule.type == "age_match":
+        return rule.dob_field
+    return None
+
+
+def resolve_date_layouts(rules: list) -> dict[str, str]:
+    """``{field: strptime layout}`` from each field's first ``date_format`` rule
+    that declares a ``format``. First declared wins; a second, different layout
+    on the same field is warned once and ignored (never rejected — the format
+    rule itself still enforces its own layout on its own path)."""
+    layouts: dict[str, str] = {}
+    for r in rules:
+        if r.type != "date_format" or not r.format:
+            continue
+        fmt = _human_to_strptime(r.format)
+        prev = layouts.get(r.field)
+        if prev is None:
+            layouts[r.field] = fmt
+        elif prev != fmt:
+            key = (r.field, prev, fmt)
+            if key not in _layout_conflicts_warned:
+                _layout_conflicts_warned.add(key)
+                logger.warning(
+                    "field '%s' declares two date_format layouts (%r then %r); the first "
+                    "declared wins for cross-field date rules — run `opendqv lint`",
+                    r.field, prev, fmt,
+                )
+    return layouts
+
+
+def _stamp_date_layouts(rules: list) -> None:
+    """Stamp ``cached_date_layout`` / ``cached_other_date_layout`` on every rule
+    that reads a field as a date. Runs on every call, deliberately unmemoised:
+    a context merge mints fresh Rule objects each request and CPython reuses
+    their addresses at once, and a draft edit that drops a ``date_format``
+    rule leaves the surviving ``compare`` object holding a stale stamp — any
+    identity- or token-keyed cache can serve either. One pass over the rules
+    reading two attributes each; writes only when a stamp changes."""
+    layouts = resolve_date_layouts(rules)
+    for r in rules:
+        if r.type in _CROSS_FIELD_DATE_TYPES or r.cached_has_age_constraint:
+            own = layouts.get(r.field)
+            if r.cached_date_layout != own:
+                r.cached_date_layout = own
+            cp = _counterpart_field(r)
+            other = layouts.get(cp) if cp else None
+            if r.cached_other_date_layout != other:
+                r.cached_other_date_layout = other
 
 
 def _delta_days(d1, d2) -> float:
@@ -281,6 +364,7 @@ def validate_record(
         if extra:
             errors.append(extra)
 
+    _stamp_date_layouts(rules)
     for rule in rules:
         value = record.get(rule.field)
         try:
@@ -933,6 +1017,25 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
     # Slice [:10] works for "YYYY-MM-DD" and "YYYY-MM-DDTHH:MM:SS..." —
     # both yield the same date portion. Bare-string compare without a
     # datetime parse keeps the implementation honest and small.
+    la, lb = rule.cached_date_layout, rule.cached_other_date_layout
+    if la or lb:
+        # 2.8.0: a declared date layout on either operand — both sides are
+        # dates. Parse each with its own layout (an undeclared operand keeps
+        # the ISO path) and never fall through to the numeric or string
+        # comparison; an operand the layout cannot read fails the rule.
+        try:
+            a = _parse_date(value, la)
+            b = _parse_date(other, lb)
+        except ValueError:
+            return rule.error_message
+        if rule.compare_op == "same_date":
+            return None if a.date() == b.date() else rule.error_message
+        op_fn = _COMPARE_OPS.get(rule.compare_op)
+        if op_fn is None:
+            logger.warning("compare rule '%s' has unknown compare_op '%s'", rule.name, rule.compare_op)
+            return None
+        return None if op_fn(a, b) else rule.error_message
+
     if rule.compare_op == "same_date":
         a_str = str(value)[:10]
         b_str = str(other)[:10]
@@ -1110,8 +1213,8 @@ def _check_date_diff(value, rule: Rule, record: Optional[dict] = None) -> Option
     if _is_field_absent(other_val):
         return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: a missing/blank counterpart IS a date_diff failure (both engines)
     try:
-        d1 = _parse_date(value)
-        d2 = _parse_date(other_val)
+        d1 = _parse_date(value, rule.cached_date_layout)
+        d2 = _parse_date(other_val, rule.cached_other_date_layout)
         delta = _delta_days(d1, d2)  # signed, fractional: positive if d1 is later
 
         unit = rule.date_diff_unit or "days"
@@ -1222,7 +1325,8 @@ def _check_age_match(value, rule: Rule, record: Optional[dict] = None) -> Option
         return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: absent/blank counterpart → the rule fails (both engines)
     try:
         declared = int(float(value))
-        dob = datetime.strptime(str(dob_val), "%Y-%m-%d")
+        # 2.8.0: the dob field's declared layout; ISO date when undeclared.
+        dob = _parse_date(dob_val, rule.cached_other_date_layout or "%Y-%m-%d")
         today = datetime.now(timezone.utc)
         computed = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
         tol = rule.age_tolerance if rule.age_tolerance is not None else 0
@@ -1596,6 +1700,15 @@ def _load_http_lookup_set(url: str, lookup_field: str, cache_ttl: int, auth_head
     return result
 
 
+def _age_layout(rule: Rule) -> str:
+    """Layout for the min_age/max_age add-on: the rule's own ``format`` (a
+    ``date_format`` rule), else the field's declared layout (the add-on on any
+    other rule type), else the ISO date (2.8.0)."""
+    if rule.format:
+        return _human_to_strptime(rule.format)
+    return rule.cached_date_layout or "%Y-%m-%d"
+
+
 def _check_age(value, rule: Rule) -> Optional[str]:
     """Check min_age/max_age constraints. Runs after the type check passes.
 
@@ -1606,7 +1719,7 @@ def _check_age(value, rule: Rule) -> Optional[str]:
     if _is_field_absent(value):
         return None
     try:
-        dob = datetime.strptime(str(value), "%Y-%m-%d")
+        dob = _parse_date(value, _age_layout(rule))
         today = datetime.now(timezone.utc)
         age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
         if rule.min_age is not None and age < rule.min_age:
@@ -1679,6 +1792,7 @@ def validate_batch(
                 if extra:
                     row_results[i]["errors"].append(extra)
 
+        _stamp_date_layouts(rules)
         for rule in rules:
             # (round-2 S7) every declared field is materialised above, so a
             # rule's field is always a column here; the old "skip if column
@@ -1885,11 +1999,10 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
         failing_messages = {}
     if failing_counterpart_missing is None:
         failing_counterpart_missing = set()
-    if rule.type not in _BATCH_BRANCH_TYPES:
-        # Round-2 pattern-closer: a rule type with no native batch branch is
-        # evaluated per record with the single-path handler, so single/batch
-        # parity holds by construction for every present and future type.
-        # (age_match and conditional_lookup had no branch and passed silently.)
+    def _evaluate_per_record() -> None:
+        # Evaluate with the single-path handler so single/batch parity holds
+        # by construction (used for every type without a native branch, and
+        # for compare when a declared date layout is in play — 2.8.0).
         for idx in range(len(df)):
             rec = records[idx] if records is not None else {c: df[c].iloc[idx] for c in df.columns if c != "__idx__"}
             msg = _check_rule(rec.get(field), rule, rec)
@@ -1900,6 +2013,13 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                     msg = msg[len(_COUNTERPART_MISSING_PREFIX):]
                 if msg != rule.error_message:
                     failing_messages[idx] = msg
+
+    if rule.type not in _BATCH_BRANCH_TYPES:
+        # Round-2 pattern-closer: a rule type with no native batch branch is
+        # evaluated per record with the single-path handler, so single/batch
+        # parity holds by construction for every present and future type.
+        # (age_match and conditional_lookup had no branch and passed silently.)
+        _evaluate_per_record()
         # no early return: the min_age/max_age add-on at the tail applies to
         # every rule type, exactly as validate_record applies _check_age after
         # the type check.
@@ -2048,8 +2168,19 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
               AND TRIM(CAST("{field}" AS VARCHAR)) != ''
               AND ({fmt_clause})
         """
-        for r in con.execute(query, params).fetchall():
-            failing.add(r[0])
+        try:
+            for r in con.execute(query, params).fetchall():
+                failing.add(r[0])
+        except duckdb.Error:
+            # A strptime directive Python accepts but DuckDB does not (e.g.
+            # %e): evaluate per record with the single-path handler so the
+            # two paths cannot diverge (2.8.0, Sonnet red-team).
+            logger.info("date_format: DuckDB rejected layout %r for rule '%s'; evaluating per record",
+                        params.get("fmt"), rule.name)
+            for idx in range(len(df)):
+                raw = records[idx].get(field) if records is not None else df[field].iloc[idx]
+                if not _batch_absent(raw) and _check_date_format(raw, rule):
+                    failing.add(idx)
 
     elif rule.type == "unique":
         if rule.group_by:
@@ -2086,6 +2217,15 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
             """
             for r in con.execute(dup_query).fetchall():
                 failing.add(r[0])
+
+    elif rule.type == "compare" and rule.compare_to and rule.compare_op and (
+            rule.cached_date_layout or rule.cached_other_date_layout):
+        # 2.8.0: a declared date layout on either operand — share the
+        # single-path parse (layout per operand, no numeric/string fallback).
+        if rule.compare_to not in ("today", "now") and rule.compare_to not in df.columns:
+            logger.warning("compare rule '%s' references missing field '%s'", rule.name, rule.compare_to)
+        else:
+            _evaluate_per_record()
 
     elif rule.type == "compare" and rule.compare_to and rule.compare_op:
         # Cross-field comparison — fall back to Python to handle numeric/date/string types.
@@ -2315,8 +2455,8 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                     failing_counterpart_missing.add(idx)   # #145
                     continue
                 try:
-                    d1 = _parse_date(val)
-                    d2 = _parse_date(other_val)
+                    d1 = _parse_date(val, rule.cached_date_layout)
+                    d2 = _parse_date(other_val, rule.cached_other_date_layout)
                     delta = _delta_days(d1, d2)  # signed, fractional — identical to the single path
                     diff = delta / 365.25 if unit == "years" else delta
                     fail = False
@@ -2395,17 +2535,26 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
     # CRT170/J3: skip when field is absent (not_empty is the catcher) or unparseable
     # as a date. Only present + parseable rows are evaluated against the age bounds.
     if rule.min_age is not None or rule.max_age is not None:
+        # 2.8.0: parse with the declared layout (bound parameter, SEC-004/#9),
+        # exactly as the single path's _age_layout; ISO date when undeclared.
+        age_fmt = _age_layout(rule)
+        if age_fmt == "%Y-%m-%d":
+            date_expr = f'TRY_CAST("{field}" AS DATE)'
+            age_params: dict = {}
+        else:
+            date_expr = f'CAST(TRY_STRPTIME(CAST("{field}" AS VARCHAR), $agefmt) AS DATE)'
+            age_params = {"agefmt": age_fmt}
         age_conditions = []
         if rule.min_age is not None:
             age_conditions.append(
-                f'DATE_DIFF(\'year\', TRY_CAST("{field}" AS DATE), CURRENT_DATE) '
-                f'- CASE WHEN (MONTH(CURRENT_DATE), DAY(CURRENT_DATE)) < (MONTH(TRY_CAST("{field}" AS DATE)), DAY(TRY_CAST("{field}" AS DATE))) THEN 1 ELSE 0 END '
+                f'DATE_DIFF(\'year\', {date_expr}, CURRENT_DATE) '
+                f'- CASE WHEN (MONTH(CURRENT_DATE), DAY(CURRENT_DATE)) < (MONTH({date_expr}), DAY({date_expr})) THEN 1 ELSE 0 END '
                 f'< {rule.min_age}'
             )
         if rule.max_age is not None:
             age_conditions.append(
-                f'DATE_DIFF(\'year\', TRY_CAST("{field}" AS DATE), CURRENT_DATE) '
-                f'- CASE WHEN (MONTH(CURRENT_DATE), DAY(CURRENT_DATE)) < (MONTH(TRY_CAST("{field}" AS DATE)), DAY(TRY_CAST("{field}" AS DATE))) THEN 1 ELSE 0 END '
+                f'DATE_DIFF(\'year\', {date_expr}, CURRENT_DATE) '
+                f'- CASE WHEN (MONTH(CURRENT_DATE), DAY(CURRENT_DATE)) < (MONTH({date_expr}), DAY({date_expr})) THEN 1 ELSE 0 END '
                 f'> {rule.max_age}'
             )
         if age_conditions:
@@ -2413,10 +2562,23 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                 f'SELECT __idx__ FROM data '
                 f'WHERE "{field}" IS NOT NULL '
                 f'AND TRIM(CAST("{field}" AS VARCHAR)) != \'\' '
-                f'AND TRY_CAST("{field}" AS DATE) IS NOT NULL '
+                f'AND {date_expr} IS NOT NULL '
                 f"AND ({' OR '.join(age_conditions)})"
             )
-            for r in con.execute(age_query).fetchall():
-                failing.add(r[0])
+            try:
+                for r in con.execute(age_query, age_params).fetchall():
+                    failing.add(r[0])
+            except duckdb.Error:
+                # A strptime directive Python accepts but DuckDB does not
+                # (e.g. %e): evaluate the add-on per record with the single
+                # path's _check_age so the two paths cannot diverge.
+                logger.info("age check: DuckDB rejected layout %r for rule '%s'; evaluating per record",
+                            age_fmt, rule.name)
+                for idx in range(len(df)):
+                    raw = records[idx].get(field) if records is not None else df[field].iloc[idx]
+                    if _batch_absent(raw):
+                        continue
+                    if _check_age(raw, rule):
+                        failing.add(idx)
 
     return failing

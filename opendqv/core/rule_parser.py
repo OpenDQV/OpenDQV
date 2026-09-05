@@ -278,6 +278,10 @@ class Rule(BaseModel):
     cached_severity_value: str = Field(default="error", exclude=True, repr=False)
     cached_error_code: str = Field(default="", exclude=True, repr=False)
     cached_has_age_constraint: bool = Field(default=False, exclude=True, repr=False)
+    # 2.8.0: declared date layouts (strptime) stamped by the validator from the
+    # field's date_format rule — own field and cross-field counterpart.
+    cached_date_layout: Optional[str] = Field(default=None, exclude=True, repr=False)
+    cached_other_date_layout: Optional[str] = Field(default=None, exclude=True, repr=False)
 
     model_config = {"populate_by_name": True, "arbitrary_types_allowed": True}
 
