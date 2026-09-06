@@ -491,6 +491,7 @@ def cmd_export_odcs(args):
         owner_email=getattr(contract, "owner_email", None),
         strict_schema=getattr(contract, "strict_schema", False),
         allowed_fields=getattr(contract, "allowed_fields", None),
+        attestation={k: getattr(contract, k, None) for k in ("proposed_by", "proposed_at", "approved_by", "approved_at")},
     )
 
     if args.output:

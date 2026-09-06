@@ -501,6 +501,7 @@ async def export_to_odcs(
         strict_schema=getattr(contract, "strict_schema", False),
         allowed_fields=getattr(contract, "allowed_fields", None),
         owner_email=getattr(contract, "owner_email", None),
+        attestation={k: getattr(contract, k, None) for k in ("proposed_by", "proposed_at", "approved_by", "approved_at")},
     )
     from fastapi.responses import Response
     return Response(content=yaml_str, media_type="application/yaml")

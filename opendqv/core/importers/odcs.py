@@ -477,6 +477,9 @@ def _team_owner(team: Any) -> tuple[str, Optional[str]]:
     return "", None
 
 
+_ATTESTATION_KEYS = ("proposed_by", "proposed_at", "approved_by", "approved_at")
+
+
 def _custom_property(doc: dict, key: str) -> Optional[Any]:
     for cp in doc.get("customProperties") or []:
         if isinstance(cp, dict) and cp.get("property") == key:
@@ -586,6 +589,10 @@ def import_odcs(contract_data: dict) -> dict:
         contract["strict_schema"] = True
     if isinstance(declared_fields, list) and declared_fields:
         contract["allowed_fields"] = [str(f) for f in declared_fields]
+    for key in _ATTESTATION_KEYS:   # 2.9.0: the approval trail survives the round trip
+        value = _custom_property(contract_data, f"opendqv.{key}")
+        if value is not None:
+            contract[key] = str(value)
 
     return {
         "contract": contract,
@@ -680,8 +687,12 @@ def export_odcs(
     odcs_metadata: Optional[dict] = None,
     strict_schema: bool = False,
     allowed_fields: list | None = None,
+    attestation: dict | None = None,
 ) -> dict:
-    """Export OpenDQV rules to an ODCS v3.1.0 contract dict (schema-valid)."""
+    """Export OpenDQV rules to an ODCS v3.1.0 contract dict (schema-valid).
+
+    ``attestation`` (2.9.0): ``{proposed_by, proposed_at, approved_by, approved_at}``,
+    carried as ``opendqv.<key>`` custom properties so the trail round-trips."""
     by_field: "OrderedDict[str, list[dict]]" = OrderedDict()
     for raw in rules:
         r = _rule_to_dict(raw)
@@ -743,6 +754,9 @@ def export_odcs(
         doc["customProperties"].append({"property": "opendqv.strict_schema", "value": True})
     if allowed_fields:
         doc["customProperties"].append({"property": "opendqv.allowed_fields", "value": [str(f) for f in allowed_fields]})
+    for key in _ATTESTATION_KEYS:
+        if attestation and attestation.get(key) is not None:
+            doc["customProperties"].append({"property": f"opendqv.{key}", "value": str(attestation[key])})
     schema_obj: dict[str, Any] = {"name": contract_name, "logicalType": "object", "properties": properties}
     if object_quality:
         schema_obj["quality"] = object_quality
@@ -765,9 +779,10 @@ def contract_to_odcs_yaml(
     odcs_metadata: Optional[dict] = None,
     strict_schema: bool = False,
     allowed_fields: list | None = None,
+    attestation: dict | None = None,
 ) -> str:
     """Export OpenDQV contract to ODCS v3.1.0 YAML string."""
     doc = export_odcs(contract_name, rules, version=version, status=status, description=description,
                       owner=owner, owner_email=owner_email, odcs_metadata=odcs_metadata,
-                      strict_schema=strict_schema, allowed_fields=allowed_fields)
+                      strict_schema=strict_schema, allowed_fields=allowed_fields, attestation=attestation)
     return yaml.dump(doc, default_flow_style=False, sort_keys=False, allow_unicode=True)
