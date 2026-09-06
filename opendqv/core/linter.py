@@ -577,6 +577,14 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
                 err("ALLOWED_VALUES_EMPTY",
                     "allowed_values rule requires a non-empty 'allowed_values' list.")
 
+        # ── set rules: keys the handler never reads (Sonnet, 2.9.0) ───────────
+        if rule_type in ("allowed_values", "forbidden_values"):
+            for k in ("negate", "all_of"):
+                if raw.get(k) is not None:
+                    warn("SET_RULE_KEY_IGNORED",
+                         f"'{k}' has no effect on a {rule_type} rule (regex-only / lookup-only); "
+                         f"it would change nothing. Use forbidden_values for the inverted set.")
+
         # ── forbidden_values (2.9.0) ──────────────────────────────────────────
         if rule_type == "forbidden_values":
             fv = raw.get("forbidden_values")

@@ -153,3 +153,19 @@ class TestProjections:
         import opendqv.mcp_server as m
         src = inspect.getsource(m)
         assert '"forbidden_values": r.forbidden_values' in src and 'forbidden_values=r.get("forbidden_values")' in src
+
+
+def test_linter_warns_when_negate_or_all_of_is_put_on_a_set_rule():
+    # Sonnet red-team: negate is regex-only and all_of lookup-only; on a set rule
+    # they were silently ignored — exactly where an author reaches for negate.
+    from opendqv.core.linter import lint_contract_yaml
+    res = lint_contract_yaml('''
+contract:
+  name: t
+  rules:
+    - {name: a, type: forbidden_values, field: f, forbidden_values: ["x"], negate: true, error_message: m}
+    - {name: b, type: allowed_values, field: g, allowed_values: ["x"], all_of: true, error_message: m}
+    - {name: c, type: forbidden_values, field: h, forbidden_values: ["x"], error_message: m}
+''', "t")
+    hits = [(i.rule_name, i.severity) for i in res.issues if i.code == "SET_RULE_KEY_IGNORED"]
+    assert hits == [("a", "warning"), ("b", "warning")]
