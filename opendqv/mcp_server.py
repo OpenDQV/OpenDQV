@@ -1209,6 +1209,7 @@ async def _tool_get_contract(args: dict) -> list[types.TextContent]:
             "error_message": r.error_message,
             "description": r.description or "",
             "allowed_values": r.allowed_values,
+            "forbidden_values": r.forbidden_values,
             "pattern": r.pattern,
             "min_value": r.min_value,
             "max_value": r.max_value,
@@ -1407,6 +1408,7 @@ async def _tool_explain_error(args: dict) -> list[types.TextContent]:
             compare_to=r.get("compare_to"),
             compare_op=r.get("compare_op"),
             allowed_values=r.get("allowed_values"),
+            forbidden_values=r.get("forbidden_values"),
             lookup_file=r.get("lookup_file"),
             checksum_algorithm=r.get("checksum_algorithm"),
         )

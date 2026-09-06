@@ -208,6 +208,7 @@ The `customer` contract ships pre-seeded if you want to skip step 1. The [quicks
 | `min_age` / `max_age` | Keys on a `date_format` rule (not rule types): age derived from the date within bounds |
 | `date_format` | Parseable date/datetime. Falls back through common formats if no explicit format is set |
 | `allowed_values` | Value must be in a fixed list |
+| `forbidden_values` | Value must not be in a fixed list — placeholder junk (`N/A`, `test@test.com`) |
 | `lookup` | Value must appear in a local file or HTTP endpoint (with TTL cache) |
 | `compare` | Cross-field: `field` op `compare_to` — supports `gt`, `lt`, `gte`, `lte`, `eq`, `neq`, and `today`/`now` sentinels |
 | `required_if` / `forbidden_if` | Conditional: required or forbidden when another field equals a value |

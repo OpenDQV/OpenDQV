@@ -36,8 +36,9 @@ def test_age_keys_are_not_types_and_the_message_says_so(key):
 
 
 def test_every_known_type_constructs():
+    required = {"forbidden_values": {"forbidden_values": ["x"]}}   # types whose model refuses an empty shape
     for t in RULE_TYPES:
-        Rule(name="r", type=t, field="f")
+        Rule(name="r", type=t, field="f", **required.get(t, {}))
 
 
 def test_linter_validator_and_model_agree_on_the_type_set():

@@ -60,6 +60,8 @@ def explain_rule(rule) -> dict:
         result = _enum(field, rule.pattern)
     elif rt == "allowed_values":
         result = _allowed_values(field, rule.allowed_values)
+    elif rt == "forbidden_values":
+        result = _forbidden_values(field, rule.forbidden_values)
     elif rt == "lookup":
         result = _lookup(field, rule.lookup_file)
     elif rt == "min_age":
@@ -440,6 +442,23 @@ def _logical_lookup_source(lookup_file) -> str:
     return name or "reference list"
 
 
+def _forbidden_values(field: str, forbidden_values) -> dict:
+    """2.9.0: a negative set feeds INVALID examples only — it says nothing about
+    what is valid, so no forbidden value is ever offered as a valid example."""
+    values = list(forbidden_values) if forbidden_values else []
+    return {
+        "rule_type": "forbidden_values",
+        "explanation": (
+            f"The '{field}' field must not be any of the forbidden values: {values}. "
+            "The comparison is exact — capitalisation and spacing count — and an "
+            "absent or blank value is not a violation (presence is a not_empty rule's job)."
+        ),
+        "valid_examples": ["(any real value not in the forbidden list)"],
+        "invalid_examples": values[:3] if values else ["(one of the forbidden values)"],
+        "constraint": {"forbidden_values": values},
+    }
+
+
 def _allowed_values(field: str, allowed_values) -> dict:
     """v2.3.23 P2-12 (Sonnet a8d40b8f5784fb653): real-value synthesis
     for allowed_values rules. Mirrors _enum's slice-3 pattern."""
@@ -750,6 +769,7 @@ def quick_fix(rule_type: str, error_message: str = "", compare_to: str = "") -> 
         "enum": "Use one of the allowed values listed in the error message.",
         "lookup": "Value must exactly match an entry in the reference list (case-sensitive).",
         "allowed_values": "Use one of the allowed values listed in the error message.",
+        "forbidden_values": "Replace the placeholder with the real value — the listed values are not accepted.",
         "required_if": "This field is required given the current value of another field — provide a non-empty value.",
         "forbidden_if": "Remove or null out this field given the current state of the record.",
         "checksum": "Check the identifier for transcription errors — the check digit is invalid.",
