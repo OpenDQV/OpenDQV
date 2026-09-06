@@ -70,7 +70,7 @@ from typing import Any, Optional
 import yaml
 from pydantic import ValidationError
 
-from opendqv.core.rule_parser import _BUILTIN_PATTERNS, Rule
+from opendqv.core.rule_parser import _BUILTIN_PATTERNS, Rule, RULE_KEYS
 
 ODCS_API_VERSION = "v3.1.0"
 ODCS_ENGINE = "opendqv"
@@ -254,7 +254,7 @@ _IMPORT_DENIED_FIELDS = frozenset({
     "lookup_auth_header",
 })
 _ENGINE_STAMPED_FIELDS = _IMPORT_DENIED_FIELDS
-_ALLOWED_RULE_FIELDS = frozenset(Rule.model_fields.keys()) - _IMPORT_DENIED_FIELDS
+_ALLOWED_RULE_FIELDS = frozenset(RULE_KEYS) - _IMPORT_DENIED_FIELDS   # the same set Rule() accepts (2.9.0)
 _ALIAS_TO_FIELD = {"min": "min_value", "max": "max_value"}
 
 _NAME_RE = re.compile(r"[^a-z0-9_]+")
