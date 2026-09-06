@@ -577,6 +577,15 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
                 err("ALLOWED_VALUES_EMPTY",
                     "allowed_values rule requires a non-empty 'allowed_values' list.")
 
+        # ── forbidden_values (2.9.0) ──────────────────────────────────────────
+        if rule_type == "forbidden_values":
+            fv = raw.get("forbidden_values")
+            if not fv:
+                hint = (" The values are under 'allowed_values' — a positive set is the opposite meaning; "
+                        "move them to 'forbidden_values'." if raw.get("allowed_values") else "")
+                err("FORBIDDEN_VALUES_EMPTY",
+                    "forbidden_values rule requires a non-empty 'forbidden_values' list." + hint)
+
         # ── required_if ───────────────────────────────────────────────────────
         if rule_type == "required_if":
             ri = raw.get("required_if")

@@ -60,6 +60,7 @@ _VIOLATIONS: dict[str, object] = {
     "age_match": -5, "ratio_check": 0, "field_sum": 0, "cross_field_range": -999999,
     "geospatial_bounds": 999, "conditional_value": "__wrong__", "required_if": "",
     "forbidden_if": "present", "unique": "dup", "conditional_lookup": "__not_in_reference__",
+    "forbidden_values": "__forbidden__",
 }
 
 

@@ -110,6 +110,7 @@ _DIMENSION: dict[str, str] = {
     "checksum": "conformity",
     "lookup": "conformity",
     "allowed_values": "conformity",
+    "forbidden_values": "conformity",   # no ODCS construct for a negative set: custom/opendqv only, never validValues
     "min": "accuracy",
     "max": "accuracy",
     "range": "accuracy",
