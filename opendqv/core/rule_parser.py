@@ -75,6 +75,8 @@ except ImportError:  # pragma: no cover
     _regex_lib = None
     _HAS_REGEX_LIB = False
 import yaml
+import difflib
+
 from pydantic import BaseModel, Field, model_validator
 from typing import Any, List, Optional
 from enum import Enum
@@ -281,6 +283,22 @@ class Rule(BaseModel):
 
     model_config = {"populate_by_name": True, "arbitrary_types_allowed": True}
 
+    @model_validator(mode="before")
+    @classmethod
+    def _refuse_unknown_keys(cls, data):
+        """2.9.0: a key this engine does not read is refused, with the nearest
+        known key when the miss is a typo. Until 2.8.0 pydantic's default
+        ``extra="ignore"`` let ``date_diff_feild: start`` load as a rule with
+        no counterpart that never fired — the unknown-type silent pass (#165)
+        one level down. Only the rule's OWN keys are checked; the values of
+        ``condition`` / ``required_if`` / ``forbidden_if`` / ``provenance``
+        are maps whose keys belong to the author and are never walked here."""
+        if isinstance(data, dict):
+            unknown = [k for k in data if k not in RULE_KEYS]
+            if unknown:
+                raise ValueError(unknown_keys_message("rule", data.get("name"), unknown, RULE_KEYS))
+        return data
+
     _COMPARE_OP_ALIASES: dict = {
         ">": "gt", "<": "lt", ">=": "gte", "<=": "lte", "=": "eq", "!=": "neq",
     }
@@ -386,6 +404,39 @@ class Rule(BaseModel):
         self.cached_error_code = f"OPENDQV_{self.type.upper()}_{self.name.upper()}"
         self.cached_has_age_constraint = self.min_age is not None or self.max_age is not None
         return self
+
+
+# Keys a rule may carry: every model field the loader reads plus the YAML
+# aliases. The hot-path caches and the compiled pattern are internal.
+RULE_KEYS: frozenset = frozenset(
+    {n for n in Rule.model_fields if not n.startswith("cached_") and n != "compiled_pattern"} | {"min", "max"}
+)
+
+
+def _normalise_key(k: str) -> str:
+    return str(k).lower().replace("_", "").replace("-", "")
+
+
+def nearest_key(key: str, known) -> Optional[str]:
+    """The known key a typo most likely meant: same letters ignoring case and
+    underscores, else within a couple of single-character edits (difflib)."""
+    norm = _normalise_key(key)
+    for k in known:
+        if _normalise_key(k) == norm:
+            return k
+    close = difflib.get_close_matches(str(key), sorted(known), n=1, cutoff=0.75)
+    return close[0] if close else None
+
+
+def unknown_keys_message(kind: str, name, unknown, known) -> str:
+    """One message naming each unknown key with its nearest known key."""
+    parts = []
+    for k in unknown:
+        near = nearest_key(k, known)
+        parts.append(f'unknown key "{k}"' + (f' (did you mean "{near}"?)' if near else ""))
+    who = f'{kind} "{name}"' if name else kind
+    return (f"{who}: {', '.join(parts)} — this engine does not read it, so it would change nothing; "
+            f"remove it or fix the spelling. Known keys: {', '.join(sorted(known))}.")
 
 
 def parse_rules(yaml_str: str) -> List[Rule]:
