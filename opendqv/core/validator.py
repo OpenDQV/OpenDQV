@@ -1095,13 +1095,38 @@ def _check_required_if(value, rule: Rule, record: Optional[dict] = None) -> Opti
     return None
 
 
+def _render_value(v) -> str:
+    """Text a record value is compared as, for allowed_values / forbidden_values
+    (D12, 2.9.0). An integral float renders without the trailing ".0" so a JSON
+    ``99999.0`` matches a listed ``"99999"`` — the managed engine's shortest
+    float rendering. Booleans and everything else render as ``str()``."""
+    if isinstance(v, float) and not isinstance(v, bool) and v.is_integer():
+        return str(int(v))
+    return str(v)
+
+
 def _check_allowed_values(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if not rule.allowed_values:
         return None
     if _is_field_absent(value):
         return None  # D6: blank is absent — presence rules are the single catcher
-    allowed = [str(v) for v in rule.allowed_values]
-    if str(value) not in allowed:
+    allowed = [_render_value(v) for v in rule.allowed_values]
+    if _render_value(value) not in allowed:
+        return rule.error_message
+    return None
+
+
+def _check_forbidden_values(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
+    """Exact sibling of allowed_values with the sense inverted (2.9.0, both
+    engines): a PRESENT value equal to any listed value fails. Absence is not a
+    violation — presence is not_empty's job. Exact rendered-text match,
+    case-sensitive, no trimming."""
+    if not rule.forbidden_values:
+        return None
+    if _is_field_absent(value):
+        return None  # D6
+    forbidden = [_render_value(v) for v in rule.forbidden_values]
+    if _render_value(value) in forbidden:
         return rule.error_message
     return None
 
@@ -1360,6 +1385,7 @@ _RULE_HANDLERS: dict[str, Callable] = {
     "compare": _check_compare,
     "required_if": _check_required_if,
     "allowed_values": _check_allowed_values,
+    "forbidden_values": _check_forbidden_values,
     "lookup": _check_lookup,
     "checksum": _check_checksum,
     "cross_field_range": _check_cross_field_range,
@@ -1953,7 +1979,7 @@ def validate_batch(
 # Anything else goes through the per-record fallback (single-path handler).
 _BATCH_BRANCH_TYPES = frozenset({
     "allowed_values", "checksum", "compare", "conditional_value", "cross_field_range", "date_diff",
-    "date_format", "field_sum", "forbidden_if", "geospatial_bounds", "lookup", "max_length", "max",
+    "date_format", "field_sum", "forbidden_if", "forbidden_values", "geospatial_bounds", "lookup", "max_length", "max",
     "min_length", "min", "not_empty_string", "not_empty", "range", "ratio_check", "regex",
     "required_if", "unique",
 })
@@ -2336,11 +2362,19 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                 failing.add(r[0])
 
     elif rule.type == "allowed_values" and rule.allowed_values:
-        allowed = {str(v) for v in rule.allowed_values}
+        allowed = {_render_value(v) for v in rule.allowed_values}
         for idx in range(len(df)):
-            val = df[field].iloc[idx]
+            val = _orig_val(idx) if records is not None else df[field].iloc[idx]
             if not _batch_absent(val):  # D6: blank is absent
-                if str(val) not in allowed:
+                if _render_value(val) not in allowed:
+                    failing.add(idx)
+
+    elif rule.type == "forbidden_values" and rule.forbidden_values:
+        forbidden = {_render_value(v) for v in rule.forbidden_values}
+        for idx in range(len(df)):
+            val = _orig_val(idx) if records is not None else df[field].iloc[idx]
+            if not _batch_absent(val):  # D6: blank is absent
+                if _render_value(val) in forbidden:
                     failing.add(idx)
 
     elif rule.type == "lookup" and rule.lookup_file:

@@ -366,6 +366,40 @@ all records (logged as a warning).
 
 ---
 
+## 9a. forbidden_values (2.9.0)
+
+The exact sibling of `allowed_values` with the sense inverted — a negative set
+for placeholder junk that passes `not_empty` and often `regex`/`date_format`
+(`N/A`, `12345`, `test@test.com`, `asdf`). Both engines carry it.
+
+```yaml
+- name: no_placeholder_email
+  type: forbidden_values
+  field: email
+  forbidden_values: ["N/A", "test@test.com", "asdf"]
+  error_message: "email is a placeholder, not a real address"
+```
+
+| YAML key | Model field | Type | Notes |
+|---|---|---|---|
+| `forbidden_values` | `rule.forbidden_values` | list | non-empty; listing them under `allowed_values` is refused with a hint |
+
+**Semantics**
+- A **present** value equal to any listed value fails. Absence or blank is not
+  a violation — presence is `not_empty`'s job (blank-is-absent applies).
+- Exact rendered-text match, case-sensitive, no trimming — identical to
+  `allowed_values`. List the variants you mean (`N/A`, `n/a`, `NA`).
+- **D12 numeric rendering (both rule types):** an integral float renders without
+  the trailing `.0`, so a JSON `99999.0` matches a listed `"99999"` on both
+  engines. `1.5` renders `1.5`; booleans render `True`/`False`.
+- Error code `OPENDQV_FORBIDDEN_VALUES_<RULE_NAME>`; both validate paths.
+- Explain/wizard: the forbidden set feeds **invalid** examples only — a negative
+  set says nothing about what is valid.
+- JSON Schema: `not: {enum: [...]}` on the property, type-neutral.
+- ODCS: no construct for a negative set — carried verbatim in the
+  `custom/opendqv` implementation (dimension `conformity`), never as
+  `validValues`.
+
 ## 10. lookup
 
 Field value must appear in an external reference list (file or HTTP endpoint).

@@ -228,6 +228,11 @@ def _apply_rule(prop: dict, rule, field: str, required: list, unmapped: list) ->
         prop["enum"] = list(rule.allowed_values)
         return
 
+    if rt == "forbidden_values" and rule.forbidden_values:
+        # type-neutral: a sibling min/max owns the property's type (2.9.0)
+        prop["not"] = {"enum": list(rule.forbidden_values)}
+        return
+
     if rt == "date_format":
         prop["type"] = "string"
         fmt = (rule.format or "").upper()

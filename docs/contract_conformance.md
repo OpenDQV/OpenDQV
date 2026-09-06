@@ -389,6 +389,13 @@ thing on both engines.
   vocabulary is closed (`field`, `value`, `not_value`, `present`); an unknown
   key is a load error. The batch `field_sum` / `ratio_check` branches, which
   still zeroed an absent operand in 2.5.0/2.5.1, now fail it like the single path.
+- **D12 (2.9.0) — numeric rendering for `allowed_values` / `forbidden_values`.**
+  A record value is compared by its rendered text; an integral float renders
+  without the trailing `.0` on both engines (`99999.0` → `99999`), booleans
+  as `True`/`False`, everything else as `str()`. Resolved when
+  `forbidden_values` landed (the managed engine's Go rendering already did
+  this; Core's `str()` did not — a pre-existing divergence on
+  `allowed_values`). Pinned by two `engine_semantics.jsonl` rows.
 - **D11 (2.8.0, reported by the managed-engine maintainer) — cross-field date
   rules parse with the field's declared `date_format` layout.** Until 2.7.0
   `compare`, `date_diff`, `age_match` and the `min_age`/`max_age` add-on
