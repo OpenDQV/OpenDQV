@@ -580,7 +580,7 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
         # ── set rules: keys the handler never reads (Sonnet, 2.9.0) ───────────
         if rule_type in ("allowed_values", "forbidden_values"):
             for k in ("negate", "all_of"):
-                if raw.get(k) is not None:
+                if raw.get(k):   # the golden library exports `negate: false` explicitly — only a true value is a slip
                     warn("SET_RULE_KEY_IGNORED",
                          f"'{k}' has no effect on a {rule_type} rule (regex-only / lookup-only); "
                          f"it would change nothing. Use forbidden_values for the inverted set.")
