@@ -35,7 +35,7 @@ requests==2.34.2 ; python_version >= "3.11" and python_version < "4.0"
 six==1.17.0 ; python_version >= "3.11" and python_version < "4.0"
 slowapi==0.1.10 ; python_version >= "3.11" and python_version < "4.0"
 starlette==1.6.0 ; python_version >= "3.11" and python_version < "4.0"
-strawberry-graphql==0.325.0 ; python_version >= "3.11" and python_version < "4.0"
+strawberry-graphql==0.327.6 ; python_version >= "3.11" and python_version < "4.0"
 typing-extensions==4.16.0 ; python_version >= "3.11" and python_version < "4.0"
 typing-inspection==0.4.4 ; python_version >= "3.11" and python_version < "4.0"
 tzdata==2026.3 ; python_version >= "3.11" and python_version < "4.0" and (sys_platform == "win32" or sys_platform == "emscripten")
