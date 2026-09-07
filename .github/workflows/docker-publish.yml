@@ -6,6 +6,14 @@ on:
     tags: ['v*']
   pull_request:
     branches: [main]
+  # A tag pushed by release.yml with GITHUB_TOKEN does not trigger the push
+  # event above (#172), so release.yml dispatches this workflow with the tag.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build and publish (e.g. v2.9.0)'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -21,6 +29,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Set up QEMU
         # QEMU enables arm64 emulation on the amd64 runner
@@ -45,6 +55,8 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{version}},value=${{ inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=sha,prefix=sha-
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 

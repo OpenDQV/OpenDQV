@@ -121,5 +121,12 @@ jobs:
             --ref "v${{ needs.release.outputs.version }}" \
             -f version="${{ needs.release.outputs.version }}"
           echo "Dispatched publish.yml for v${{ needs.release.outputs.version }}; track it under Actions → Publish to PyPI."
+          # The tag we pushed with GITHUB_TOKEN does not fire docker-publish's
+          # push trigger (#172) — dispatch it with the tag explicitly.
+          gh workflow run docker-publish.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f tag="v${{ needs.release.outputs.version }}"
+          echo "Dispatched docker-publish.yml for v${{ needs.release.outputs.version }}."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
