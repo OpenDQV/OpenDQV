@@ -2,7 +2,7 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [2.9.1] - Unreleased
+## [2.9.1] - 2026-09-07
 
 ### D12 addendum — boolean rendering on `allowed_values` / `forbidden_values`
 
