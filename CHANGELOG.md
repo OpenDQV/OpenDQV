@@ -2,7 +2,7 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [2.9.0] - Unreleased
+## [2.9.0] - 2026-09-07
 
 ### New rule type: `forbidden_values` (both engines)
 
@@ -73,6 +73,8 @@ managed engine at submission.
   custom properties and import reads them, so the trail survives the round
   trip. (Draft saves and lifecycle transitions patch the file in place and
   never lost them.)
+
+---
 
 ## [2.8.0] - 2026-09-05
 
