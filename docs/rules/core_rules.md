@@ -391,7 +391,8 @@ for placeholder junk that passes `not_empty` and often `regex`/`date_format`
   `allowed_values`. List the variants you mean (`N/A`, `n/a`, `NA`).
 - **D12 numeric rendering (both rule types):** an integral float renders without
   the trailing `.0`, so a JSON `99999.0` matches a listed `"99999"` on both
-  engines. `1.5` renders `1.5`; booleans render `True`/`False`.
+  engines. `1.5` renders `1.5`; a boolean renders as its JSON spelling
+  `true`/`false` (2.9.1) — list those spellings, not `True`.
 - Error code `OPENDQV_FORBIDDEN_VALUES_<RULE_NAME>`; both validate paths.
 - Explain/wizard: the forbidden set feeds **invalid** examples only — a negative
   set says nothing about what is valid.

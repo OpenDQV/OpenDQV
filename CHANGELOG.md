@@ -2,6 +2,21 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.9.1] - Unreleased
+
+### D12 addendum — boolean rendering on `allowed_values` / `forbidden_values`
+
+Found by the managed-engine maintainer while probing 2.9.0: Core rendered a
+JSON `true` as `True` (Python's `str`), the managed engine as `true` (the
+JSON spelling the record carried), so `allowed_values: ["true"]` on a
+boolean field passed there and failed here, and `forbidden_values: ["true"]`
+the reverse. Both engines now render a boolean as its JSON spelling,
+lowercase `true`/`false`, on both set rules. List `true`/`false` in the
+contract; `"True"` no longer matches a boolean (it still matches the string
+`"True"`). Two fixture rows pin it on both engines.
+
+---
+
 ## [2.9.0] - 2026-09-07
 
 ### New rule type: `forbidden_values` (both engines)

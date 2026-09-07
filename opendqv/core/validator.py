@@ -1099,8 +1099,13 @@ def _render_value(v) -> str:
     """Text a record value is compared as, for allowed_values / forbidden_values
     (D12, 2.9.0). An integral float renders without the trailing ".0" so a JSON
     ``99999.0`` matches a listed ``"99999"`` — the managed engine's shortest
-    float rendering. Booleans and everything else render as ``str()``."""
-    if isinstance(v, float) and not isinstance(v, bool) and v.is_integer():
+    float rendering. A boolean renders as its JSON spelling, lowercase
+    ``true``/``false`` (2.9.1, D12 addendum: Python's ``str(True)`` is ``True``;
+    the managed engine renders the spelling the record carried). Everything
+    else renders as ``str()``."""
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, float) and v.is_integer():
         return str(int(v))
     return str(v)
 
