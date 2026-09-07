@@ -105,7 +105,7 @@ def _mixed_rules() -> list[Rule]:
         Rule(name="code_length_max", type="max_length", field="code",
              max_length=20, error_message="code too long"),
         Rule(name="created_date_format", type="date_format", field="created_date",
-             date_format="%Y-%m-%d", error_message="invalid date format"),
+             format="%Y-%m-%d", error_message="invalid date format"),
     ]
 
 

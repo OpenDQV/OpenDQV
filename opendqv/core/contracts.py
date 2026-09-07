@@ -18,13 +18,43 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from pydantic import BaseModel, field_validator
-from .rule_parser import Rule, Severity, ContractStatus, RULE_TYPES
+from .rule_parser import Rule, Severity, ContractStatus, RULE_TYPES, unknown_keys_message
 
 # Canonical contract-name charset. Letters, digits, hyphen, underscore only —
 # no path separators, no dots, so a name can never escape ``contracts_dir``
 # (SEC-002/006). The REST layer (``api/deps._CONTRACT_NAME_RE``) aliases this;
 # every core write path that takes a caller-supplied name must check it.
 CONTRACT_NAME_RE = _re.compile(r"^[A-Za-z0-9_-]{1,100}$")
+
+
+# Keys the canonical ``contract:`` block (and the legacy flat document) may
+# carry — exactly what _parse_contract_format reads. Shared with the linter.
+CONTRACT_KEYS: frozenset = frozenset({
+    "name", "version", "description", "owner", "status", "rules", "contexts",
+    "strict_schema", "allowed_fields", "fields",
+    "asset_id", "downstream_consumers", "catalog_visible", "sensitive_fields",
+    "validate_in_states", "owner_team", "owner_email", "source",
+    "proposed_by", "proposed_at", "approved_by", "approved_at",
+    "rejected_by", "rejected_at", "rejection_reason",
+})
+# The canonical document has exactly one top-level key. A holder key for YAML
+# anchors counts as unknown — anchors go inline on the first rule that uses them.
+DOCUMENT_KEYS: frozenset = frozenset({"contract"})
+
+
+def check_contract_keys(raw: dict) -> None:
+    """Refuse a key the loader does not read, at document level and in the
+    ``contract:`` block (2.9.0). Same class as the unknown-type refusal (#165)."""
+    if "contract" in raw and isinstance(raw["contract"], dict):
+        top = [k for k in raw if k not in DOCUMENT_KEYS]
+        if top:
+            raise ValueError(unknown_keys_message("document", None, top, DOCUMENT_KEYS))
+        block, who = raw["contract"], raw["contract"].get("name")
+    else:
+        block, who = raw, raw.get("name")
+    unknown = [k for k in block if k not in CONTRACT_KEYS]
+    if unknown:
+        raise ValueError(unknown_keys_message("contract", who, unknown, CONTRACT_KEYS))
 
 
 class UnknownContextError(ValueError):
@@ -1042,6 +1072,7 @@ class ContractRegistry:
 
     def _parse_contract_format(self, raw: dict) -> DataContract:
         """Parse the canonical contract format."""
+        check_contract_keys(raw)
         c = raw["contract"]
         rules = [Rule(**r) for r in c.get("rules", [])]
         return DataContract(
@@ -1085,6 +1116,7 @@ class ContractRegistry:
 
     def _parse_legacy_format(self, raw: dict, path: Path) -> DataContract:
         """Parse flat rules list format (like starter-rules.yaml)."""
+        check_contract_keys(raw)
         rules = [Rule(**r) for r in raw["rules"]]
         name = path.stem.replace("-", "_").replace(" ", "_")
         return DataContract(
@@ -1510,6 +1542,20 @@ class ContractRegistry:
                 "rules": rules_list,
             }
         }
+        # 2.9.0: every attribute the loader reads is written back when set.
+        # The approval trail (approved_by/approved_at), rejection trail, owner
+        # contact, catalog id, sensitive fields and contexts used to be dropped
+        # on every fresh-file write (the managed engine found the same gap).
+        block = data["contract"]
+        for key in ("approved_by", "approved_at", "rejected_by", "rejected_at", "rejection_reason",
+                    "owner_team", "owner_email", "asset_id"):
+            value = getattr(contract, key, None)
+            if value is not None:
+                block[key] = value
+        if contract.sensitive_fields:
+            block["sensitive_fields"] = list(contract.sensitive_fields)
+        if contract.contexts:
+            block["contexts"] = contract.contexts
         if contract.downstream_consumers:
             data["contract"]["downstream_consumers"] = contract.downstream_consumers
         if not contract.catalog_visible:

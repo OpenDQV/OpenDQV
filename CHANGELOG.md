@@ -2,6 +2,50 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.9.0] - Unreleased
+
+### Unknown rule keys and unknown contract keys are refused at load
+
+Requested by the managed-engine maintainer (2026-09-06); the same class as
+the unknown-type silent pass 2.8.0 closed, one level down. pydantic's default
+`extra="ignore"` let `date_diff_feild: start` load as a rule with no
+counterpart that never fired, and `banana: 7` load clean. Both engines now
+refuse the key; Core refuses at load (files under version control), the
+managed engine at submission.
+
+- **Rule level:** a key the engine does not read is refused when the rule is
+  built — every path (stored YAML, REST, MCP, importers, context overrides).
+  The message names the rule, each unknown key and the nearest known key
+  when the miss is a typo (same letters ignoring case and underscores, or a
+  couple of single-character edits): `rule "span": unknown key
+  "date_diff_feild" (did you mean "date_diff_field"?) — this engine does not
+  read it, so it would change nothing; remove it or fix the spelling. Known
+  keys: …`. Only the rule's own keys are checked: the values of `condition`
+  (its own closed vocabulary since 2.6.0), `required_if`, `forbidden_if` and
+  `provenance` are the author's maps and are never walked. YAML merge keys
+  and anchors keep working; an aliased rule still has its keys inspected.
+- **Contract level:** an unknown key in the `contract:` block, an unknown
+  top-level document key (a holder key for YAML anchors counts — put anchors
+  inline on the first rule that uses them), and the legacy flat document are
+  refused the same way. `CONTRACT_KEYS` / `RULE_KEYS` are the shared sets.
+  The field-keyed onboarding format keeps its own vocabulary and is not
+  checked.
+- **Stored vs submitted (Core's answer, as for unknown types):** a stored
+  file with an unknown key fails to load; the log names the file, the rule
+  and the key; the contract is absent — nothing is served with a rule
+  silently missing. `opendqv lint` reports `UNKNOWN_RULE_KEY` /
+  `UNKNOWN_CONTRACT_KEY` (errors) with the same hint. Every bundled contract
+  and every example loads clean under the check.
+- **Attestation keys round-trip (found by the sweep):** the fresh-file
+  serialiser (`create_draft`, `create_version`, imports) wrote `proposed_by`
+  / `proposed_at` but dropped `approved_by`, `approved_at`, the rejection
+  trail, `owner_email`, `owner_team`, `asset_id`, `sensitive_fields` and
+  `contexts` — every attribute the loader reads is now written back when
+  set. ODCS export carries the four attestation keys as `opendqv.<key>`
+  custom properties and import reads them, so the trail survives the round
+  trip. (Draft saves and lifecycle transitions patch the file in place and
+  never lost them.)
+
 ## [2.8.0] - 2026-09-05
 
 **Unknown rule types are refused at load — on both engines the same day.**

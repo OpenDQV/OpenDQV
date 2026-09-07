@@ -49,6 +49,12 @@ and hold identically on the single-record and batch paths:
   absent or blank the rule **fails** with the rule's `error_message`, and the
   error entry carries `counterpart_missing: true` (REST, GraphQL and MCP).
   The rule's own `field` being absent is still D6 (skipped).
+- **Unknown rule keys are refused at load (2.9.0).** A key the engine does not
+  read (`date_diff_feild`, `banana`) is a load error naming the rule, the key
+  and the nearest known key; likewise an unknown key in the `contract:` block
+  or at the top of the document. `opendqv lint`: `UNKNOWN_RULE_KEY`,
+  `UNKNOWN_CONTRACT_KEY`. The values of `condition`, `required_if`,
+  `forbidden_if` and `provenance` are the author's maps and are not walked.
 - **Unknown rule types are refused at load (2.8.0).** `Rule()` raises with the
   list of known types (`opendqv.core.rule_parser.RULE_TYPES`, the same set the
   validator dispatches and the linter checks); `min_age`/`max_age` are keys on a

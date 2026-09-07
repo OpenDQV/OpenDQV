@@ -1293,7 +1293,7 @@ class TestAbsentFieldSkipping:
             Rule(name="ne", type="not_empty", field="dob",
                  error_message="dob is required"),
             Rule(name="df", type="date_format", field="dob",
-                 date_format="%Y-%m-%d",
+                 format="%Y-%m-%d",
                  error_message="dob must be YYYY-MM-DD"),
         ]
         result = validate_record({"dob": None}, rules, contract_name="test")
@@ -1307,7 +1307,7 @@ class TestAbsentFieldSkipping:
             Rule(name="ne", type="not_empty", field="dob",
                  error_message="dob is required"),
             Rule(name="df", type="date_format", field="dob",
-                 date_format="%Y-%m-%d",
+                 format="%Y-%m-%d",
                  error_message="dob must be YYYY-MM-DD"),
         ]
         result = validate_record({"dob": "   "}, rules, contract_name="test")
@@ -1321,7 +1321,7 @@ class TestAbsentFieldSkipping:
             Rule(name="ne", type="not_empty", field="dob",
                  error_message="dob is required"),
             Rule(name="df", type="date_format", field="dob",
-                 date_format="%Y-%m-%d",
+                 format="%Y-%m-%d",
                  error_message="dob must be YYYY-MM-DD"),
         ]
         result = validate_record({}, rules, contract_name="test")
@@ -1339,7 +1339,7 @@ class TestAbsentFieldSkipping:
         dict(type="range", min_value=0, max_value=100),
         dict(type="min_length", min_length=1),
         dict(type="max_length", max_length=10),
-        dict(type="date_format", date_format="%Y-%m-%d"),
+        dict(type="date_format", format="%Y-%m-%d"),
     ])
     def test_format_class_rule_skips_on_absent_single(self, absent_value, rule_kwargs):
         """Single-record path: format-class rules return valid on absent."""
@@ -1356,7 +1356,7 @@ class TestAbsentFieldSkipping:
         dict(type="range", min_value=0, max_value=100),
         dict(type="min_length", min_length=1),
         dict(type="max_length", max_length=10),
-        dict(type="date_format", date_format="%Y-%m-%d"),
+        dict(type="date_format", format="%Y-%m-%d"),
     ])
     def test_format_class_rule_skips_on_absent_batch(self, absent_value, rule_kwargs):
         """Batch path (DuckDB SQL) also skips absent values."""
@@ -1394,7 +1394,7 @@ class TestAbsentFieldSkipping:
         result = _validate(
             {"value": None, "country": "GB"},
             type="conditional_lookup",
-            condition_field="country", condition_value="GB",
+            condition={"field": "country", "value": "GB"},
             lookup_file="ref/nonexistent.csv",
         )
         assert result["valid"] is True
@@ -1412,7 +1412,7 @@ class TestAbsentFieldSkipping:
     def test_age_match_skips_on_absent_target(self):
         result = _validate(
             {"value": None, "dob": "1990-01-01"},
-            type="age_match", age_dob_field="dob",
+            type="age_match", dob_field="dob",
         )
         assert result["valid"] is True
 

@@ -385,7 +385,7 @@ class TestFilenameNameMismatch:
         """Filename and YAML name agree → no mismatch issue."""
         yaml_str = (
             "contract:\n  name: customer\n  version: \"1.0\"\n  status: draft\n"
-            "rules: []\n"
+            "  rules: []\n"  # 2.9.0: top-level rules beside contract: is an unknown document key
         )
         result = lint_contract_yaml(yaml_str, contract_name="customer")
         codes = [i.code for i in result.issues]
@@ -396,7 +396,7 @@ class TestFilenameNameMismatch:
         """When called without a filename hint, the mismatch check is skipped."""
         yaml_str = (
             "contract:\n  name: media_content\n  version: \"1.0\"\n  status: draft\n"
-            "rules: []\n"
+            "  rules: []\n"
         )
         result = lint_contract_yaml(yaml_str)  # no contract_name
         codes = [i.code for i in result.issues]

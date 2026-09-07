@@ -37,7 +37,7 @@ from typing import Optional
 
 import yaml
 
-from opendqv.core.rule_parser import RULE_TYPES
+from opendqv.core.rule_parser import RULE_KEYS, RULE_TYPES, nearest_key
 from opendqv.core.validator import (
     _human_to_strptime,
     _PRESENCE_RULE_TYPES,  # single source of truth (round-2 B2)
@@ -337,6 +337,35 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
             ))
         else:
             seen_names[name] = i
+
+    # ── Unknown keys (2.9.0) — document, contract block, and each rule's own keys ──
+    def _key_issue(code, rule_name, kind, who, unknown, known):
+        parts = []
+        for k in unknown:
+            near = nearest_key(k, known)
+            parts.append(f'"{k}"' + (f' (did you mean "{near}"?)' if near else ""))
+        result.issues.append(LintIssue(
+            severity="error", rule_name=rule_name, code=code,
+            message=(f"{kind} {who}: unknown key(s) {', '.join(parts)} — the engine does not read them and "
+                     f"refuses the contract at load; remove or fix the spelling."),
+        ))
+    from opendqv.core.contracts import CONTRACT_KEYS, DOCUMENT_KEYS
+    if isinstance(data, dict) and not (isinstance(raw_rules, dict)):   # the field-keyed format has its own vocabulary
+        if isinstance(contract_node, dict) and "contract" in data:
+            top = [k for k in data if k not in DOCUMENT_KEYS]
+            if top:
+                _key_issue("UNKNOWN_CONTRACT_KEY", None, "document", "top level", top, DOCUMENT_KEYS)
+            block, who = contract_node, str(contract_node.get("name", contract_name))
+        else:
+            block, who = data, str(data.get("name", contract_name))
+        unknown = [k for k in block if k not in CONTRACT_KEYS] if isinstance(block, dict) else []
+        if unknown:
+            _key_issue("UNKNOWN_CONTRACT_KEY", None, "contract", f'"{who}"', unknown, CONTRACT_KEYS)
+    for raw in raw_rules if isinstance(raw_rules, list) else []:
+        if isinstance(raw, dict):
+            unknown = [k for k in raw if k not in RULE_KEYS]
+            if unknown:
+                _key_issue("UNKNOWN_RULE_KEY", raw.get("name"), "rule", f'"{raw.get("name", "<unnamed>")}"', unknown, RULE_KEYS)
 
     # ── contexts: override types (2.8.0) ──────────────────────────────────────
     # An override is merged and constructed at load; an unknown type there
