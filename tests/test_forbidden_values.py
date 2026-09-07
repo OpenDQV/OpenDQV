@@ -66,7 +66,7 @@ class TestNumericRenderingD12:
     def test_render_value(self):
         assert _render_value(99999.0) == "99999" and _render_value(99999) == "99999"
         assert _render_value(1.5) == "1.5" and _render_value("99999.0") == "99999.0"
-        assert _render_value(True) == "True"   # booleans are not floats
+        assert _render_value(True) == "true"   # 2.9.1: JSON spelling (see the addendum class below)
 
     @pytest.mark.parametrize("rtype,expect_valid", [("forbidden_values", False), ("allowed_values", True)])
     def test_integral_float_matches_the_listed_text_on_both_rule_types(self, rtype, expect_valid):
@@ -169,3 +169,25 @@ contract:
 ''', "t")
     hits = [(i.rule_name, i.severity) for i in res.issues if i.code == "SET_RULE_KEY_IGNORED"]
     assert hits == [("a", "warning"), ("b", "warning")]
+
+
+class TestBooleanRenderingD12Addendum:
+    """2.9.1: a boolean renders as its JSON spelling (true/false) on both set rules."""
+
+    def test_render_value_booleans(self):
+        assert _render_value(True) == "true" and _render_value(False) == "false"
+        assert _render_value("True") == "True"    # a string stays a string
+        assert _render_value(1) == "1" and _render_value(1.0) == "1"
+
+    @pytest.mark.parametrize("rtype,listed,rec_value,expect_valid", [
+        ("forbidden_values", ["true"], True, False),
+        ("forbidden_values", ["true"], False, True),
+        ("forbidden_values", ["True"], True, True),      # Python spelling no longer matches a boolean
+        ("allowed_values", ["true", "false"], False, True),
+        ("allowed_values", ["true", "false"], True, True),
+        ("allowed_values", ["True"], True, False),
+        ("allowed_values", ["true"], "true", True),      # the string spelling still matches itself
+    ])
+    def test_both_paths_agree_on_booleans(self, rtype, listed, rec_value, expect_valid):
+        rules = [Rule(name="r", type=rtype, field="flag", error_message="m", **{rtype: listed})]
+        assert _both(rules, {"flag": rec_value})["valid"] is expect_valid

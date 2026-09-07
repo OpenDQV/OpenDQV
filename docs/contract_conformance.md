@@ -392,7 +392,8 @@ thing on both engines.
 - **D12 (2.9.0) — numeric rendering for `allowed_values` / `forbidden_values`.**
   A record value is compared by its rendered text; an integral float renders
   without the trailing `.0` on both engines (`99999.0` → `99999`), booleans
-  as `True`/`False`, everything else as `str()`. Resolved when
+  as their JSON spelling `true`/`false` (2.9.1 addendum — Core used to render
+  Python's `True`), everything else as `str()`. Resolved when
   `forbidden_values` landed (the managed engine's Go rendering already did
   this; Core's `str()` did not — a pre-existing divergence on
   `allowed_values`). Pinned by two `engine_semantics.jsonl` rows.
