@@ -4,6 +4,34 @@ All notable changes to OpenDQV are documented here.
 
 ## [2.9.0] - Unreleased
 
+### New rule type: `forbidden_values` (both engines)
+
+Placeholder junk in mandatory fields (`N/A`, `12345`, `test@test.com`,
+`asdf`) passes `not_empty` and often `regex`/`date_format`; the honest rule is
+a negative set, and neither engine had one (`negate` is regex-only). The
+exact sibling of `allowed_values` with the sense inverted, requested by the
+managed-engine maintainer (2026-09-06) and shipped on both engines so the
+mirrored library can use it: a **present** value equal to any listed value
+fails; absence/blank is not a violation; exact rendered-text match,
+case-sensitive, no trimming; code `OPENDQV_FORBIDDEN_VALUES_<RULE_NAME>`;
+both paths; linter `FORBIDDEN_VALUES_EMPTY` (with a hint when the values were
+listed under `allowed_values`); explain offers the set as invalid examples
+only; JSON Schema `not: {enum}`; ODCS custom twin only (never `validValues`),
+dimension conformity; MCP constraint exposure; SQL push-down `IN (...)`.
+`RULE_TYPES` 24 → 25. Six managed-engine fixture rows added to
+`frozen/engine_semantics.jsonl`.
+
+- **D12 — numeric rendering, resolved deliberately for BOTH `allowed_values`
+  and `forbidden_values`:** a record value is compared by its rendered text,
+  and an integral float now renders without the trailing `.0` (`99999.0` →
+  `99999`), matching the managed engine's shortest float rendering. Until
+  2.8.0 Python's `str(99999.0)` was `99999.0`, so a JSON `99999.0` did not
+  match a listed `"99999"` on Core while it did on the managed engine — a
+  pre-existing divergence on `allowed_values`. Verdict change: only where a
+  contract lists an integral value and a producer sends it as a float. Row 5
+  of the maintainer's fixture holds as written; an `allowed_values` twin row
+  pins the positive side.
+
 ### Unknown rule keys and unknown contract keys are refused at load
 
 Requested by the managed-engine maintainer (2026-09-06); the same class as

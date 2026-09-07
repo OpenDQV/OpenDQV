@@ -152,7 +152,7 @@ def _generate_salesforce(rules: list, contract_name: str = "", contract_version:
             pass  # handled entirely by the min_age/max_age block below
         elif rtype in ("required_if", "lookup", "compare", "date_diff", "checksum",
                        "cross_field_range", "field_sum", "forbidden_if", "conditional_value",
-                       "ratio_check", "geospatial_bounds", "conditional_lookup", "allowed_values"):
+                       "ratio_check", "geospatial_bounds", "conditional_lookup", "allowed_values", "forbidden_values"):
             code += f"            // NOTE: rule '{rule['name']}' (type='{rtype}') requires API validation — not implementable as push-down code\n"
         else:
             code += f"            // TODO: rule '{rule['name']}' (type='{rtype}') not implemented for this target\n"
@@ -245,7 +245,7 @@ def _js_rule_check(rule: dict, indent: str = "    ", age_checked: set = None) ->
         pass  # handled entirely by the min_age/max_age block below
     elif rtype not in ("required_if", "lookup", "compare", "date_diff", "checksum",
                        "cross_field_range", "field_sum", "forbidden_if", "conditional_value",
-                       "ratio_check", "geospatial_bounds", "conditional_lookup", "allowed_values"):
+                       "ratio_check", "geospatial_bounds", "conditional_lookup", "allowed_values", "forbidden_values"):
         # Unknown rule type — emit explicit TODO rather than silently dropping
         snippet += f"{indent}// TODO: rule '{rule['name']}' (type='{rtype}') not implemented for this target\n"
     else:
@@ -340,6 +340,9 @@ def _spark_case_when(rule: dict):
     elif rtype == "allowed_values" and rule.get("allowed_values"):
         vals = ", ".join(f"'{_escape_sql(str(v))}'" for v in rule["allowed_values"])
         return case(f"CAST({field} AS STRING) NOT IN ({vals})")
+    elif rtype == "forbidden_values" and rule.get("forbidden_values"):
+        vals = ", ".join(f"'{_escape_sql(str(v))}'" for v in rule["forbidden_values"])
+        return case(f"CAST({field} AS STRING) IN ({vals})")
     elif rtype == "unique":
         note = f"rule '{name}' (unique on '{field}'): use COUNT(*) OVER (PARTITION BY {field}) > 1 as a window function"
         return None, None, note

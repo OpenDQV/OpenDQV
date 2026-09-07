@@ -113,7 +113,7 @@ RULE_TYPES = frozenset({
     "min_length", "max_length", "date_format", "unique", "compare",
     "required_if", "allowed_values", "lookup", "checksum", "cross_field_range",
     "field_sum", "forbidden_if", "conditional_value", "date_diff", "ratio_check",
-    "conditional_lookup", "geospatial_bounds", "age_match",
+    "conditional_lookup", "geospatial_bounds", "age_match", "forbidden_values",
 })
 
 
@@ -177,6 +177,9 @@ class Rule(BaseModel):
     # Avoids the need for a separate lookup file for short, stable lists.
     # type: allowed_values  allowed_values: [active, inactive, pending]
     allowed_values: Optional[list] = None
+    # type: forbidden_values  forbidden_values: [..]  — exact sibling of allowed_values
+    # (2.9.0, both engines): a PRESENT value equal to any listed value fails.
+    forbidden_values: Optional[list] = None
 
     # File-based or REST-based lookup — value must appear in a reference list.
     # type: lookup  lookup_file: /path/to/ids.txt          (local file, one value per line)
@@ -345,6 +348,14 @@ class Rule(BaseModel):
                 "Add a checksum_algorithm field.",
                 self.name,
             )
+        if self.type == "forbidden_values":
+            if self.forbidden_values is None and self.allowed_values:
+                raise ValueError(
+                    f"Rule '{self.name}': a forbidden_values rule lists its values under `forbidden_values`, "
+                    f"not `allowed_values` (a positive set is the opposite meaning)."
+                )
+            if not isinstance(self.forbidden_values, list) or not self.forbidden_values:
+                raise ValueError(f"Rule '{self.name}': forbidden_values requires a non-empty `forbidden_values` list.")
         if self.type == "date_diff" and not self.date_diff_field:
             logger.warning(
                 "Rule '%s' (type=date_diff) has no date_diff_field — it will skip validation. "
