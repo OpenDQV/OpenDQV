@@ -71,6 +71,11 @@ import yaml
 from pydantic import ValidationError
 
 from opendqv.core.rule_parser import _BUILTIN_PATTERNS, Rule, RULE_KEYS
+# Import-time rendering must be the rendering the engine validates with (D12),
+# or an imported contract cannot match the documents it was imported from: a
+# JSON `false` is compared as "false", so an enum listing it must say "false",
+# not Python's "False".
+from opendqv.core.validator import _render_value
 
 # Export stays v3.1.0-shaped: every construct OpenDQV emits exists unchanged
 # in 3.2.0 (the `invalidValues` library metric included), and a 3.2.0 reader
@@ -386,11 +391,19 @@ def _enum_values(prop: dict) -> tuple[list, Optional[str]]:
         out = []
         for item in raw:
             if isinstance(item, dict):
-                if "value" not in item:
-                    continue          # an entry without a value enumerates nothing
-                out.append(item["value"])
+                if item.get("value") is None:
+                    continue          # no value (or an explicit null) enumerates nothing
+                value = item["value"]
+            elif item is None:
+                continue
             else:
-                out.append(item)
+                value = item
+            rendered = _render_value(value)
+            # Deduped on the rendered text, which is what the rule compares:
+            # `0` and `false` are distinct enumerated values even though
+            # Python considers them equal.
+            if rendered not in out:   # a value listed twice still allows one thing
+                out.append(rendered)
         return out
 
     values = _values(prop.get("enum"))
@@ -428,8 +441,10 @@ def _native_rules(field: str, prop: dict, skipped: list[str], notes: list[str]) 
     # `invalidValues` twin is read once, never counted twice.
     values, source = _enum_values(prop)
     if values:
+        # NB: `0` and `False` are legitimate enumerated values — the emptiness
+        # test above is on the list, never on the values themselves.
         rules.append(_rule(field, "allowed_values", message=f"{field} must be one of the allowed values",
-                           allowed_values=[str(v) for v in values]))
+                           allowed_values=list(values)))
         if source != "enum":
             notes.append(f"{field}.{source} → allowed_values (pre-3.2.0 spelling of a property enum)")
 
@@ -674,6 +689,13 @@ def import_odcs(contract_data: dict) -> dict:
         value = _custom_property(contract_data, f"opendqv.{key}")
         if value is not None:
             contract[key] = str(value)
+
+    if not deduped:
+        # Every property was built from constructs this engine cannot read
+        # (3.2.0 `map`/`vector`, dataset-level metrics, unsupported options).
+        # Say so: an empty rule list is not a silent success.
+        notes.append("no rules were derived from this document — nothing in it is enforced by OpenDQV; "
+                     "see skipped_checks for the constructs that were not read")
 
     return {
         "contract": contract,

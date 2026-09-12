@@ -182,6 +182,43 @@ class TestPropertyEnum:
 
     def test_an_entry_without_a_value_enumerates_nothing(self):
         assert _enum_values({"enum": [{"label": "only a label"}]}) == ([], None)
+        assert _enum_values({"enum": [{"value": None}]}) == ([], None)
+        assert _enum_values({"enum": None}) == ([], None)
+        assert _enum_values({"enum": []}) == ([], None)
+
+    def test_falsy_values_are_kept_and_repeats_collapse(self):
+        """Sonnet red-team: `0` and `false` enumerate something; a malformed
+        null does not; a value listed twice still allows one thing."""
+        values, _ = _enum_values({"enum": [{"value": 0}, {"value": False}, {"value": ""}]})
+        assert values == ["0", "false", ""], "0 and false are distinct values, not Python-equal ones"
+        values, _ = _enum_values({"enum": [{"value": "A"}, {"value": "A"}, {"value": "B"}]})
+        assert values == ["A", "B"]
+
+    def test_an_imported_enum_matches_the_records_it_was_imported_for(self):
+        """The door renders values the way the engine compares them (D12), so a
+        contract imported from a document validates that document's records."""
+        from opendqv.core.rule_parser import Rule
+        from opendqv.core.validator import validate_batch, validate_record
+        doc = _doc([{"name": "flag", "logicalType": "boolean",
+                     "enum": [{"value": True}, {"value": False}]},
+                    {"name": "tier", "logicalType": "integer",
+                     "enum": [{"value": 1}, {"value": 2}]}])
+        rules = [Rule(**r) for r in _import(doc)["contract"]["rules"]]
+        for record, expected in (({"flag": False, "tier": 1}, True),
+                                 ({"flag": True, "tier": 2}, True),
+                                 ({"flag": False, "tier": 3}, False)):
+            assert validate_record(record, rules)["valid"] is expected, record
+            assert validate_batch([record], rules)["results"][0]["valid"] is expected, record
+
+    def test_a_document_that_derives_no_rule_at_all_says_so(self):
+        """A document built only from constructs OpenDQV cannot read imports
+        cleanly with nothing enforced — the caller is told, not left to notice
+        an empty rule list."""
+        doc = _doc([{"name": "payload", "logicalType": "vector",
+                     "logicalTypeOptions": {"dimensions": 8, "elementType": "float32"}}])
+        out = _import(doc)
+        assert out["contract"]["rules"] == []
+        assert any("no rules" in n.lower() for n in out["import_notes"]), out["import_notes"]
 
     def test_enum_sits_alongside_the_other_derived_rules(self):
         doc = _doc([{"name": "state", "logicalType": "string", "required": True,

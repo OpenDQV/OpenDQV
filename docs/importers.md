@@ -116,7 +116,7 @@ vector arithmetic.
 
 A contract written by OpenDQV Cloud may carry a top-level `odcs:` block — opaque maps of
 the ODCS sections that engine does not enforce. OpenDQV Core **carries it verbatim**: it
-loads, it is preserved byte-for-byte on every write, it contributes no rules, and it sits
+loads, it is preserved verbatim on every write, it contributes no rules, and it sits
 outside the contract hash domain (it cannot change a verdict, so it must not change a
 contract's identity). `opendqv lint` reports `ODCS_BLOCK_NOT_ENFORCED` (info) so nobody
 mistakes it for enforcement. Anything that must be validated belongs under `rules:`.

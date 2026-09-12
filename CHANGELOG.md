@@ -25,6 +25,9 @@ over 3.1.0 plus one loosening, so the door is small.
 - **`logicalType: map` and `logicalType: vector`** contribute no rules and the
   property is named in `skipped_checks` — honour or reject, never silently
   drop. Nothing on such a property is read, including a `custom/opendqv` twin.
+- An import that derives **no rules at all** — every property built from
+  constructs OpenDQV cannot read — says so in `import_notes` rather than
+  returning a silently empty contract.
 - **`context`, `synonyms`, `deprecated`, `semanticType` accepted silently**: no
   rule, no skip entry, no warning. They are documentation and modelling
   metadata with no record-level meaning; `semanticType` is a closed enum
@@ -52,7 +55,9 @@ verbatim** rather than refusing the file: refusing would mean Core could not
 load a contract written by the other engine at all, which is the opposite of the
 parity the bundled library is mirrored for, and unlike a misspelt key (2.9.0)
 this is a recognised block rather than a typo that silently does nothing. It
-loads, it is preserved on every write, it contributes no rules, and it sits
+loads, it is preserved verbatim on every write (the value is carried
+unchanged; the file itself is re-serialised as always), it contributes no
+rules, and it sits
 outside the contract hash domain — it cannot change a verdict, so it must not
 change a contract's identity. `opendqv lint` reports `ODCS_BLOCK_NOT_ENFORCED`
 (info) and the loader logs it once per file.
