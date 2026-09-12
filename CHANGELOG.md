@@ -2,6 +2,68 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.10.0] - Unreleased
+
+### ODCS v3.2.0 — the import door opens
+
+The managed engine reads and writes ODCS v3.2.0 (released 2026-09-08) and the
+Data Contract CLI 1.2.0 stamps `apiVersion: v3.2.0` on everything its importers
+write, so a Core that stopped at 3.1.0 refused both — and 3.2.0 constructs are
+schema-invalid under 3.1.0, so there is no downgrade path. 3.2.0 is additive
+over 3.1.0 plus one loosening, so the door is small.
+
+- **`v3.2.0` accepted**, alongside v3.0.x and v3.1.0. Top-level `status` is
+  optional in 3.2.0; a document without one imports as `draft`.
+- **Property-level `enum`** (a list of `{value, id?, label?, description?,
+  tags?}`) becomes `allowed_values` from each entry's `value` — labels, ids and
+  descriptions are governance metadata, not values. Precedence, matching the
+  reference CLI: `enum`, then the CLI's `logicalTypeOptions.enum` shim (an
+  extension the 3.2.0 schema itself rejects — noted in `import_notes`), then
+  the `invalidValues.validValues` library twin. **One `allowed_values` rule per
+  property**: a document carrying both an `enum` and the old twin is read once,
+  never double-counted.
+- **`logicalType: map` and `logicalType: vector`** contribute no rules and the
+  property is named in `skipped_checks` — honour or reject, never silently
+  drop. Nothing on such a property is read, including a `custom/opendqv` twin.
+- An import that derives **no rules at all** — every property built from
+  constructs OpenDQV cannot read — says so in `import_notes` rather than
+  returning a silently empty contract.
+- **`context`, `synonyms`, `deprecated`, `semanticType` accepted silently**: no
+  rule, no skip entry, no warning. They are documentation and modelling
+  metadata with no record-level meaning; `semanticType` is a closed enum
+  (`column` | `measure` | `dimension`) and a `deprecated` element never moves
+  contract status.
+- **Export stays v3.1.0-shaped.** Every construct OpenDQV emits exists
+  unchanged in 3.2.0 (the `invalidValues` library metric included) and `v3.1.0`
+  is still in the standard's `apiVersion` list, so a 3.2.0 reader accepts it.
+  The exports are now validated against **both** vendored schemas.
+- Not implemented, deliberately: `context.constraints` enforcement, `${VAR}`
+  interpolation, vector arithmetic.
+
+Tests validate every 3.2.0 document against the **official** vendored 3.2.0 JSON
+schema before importing it, so a passing test cannot rest on an invented shape
+(the CRT179 lesson). Writing them caught four shapes this engine had guessed
+wrong: `logicalTypeOptions.enum` is not schema-valid, `context` is a document
+and object construct rather than a property one, `synonyms` entries are objects
+rather than strings, and `logicalType: map` requires a `map` block.
+
+### A contract may carry an `odcs:` passthrough block
+
+A contract written by the managed engine may carry a top-level `odcs:` block —
+opaque maps of the ODCS sections that engine does not enforce. Core **carries it
+verbatim** rather than refusing the file: refusing would mean Core could not
+load a contract written by the other engine at all, which is the opposite of the
+parity the bundled library is mirrored for, and unlike a misspelt key (2.9.0)
+this is a recognised block rather than a typo that silently does nothing. It
+loads, it is preserved verbatim on every write (the value is carried
+unchanged; the file itself is re-serialised as always), it contributes no
+rules, and it sits
+outside the contract hash domain — it cannot change a verdict, so it must not
+change a contract's identity. `opendqv lint` reports `ODCS_BLOCK_NOT_ENFORCED`
+(info) and the loader logs it once per file.
+
+---
+
 ## [2.9.1] - 2026-09-07
 
 ### D12 addendum — boolean rendering on `allowed_values` / `forbidden_values`

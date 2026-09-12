@@ -83,13 +83,43 @@ be reviewed and activated before it can be used for production validation.
 
 ---
 
-## ODCS — Open Data Contract Standard (v3.1.0)
+## ODCS — Open Data Contract Standard (reads v3.0.x–v3.2.0, writes v3.1.0)
 
-OpenDQV exports contracts as [ODCS v3.1.0](https://bitol-io.github.io/open-data-contract-standard/latest/)
-and imports ODCS v3.0.x / v3.1.0 documents. Every export validates against the official
-ODCS JSON schema and passes `datacontract lint`
+OpenDQV imports ODCS v3.0.x, v3.1.0 and
+[v3.2.0](https://bitol-io.github.io/open-data-contract-standard/latest/) documents, and
+exports v3.1.0. Every export validates against the official ODCS JSON schema — the 3.1.0
+one it targets and the 3.2.0 one — and passes `datacontract lint`
 ([datacontract-cli](https://github.com/datacontract/datacontract-cli)); this is enforced by
-the test suite on all bundled contracts.
+the test suite on all bundled contracts. The export spelling stays v3.1.0 because every
+construct OpenDQV emits exists unchanged in 3.2.0 and `v3.1.0` is still in the standard's
+own `apiVersion` list, so a 3.2.0 reader accepts it.
+
+### What v3.2.0 adds, and what OpenDQV does with it (2.10.0)
+
+| Construct | OpenDQV reads it as |
+|---|---|
+| property `enum` (list of `{value, id?, label?, description?, tags?}`) | `allowed_values` from each entry's `value`; labels, ids and descriptions are governance metadata, not values |
+| `logicalTypeOptions.enum` (Data Contract CLI extension, not schema-valid) | `allowed_values`, noted in `import_notes` as a pre-3.2.0 spelling |
+| `invalidValues.validValues` (the pre-3.2.0 library twin) | `allowed_values` |
+| `logicalType: map`, `logicalType: vector` | nothing — the property is named in `skipped_checks`; OpenDQV validates records field by field and cannot read either |
+| `context`, `synonyms`, `deprecated`, `semanticType` | nothing, silently: documentation and modelling metadata with no record-level meaning. A `deprecated` element never moves contract status |
+| top-level `status` (optional since 3.2.0) | absent → `draft` |
+
+**One allowed_values rule per property.** Where a document carries more than one of the
+three enum spellings, the highest-precedence one wins — `enum`, then the CLI shim, then the
+library twin. A document carrying both an `enum` and the old twin is read once, never twice.
+
+Not implemented, deliberately: `context.constraints` enforcement, `${VAR}` interpolation,
+vector arithmetic.
+
+### The `odcs:` passthrough block
+
+A contract written by OpenDQV Cloud may carry a top-level `odcs:` block — opaque maps of
+the ODCS sections that engine does not enforce. OpenDQV Core **carries it verbatim**: it
+loads, it is preserved verbatim on every write, it contributes no rules, and it sits
+outside the contract hash domain (it cannot change a verdict, so it must not change a
+contract's identity). `opendqv lint` reports `ODCS_BLOCK_NOT_ENFORCED` (info) so nobody
+mistakes it for enforcement. Anything that must be validated belongs under `rules:`.
 
 > **Before v2.4.0** the ODCS exporter emitted an `info:` block and `mustBeSatisfied`
 > quality checks. That shape was not ODCS 3.x and failed `datacontract lint` on the first
@@ -97,7 +127,7 @@ the test suite on all bundled contracts.
 
 ### Export mapping
 
-| OpenDQV | ODCS v3.1.0 |
+| OpenDQV | ODCS v3.1.0 (reads up to v3.2.0) |
 |---------|-------------|
 | `name` | `id`, `name`, `schema[0].name` |
 | `version` | `version` |
@@ -407,6 +437,6 @@ OpenDQV can also export contracts back to external schema formats:
 | Target format | CLI command | Notes |
 |---------------|-------------|-------|
 | dbt `schema.yml` | `export-dbt <contract>` | Produces dbt v2 column tests; use `--output` to write a file |
-| ODCS v3.1.0 | `export-odcs <contract>` | Open Data Contract Standard YAML (schema-valid) |
+| ODCS v3.1.0 | `export-odcs <contract>` | Open Data Contract Standard YAML (schema-valid; also valid 3.2.0) |
 
 See [dbt Integration](dbt_integration.md) for the full rule-to-test mapping and required dbt packages.

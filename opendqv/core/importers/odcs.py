@@ -71,10 +71,33 @@ import yaml
 from pydantic import ValidationError
 
 from opendqv.core.rule_parser import _BUILTIN_PATTERNS, Rule, RULE_KEYS
+# Import-time rendering must be the rendering the engine validates with (D12),
+# or an imported contract cannot match the documents it was imported from: a
+# JSON `false` is compared as "false", so an enum listing it must say "false",
+# not Python's "False".
+from opendqv.core.validator import _render_value
 
+# Export stays v3.1.0-shaped: every construct OpenDQV emits exists unchanged
+# in 3.2.0 (the `invalidValues` library metric included), and a 3.2.0 reader
+# accepts a document declaring v3.1.0 — that spelling is still in the standard's
+# apiVersion enum. Moving the export would change the wire format for no gain.
 ODCS_API_VERSION = "v3.1.0"
 ODCS_ENGINE = "opendqv"
-_SUPPORTED_API_VERSIONS = {"v3.0.0", "v3.0.1", "v3.0.2", "v3.1.0"}
+# 3.2.0 (2026-09-08) is purely additive over 3.1.0 plus one loosening
+# (top-level `status` is no longer required), so the door opens without
+# conditioning any other reader behaviour on the version.
+_SUPPORTED_API_VERSIONS = {"v3.0.0", "v3.0.1", "v3.0.2", "v3.1.0", "v3.2.0"}
+
+# Logical types whose values OpenDQV cannot validate record-by-record. A
+# property declaring one contributes no rules and is named in `skipped_checks`
+# — honour or reject, never silently drop (3.2.0 added both).
+_UNSUPPORTED_LOGICAL_TYPES = {"map", "vector"}
+
+# Property-level 3.2.0 additions that carry no enforcement: documentation and
+# modelling metadata. Read as "understood, nothing to enforce" — no rule, no
+# skip entry, no warning. `semanticType` is a closed enum (column | measure |
+# dimension), not a URN; `deprecated`/`synonyms` never touch contract status.
+_ACCEPTED_WITHOUT_RULES = ("context", "synonyms", "deprecated", "semanticType")
 
 # ---------------------------------------------------------------------------
 # Status mapping  (OpenDQV lifecycle ⇄ ODCS status vocabulary)
@@ -351,14 +374,79 @@ def _rule(field: str, rtype: str, severity: str = "error", message: str = "", **
     return d
 
 
+def _enum_values(prop: dict) -> tuple[list, Optional[str]]:
+    """The property's enumerated values and where they came from, in the
+    precedence the reference CLI uses (``enum_values.py``): the 3.2.0
+    property-level ``enum`` first, then the CLI's ``logicalTypeOptions.enum``
+    shim, then the ``invalidValues.validValues`` library twin.
+
+    A 3.2.0 ``enum`` entry is an object carrying at least ``value`` (``id``,
+    ``label``, ``description``, ``tags`` and custom properties are UI and
+    governance metadata that no record-level rule reads). A bare scalar is
+    accepted too — that is the shape the CLI shim writes.
+    """
+    def _values(raw) -> list:
+        if not isinstance(raw, list) or not raw:
+            return []
+        out = []
+        for item in raw:
+            if isinstance(item, dict):
+                if item.get("value") is None:
+                    continue          # no value (or an explicit null) enumerates nothing
+                value = item["value"]
+            elif item is None:
+                continue
+            else:
+                value = item
+            rendered = _render_value(value)
+            # Deduped on the rendered text, which is what the rule compares:
+            # `0` and `false` are distinct enumerated values even though
+            # Python considers them equal.
+            if rendered not in out:   # a value listed twice still allows one thing
+                out.append(rendered)
+        return out
+
+    values = _values(prop.get("enum"))
+    if values:
+        return values, "enum"
+    opts = prop.get("logicalTypeOptions")
+    if isinstance(opts, dict):
+        values = _values(opts.get("enum"))
+        if values:
+            return values, "logicalTypeOptions.enum"
+    for q in prop.get("quality") or []:
+        if not isinstance(q, dict) or (q.get("metric") or q.get("rule")) != "invalidValues":
+            continue
+        if q.get("mustBe") not in (0, 0.0, "0"):
+            continue
+        args = q.get("arguments")
+        values = _values(args.get("validValues")) if isinstance(args, dict) else []
+        if values:
+            return values, "invalidValues.validValues"
+    return [], None
+
+
 def _native_rules(field: str, prop: dict, skipped: list[str], notes: list[str]) -> list[dict]:
-    """Rules from required / unique / logicalTypeOptions."""
+    """Rules from required / unique / enum / logicalTypeOptions."""
     rules: list[dict] = []
     if prop.get("required") is True:
         rules.append(_rule(field, "not_empty", message=f"{field} is required"))
         notes.append(f"{field}.required → not_empty (stricter: ODCS `required` allows empty strings)")
     if prop.get("unique") is True:
         rules.append(_rule(field, "unique", message=f"{field} must be unique"))
+
+    # 3.2.0 property-level `enum` (and the shapes that preceded it). One
+    # allowed_values rule per property: the source with the highest precedence
+    # wins, so a document carrying both an `enum` and the older
+    # `invalidValues` twin is read once, never counted twice.
+    values, source = _enum_values(prop)
+    if values:
+        # NB: `0` and `False` are legitimate enumerated values — the emptiness
+        # test above is on the list, never on the values themselves.
+        rules.append(_rule(field, "allowed_values", message=f"{field} must be one of the allowed values",
+                           allowed_values=list(values)))
+        if source != "enum":
+            notes.append(f"{field}.{source} → allowed_values (pre-3.2.0 spelling of a property enum)")
 
     opts = prop.get("logicalTypeOptions") or {}
     if not isinstance(opts, dict):
@@ -539,6 +627,13 @@ def import_odcs(contract_data: dict) -> dict:
             if not isinstance(prop, dict) or not prop.get("name"):
                 continue
             field = str(prop["name"])
+            ltype = str(prop.get("logicalType") or "").lower()
+            if ltype in _UNSUPPORTED_LOGICAL_TYPES:
+                # 3.2.0 logical types with no record-level reading in OpenDQV.
+                # Named rather than dropped, and named once for the whole
+                # property: nothing it declares is enforced here.
+                skipped.append(f"{obj_name}.{field} (logicalType '{ltype}': no record-level validation in OpenDQV)")
+                continue
             if field in seen_fields:
                 skipped.append(f"{obj_name}.{field} (duplicate of {seen_fields[field]}.{field}; first definition kept)")
                 continue
@@ -594,6 +689,13 @@ def import_odcs(contract_data: dict) -> dict:
         value = _custom_property(contract_data, f"opendqv.{key}")
         if value is not None:
             contract[key] = str(value)
+
+    if not deduped:
+        # Every property was built from constructs this engine cannot read
+        # (3.2.0 `map`/`vector`, dataset-level metrics, unsupported options).
+        # Say so: an empty rule list is not a silent success.
+        notes.append("no rules were derived from this document — nothing in it is enforced by OpenDQV; "
+                     "see skipped_checks for the constructs that were not read")
 
     return {
         "contract": contract,

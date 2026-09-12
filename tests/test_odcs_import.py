@@ -39,12 +39,20 @@ from opendqv.core.rule_parser import Rule
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 SCHEMA = json.loads((FIXTURES / "odcs-json-schema-v3.1.0.json").read_text(encoding="utf-8"))
 VALIDATOR = jsonschema.Draft201909Validator(SCHEMA)  # the schema declares draft 2019-09
+# 2.10.0: an export targets 3.1.0 and must also be a valid 3.2.0 document —
+# every construct it emits survived into 3.2.0, and `v3.1.0` is still in that
+# standard's own apiVersion list. Validating against both is what lets the
+# export stay where it is while the import door moves.
+SCHEMA_320 = json.loads((FIXTURES / "odcs-json-schema-v3.2.0.json").read_text(encoding="utf-8"))
+VALIDATOR_320 = jsonschema.Draft201909Validator(SCHEMA_320)
 FULL_EXAMPLE = yaml.safe_load((FIXTURES / "odcs-full-example-v3.1.0.yaml").read_text(encoding="utf-8"))
 BUNDLED_DIR = Path(__file__).resolve().parent.parent / "opendqv" / "contracts"
 
 
 def _schema_errors(doc: dict) -> list[str]:
-    return [f"{'/'.join(str(p) for p in e.path)}: {e.message}" for e in VALIDATOR.iter_errors(doc)]
+    errors = [f"3.1.0 {'/'.join(str(p) for p in e.path)}: {e.message}" for e in VALIDATOR.iter_errors(doc)]
+    errors += [f"3.2.0 {'/'.join(str(p) for p in e.path)}: {e.message}" for e in VALIDATOR_320.iter_errors(doc)]
+    return errors
 
 
 def _rules(*dicts) -> list[Rule]:

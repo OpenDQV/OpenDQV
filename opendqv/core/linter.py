@@ -338,6 +338,15 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
         else:
             seen_names[name] = i
 
+    # ── odcs: passthrough block (2.10.0) ──────────────────────────────────────
+    if isinstance(contract_node, dict) and contract_node.get("odcs"):
+        result.issues.append(LintIssue(
+            severity="info", rule_name=None, code="ODCS_BLOCK_NOT_ENFORCED",
+            message=("This contract carries an `odcs:` block. OpenDQV preserves it on every write "
+                     "but enforces nothing from it — anything that must be validated belongs under "
+                     "`rules:`."),
+        ))
+
     # ── Unknown keys (2.9.0) — document, contract block, and each rule's own keys ──
     def _key_issue(code, rule_name, kind, who, unknown, known):
         parts = []
