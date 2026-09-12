@@ -2,7 +2,7 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [2.10.0] - Unreleased
+## [2.10.0] - 2026-09-12
 
 ### ODCS v3.2.0 — the import door opens
 
