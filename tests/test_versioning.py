@@ -488,6 +488,9 @@ class TestHashDomainCompleteness:
         "rejected_by", "rejected_at", "rejection_reason",
         # CRT180 review B3: snapshot-side strict settings — lifecycle metadata like last_active_snapshot
         "last_active_strict_schema", "last_active_fields",
+        # 2.10.0: opaque ODCS passthrough. Carried verbatim, enforced nowhere,
+        # so it cannot change a verdict and must not change a contract hash.
+        "odcs",
     })
 
     def test_every_data_contract_field_classified(self):

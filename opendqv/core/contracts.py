@@ -33,7 +33,7 @@ CONTRACT_KEYS: frozenset = frozenset({
     "name", "version", "description", "owner", "status", "rules", "contexts",
     "strict_schema", "allowed_fields", "fields",
     "asset_id", "downstream_consumers", "catalog_visible", "sensitive_fields",
-    "validate_in_states", "owner_team", "owner_email", "source",
+    "validate_in_states", "owner_team", "owner_email", "source", "odcs",
     "proposed_by", "proposed_at", "approved_by", "approved_at",
     "rejected_by", "rejected_at", "rejection_reason",
 })
@@ -360,6 +360,16 @@ class DataContract(BaseModel):
     # sensitive_fields — list of field names whose values must never appear in logs,
     # error responses, /explain output, or ContractHistory diffs.
     # Declaring or modifying sensitive_fields requires a REVIEW cycle.
+    # 2.10.0: the managed engine's native YAML may carry a top-level `odcs:`
+    # block — opaque maps of the ODCS sections that engine does not enforce
+    # (document / object / properties[]{name, body}). OpenDQV does not read it
+    # and enforces nothing from it, but refusing the file would mean Core could
+    # not load a contract written by the other engine at all, which is the
+    # opposite of the parity this library is mirrored for. So it is carried
+    # verbatim: preserved on every write, reported by `opendqv lint` as
+    # not-enforced, never a source of rules.
+    odcs: dict = {}
+
     sensitive_fields: list[str] = []
 
     # validate_in_states — which contract statuses allow validation against this contract.
@@ -1020,6 +1030,7 @@ class ContractRegistry:
                 contract = self._load_file(path)
                 if contract:
                     self._check_contexts(contract)
+                    self._note_unenforced_blocks(contract, path)
                     if contract.name not in self._contracts:
                         self._contracts[contract.name] = {}
                     self._contracts[contract.name][contract.version] = contract
@@ -1030,6 +1041,15 @@ class ContractRegistry:
             except Exception as e:
                 logger.error("Failed to load contract from %s: %s", path.name, e)
                 self.load_failures.append({"file": path.name, "error": str(e)})
+
+    @staticmethod
+    def _note_unenforced_blocks(contract: "DataContract", path: Path) -> None:
+        if contract.odcs:
+            logger.info(
+                "%s: contract '%s' carries an `odcs:` block (%s) — OpenDQV preserves it on write "
+                "and enforces nothing from it; rules must be declared under `rules:`",
+                path.name, contract.name, ", ".join(sorted(str(k) for k in contract.odcs)) or "empty",
+            )
 
     def _check_contexts(self, contract: "DataContract") -> None:
         """Construct every context's merged rule set once at load so an
@@ -1094,6 +1114,7 @@ class ContractRegistry:
             owner_team=c.get("owner_team"),
             owner_email=c.get("owner_email"),
             source=c.get("source"),
+            odcs=c.get("odcs") or {},
             proposed_by=c.get("proposed_by"),
             proposed_at=c.get("proposed_at"),
             # v2.3.20 P1.4: also read template-level approved_by / approved_at
@@ -1554,6 +1575,8 @@ class ContractRegistry:
                 block[key] = value
         if contract.sensitive_fields:
             block["sensitive_fields"] = list(contract.sensitive_fields)
+        if contract.odcs:
+            block["odcs"] = contract.odcs   # carried verbatim, never enforced
         if contract.contexts:
             block["contexts"] = contract.contexts
         if contract.downstream_consumers:
