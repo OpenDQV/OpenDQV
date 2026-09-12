@@ -2,6 +2,15 @@
 # See .github/workflows/docker-publish.yml for CI/CD pipeline
 FROM python:3.13-slim AS base
 
+# Apply the base image's outstanding Debian security updates before anything
+# else. `python:3.13-slim` is rebuilt on its own cadence, so between rebuilds
+# its OS packages drift behind the CVE feeds and the image ships known-fixed
+# vulnerabilities (2026-09-12: 3 CRITICAL + 9 HIGH across perl-base, libpcre2,
+# libsqlite3 and gzip, every one with a patched Debian version available).
+# Upgrading here picks them up at build time; the container scan in CI is the
+# check that this layer is doing its job.
+RUN apt-get update &&     apt-get upgrade -y --no-install-recommends &&     apt-get clean && rm -rf /var/lib/apt/lists/*
+
 RUN useradd --create-home appuser
 
 WORKDIR /app
