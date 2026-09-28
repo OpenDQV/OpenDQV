@@ -110,7 +110,9 @@ def _generate_salesforce(rules: list, contract_name: str = "", contract_version:
             f"// SYNC REMINDER: This class is a snapshot of the contract rules at generation\n"
             f"// time. Re-run if the contract has been updated:\n"
             f"//   opendqv generate {contract_name} salesforce\n"
-            f"// For live governance (always in sync), see the HTTP callout integration.\n"
+            f"// For live governance (always in sync), call the validation endpoint from a\n"
+            f"// Screen Flow or Lightning component — not from a trigger (the platform refuses\n"
+            f"// callouts there). See docs/salesforce_integration.md.\n"
             f"\n"
         )
     code = header + (

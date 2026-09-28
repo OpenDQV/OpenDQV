@@ -17,7 +17,7 @@ Short visual walkthroughs of OpenDQV in action across the integrations it suppor
 | ![Marmot lineage](marmot_lineage.png)<br>**[Marmot lineage push](marmot_integration.md)** | OpenDQV pushes per-contract quality metrics into Marmot via OpenLineage facets — pass rate and failing rules show up directly on the catalog asset. |
 | ![Ofcom demo](demo_ofcom.gif)<br>**[Ofcom Online Safety Act](compliance-contracts.md)** | Validating a moderation event against the Ofcom Online Safety Act contract — illegal-content category, reporter identity, takedown SLA. |
 | ![Postgres demo](demo_postgres.gif)<br>**[Postgres integration](postgres_integration.md)** | Validate before `INSERT` — quarantine table pattern with `psycopg2`. |
-| ![Salesforce demo](demo_salesforce.gif)<br>**[Salesforce integration](salesforce_integration.md)** | HTTP callout from an Apex trigger before commit — bad records get rejected with field-level error feedback inside Salesforce. |
+| ![Salesforce demo](demo_salesforce.gif)<br>**[Salesforce integration](salesforce_integration.md)** | Push-down Apex in the trigger, a Screen Flow or Lightning component calling the endpoint before the record is created, and an after-save audit — bad records get field-level error feedback inside Salesforce. (A callout from a trigger itself does not run on the platform; see the correction in the guide.) |
 | ![dbt demo](demo_dbt.gif)<br>**[dbt integration](dbt_integration.md)** | Bidirectional import/export with `schema.yml` — every dbt test becomes an OpenDQV rule and vice versa. |
 | ![DuckDB demo](demo_duckdb.gif)<br>**[DuckDB integration](duckdb_integration.md)** | Local batch validation against a DuckDB table — zero-copy DataFrame round-trip. |
 | ![Kafka demo](demo_kafka.gif)<br>**[Kafka integration](kafka_integration.md)** | Validate before committing the consumer offset — dead-letter topic pattern. |
@@ -265,7 +265,7 @@ OpenDQV Core is the source-layer anchor of the modern data quality stack — des
 | [Soda Core Integration](soda_integration.md) | Import Soda checks.yml; pre-pipeline gate; webhook correlation |
 | [Monte Carlo Integration](montecarlo_integration.md) | Trace log shipping; webhook correlation; asset_id bridge |
 | [Orchestrator Integration](orchestrator_integration.md) | Airflow, Prefect, Dagster — pre-load validation gate |
-| [Salesforce Integration](salesforce_integration.md) | Push-down Apex; HTTP callout before trigger; live governance |
+| [Salesforce Integration](salesforce_integration.md) | Push-down Apex; Screen Flow / component calling the endpoint; after-save audit; shipped OpenAPI 3.0 spec for External Services |
 | [Kafka Integration](kafka_integration.md) | Validate before committing offset; dead-letter topic pattern; async batch |
 | [Postgres Integration](postgres_integration.md) | Validate before INSERT; quarantine table pattern; psycopg2 |
 | [Snowflake Integration](snowflake_integration.md) | Python connector; Snowpipe; External Function; Streams & Tasks |

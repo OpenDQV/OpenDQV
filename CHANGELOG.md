@@ -2,6 +2,40 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.10.1] - Unreleased
+
+### Docs — Salesforce: a synchronous callout from an Apex trigger does not run
+
+`docs/salesforce_integration.md` presented an HTTP callout from a Before trigger
+as tested and working (2026-03-17). Salesforce refuses synchronous callouts from
+triggers before the request leaves the platform
+(`System.CalloutException: Callout from triggers are currently not supported`);
+the managed-engine team reproduced the refusal through four entry points on
+2026-09-26 and in a second org in May, and the March result could not be
+reproduced with a trigger. The guide now carries the correction at the top,
+keeps the section for the record with the observed behaviour of each
+exception-handling shape (none of which validates anything), and replaces it
+with the patterns that do work: a Screen Flow or Lightning component calling
+the endpoint before the record is created (blocks, for saves through that
+path), and an `after insert, after update` trigger handing records to an
+`@future(callout=true)` audit (every source, never blocks). Push-down Apex is
+unaffected — it makes no callout.
+
+Two facts about Core's surface pinned in the guide and by tests:
+- **The API serves OpenAPI 3.1**, which Salesforce External Services does not
+  accept. OpenDQV now ships `docs/salesforce/opendqv-validate-openapi-3.0.json`,
+  an OpenAPI 3.0 description of `POST /api/v1/validate` alone;
+  `tests/test_salesforce_openapi_spec.py` pins every field in it to what the
+  API accepts and returns.
+- **The batch route has no per-record id.** `record_id` exists on the
+  single-record route only (echoed); batch results are keyed by submission
+  `index`. The after-save audit section says which to use and how to join.
+
+The UI's Integration Guide snippet, the generated-Apex header comment and the
+docs index no longer point at the trigger-callout pattern.
+
+---
+
 ## [2.10.0] - 2026-09-12
 
 ### ODCS v3.2.0 — the import door opens
