@@ -54,7 +54,7 @@ jobs:
           OPENDQV_NODE_ID: 'ci-test-node'
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v6
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5  # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: OpenDQV/OpenDQV
@@ -149,13 +149,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
 
       # Single-arch build loaded into the local Docker daemon for scanning.
       # Multi-arch builds (linux/amd64,linux/arm64) cannot be loaded locally —
       # a separate amd64-only build is required here.
       - name: Build image for scanning (linux/amd64)
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7
         with:
           context: .
           platforms: linux/amd64
