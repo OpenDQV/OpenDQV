@@ -1,0 +1,90 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "OpenDQV — validate one record",
+    "version": "1.0.0",
+    "description": "OpenAPI 3.0 description of POST /api/v1/validate, for registration as a Salesforce External Service. The API itself serves OpenAPI 3.1 at /openapi.json, which External Services does not accept; this file describes the one route a Screen Flow needs, with the request fields the API accepts and the response fields a flow branches on. Replace the servers URL with your endpoint before uploading. Authentication is a Bearer token in the Authorization header, carried by the External Credential."
+  },
+  "servers": [
+    {"url": "https://your-opendqv-host", "description": "Replace with your OpenDQV base URL (no trailing slash)"}
+  ],
+  "paths": {
+    "/api/v1/validate": {
+      "post": {
+        "operationId": "validateRecord",
+        "summary": "Validate one record against a contract",
+        "description": "Returns HTTP 200 with the verdict. valid is the verdict in both modes; in observation-only mode a failing record still returns valid=false with would_have_failed=true, but the mode says it must not block — so a flow proceeds when valid is true OR mode is observation_only.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/ValidateRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Validation result",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ValidateResponse"}
+              }
+            }
+          },
+          "404": {"description": "Unknown contract or version"},
+          "422": {"description": "Malformed request"}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {"type": "http", "scheme": "bearer"}
+    },
+    "schemas": {
+      "ValidateRequest": {
+        "type": "object",
+        "required": ["contract", "record"],
+        "properties": {
+          "contract": {"type": "string", "description": "Contract name"},
+          "record": {"type": "object", "additionalProperties": true, "description": "The record to validate, keyed by the contract's field names"},
+          "record_id": {"type": "string", "nullable": true, "description": "Caller's correlation id — send the Salesforce record Id; it is echoed on the response"},
+          "context": {"type": "string", "nullable": true, "description": "Optional context override declared in the contract"},
+          "version": {"type": "string", "default": "latest", "description": "Contract version, or 'latest'"},
+          "observe_only": {"type": "boolean", "default": false, "description": "Observation-only mode: the verdict is recorded but never blocks; the response's mode is observation_only"},
+          "dry_run": {"type": "boolean", "default": false, "description": "Validate without recording the result"},
+          "agent_id": {"type": "string", "nullable": true, "description": "Caller-asserted identity for attribution, e.g. the flow's name"}
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "properties": {
+          "field": {"type": "string"},
+          "rule": {"type": "string"},
+          "message": {"type": "string"},
+          "severity": {"type": "string"},
+          "error_code": {"type": "string"},
+          "suggested_fix": {"type": "string", "nullable": true},
+          "counterpart_missing": {"type": "boolean", "nullable": true}
+        }
+      },
+      "ValidateResponse": {
+        "type": "object",
+        "required": ["valid", "errors", "warnings"],
+        "properties": {
+          "valid": {"type": "boolean", "description": "True when no blocking error fired. Proceed to Create Records on true, or when mode is observation_only"},
+          "mode": {"type": "string", "enum": ["enforcement", "observation_only"], "description": "The mode the verdict was produced in"},
+          "would_have_failed": {"type": "boolean", "nullable": true, "description": "In observation-only mode: true when the record would have been rejected under enforcement"},
+          "errors": {"type": "array", "items": {"$ref": "#/components/schemas/FieldError"}, "description": "Blocking failures — show these to the user"},
+          "warnings": {"type": "array", "items": {"$ref": "#/components/schemas/FieldError"}, "description": "Non-blocking quality warnings"},
+          "record_id": {"type": "string", "nullable": true, "description": "Echo of the request's record_id"},
+          "event_id": {"type": "string", "description": "Audit primary key for this verdict"},
+          "contract": {"type": "string"},
+          "version": {"type": "string"},
+          "engine_version": {"type": "string"}
+        }
+      }
+    }
+  },
+  "security": [{"bearerAuth": []}]
+}

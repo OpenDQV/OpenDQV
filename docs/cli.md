@@ -361,7 +361,9 @@ The generated header embeds a sync reminder and the contract version so it is al
 // SYNC REMINDER: This class is a snapshot of the contract rules at generation
 // time. Re-run if the contract has been updated:
 //   opendqv generate customer salesforce
-// For live governance (always in sync), see the HTTP callout integration.
+// For live governance (always in sync), call the validation endpoint from a
+// Screen Flow or Lightning component — not from a trigger (the platform refuses
+// callouts there). See docs/salesforce_integration.md.
 ```
 
 For live, always-in-sync governance use the API integration rather than generated code. Generated code is appropriate for low-latency edge deployments or environments without outbound network access to the OpenDQV API.

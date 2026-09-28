@@ -1,6 +1,20 @@
 # Salesforce Integration
 
-OpenDQV integrates with Salesforce across a spectrum — from zero infrastructure to fully governed enterprise validation. Start with Approach 1 and upgrade when you need it.
+> **Correction (September 2026): a synchronous HTTP callout from an Apex trigger does not run.**
+> Salesforce refuses it before the request leaves the platform, with
+> `System.CalloutException: Callout from triggers are currently not supported`. This held for every
+> entry point tried: a save from the standard UI (May 2026), and a Flow's Create Records element,
+> anonymous Apex, Bulk API 2.0 and a REST insert (September 2026). The trigger-callout approach this
+> guide previously presented as tested and working could not be reproduced with a trigger; a Screen
+> Flow calling the validation endpoint (or an older API version) is the likely explanation for the
+> March 2026 result it rested on. That section is kept for the record and must not be used.
+> For blocking at write time, see [Blocking a save at write time](#blocking-a-save-at-write-time);
+> for validating saves from any source after the fact, see
+> [Auditing saves from any source](#auditing-saves-from-any-source).
+
+OpenDQV integrates with Salesforce in three ways: rules compiled into an Apex class that runs inside
+the trigger (no callout), a Screen Flow or Lightning component that calls the validation endpoint
+before the record is created, and an after-save audit that validates every record from any source.
 
 ---
 
@@ -108,26 +122,23 @@ if (!OpenDQVValidator.validateRecord(data, 'salesforce_contact')) {
 
 Use the **Integration Guide** tab in the Streamlit UI to generate ready-to-paste Apex, JavaScript, Python, cURL, Power Automate, and GraphQL snippets.
 
-For the full Approach 1 (push-down) and Approach 2 (live callout) patterns, read on.
+For the push-down (Approach 1) pattern and the write-time and after-save patterns that call the
+endpoint, read on.
 
 ---
 
-## The spectrum
+## The three patterns
 
-```
-Approach 1: Push-down Apex              Approach 2: HTTP callout
-─────────────────────────────────────────────────────────────
-Zero infrastructure                  Live governance
-No API calls at runtime              Always in sync with contract
-Fast (runs in trigger context)       Single source of truth
-Snapshot — can drift                 Never drifts
-```
+| | Push-down Apex (Approach 1) | Screen Flow / component calling the endpoint | After-save audit |
+|---|---|---|---|
+| Where validation runs | Inside the trigger, no callout | Before `Create Records`, in the UI path you control | `@future` after the save |
+| Blocks the save? | Yes, for every source | Yes, for saves through that flow or component only | No — the record is already saved |
+| Stays in sync with the contract? | No — a snapshot; regenerate on change | Yes | Yes |
+| Reaches OpenDQV's audit log? | No | Yes | Yes |
 
-Both approaches tested end-to-end against a Salesforce dev org (2026-03-17):
-- **Approach 1 ✅** — Apex class deployed, FAIL and PASS cases confirmed in Before Insert trigger
-- **Approach 2 ✅** — HTTP callout to live OpenDQV API, FAIL and PASS cases confirmed in Before Insert trigger via ngrok
-
-Most teams start with Approach 1 and graduate to Approach 2 when the contract update cadence makes drift a real operational risk.
+Approach 1 was tested end-to-end in a Salesforce Developer Edition org (2026-03-17): class deployed,
+FAIL and PASS cases confirmed in a Before Insert trigger. The trigger-callout pattern that used to
+sit beside it does not run on the platform — see the correction at the top of this page.
 
 ---
 
@@ -227,266 +238,126 @@ If you answered "Consider Approach 2" to three or more of these, read on.
 
 ---
 
-## Approach 2: HTTP callout
+## Calling the validation endpoint from a trigger (does not work — kept for the record)
 
-### How it works
+**Observed.** In a Salesforce Developer Edition org on the Summer '26 release (API 67.0), a
+`before insert` trigger that made a synchronous `Http().send()` to the validation endpoint was exercised
+through four entry points on 26 September 2026: a Flow with a Create Records element, anonymous Apex,
+Bulk API 2.0 with 250 rows, and a REST sObject insert. All four threw
+`System.CalloutException: Callout from triggers are currently not supported`, 250 of 250 bulk rows
+included. No request reached the endpoint. An earlier test in May 2026, in a different Developer Edition
+org, gave the same error for a save from the standard UI and for Apex DML. We have not seen an org in
+which the callout runs; which editions or API versions might allow it is an open question with no
+evidence either way.
 
-Instead of deploying a generated class, the Salesforce trigger makes a real-time HTTP callout to the OpenDQV `/validate` endpoint. The contract lives in OpenDQV — Salesforce is always in sync.
+**What happens to the record is decided only by the trigger's exception handling:**
 
-### Prerequisites
+| Trigger shape | Effect on the save |
+|---|---|
+| No `try`/`catch` | Every save of that object fails (`CANNOT_INSERT_UPDATE_ACTIVATE_ENTITY … caused by: System.CalloutException`), valid data or not. |
+| `catch` that only logs (`System.debug`) — the shape this guide previously showed | The record saves **unvalidated**. Nothing is logged where anyone looks; the validation service never sees the record. |
+| `catch` that calls `addError` | Every save is blocked by the platform error, never by a verdict. |
 
-- OpenDQV running locally on port 8000 (or deployed at a reachable URL)
-- Salesforce Developer Edition org or sandbox
-- Salesforce CLI (`sf`) installed
-- [ngrok](https://ngrok.com/download) installed (free tier is sufficient for local testing)
-
-### Step 1: Expose your local API via ngrok
-
-[ngrok](https://ngrok.com) creates a temporary public HTTPS tunnel to your local machine, letting Salesforce's cloud infrastructure reach an API running on your laptop. Without it, Salesforce cannot make callouts to `localhost`.
-
-```bash
-ngrok http 8000
-```
-
-The terminal will show a forwarding URL:
-
-```
-Forwarding  https://abc123.ngrok-free.dev -> http://localhost:8000
-```
-
-Copy the `https://...ngrok-free.dev` URL — you'll need it in the next step.
-
-> The free ngrok tier generates a new random URL each session. If you stop and restart ngrok, update the Remote Site entry (step 2) with the new URL.
-
-### Step 2: Register the tunnel in Salesforce Remote Site Settings
-
-Salesforce blocks all outbound HTTP callouts by default. You must explicitly allowlist the destination URL before any Apex callout will succeed.
-
-1. In Salesforce Setup, search for **Remote Site Settings** in the left sidebar (or navigate to **Security → Remote Site Settings**)
-2. Click **New Remote Site**
-3. Fill in the form:
-   - **Remote Site Name:** `OpenDQV_ngrok`
-   - **Remote Site URL:** paste your ngrok HTTPS URL (e.g. `https://abc123.ngrok-free.dev`)
-   - **Disable Protocol Security:** leave unchecked
-   - **Active:** check this box
-4. Click **Save**
-
-The new entry will appear in the Remote Sites list with a checkmark in the Active column. Salesforce can now make outbound callouts to your ngrok tunnel.
-
-Here's what the Remote Site Settings list looks like with the OpenDQV ngrok entry registered and active:
-
-![Salesforce Remote Site Settings — OpenDQV_ngrok entry active in the list](assets/sf_remote_site_list.png)
-
-And the detail view showing exactly how the entry is configured — note `Disable Protocol Security` is left unchecked, and `Active` is ticked:
-
-![Salesforce Remote Site Details — showing Name, URL, Disable Protocol Security unchecked, Active checked](assets/sf_remote_site_detail.png)
-
-> The ngrok URL shown here (`https://funest-nonteleologically-zachary.ngrok-free.dev`) was a live tunnel used to test and write this guide — it has since been torn down. Your URL will be different each session.
-
-### Callout context — Before vs After triggers
-
-**Before Insert/Update triggers** (write-time blocking — the recommended pattern):
-
-No DML has committed yet. A synchronous HTTP callout is permitted. If validation fails, call `record.addError()` to block the save entirely — the record never reaches the database. This is the correct pattern for OpenDQV's write-time blocking use case.
-
-**After Insert/Update triggers** (post-save async validation — different use case):
-
-DML has already committed. Synchronous callouts are not permitted in the same transaction. Use `@future(callout=true)` for asynchronous post-save validation. The record is already in the database — you can flag it but cannot prevent the write. This is a monitoring pattern, not a blocking pattern.
-
-> For write-time blocking — the OpenDQV use case — always use a **Before trigger** with a synchronous callout.
-
-### Step 3: Deploy the callout class and trigger
-
-Copy the `OpenDQVCallout` class and trigger below into your Salesforce project, then deploy:
-
-```bash
-sf project deploy start --source-dir force-app --target-org mydevorg
-```
-
-### Apex callout class
-
-```apex
-public class OpenDQVCallout {
-    /**
-     * Validate a batch of records against an OpenDQV contract.
-     * Call from a Before Insert/Update trigger — synchronous callout is permitted
-     * before DML commits.
-     *
-     * Pass an optional context (e.g. 'salesforce_prod', 'salesforce_sandbox') to
-     * apply context-specific validation rules from the contract. The bundled
-     * contract declares no contexts — see examples/contexts/salesforce_contact.yaml.
-     *
-     * Returns the 'results' array from the OpenDQV batch response, or null on failure.
-     * Caller must check each result's 'valid' field and call record.addError() as needed.
-     */
-    public static List<Object> validate(
-        String contractName,
-        List<Map<String, Object>> records,
-        String context
-    ) {
-        HttpRequest req = new HttpRequest();
-        req.setEndpoint('callout:OpenDQV/api/v1/validate/batch');
-        req.setMethod('POST');
-        req.setHeader('Content-Type', 'application/json');
-
-        Map<String, Object> payload = new Map<String, Object>{
-            'contract' => contractName,
-            'records'  => records
-        };
-        if (String.isNotBlank(context)) {
-            payload.put('context', context);
-        }
-        req.setBody(JSON.serialize(payload));
-        req.setTimeout(10000);  // 10s — well within governor limit for ~4ms p50 responses
-
-        try {
-            HttpResponse res = new Http().send(req);
-
-            if (res.getStatusCode() == 200) {
-                Map<String, Object> body =
-                    (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
-                return (List<Object>) body.get('results');
-            }
-
-            // Non-200 from OpenDQV (e.g. 422 malformed request, 404 unknown contract)
-            System.debug('OpenDQV: unexpected status ' + res.getStatusCode()
-                         + ' — ' + res.getBody());
-
-            // POLICY CHOICE — non-200 response:
-            // Fail-open (default): record saves when OpenDQV returns an error.
-            return null;
-            // Fail-closed (uncomment): record blocked on any OpenDQV error.
-            // throw new CalloutException('OpenDQV error ' + res.getStatusCode());
-
-        } catch (System.CalloutException e) {
-            // OpenDQV unreachable (timeout, DNS failure, ngrok tunnel down, etc.)
-            System.debug('OpenDQV: service unreachable — ' + e.getMessage());
-
-            // POLICY CHOICE — service unreachable:
-            // Fail-open (default): record saves if OpenDQV cannot be reached.
-            // Use for: non-critical data, development environments.
-            return null;
-            // Fail-closed (uncomment): record blocked if OpenDQV cannot be reached.
-            // Use for: regulated data where a bad record is worse than a failed save.
-            // throw new CalloutException(
-            //     'OpenDQV: validation service unreachable. Record blocked for safety.');
-        }
-    }
-}
-```
-
-### Before trigger wiring
-
-```apex
-trigger OpenDQVContactTrigger on Contact (before insert, before update) {
-    List<Map<String, Object>> records = new List<Map<String, Object>>();
-    for (Contact c : Trigger.new) {
-        records.add(new Map<String, Object>{
-            'FirstName' => c.FirstName,
-            'LastName'  => c.LastName,
-            'Email'     => c.Email,
-            'Birthdate' => c.Birthdate != null ? String.valueOf(c.Birthdate) : null
-        });
-    }
-
-    // Pass a context to apply environment-specific rules (e.g. 18+ age in prod).
-    // Use 'salesforce_sandbox' for test orgs, 'salesforce_prod' for production
-    // (contexts from examples/contexts/salesforce_contact.yaml; undeclared contexts fall back to base rules).
-    List<Object> results = OpenDQVCallout.validate('salesforce_contact', records, 'salesforce_prod');
-
-    if (results == null) {
-        // Fail-open: OpenDQV unreachable or returned an error — records pass through.
-        // Switch to fail-closed in OpenDQVCallout if you need hard blocking.
-        return;
-    }
-
-    for (Integer i = 0; i < results.size(); i++) {
-        Map<String, Object> result = (Map<String, Object>) results.get(i);
-        if (result.get('valid') == false) {
-            List<Object> errors = (List<Object>) result.get('errors');
-            String msg = 'OpenDQV validation failed:';
-            for (Object err : errors) {
-                Map<String, Object> e = (Map<String, Object>) err;
-                msg += ' [' + e.get('field') + '] ' + e.get('message') + ';';
-            }
-            Trigger.new[i].addError(msg);
-        }
-    }
-}
-```
-
-> **Governor limit note:** A Before trigger with a single batch callout to `/api/v1/validate/batch` uses **one** of the 100 allowed callouts per transaction, regardless of how many records are in the trigger batch (up to 200). The total callout time at OpenDQV's ~4ms p50 is well within the 120-second transaction limit.
-
-### Step 4: Test the connection
-
-With ngrok running, the Remote Site registered, and the trigger deployed, test using the Salesforce CLI:
-
-```bash
-# FAIL — invalid email format
-sf data create record \
-    --sobject Contact \
-    --values "FirstName='Test' LastName='Phase2Fail' Email='not-an-email'" \
-    --target-org mydevorg
-# Error (1): Email: invalid email address: not-an-email
-
-# FAIL — missing required field (OpenDQV blocks the write)
-sf data create record \
-    --sobject Contact \
-    --values "LastName='Phase2Fail' Email='test@example.com'" \
-    --target-org mydevorg
-# Error (1): OpenDQV validation failed: (FirstName is required.)
-
-# PASS — valid Contact
-sf data create record \
-    --sobject Contact \
-    --values "FirstName='Test' LastName='Phase2Pass' Email='test.phase2@example.com'" \
-    --target-org mydevorg
-# Successfully created record: 003dL00001TbdobQAA.
-```
-
-Both FAIL cases confirm validation is running before the record reaches the database. The PASS case confirms the tunnel, Remote Site, and trigger are all wired correctly.
-
-### Step 5: Clean up after testing
-
-Once you're done, remove the temporary ngrok wiring so Salesforce isn't left pointing at a dead tunnel:
-
-1. **Stop ngrok** — `Ctrl+C` in the ngrok terminal, or `pkill ngrok`
-2. **Remove the Remote Site entry** — Setup → Security → Remote Site Settings → find the `OpenDQV_ngrok` row → Edit → uncheck *Active* (or Delete)
-3. **Optionally deactivate the trigger** — Setup → Custom Code → Apex Triggers → `ContactOpenDQVCalloutTrigger` → Edit → uncheck *Active*
-   - Keeps the code in place for later; stops callouts while no OpenDQV instance is reachable
-4. **For a full teardown** — delete `OpenDQVCallout` and `ContactOpenDQVCalloutTrigger` from your org, or run `sf project deploy start --source-dir force-app --target-org mydevorg --purge-on-delete`
-
-> **If you skip step 2 and the ngrok URL expires**, Salesforce will throw `System.CalloutException: Web service callout failed` on every Contact insert. The trigger fails open (record still saves) but the error appears in Apex debug logs.
-
-### Named Credential setup (production)
-
-For production, replace the Remote Site entry with a Named Credential — it stores both the base URL and auth token securely inside Salesforce:
-
-1. Setup → Security → Named Credentials → New Legacy Named Credential
-2. **Label:** `OpenDQV`
-3. **URL:** `https://your-opendqv-host` (base URL only — the Apex code appends `/api/v1/validate/batch`)
-4. **Authentication Protocol:** Custom Headers
-5. Add header: `Authorization: Bearer <your-token>`
-
-No Apex code changes are needed — `req.setEndpoint('callout:OpenDQV/api/v1/validate/batch')` resolves the Named Credential label automatically.
+None of these validates anything. Do not ship a trigger with a synchronous callout. The `OpenDQVCallout`
+class, the Before-trigger wiring, the ngrok and Remote Site steps and the governor-limit note that this
+guide used to carry for that pattern have been removed; a Named Credential is still the right way to
+hold the endpoint URL and token for the patterns below.
 
 ---
 
-## Hybrid approach
+## Blocking a save at write time
 
-During migration from Approach 1 to Approach 2, you can run both in parallel:
+Salesforce lets a save be gated synchronously only where the record is created through something you
+control, in the user interface:
 
-1. Keep the deployed `OpenDQVValidator` class as the primary synchronous check (before insert/update). Records are validated against the snapshot — fast, no network.
-2. Add a **second** Before trigger (lower order) that calls `OpenDQVCallout.validate()` in fail-open mode and logs any discrepancy between the snapshot result and the live contract result via `System.debug`.
-3. Once the live callout path is stable and the team trusts the latency budget, remove the snapshot class and switch `OpenDQVCallout` to fail-closed.
+1. **Screen Flow + External Service.** Register an OpenAPI description of the validation endpoint as an
+   External Service (Setup → External Services → From API Specification), call the validate action from a
+   Screen Flow, and branch on the response: proceed to Create Records only on a clear pass (`valid` is
+   `true`, or the response's `mode` is `observation_only`); otherwise show the errors and stop. Flow
+   Builder only, no code. In a trial org that could not deploy Apex, an External Service action in a
+   flow (an autolaunched flow run through the REST API) worked. Give Create Records its own fault
+   path: Salesforce's own checks (an invalid email address, a duplicate rule) can still refuse the save
+   after validation passed. Flow Builder renames request fields (every `_` shows as `x5f`), but the call
+   still sends the contract's names.
 
-This gives you a zero-downtime upgrade path with a built-in canary period.
+   **Use the spec OpenDQV ships for this, not the served one.** The API serves OpenAPI **3.1.0** at
+   `/openapi.json`; External Services registration accepts OpenAPI 2.0 and 3.0 documents. OpenDQV ships
+   [`docs/salesforce/opendqv-validate-openapi-3.0.json`](salesforce/opendqv-validate-openapi-3.0.json) — an
+   OpenAPI 3.0.3 description of `POST /api/v1/validate` alone, with the request fields (`contract`,
+   `record`, `record_id`, `context`, `observe_only`) and the response fields the flow branches on (`valid`,
+   `mode`, `would_have_failed`, `errors`, `warnings`, `record_id`). Replace the `servers` URL with your
+   endpoint before uploading. A test pins the spec to the fields the API actually accepts and returns.
+
+2. **Lightning Web Component + `@AuraEnabled` Apex.** The component calls an Apex method that makes the
+   callout, and inserts the record only on a pass. Needs an edition that can deploy Apex. Set
+   `req.setTimeout(120000)` (the Apex maximum); the default 10 s is too short for a service that is slow
+   to respond or under load, and the call then fails with `Read timed out`.
+
+**Who can run it.** Test with a user who is not an administrator. In our test (Developer Edition,
+September 2026) a Standard User could not open the Screen Flow at all ("Insufficient Privileges") until
+they had the **Run Flows** permission (Salesforce also accepts the Flow User setting on the user); access
+granted to that one flow alone was not enough (with the flow's "restrict access to enabled profiles or
+permission sets" option off; not tested with it on). The user also needs access to the External Credential's
+principal (External Credential Principal Access in a permission set): without it the call fails with
+"We couldn't access the credential(s). You might not have the required permissions…". One permission set
+granting both is the simplest set-up. For the Lightning Web Component pattern the user needs access to
+the Apex class (Apex Class Access in a permission set) as well as the credential access; without it the
+component reports "You do not have access to the Apex class named …". Run Flows is not needed for that
+pattern: it saved a record for a user with no Run Flows and no Flow User setting.
+
+**State and country fields.** In an org with State and Country/Territory picklists enabled, Salesforce
+refused a save whose `MailingState` was set without a country (`FIELD_INTEGRITY_EXCEPTION: A
+country/territory must be specified before specifying a state value`). With picklists enabled, the state
+and country fields take picklist values; an ISO code such as `GB` belongs in `MailingCountryCode`.
+
+**Error emails.** Salesforce emails the flow's administrator whenever an element fails, even when the
+flow's fault path handles the error and shows the user the reason. The email lists every value the user
+entered.
+
+Place the flow or component where users create these records (a button, a quick action, a Lightning
+page) and remove the standard **New** button from those layouts. Saves that bypass the UI — API loads,
+Data Loader, integrations, inline and list-view edits, the standard Edit button, quick actions not
+routed through your flow or component — go through triggers and cannot be blocked this way.
+
+---
+
+## Auditing saves from any source
+
+For inserts and updates from any source, an `after insert, after update` trigger can hand the records to
+an `@future(callout=true)` method that calls the validation endpoint. The record is already saved when
+the call runs; this validates after the fact and can never block. Skip re-entry from other asynchronous
+Apex (`if (System.isFuture() || System.isBatch()) return;`). Note the platform's limit on `@future` calls
+per transaction when large loads are expected.
+
+**Tracing a verdict back to its record — the two routes differ.**
+
+- `POST /api/v1/validate` (one record) accepts a `record_id` and echoes it on the response. Send the
+  Salesforce Id there and every verdict carries it.
+- `POST /api/v1/validate/batch` has **no per-record id**: `records` is a bare list and each entry in
+  `results` is keyed by `index`, its zero-based position in the list you sent. Keep the Ids in a parallel
+  list in the same order and join on `index`. Every batch result also carries its own `event_id`, the
+  audit primary key for that record.
+
+Each audited verdict lands in OpenDQV's audit trail with the contract version, hash and mode it ran
+under — see the audit-events endpoints in the [API reference](api_reference.md).
+
+---
+
+## Validating inside the trigger with no callout
+
+Approach 1 above — rules compiled from the contract into an Apex class with `opendqv generate
+<contract> salesforce` and run locally in the trigger — makes no callout and is therefore unaffected by
+the restriction. Its checks run inside Salesforce and never reach OpenDQV's audit log; regenerate the
+class whenever the contract changes, or pair it with the after-save audit for a record of every verdict.
 
 ---
 
 ## The one-liner
 
-> **Approach 1** is the fastest path to Salesforce-native DQ enforcement — zero infrastructure, deploys in minutes.
-> **Approach 2** is the right answer when your contracts evolve faster than your Salesforce release cycle.
+> **Push-down Apex** is the fastest path to Salesforce-native enforcement for every save — zero
+> infrastructure, deploys in minutes, drifts until you regenerate it.
+> **A Screen Flow or component calling the endpoint** blocks at write time and stays in sync, for the
+> saves that go through it.
+> **The after-save audit** sees every save from every source, and never blocks.
 
-Both use the same contracts. The difference is where validation logic lives.
+All three use the same contracts. The difference is where validation runs and what it can stop.

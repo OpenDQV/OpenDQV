@@ -1407,8 +1407,14 @@ async def create_customer(data: dict):
             st.code(decorator_snippet, language="python")
 
         # ── Salesforce Apex ──
-        with st.expander("Salesforce (Apex HTTP Callout)"):
-            st.markdown("Add this to an Apex class. Requires a Named Credential or Remote Site Setting for the OpenDQV URL.")
+        with st.expander("Salesforce (Apex callout from a Lightning component or Flow — not from a trigger)"):
+            st.markdown(
+                "Add this to an `@AuraEnabled` Apex class called by a Lightning Web Component, or register the "
+                "shipped OpenAPI 3.0 description as an External Service for a Screen Flow. "
+                "**Do not call it from a trigger**: Salesforce refuses synchronous callouts from triggers "
+                "(`System.CalloutException: Callout from triggers are currently not supported`). "
+                "Requires a Named Credential for the OpenDQV URL and token. See docs/salesforce_integration.md."
+            )
             apex_snippet = f'''public class OpenDQVValidator {{
     private static final String OPENDQV_URL = '{api_base}/api/v1/validate';
     private static final String TOKEN = '{snippet_token}';
@@ -1441,15 +1447,17 @@ async def create_customer(data: dict):
         return false;
     }}
 
-    // Example usage in a trigger:
+    // Example usage from an @AuraEnabled method behind a Lightning Web Component
+    // (NOT from a trigger — the platform refuses callouts there):
     // Map<String, Object> data = new Map<String, Object>{{
     //     'email' => contact.Email,
     //     'name' => contact.Name,
     //     'age' => contact.Age__c
     // }};
     // if (!OpenDQVValidator.validateRecord(data, '{guide_contract}')) {{
-    //     contact.addError('Record failed data quality validation');
+    //     throw new AuraHandledException('Record failed data quality validation');
     // }}
+    // insert contact;
 }}'''
             st.code(apex_snippet, language="java")
 
