@@ -219,7 +219,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"contract\": \"salesforce_contact\",\n  \"record\": {\n    \"FirstName\": \"Sarah\",\n    \"LastName\": \"Chen\",\n    \"Email\": \"sarah.chen@acme.com\",\n    \"Phone\": \"+442071234567\",\n    \"Title\": \"Head of Data\",\n    \"AccountName\": \"Acme Corp\",\n    \"MailingCountry\": \"GB\"\n  }\n}"
+              "raw": "{\n  \"contract\": \"salesforce_contact\",\n  \"record\": {\n    \"FirstName\": \"Sarah\",\n    \"LastName\": \"Chen\",\n    \"Email\": \"sarah.chen@acme.com\",\n    \"Phone\": \"+442071234567\",\n    \"Title\": \"Head of Data\",\n    \"AccountId\": \"001Xx00000001QAAAA\",\n    \"MailingCountry\": \"GB\"\n  }\n}"
             },
             "description": "Validates a Salesforce-style Contact record. Note PascalCase field names matching the salesforce_contact contract."
           }

@@ -96,8 +96,8 @@ Response (blocked — contact is under 18; abridged, the envelope also carries `
      "error_code": "OPENDQV_NOT_EMPTY_LAST_NAME_REQUIRED", "suggested_fix": "Provide a non-empty value.", "counterpart_missing": null},
     {"field": "Birthdate", "rule": "birthdate_format", "message": "Contact must be 18+ in production.", "severity": "error",
      "error_code": "OPENDQV_DATE_FORMAT_BIRTHDATE_FORMAT", "suggested_fix": "Use ISO 8601 format: YYYY-MM-DD (e.g. 2026-03-24)", "counterpart_missing": null},
-    {"field": "AccountName", "rule": "account_name_not_empty", "message": "AccountName is required in production — no orphan contacts allowed.", "severity": "error",
-     "error_code": "OPENDQV_NOT_EMPTY_ACCOUNT_NAME_NOT_EMPTY", "suggested_fix": "Provide a non-empty value.", "counterpart_missing": null}
+    {"field": "AccountId", "rule": "account_id_not_empty", "message": "AccountId is required in production — no orphan contacts allowed.", "severity": "error",
+     "error_code": "OPENDQV_NOT_EMPTY_ACCOUNT_ID_NOT_EMPTY", "suggested_fix": "Provide a non-empty value.", "counterpart_missing": null}
   ],
   "warnings": [{"field": "MailingStreet", "rule": "mailing_street_required", "message": "MailingStreet is recommended for contacts.", "severity": "warning", "error_code": "OPENDQV_NOT_EMPTY_MAILING_STREET_REQUIRED", "suggested_fix": "Provide a non-empty value.", "counterpart_missing": null}],
   "contract": "salesforce_contact",
