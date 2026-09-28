@@ -52,3 +52,19 @@ ignore:
   # 3.13.x backport (re-run `grype <image> --fail-on high --only-fixed`).
   - vulnerability: CVE-2026-11972
     reason: "CPython tarfile streaming-mode EOF infinite loop (real: Medium; grype over-scores High). No stable Python fix; only 3.15.0b4. Zero exposure — OpenDQV never opens tar archives."
+
+  # CPython tarfile data/tar extraction filters: a crafted archive holding a
+  # hard link to a symbolic link can modify permissions/mtime of, or disclose,
+  # a file outside the destination (CVSS High). The third member of the
+  # tarfile family already time-boxed above (CVE-2026-11940 / -11972). grype
+  # maps the fix only to 3.14.0b1; the CI base image runs the latest stable
+  # 3.13.15 and no 3.13.x point release carries the backport, so a base-image
+  # bump within 3.13 cannot satisfy `--only-fixed`. Zero exposure: re-verified
+  # 2026-09-28 that OpenDQV imports no `tarfile` and calls no
+  # `extractall`/`extract` anywhere in shipped code, the proxy, the UI or the
+  # scripts — the engine validates JSON/YAML records, never extracts archives.
+  # Re-evaluate when python:3.13-slim ships a point release with the backport,
+  # or when the base image moves to 3.14 (re-run
+  # `grype <image> --fail-on high --only-fixed` to confirm).
+  - vulnerability: CVE-2026-82049
+    reason: "CPython tarfile extraction-filter hardlink-to-symlink (High). Fix only in 3.14.0b1; no stable 3.13.x backport. Zero exposure — OpenDQV never imports tarfile / extracts archives."
