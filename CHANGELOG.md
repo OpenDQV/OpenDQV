@@ -2,7 +2,7 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [Unreleased]
+## [2.10.2] - 2026-09-28
 
 ### Library — `salesforce_contact` 1.2: a contact's account is `AccountId`
 
@@ -13,6 +13,8 @@ the lookup field `AccountId`. The warning rule that flags orphan contacts
 field mapping generated from the contract no longer leaves it unmapped. The
 rule's intent and severity (warning) are unchanged. The contract's rules
 digest changes and `library_manifest.json` is regenerated.
+
+---
 
 ## [2.10.1] - 2026-09-28
 
