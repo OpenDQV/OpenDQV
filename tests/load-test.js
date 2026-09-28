@@ -21,7 +21,7 @@ const PAYLOADS = [
     path: "/api/v1/validate",
     body: {
       contract: "salesforce_contact", version: "1.0", context: "salesforce_prod",
-      record: { FirstName: "Sarah", LastName: "Chen", Email: "sarah@acme.com", Phone: "+1 415-555-0101", Birthdate: "1985-03-15", AccountName: "Acme Corp", MailingCity: "SF", MailingCountry: "US" },
+      record: { FirstName: "Sarah", LastName: "Chen", Email: "sarah@acme.com", Phone: "+1 415-555-0101", Birthdate: "1985-03-15", AccountId: "001Xx00000001QAAAA", MailingCity: "SF", MailingCountry: "US" },
     },
   },
   // Invalid SF contact (missing required)
@@ -29,7 +29,7 @@ const PAYLOADS = [
     path: "/api/v1/validate",
     body: {
       contract: "salesforce_contact", version: "1.0", context: "salesforce_prod",
-      record: { FirstName: "", LastName: "", Email: "bad", Birthdate: "not-a-date", AccountName: "" },
+      record: { FirstName: "", LastName: "", Email: "bad", Birthdate: "not-a-date", AccountId: "" },
     },
   },
   // Valid SF lead (web_form)
@@ -62,9 +62,9 @@ const PAYLOADS = [
     body: {
       contract: "salesforce_contact", version: "1.0", context: "salesforce_prod",
       records: [
-        { FirstName: "A", LastName: "B", Email: "a@b.com", Birthdate: "1990-01-01", AccountName: "X" },
-        { FirstName: "", LastName: "", Email: "bad", Birthdate: "", AccountName: "" },
-        { FirstName: "C", LastName: "D", Email: "c@d.com", Birthdate: "1985-06-15", AccountName: "Y" },
+        { FirstName: "A", LastName: "B", Email: "a@b.com", Birthdate: "1990-01-01", AccountId: "001Xx00000001QAAAA" },
+        { FirstName: "", LastName: "", Email: "bad", Birthdate: "", AccountId: "" },
+        { FirstName: "C", LastName: "D", Email: "c@d.com", Birthdate: "1985-06-15", AccountId: "001Xx00000001QAAAA" },
       ],
     },
   },

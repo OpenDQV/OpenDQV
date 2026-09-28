@@ -157,7 +157,8 @@ def seed_salesforce_contact(n: int = 100):
             "Email": random_email(valid=valid),
             "Phone": uk_phone() if valid else bad_phone(),
             "Title": random.choice(titles),
-            "AccountName": f"Acme {random.choice(['Corp', 'Ltd', 'Inc', 'GmbH'])}",
+            # AccountId is the Contact's account lookup: an 18-character Salesforce Id
+            "AccountId": "001Xx0000" + "".join(random.choices("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", k=9)),
             "Birthdate": random_date(365 * 40) if valid else "not-a-date",
             "MailingCountry": random.choice(countries) if valid else "UK",  # UK not valid ISO 3166
         }
