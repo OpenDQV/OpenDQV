@@ -2,7 +2,7 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [2.10.1] - Unreleased
+## [2.10.1] - 2026-09-28
 
 ### Docs — Salesforce: a synchronous callout from an Apex trigger does not run
 
