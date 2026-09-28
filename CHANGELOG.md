@@ -2,6 +2,18 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [Unreleased]
+
+### Library — `salesforce_contact` 1.2: a contact's account is `AccountId`
+
+Salesforce's Contact object has no `AccountName` field; a contact's company is
+the lookup field `AccountId`. The warning rule that flags orphan contacts
+(`account_name_not_empty` on `AccountName`) is now `account_id_not_empty` on
+`AccountId`, so a record built from Contact's own fields can satisfy it and a
+field mapping generated from the contract no longer leaves it unmapped. The
+rule's intent and severity (warning) are unchanged. The contract's rules
+digest changes and `library_manifest.json` is regenerated.
+
 ## [2.10.1] - 2026-09-28
 
 ### Docs — Salesforce: a synchronous callout from an Apex trigger does not run
