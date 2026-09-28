@@ -268,9 +268,9 @@
       "file": "salesforce_contact.yaml",
       "name": "salesforce_contact",
       "rule_count": 19,
-      "rules_sha256": "25323c6daba53a93befcd1b328b154c0122a4ef32e532413e321d37c6b7ceb41",
+      "rules_sha256": "214925dafcc5ee5fe550771be1eac388fda433ee4b8331ae6474da808ce09c32",
       "strict_schema": false,
-      "version": "1.1"
+      "version": "1.2"
     },
     {
       "file": "salesforce_lead.yaml",
@@ -329,12 +329,12 @@
       "version": "1.0"
     }
   ],
-  "library_sha256": "6a33e7694c0ff0fe123a3587c1f80e9dacad460480adf559ce7eb533cbb6247e",
-  "library_version": "2026.09.03",
+  "library_sha256": "39579f720ac9feac3d47ca4aabbff05b35b54a924edf55dc18f588602604f7dd",
+  "library_version": "2026.09.28",
   "manifest_version": 1,
   "source": {
-    "export_ref": "library-golden-cloud",
-    "exported_at": "2026-09-03T15:27:36Z",
+    "export_ref": "library-salesforce-contact-accountid",
+    "exported_at": "2026-09-28T17:13:34Z",
     "origin": "OpenDQV Cloud starter library (golden copy; this directory is a mirror of it)"
   }
 }
