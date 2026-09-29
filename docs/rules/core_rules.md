@@ -49,6 +49,11 @@ and hold identically on the single-record and batch paths:
   absent or blank the rule **fails** with the rule's `error_message`, and the
   error entry carries `counterpart_missing: true` (REST, GraphQL and MCP).
   The rule's own `field` being absent is still D6 (skipped).
+- **`$` is the end of the value (2.10.4).** Python's `$` would also match just
+  before a final newline; Core rewrites `$` to `\Z` at compile time so a
+  `$`-anchored pattern gives the RE2 verdict — `"…\n"` fails. Escaped `\$`,
+  `$` inside a class, and inline-MULTILINE patterns are untouched; the authored
+  pattern is what every export and digest sees.
 - **Unknown rule keys are refused at load (2.9.0).** A key the engine does not
   read (`date_diff_feild`, `banana`) is a load error naming the rule, the key
   and the nearest known key; likewise an unknown key in the `contract:` block

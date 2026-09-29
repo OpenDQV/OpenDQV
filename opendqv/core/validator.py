@@ -74,7 +74,7 @@ def _safe_match(compiled_pattern, str_val: str) -> bool:
 import duckdb
 import pandas as pd
 
-from .rule_parser import RULE_TYPES, Rule, Severity, _BUILTIN_PATTERNS
+from .rule_parser import RULE_TYPES, Rule, Severity, _BUILTIN_PATTERNS, compile_rule_pattern
 from .trace_log import write_trace_entry
 
 logger = logging.getLogger(__name__)
@@ -778,7 +778,7 @@ def _check_regex(value, rule: Rule, record: Optional[dict] = None) -> Optional[s
         return None
     str_val = str(value) if value is not None else ""
     pattern = _BUILTIN_PATTERNS.get(rule.pattern, rule.pattern)
-    compiled = rule.compiled_pattern or re.compile(pattern)
+    compiled = rule.compiled_pattern or compile_rule_pattern(pattern)
     matched = _safe_match(compiled, str_val)
     if rule.negate:
         if matched:
@@ -2086,7 +2086,10 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
             "regex_python_fallback field=%s pattern=%r batch_size=%d rule=%s",
             field, rule.pattern, len(df), rule.name,
         )
-        compiled = rule.compiled_pattern or re.compile(rule.pattern)
+        # Same alias expansion and the same compile path as the single-record
+        # handler (2.10.4): the fallback used to skip _BUILTIN_PATTERNS and
+        # compile the raw string.
+        compiled = rule.compiled_pattern or compile_rule_pattern(_BUILTIN_PATTERNS.get(rule.pattern, rule.pattern))
         for idx, val in enumerate(df[field]):
             # CRT170/J3: skip absent fields (not_empty is the catcher).
             if _batch_absent(val):  # D6: absent or blank

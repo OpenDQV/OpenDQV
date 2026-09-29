@@ -12,7 +12,7 @@ as a complement to the centralized API validation.
 
 from datetime import datetime, timezone
 from typing import List, Union
-from .rule_parser import Rule
+from .rule_parser import Rule, re2_end_anchor
 
 
 def generate_code(
@@ -321,7 +321,11 @@ def _spark_case_when(rule: dict):
         # push-down keeps the presence half.
         return case(f"{field} IS NULL OR TRIM(CAST({field} AS STRING)) = ''")
     elif rtype == "regex" and rule.get("pattern"):
-        pat = _escape_sql(rule["pattern"])
+        # Java regex: `$` also matches before a final line terminator, and Java's
+        # `\Z` is not absolute either — `\z` is (2.10.4). JS / JS-UDF targets and
+        # JSON Schema are unaffected (ECMAScript `$` is end of input); Apex
+        # Pattern.matches is a whole-value match.
+        pat = _escape_sql(re2_end_anchor(rule["pattern"], end=r"\z"))
         return case(f"NOT regexp_like(CAST({field} AS STRING), '{pat}')")
     elif rtype == "min" and rule.get("min_value") is not None:
         return case(f"CAST({field} AS DOUBLE) < {rule['min_value']}")

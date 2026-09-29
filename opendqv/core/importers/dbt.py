@@ -7,6 +7,7 @@ tests as well as common dbt_utils and dbt_expectations tests.
 
 from __future__ import annotations
 
+from opendqv.core.rule_parser import _BUILTIN_PATTERNS
 import logging
 import re
 from collections import Counter
@@ -369,11 +370,12 @@ def export_dbt_schema(contract_name: str, rules: list, description: str = "") ->
 
             elif r_type == "regex":
                 pattern = _get(rule, "pattern")
-                if not pattern:
-                    # Fall back to compiled pattern string (built-in aliases)
-                    compiled = _get(rule, "compiled_pattern")
-                    if compiled is not None:
-                        pattern = compiled.pattern
+                if pattern:
+                    # The authored pattern, with a built-in alias expanded.
+                    # Never the compiled form: that carries the engine's
+                    # internal `$` → `\Z` rewrite (2.10.4), which must not
+                    # leak into an export.
+                    pattern = _BUILTIN_PATTERNS.get(pattern, pattern)
                 if not pattern:
                     skipped.append({
                         "rule": _get(rule, "name", "?"),
