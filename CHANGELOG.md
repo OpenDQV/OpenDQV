@@ -2,6 +2,18 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [2.10.5] - 2026-09-29
+
+### Docs — bundled-contract examples cite version 0.1
+
+Every bundled contract was reset to 0.1 in 2.10.3, and a caller pinning a 1.x
+version now gets 404, so the example responses in the Salesforce guide, API
+reference, docs index, LLM integration, MCP and webhooks pages show `0.1`
+for bundled contracts instead of the `1.0` / `1.1` / `1.2` that no longer
+exist. Docs only; no engine change.
+
+---
+
 ## [2.10.4] - 2026-09-29
 
 ### Engine — a trailing newline no longer satisfies a pattern ending in `$`
