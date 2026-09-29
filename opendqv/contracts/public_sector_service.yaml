@@ -9,7 +9,7 @@ contract:
   proposed_at: "2026-09-03T00:00:00+00:00"
   approved_by: opendqv-core-team
   approved_at: "2026-09-03T00:00:00+00:00"
-  version: "1.0"
+  version: "0.1"
   description: |-
       OpenDQV Cloud starter template (v0.1) — your tenant inherits this baseline. First customer edit creates v1.0 in your audit trail; pin by yaml_hash for replay.
 
@@ -66,7 +66,7 @@ contract:
       - name: postcode_format
         field: postcode
         type: regex
-        pattern: ^[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}$
+        pattern: ^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$
         severity: error
         error_message: postcode must be a valid UK postcode
       - name: officer_id_required

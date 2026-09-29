@@ -2,6 +2,32 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [Unreleased]
+
+### Library — portable patterns, name rules for every script, every contract at 0.1
+
+**Regex patterns now mean the same in every engine.** `\w`, `\d` and `\s` are
+Unicode-aware in Python's `regex` module and ASCII-only in RE2 and several other
+engines, so one pattern could accept a value in one engine and reject it in
+another. The library now spells classes out: `\d` → `[0-9]`; `\s` → a literal
+space where a space is meant, and the full `[\t\n\f\r ]` set in negated classes
+and free text; `\w` → `[A-Za-z0-9_]`. For users of this engine that means:
+non-ASCII digits (Arabic-Indic, fullwidth …) and non-ASCII spaces (no-break
+space, line separator …) no longer satisfy digit and space positions; a tab,
+newline, carriage return or form feed no longer counts as a space in codes,
+postcodes and phone numbers; and the DSAR email rules now accept a vertical
+tab or no-break space inside an address, as the ASCII engines always did.
+
+**Name rules accept names in any script.** `salesforce_contact`'s
+`first_name_format` / `last_name_format` refused names such as Søren, Łukasz,
+Nguyễn, Иван or 李 in some engines, and O’Brien (curly apostrophe) in all of
+them. They now list what a name may not contain (digits, `_`, symbols and
+control characters, U+0000–U+001F and U+007F–U+009F), so every script, accent,
+combining mark and apostrophe passes, and they are warnings rather than errors.
+
+**Every bundled contract is version 0.1**, including `universal_benchmark` and
+the `examples/contexts/` overlays, matching the upstream library.
+
 ## [2.10.2] - 2026-09-28
 
 ### Library — `salesforce_contact` 1.2: a contact's account is `AccountId`

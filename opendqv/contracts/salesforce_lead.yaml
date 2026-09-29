@@ -9,7 +9,7 @@ contract:
   proposed_at: "2026-09-03T00:00:00+00:00"
   approved_by: opendqv-core-team
   approved_at: "2026-09-03T00:00:00+00:00"
-  version: "1.1"
+  version: "0.1"
   description: |-
       OpenDQV Cloud starter template (v0.1) — your tenant inherits this baseline. First customer edit creates v1.0 in your audit trail; pin by yaml_hash for replay.
 
@@ -41,7 +41,7 @@ contract:
       - name: email_format
         field: Email
         type: regex
-        pattern: ^[\w\.\+\-]+@[\w\.-]+\.[a-zA-Z]{2,}$
+        pattern: ^[A-Za-z0-9_\.\+\-]+@[A-Za-z0-9_\.-]+\.[a-zA-Z]{2,}$
         severity: error
         error_message: Email must be a valid format.
       - name: email_not_personal
@@ -55,7 +55,7 @@ contract:
       - name: phone_format
         field: Phone
         type: regex
-        pattern: ^[\+]?[\d\s\-\(\)\.]{7,20}$
+        pattern: ^[\+]?[0-9 \-\(\)\.]{7,20}$
         severity: warning
         error_message: Phone should be 7-20 digits.
       - name: lead_source_required
@@ -83,7 +83,7 @@ contract:
       - name: website_format
         field: Website
         type: regex
-        pattern: ^https?://[\w\.-]+(\.[a-zA-Z]{2,})(/.*)?$
+        pattern: ^https?://[A-Za-z0-9_\.-]+(\.[a-zA-Z]{2,})(/.*)?$
         severity: warning
         error_message: Website should be a valid URL (e.g. https://company.com).
       - name: annual_revenue_min

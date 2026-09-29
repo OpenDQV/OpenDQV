@@ -9,7 +9,7 @@ contract:
   proposed_at: "2026-09-03T00:00:00+00:00"
   approved_by: opendqv-core-team
   approved_at: "2026-09-03T00:00:00+00:00"
-  version: "1.1"
+  version: "0.1"
   description: |
       OpenDQV Cloud starter template (v0.1) — your tenant inherits this baseline. First customer edit creates v1.0 in your audit trail; pin by yaml_hash for replay.
 
@@ -52,7 +52,7 @@ contract:
         description: Phone must be in E.164 format (international dialling)
         type: regex
         field: phone
-        pattern: ^\+?[1-9]\d{1,14}$
+        pattern: ^\+?[1-9][0-9]{1,14}$
         severity: error
         error_message: Invalid phone number format — expected E.164 (e.g. +447911123456)
       - name: dob_not_empty
@@ -100,7 +100,7 @@ contract:
         description: Postcode must not be empty and must match the UK postcode format
         type: regex
         field: postcode
-        pattern: ^[A-Z]{1,2}[0-9][0-9A-Z]?\s?[0-9][A-Z]{2}$
+        pattern: ^[A-Z]{1,2}[0-9][0-9A-Z]? ?[0-9][A-Z]{2}$
         severity: error
         error_message: Invalid UK postcode format (e.g. SW1A 1AA)
       - name: ni_number_required
