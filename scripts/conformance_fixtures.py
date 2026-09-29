@@ -143,6 +143,33 @@ def counterpart_probes(contract) -> list[dict]:
     return out
 
 
+def trailing_newline_probes(contract) -> list[dict]:
+    """One row per contract, when it has one: the first clean record with a
+    trailing "\n" appended to the value of the first `$`-anchored, non-negated
+    regex rule. `$` is the end of the value on both engines (2.10.4) — Python's
+    `$` used to accept the newline, RE2 never did — so the row must fail."""
+    from opendqv.core.rule_parser import _BUILTIN_PATTERNS
+    clean = CLEAN_ROWS.get(contract.name) or []
+    if not clean:
+        return []
+    candidates = []
+    for r in contract.rules:
+        if r.type != "regex" or r.negate or not r.pattern or not r.field:
+            continue
+        expanded = _BUILTIN_PATTERNS.get(r.pattern, r.pattern)
+        if not expanded.endswith("$") or expanded.endswith("\\$"):
+            continue
+        base = dict(clean[0])
+        if not isinstance(base.get(r.field), str) or not base[r.field]:
+            continue
+        candidates.append((0 if r.severity.value == "error" else 1, r))
+    if not candidates:
+        return []
+    r = sorted(candidates, key=lambda t: t[0])[0][1]     # an error-severity rule when there is one
+    base = dict(clean[0])
+    return [{"__rule__": r.cached_error_code, **base, r.field: base[r.field] + "\n"}]
+
+
 def _entries(items: list[dict]) -> list[dict]:
     return sorted(
         ({"code": e["error_code"], "severity": e["severity"], "message": e["message"]} for e in items),
@@ -185,6 +212,12 @@ def build(contract, rules) -> list[dict]:
         lines.append({"kind": "blank_probe", "record": rec, "expect": expectation(contract, rules, rec)})
     for rec in counterpart_probes(contract):
         lines.append({"kind": "counterpart_probe", "record": rec, "expect": expectation(contract, rules, rec)})
+    for rec in trailing_newline_probes(contract):
+        code = rec.pop("__rule__")
+        exp = expectation(contract, rules, rec)
+        if code not in {e["code"] for e in exp["errors"] + exp["warnings"]}:
+            raise SystemExit(f"{contract.name}: a trailing newline satisfied the `$`-anchored pattern of {code} — the end-anchor rewrite is not in effect: {rec!r}")
+        lines.append({"kind": "trailing_newline_probe", "record": rec, "expect": exp})
     return lines
 
 

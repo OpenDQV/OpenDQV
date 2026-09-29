@@ -2,6 +2,30 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [Unreleased]
+
+### Engine — a trailing newline no longer satisfies a pattern ending in `$`
+
+A regex rule is an unanchored search in both engines, but Python's `$`
+(without MULTILINE) also matches just before a final `"\n"`, while the RE2
+reference reading of `$` is the end of the value only — so `^[0-9]{13}$`
+accepted `"1234567890123\n"` here and rejected it everywhere else. Core now
+rewrites `$` to `\Z` when it **compiles** a rule's pattern
+(`re2_end_anchor` / `compile_rule_pattern` in `opendqv.core.rule_parser`; all
+three compile sites route through it, and the batch fallback now expands
+built-in aliases first, as the single path always did). A backslash-escaped
+`\$`, a `$` inside a character class, and any pattern that turns MULTILINE on
+with an inline flag are left alone. The rewritten form is internal only:
+`rule.pattern`, library digests, contract serialisation, the explainer, JSON
+Schema, MCP and every exporter keep the authored string, and the dbt exporter
+no longer reads the compiled form. The Spark push-down emits `\z` (Java's
+absolute end) for the same reason; JS targets and JSON Schema are unaffected.
+A `trailing_newline_probe` row now joins the conformance corpus wherever a
+contract has a `$`-anchored pattern, so every engine that replays the corpus
+is held to the same reading.
+
+---
+
 ## [2.10.3] - 2026-09-29
 
 ### Library — portable patterns, name rules for every script, every contract at 0.1

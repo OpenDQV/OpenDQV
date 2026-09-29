@@ -84,6 +84,88 @@ from enum import Enum
 logger = logging.getLogger(__name__)
 
 
+# ── `$` means end of value (2.10.4) ─────────────────────────────────────────
+# A regex rule is an unanchored search in both engines, but Python's `$`
+# (without MULTILINE) also matches just before a final "\n", while the RE2
+# reference reading of `$` is the end of the value only. So `^[0-9]{13}$`
+# accepted "1234567890123\n" here and was rejected everywhere else. Core
+# rewrites `$` to `\Z` when it COMPILES a pattern; the authored string is
+# never changed — rule.pattern, digests, serialisation, explainer, JSON
+# Schema, MCP and every exporter keep it.
+_INLINE_FLAG_GROUP_RE = re.compile(r"\(\?([A-Za-z0-9]*)(-[A-Za-z]*)?[):]")
+
+
+def re2_end_anchor(pattern: str, end: str = r"\Z") -> str:
+    r"""Rewrite every end-of-line `$` in ``pattern`` to ``end`` (default ``\Z``,
+    absolute end of value) in one left-to-right scan.
+
+    Unchanged when the pattern has no `$`, or when any inline flag group turns
+    MULTILINE on anywhere — a group of the form ``(?flags)`` / ``(?flags:`` /
+    ``(?flags-flags)`` whose ON-flags contain ``m`` (``(?m)``, ``(?im)``,
+    ``(?m-i)``, ``(?m:...)``; ``(?i-m)`` does not count). A backslash copies
+    itself and the next character (``\$`` stays ``\$``; ``\\$`` becomes
+    ``\\`` followed by ``end``). ``[`` opens a character class: a leading
+    ``^`` and then a leading ``]`` are literal, ``[:name:]`` blocks are copied
+    whole, the next ``]`` closes it, and nothing inside is rewritten. No special
+    handling for ``(?x)`` or ``\Q...\E``.
+    """
+    if "$" not in pattern:
+        return pattern
+    for m in _INLINE_FLAG_GROUP_RE.finditer(pattern):
+        if "m" in m.group(1):
+            return pattern
+    out: list[str] = []
+    i, n = 0, len(pattern)
+    while i < n:
+        c = pattern[i]
+        if c == "\\":
+            out.append(pattern[i:i + 2])
+            i += 2
+            continue
+        if c == "[":
+            out.append(c)
+            i += 1
+            if i < n and pattern[i] == "^":
+                out.append("^")
+                i += 1
+            if i < n and pattern[i] == "]":
+                out.append("]")
+                i += 1
+            while i < n:
+                if pattern[i] == "\\":
+                    out.append(pattern[i:i + 2])
+                    i += 2
+                    continue
+                if pattern.startswith("[:", i):
+                    j = pattern.find(":]", i + 2)
+                    if j != -1:
+                        out.append(pattern[i:j + 2])
+                        i = j + 2
+                        continue
+                if pattern[i] == "]":
+                    out.append("]")
+                    i += 1
+                    break
+                out.append(pattern[i])
+                i += 1
+            continue
+        if c == "$":
+            out.append(end)
+            i += 1
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def compile_rule_pattern(expanded: str):
+    r"""Compile an (alias-expanded) rule pattern for the engine: `$` rewritten
+    to `\Z`, with the `regex` module when available (per-match timeout, SEC-001),
+    otherwise `re`. The one compile path for all three sites."""
+    rewritten = re2_end_anchor(expanded)
+    return _regex_lib.compile(rewritten) if _HAS_REGEX_LIB else re.compile(rewritten)
+
+
 _BUILTIN_PATTERNS = {
     "builtin:semver": r"^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([\w.-]+))?(?:\+([\w.-]+))?$",
     "builtin:ipv4": r"^((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?)$",
@@ -327,9 +409,7 @@ class Rule(BaseModel):
                 )
             else:
                 expanded = _BUILTIN_PATTERNS.get(self.pattern, self.pattern)
-                self.compiled_pattern = (
-                    _regex_lib.compile(expanded) if _HAS_REGEX_LIB else re.compile(expanded)
-                )
+                self.compiled_pattern = compile_rule_pattern(expanded)
         if self.type == "allowed_values" and not self.allowed_values:
             logger.warning(
                 "Rule '%s' (type=allowed_values) has no allowed_values list — it will skip validation. "
