@@ -93,7 +93,7 @@ Response:
   "errors": [],
   "warnings": [],
   "contract": "customer",
-  "version": "1.1",
+  "version": "0.1",
   "owner": "Data Governance",
   "engine_version": "<engine-version>",
   "contract_hash": "…",

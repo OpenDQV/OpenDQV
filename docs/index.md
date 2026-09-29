@@ -182,7 +182,7 @@ transitions from `REVIEW` to `ACTIVE` under the maker-checker workflow:
 ```
 GET /api/v1/contracts/{name}/history
 → [{
-    "version": "1.1",
+    "version": "0.1",
     "status": "active",
     "approved_by": "jane.doe@example.com",
     "entry_hash": "a3f...",

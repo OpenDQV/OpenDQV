@@ -463,7 +463,7 @@ Every validation response has the same shape:
   ],
   "warnings": [],
   "contract": "banking_transaction",
-  "version": "1.2",
+  "version": "0.1",
   "owner": "...",
   "engine_version": "<engine-version>",
   "contract_hash": "632d10cc…",
@@ -495,7 +495,7 @@ When calling `validate_record` or `validate_batch` through the MCP server (Claud
   "errors": [],
   "warnings": [],
   "contract": "banking_transaction",
-  "version": "1.2",
+  "version": "0.1",
   "effective_rule_hash": "f6aa2752…",
   "governance_tip": "Empty required fields cause silent NULL propagation into analytics — catching them at ingestion is 10× cheaper than tracing them downstream.",
   "draft_notice": "This contract is in DRAFT. Validate freely here, but activate it before relying on results in production."

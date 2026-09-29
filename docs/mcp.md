@@ -181,7 +181,7 @@ Tool: list_contracts()
 ```
 ```json
 [
-  { "name": "social_media_age_compliance", "version": "1.0", "status": "active", "rule_count": 14,
+  { "name": "social_media_age_compliance", "version": "0.1", "status": "active", "rule_count": 14,
     "description": "..." },
   ...
 ]
@@ -210,7 +210,7 @@ Tool: validate_record(
       "severity": "warning", "error_code": "OPENDQV_LOOKUP_VERIFIED_IDENTITY_ADVISORY" }
   ],
   "contract": "social_media_age_compliance",
-  "version": "1.0",
+  "version": "0.1",
   "effective_rule_hash": "9ef29a7c…",
   "governance_tip": "Out-of-range values often signal upstream bugs; catching them early avoids expensive data recalls."
 }
@@ -253,7 +253,7 @@ Tool: validate_record(
 )
 ```
 ```json
-{ "valid": true, "errors": [], "warnings": [], "contract": "social_media_age_compliance", "version": "1.0",
+{ "valid": true, "errors": [], "warnings": [], "contract": "social_media_age_compliance", "version": "0.1",
   "effective_rule_hash": "9ef29a7c…", "governance_tip": "..." }
 ```
 
@@ -286,7 +286,7 @@ Tool: create_contract_draft(
 {
   "created": true,
   "name": "MCP_my_app_users",
-  "version": "1.0",
+  "version": "0.1",
   "status": "draft",
   "source": "mcp",
   "proposed_by": "engineer@example.com",
@@ -313,7 +313,7 @@ Tool: validate_record(
   ],
   "warnings": [],
   "contract": "MCP_my_app_users",
-  "version": "1.0",
+  "version": "0.1",
   "effective_rule_hash": "7d425a72…",
   "draft_notice": "This contract is in DRAFT. Validate freely here, but activate it before relying on results in production.",
   "governance_tip": "Format rules stop malformed data from corrupting partner APIs and export pipelines."
