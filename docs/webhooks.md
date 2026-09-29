@@ -79,7 +79,7 @@ All webhook events are delivered as HTTP POST with `Content-Type: application/js
 {
   "event": "opendqv.validation.failed",
   "contract": "customer",
-  "version": "1.0",
+  "version": "0.1",
   "valid": false,
   "errors": [
     {
@@ -100,7 +100,7 @@ All webhook events are delivered as HTTP POST with `Content-Type: application/js
 {
   "event": "opendqv.batch.failed",
   "contract": "banking_transaction",
-  "version": "1.0",
+  "version": "0.1",
   "summary": {
     "total": 100,
     "passed": 97,

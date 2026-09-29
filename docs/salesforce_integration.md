@@ -22,7 +22,7 @@ before the record is created, and an after-save audit that validates every recor
 
 ### 1. Use the built-in salesforce_contact contract
 
-OpenDQV ships `opendqv/contracts/salesforce_contact.yaml` (v1.1, 19 production-grade validation rules) out of the box — no setup required. The bundled contract carries no `contexts:` block; the worked context example below is `examples/contexts/salesforce_contact.yaml`, which you can copy over the bundled file (or into your own contracts directory) to enable `salesforce_prod` / `salesforce_sandbox`. To write your own:
+OpenDQV ships `opendqv/contracts/salesforce_contact.yaml` (v0.1, 19 production-grade validation rules) out of the box — no setup required. The bundled contract carries no `contexts:` block; the worked context example below is `examples/contexts/salesforce_contact.yaml`, which you can copy over the bundled file (or into your own contracts directory) to enable `salesforce_prod` / `salesforce_sandbox`. To write your own:
 
 ```yaml
 contract:
@@ -101,7 +101,7 @@ Response (blocked — contact is under 18; abridged, the envelope also carries `
   ],
   "warnings": [{"field": "MailingStreet", "rule": "mailing_street_required", "message": "MailingStreet is recommended for contacts.", "severity": "warning", "error_code": "OPENDQV_NOT_EMPTY_MAILING_STREET_REQUIRED", "suggested_fix": "Provide a non-empty value.", "counterpart_missing": null}],
   "contract": "salesforce_contact",
-  "version": "1.1",
+  "version": "0.1",
   "engine_version": "<engine-version>"
 }
 ```
