@@ -9,7 +9,7 @@ contract:
   proposed_at: "2026-09-03T00:00:00+00:00"
   approved_by: opendqv-core-team
   approved_at: "2026-09-03T00:00:00+00:00"
-  version: "1.1"
+  version: "0.1"
   description: |
       OpenDQV Cloud starter template (v0.1) — your tenant inherits this baseline. First customer edit creates v1.0 in your audit trail; pin by yaml_hash for replay.
 
@@ -36,7 +36,7 @@ contract:
       - name: requester_email_format
         field: requester_email
         type: regex
-        pattern: ^[^@\s]+@[^@\s]+\.[^@\s]+$
+        pattern: ^[^@\t\n\f\r ]+@[^@\t\n\f\r ]+\.[^@\t\n\f\r ]+$
         severity: error
         error_message: requester_email must be a valid email address format
       - name: receipt_date_required

@@ -9,7 +9,7 @@ contract:
   proposed_at: "2026-04-27T00:00:00+00:00"
   approved_by: opendqv-core-team
   approved_at: "2026-04-27T00:00:00+00:00"
-  version: "1.0"
+  version: "0.1"
   description: "Universal benchmark contract — all core rule types, used for performance baseline"
   owner: "OpenDQV Internal"
   owner_email: opendqv@bgmsconsultants.com

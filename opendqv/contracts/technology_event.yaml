@@ -9,7 +9,7 @@ contract:
   proposed_at: "2026-09-03T00:00:00+00:00"
   approved_by: opendqv-core-team
   approved_at: "2026-09-03T00:00:00+00:00"
-  version: "1.1"
+  version: "0.1"
   description: |
       OpenDQV Cloud starter template (v0.1) — your tenant inherits this baseline. First customer edit creates v1.0 in your audit trail; pin by yaml_hash for replay.
 
@@ -125,6 +125,6 @@ contract:
         description: Semantic versioning format (MAJOR.MINOR.PATCH). Unversioned SDK telemetry prevents identification of instrumentation bugs introduced in specific releases and blocks correlation of data quality issues with SDK deployment timelines.
         field: sdk_version
         type: regex
-        pattern: ^\d+\.\d+\.\d+(-[a-zA-Z0-9._-]+)?(\+[a-zA-Z0-9._-]+)?$
+        pattern: ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?(\+[a-zA-Z0-9._-]+)?$
         severity: warning
         error_message: sdk_version should follow semantic versioning format (e.g. 2.4.1, 3.0.0-beta.1) — unversioned telemetry prevents instrumentation bug correlation

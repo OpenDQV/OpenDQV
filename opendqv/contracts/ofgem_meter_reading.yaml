@@ -9,7 +9,7 @@ contract:
   proposed_at: "2026-09-03T00:00:00+00:00"
   approved_by: opendqv-core-team
   approved_at: "2026-09-03T00:00:00+00:00"
-  version: "1.1"
+  version: "0.1"
   description: |
       OpenDQV Cloud starter template (v0.1) — your tenant inherits this baseline. First customer edit creates v1.0 in your audit trail; pin by yaml_hash for replay.
 
@@ -27,14 +27,14 @@ contract:
         description: "MPAN (Meter Point Administration Number) — the 13-digit unique identifier for electricity supply points in Great Britain, assigned by the Distribution Network Operator (DNO). The first 2 digits are the profile class; digits 3-5 are the meter time switch code; digits 6-8 are the line loss factor class; digits 9-21 are the core MPAN. An invalid MPAN causes rejection in the ECOES (Electricity Central Online Enquiry System) and DCC (Data Communications Company) smart metering infrastructure."
         field: mpan
         type: regex
-        pattern: '^\d{13}$'
+        pattern: ^[0-9]{13}$
         severity: warning
         error_message: "mpan must be a 13-digit MPAN (Meter Point Administration Number). e.g. 1012345678900 — invalid MPANs are rejected by ECOES and DCC smart metering systems"
       - name: mprn_format
         description: "MPRN (Meter Point Reference Number) — the 6-10 digit unique identifier for gas supply points in Great Britain, assigned by the gas transporter. Used in Xoserve (UK Link) gas industry data flows and SMART DCC gas metering registration. An invalid MPRN causes gas supply point registration failure."
         field: mprn
         type: regex
-        pattern: '^\d{6,10}$'
+        pattern: ^[0-9]{6,10}$
         severity: warning
         error_message: "mprn must be a 6-10 digit MPRN (Meter Point Reference Number) — invalid MPRNs cause Xoserve/UK Link gas data flow rejection"
       - name: reading_date_required

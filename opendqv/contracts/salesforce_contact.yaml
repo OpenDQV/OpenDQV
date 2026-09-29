@@ -9,7 +9,7 @@ contract:
   proposed_at: "2026-09-03T00:00:00+00:00"
   approved_by: opendqv-core-team
   approved_at: "2026-09-03T00:00:00+00:00"
-  version: "1.2"
+  version: "0.1"
   description: |-
       OpenDQV Cloud starter template (v0.1) — your tenant inherits this baseline. First customer edit creates v1.0 in your audit trail; pin by yaml_hash for replay.
 
@@ -31,15 +31,15 @@ contract:
       - name: first_name_format
         field: FirstName
         type: regex
-        pattern: ^[\w\s\-'.àáâãäåæçèéêëìíîïðñòóôõöùúûüýþÿÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖÙÚÛÜÝÞ]{1,40}$
-        severity: error
-        error_message: 'FirstName must be 1-40 characters: letters, accented chars, spaces, hyphens, apostrophes.'
+        pattern: '^[^0-9_@#$%^&*()+=<>?/\\|{}\[\]~!;:",\x00-\x1f\x7f-\x9f]{1,40}$'
+        severity: warning
+        error_message: 'FirstName should be 1-40 characters, with no digits, underscores or symbols.'
       - name: last_name_format
         field: LastName
         type: regex
-        pattern: ^[\w\s\-'.àáâãäåæçèéêëìíîïðñòóôõöùúûüýþÿÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖÙÚÛÜÝÞ]{1,80}$
-        severity: error
-        error_message: 'LastName must be 1-80 characters: letters, accented chars, spaces, hyphens, apostrophes.'
+        pattern: '^[^0-9_@#$%^&*()+=<>?/\\|{}\[\]~!;:",\x00-\x1f\x7f-\x9f]{1,80}$'
+        severity: warning
+        error_message: 'LastName should be 1-80 characters, with no digits, underscores or symbols.'
       - name: email_required
         field: Email
         type: not_empty
@@ -48,19 +48,19 @@ contract:
       - name: email_format
         field: Email
         type: regex
-        pattern: ^[\w\.\+\-]+@[\w\.-]+\.[a-zA-Z]{2,}$
+        pattern: ^[A-Za-z0-9_\.\+\-]+@[A-Za-z0-9_\.-]+\.[a-zA-Z]{2,}$
         severity: error
         error_message: Email must be a valid format (e.g. user@company.com).
       - name: phone_format
         field: Phone
         type: regex
-        pattern: ^[\+]?[\d\s\-\(\)\.]{7,20}$
+        pattern: ^[\+]?[0-9 \-\(\)\.]{7,20}$
         severity: warning
         error_message: Phone should be 7-20 digits with optional +, spaces, hyphens, parens.
       - name: mobile_format
         field: MobilePhone
         type: regex
-        pattern: ^[\+]?[\d\s\-\(\)\.]{7,20}$
+        pattern: ^[\+]?[0-9 \-\(\)\.]{7,20}$
         severity: warning
         error_message: MobilePhone should be 7-20 digits.
       - name: mailing_street_required
@@ -76,13 +76,13 @@ contract:
       - name: mailing_state_format
         field: MailingState
         type: regex
-        pattern: ^[A-Za-z\s]{2,50}$
+        pattern: ^[A-Za-z ]{2,50}$
         severity: warning
         error_message: MailingState should be a valid state/province name or abbreviation.
       - name: mailing_zip_format
         field: MailingPostalCode
         type: regex
-        pattern: ^[A-Za-z0-9\s\-]{3,10}$
+        pattern: ^[A-Za-z0-9 \-]{3,10}$
         severity: warning
         error_message: MailingPostalCode should be a valid postal/zip code.
       - name: mailing_country_not_empty
