@@ -2,7 +2,7 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [Unreleased]
+## [2.10.4] - 2026-09-29
 
 ### Engine — a trailing newline no longer satisfies a pattern ending in `$`
 
