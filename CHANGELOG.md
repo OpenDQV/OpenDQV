@@ -2,7 +2,7 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [Unreleased]
+## [2.10.3] - 2026-09-29
 
 ### Library — portable patterns, name rules for every script, every contract at 0.1
 
@@ -27,6 +27,8 @@ combining mark and apostrophe passes, and they are warnings rather than errors.
 
 **Every bundled contract is version 0.1**, including `universal_benchmark` and
 the `examples/contexts/` overlays, matching the upstream library.
+
+---
 
 ## [2.10.2] - 2026-09-28
 
