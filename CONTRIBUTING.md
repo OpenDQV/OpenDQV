@@ -70,8 +70,8 @@ pytest tests/ --cov=opendqv/core --cov=opendqv/api --cov=opendqv/sdk --cov=opend
 | File | What it tests |
 |------|---------------|
 | `test_core.py` | Rule parser, single-record validator, batch validator (all rule types) |
-| `test_contracts.py` | Contract registry, context overrides, reload |
-| `test_api.py` | REST endpoints, auth, context override via API |
+| `test_contracts.py` | Contract registry, YAML loading, reload |
+| `test_api.py` | REST endpoints, auth |
 | `test_graphql.py` | GraphQL queries and mutations |
 | `test_lifecycle.py` | Draft blocking, status changes, deprecated filtering |
 | `test_sdk.py` | SDK client, guard decorator, record extraction |
@@ -139,7 +139,7 @@ All three parts must pass before the `ALL SMOKE TESTS PASSED` line appears.
 
 - **Rule types** are strings (`regex`, `min`, `max`, `range`, `not_empty`, etc.) -- not classes. This keeps YAML simple.
 - **Severity** is either `error` (blocks) or `warning` (flags but allows).
-- **Contexts** are per-field overrides in contracts, merged at validation time by `ContractRegistry.get_rules_with_context()`.
+- **Contract YAML is flat** -- `name`, `version`, `rules` and every other contract key are top-level. Since 3.0.0 the loader refuses a top-level `contract:` wrapper (`contract_envelope_unsupported`) and a `contexts:` block (`contract_contexts_unsupported`); a variant is its own contract. `context` on a validate request is a tag for stats, the audit event and metrics, and never changes which rules run.
 - **Single-record validation** is pure Python (no DuckDB). **Batch validation** uses DuckDB for performance.
 - **Code generation** outputs platform-specific code (Apex/JS/Snowflake) from the same rules.
 
@@ -340,7 +340,7 @@ For contributors working on the core:
 - **`opendqv/main.py`** -- FastAPI app initialization, wires together router + GraphQL + metrics
 - **`opendqv/api/routes.py`** -- REST endpoint entry point. Routes are decomposed into domain-specific modules (`routes_validation.py`, `routes_contracts.py`, `routes_imports.py`, etc.) under `opendqv/api/`; `routes.py` wires them together. Uses `registry` (set at startup) for contract access.
 - **`opendqv/core/validator.py`** -- Two paths: `validate_record()` (pure Python, fast) and `validate_batch()` (DuckDB, high throughput). Both return the same result structure.
-- **`opendqv/core/contracts.py`** -- `ContractRegistry` loads YAML, caches in memory, handles context merging. Supports three YAML formats (contract, legacy, onboarding).
+- **`opendqv/core/contracts.py`** -- `ContractRegistry` loads YAML and caches in memory. Supports two YAML shapes: the flat contract document (`rules` a list) and the field-keyed onboarding format (`rules` a mapping).
 - **`opendqv/security/auth.py`** -- JWT tokens stored in SQLite. `get_current_user()` is a FastAPI dependency that checks auth mode.
 - **`opendqv/monitoring.py`** -- Prometheus metrics via middleware + `ValidationStats` for the dashboard.
 

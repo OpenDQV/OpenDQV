@@ -27,7 +27,7 @@ Short visual walkthroughs of OpenDQV in action across the integrations it suppor
 
 - **Data Contracts** — Versioned YAML definitions of validation criteria for business entities
 - **Severity** — Rules can block (`error`) or flag (`warning`)
-- **Contexts** — Override rules per source system or region (e.g. billing vs. operations)
+- **One contract per variant** — a stricter rule set for one source system or region is its own contract with its own version history (context overrides were removed in 3.0.0 — [contexts.md](contexts.md))
 - **Ephemeral validation** — Record values are never stored or logged. Each validation request is independent. Metadata (tokens, contracts, audit history) is persisted in SQLite.
 - **Maker-Checker** — Contract changes require approver/admin role; enforced in `token` auth mode
 
@@ -110,6 +110,10 @@ seconds (default 300). Mount local files via Docker volume for production use.
 
 ## Contract Fields
 
+Every field is a top-level key of a flat YAML document. Since 3.0.0 a top-level
+`contract:` wrapper and a `contexts:` block are refused at load — see
+[contexts.md](contexts.md).
+
 | Field | Required | Description |
 |-------|----------|-------------|
 | `name` | yes | Unique contract identifier |
@@ -122,7 +126,6 @@ seconds (default 300). Mount local files via Docker volume for production use.
 | `downstream_consumers` | no | List of Marmot MRNs for downstream consumers of this asset (e.g. dashboards, dbt models). `push_quality_lineage.py` stitches direct lineage edges to each consumer automatically. Target MRNs must exist in Marmot. |
 | `catalog_visible` | no | Boolean, default `true`. Set to `false` to exclude this contract from `push_quality_lineage.py` pushes and from Marmot `discover_data` responses via the proxy filter. |
 | `rules` | yes | List of validation rules |
-| `contexts` | no | Per-source-system or per-region rule overrides. No bundled contract declares one; the worked example is `examples/contexts/customer.yaml` |
 
 ### `asset_id` — Catalog Linkage
 
@@ -130,11 +133,10 @@ The optional `asset_id` field links a contract to your data catalog. It is free-
 and follows the convention of your catalog:
 
 ```yaml
-contract:
-  name: customer
-  asset_id: "urn:opendqv:customer"          # simple URN
-  # asset_id: "ref:dbt::project.customer"  # dbt model ref
-  # asset_id: "urn:li:dataset:(urn:li:dataPlatform:snowflake,db.schema.customer,PROD)"  # DataHub
+name: customer
+asset_id: "urn:opendqv:customer"          # simple URN
+# asset_id: "ref:dbt::project.customer"  # dbt model ref
+# asset_id: "urn:li:dataset:(urn:li:dataPlatform:snowflake,db.schema.customer,PROD)"  # DataHub
 ```
 
 `asset_id` is returned in `GET /api/v1/contracts` and `GET /api/v1/contracts/{name}`.
@@ -283,7 +285,7 @@ OpenDQV Core is the source-layer anchor of the modern data quality stack — des
 | [Data Profiler](profiler.md) | Auto-generate a contract from a sample of records |
 | [Webhooks](webhooks.md) | Push validation events to external services |
 | [Roadmap](roadmap.md) | Planned integrations and features based on community demand |
-| [Contexts](contexts.md) | Per-source-system rule overrides; multi-tenant SaaS patterns; regional compliance |
+| [Contexts (removed in 3.0.0)](contexts.md) | Why per-context rule overrides were removed; migrating to one contract per context |
 | [Federation](federation.md) | Multi-node contract synchronisation; 2PC event flow; isolation handling |
 | [Custom Rules](custom_rules.md) | Add domain-specific rule types in 3 steps |
 

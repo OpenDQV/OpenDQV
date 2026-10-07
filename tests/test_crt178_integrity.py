@@ -208,10 +208,10 @@ class TestReviewStateFrozen:
 
 def _write_version_file(d: Path, name: str, version: str, status: str) -> Path:
     p = d / f"{name}_v{version}.yaml"
-    p.write_text(yaml.safe_dump({"contract": {
+    p.write_text(yaml.safe_dump({
         "name": name, "version": version, "status": status, "description": "d", "owner": "o",
         "rules": [{"name": f"r{version.replace('.', '_')}", "type": "not_empty", "field": "f", "error_message": "m"}],
-    }}, sort_keys=False), encoding="utf-8")
+    }, sort_keys=False), encoding="utf-8")
     return p
 
 
@@ -234,7 +234,7 @@ class TestCrossVersionWriteBack:
         reg.submit_for_review("t", "2.0", "alice")
         reg.approve_contract("t", "2.0", "bob")
         assert v1.read_bytes() == v1_before                       # forgery vector closed
-        on_disk = yaml.safe_load(v2.read_text(encoding="utf-8"))["contract"]
+        on_disk = yaml.safe_load(v2.read_text(encoding="utf-8"))
         assert on_disk["status"] == "active" and on_disk["approved_by"] == "bob"
 
     def test_demoting_v1_never_touches_v2_file(self, two_files):
@@ -242,14 +242,14 @@ class TestCrossVersionWriteBack:
         v2_before = v2.read_bytes()
         reg.set_status("t", "1.0", ContractStatus.DRAFT)
         assert v2.read_bytes() == v2_before
-        assert yaml.safe_load(v1.read_text(encoding="utf-8"))["contract"]["status"] == "draft"
+        assert yaml.safe_load(v1.read_text(encoding="utf-8"))["status"] == "draft"
 
     def test_rule_mutation_writes_only_the_matching_file(self, two_files):
         reg, v1, v2 = two_files
         v1_before = v1.read_bytes()
         reg.add_rule("t", RULE)                                  # latest = 2.0 (draft)
         assert v1.read_bytes() == v1_before
-        names = [r["name"] for r in yaml.safe_load(v2.read_text(encoding="utf-8"))["contract"]["rules"]]
+        names = [r["name"] for r in yaml.safe_load(v2.read_text(encoding="utf-8"))["rules"]]
         assert names == ["r2_0", "extra"]
 
     def test_draft_patch_counter_rekeys_and_keeps_writing(self, two_files):
@@ -259,7 +259,7 @@ class TestCrossVersionWriteBack:
         assert reg._contract_paths["t"] == {"1.0": v1, "2.0-draft.1": v2}
         c = reg.add_rule("t", {**RULE, "name": "extra2"})        # -> 2.0-draft.2 via re-keyed index
         assert c.version == "2.0-draft.2"
-        assert yaml.safe_load(v2.read_text(encoding="utf-8"))["contract"]["version"] == "2.0-draft.2"
+        assert yaml.safe_load(v2.read_text(encoding="utf-8"))["version"] == "2.0-draft.2"
 
     def test_ambiguous_target_refuses_and_writes_nothing(self, two_files, tmp_path):
         reg, v1, v2 = two_files
@@ -288,7 +288,7 @@ def _customer_v(*_ignored) -> str:
     """The bundled customer contract's version as shipped — read from the file,
     not the registry, so it is stable across create_version calls. The library
     is mirrored from the golden copy and bumps on content change (2.7.0)."""
-    return str(yaml.safe_load((BUNDLED / "customer.yaml").read_text(encoding="utf-8"))["contract"]["version"])
+    return str(yaml.safe_load((BUNDLED / "customer.yaml").read_text(encoding="utf-8"))["version"])
 
 
 class TestCreateVersion:
@@ -307,7 +307,7 @@ class TestCreateVersion:
         base.approved_by, base.approved_at, base.proposed_by = "bob", "2026-01-01T00:00:00+00:00", "alice"
         new = reg.create_version("customer", _customer_v(), "2.0")
         assert new.approved_by is None and new.approved_at is None and new.proposed_by is None
-        on_disk = yaml.safe_load((reg.contracts_dir / "customer_v2.0.yaml").read_text(encoding="utf-8"))["contract"]
+        on_disk = yaml.safe_load((reg.contracts_dir / "customer_v2.0.yaml").read_text(encoding="utf-8"))
         assert on_disk["status"] == "draft" and "approved_by" not in on_disk
 
     def test_persisted_and_survives_reload_with_both_versions(self, reg):
@@ -319,11 +319,11 @@ class TestCreateVersion:
         assert reg._contract_paths["customer"]["2.0"].name == "customer_v2.0.yaml"
 
     def test_lossless_copy_of_base_file(self, reg):
-        base_raw = yaml.safe_load((reg.contracts_dir / "customer.yaml").read_text(encoding="utf-8"))["contract"]
+        base_raw = yaml.safe_load((reg.contracts_dir / "customer.yaml").read_text(encoding="utf-8"))
         reg.create_version("customer", _customer_v(), "2.0")
-        new_raw = yaml.safe_load((reg.contracts_dir / "customer_v2.0.yaml").read_text(encoding="utf-8"))["contract"]
+        new_raw = yaml.safe_load((reg.contracts_dir / "customer_v2.0.yaml").read_text(encoding="utf-8"))
         assert new_raw["rules"] == base_raw["rules"]
-        assert new_raw.get("contexts") == base_raw.get("contexts")
+        assert "contexts" not in new_raw and "contract" not in new_raw   # 3.0.0: flat, no contexts
 
     @pytest.mark.parametrize("bad", ["__base__", "../x", "a/b", "", "x" * 51])
     def test_rejects_duplicate_and_unsafe_versions(self, reg, tmp_path, bad):
@@ -356,7 +356,7 @@ class TestCreateVersion:
 
 class TestLibraryCorrections:
     def _rules(self, name):
-        c = yaml.safe_load((BUNDLED / f"{name}.yaml").read_text(encoding="utf-8"))["contract"]
+        c = yaml.safe_load((BUNDLED / f"{name}.yaml").read_text(encoding="utf-8"))
         return c, [Rule(**r) for r in c["rules"]]
 
     def test_140_lei_literal_agrees_across_condition_taxonomy_and_sample(self):

@@ -404,17 +404,16 @@ default/{connection_name}/{database}/{schema}/{table}
 ### Contract YAML snippet
 
 ```yaml
-contract:
-  name: customer
-  asset_id: "default/snowflake-prod/analytics/public/customers"
-  version: "1.0"
-  owner: "data-governance"
-  owner_team: "governance"
-  owner_email: "governance@example.com"
-  rules:
-    - name: customer_id_not_null
-      type: not_empty
-      field: customer_id
+name: customer
+asset_id: "default/snowflake-prod/analytics/public/customers"
+version: "1.0"
+owner: "data-governance"
+owner_team: "governance"
+owner_email: "governance@example.com"
+rules:
+  - name: customer_id_not_null
+    type: not_empty
+    field: customer_id
 ```
 
 > **Tip:** The easiest way to find the correct `qualifiedName` is to open the asset in the Atlan UI, click **More > Copy qualifiedName** from the asset detail panel. Paste the value directly into `asset_id`.

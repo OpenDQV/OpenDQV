@@ -56,8 +56,8 @@ and hold identically on the single-record and batch paths:
   pattern is what every export and digest sees.
 - **Unknown rule keys are refused at load (2.9.0).** A key the engine does not
   read (`date_diff_feild`, `banana`) is a load error naming the rule, the key
-  and the nearest known key; likewise an unknown key in the `contract:` block
-  or at the top of the document. `opendqv lint`: `UNKNOWN_RULE_KEY`,
+  and the nearest known key; likewise an unknown key at the top of the
+  (flat, 3.0.0) contract document. `opendqv lint`: `UNKNOWN_RULE_KEY`,
   `UNKNOWN_CONTRACT_KEY`. The values of `condition`, `required_if`,
   `forbidden_if` and `provenance` are the author's maps and are not walked.
 - **Unknown rule types are refused at load (2.8.0).** `Rule()` raises with the

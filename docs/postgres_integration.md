@@ -28,11 +28,10 @@ OpenDQV validates records before they reach Postgres. The pattern is simple: val
 Use the fully-qualified Postgres object path as `asset_id`:
 
 ```yaml
-contract:
-  name: customer
-  version: "1.0"
-  asset_id: "postgres://prod-db.internal/analytics/public/customers"
-  #          postgres://{host}/{database}/{schema}/{table}
+name: customer
+version: "1.0"
+asset_id: "postgres://prod-db.internal/analytics/public/customers"
+#          postgres://{host}/{database}/{schema}/{table}
 ```
 
 ---

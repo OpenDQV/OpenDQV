@@ -44,12 +44,14 @@ def _canonical_rule(rule: dict) -> dict:
 
 def _rules_digest(rules: list[dict], body: dict | None = None) -> str:
     """Digest of everything that changes a verdict: the rules, plus the
-    contract-level strict flag, its allow-list, and any contexts block."""
+    contract-level strict flag and its allow-list."""
     payload = json.dumps({
         "rules": [_canonical_rule(r) for r in rules],
         "strict_schema": bool((body or {}).get("strict_schema", False)),
         "allowed_fields": sorted((body or {}).get("allowed_fields") or (body or {}).get("fields") or []),
-        "contexts": (body or {}).get("contexts") or {},
+        # 3.0.0: contexts no longer exist; the constant keeps every digest
+        # (and the managed engine's pin of it) byte-identical.
+        "contexts": {},
     }, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -58,7 +60,7 @@ def build_manifest() -> dict:
     entries = []
     for path in sorted(CONTRACTS_DIR.glob("*.yaml")):
         doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        body = doc.get("contract", doc)
+        body = doc
         rules = body.get("rules") or []
         entries.append({
             "file": path.name,

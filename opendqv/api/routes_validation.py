@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 import opendqv.api.deps as _d
 import opendqv.config as config
 from opendqv.core._uuid7 import uuid7
-from opendqv.core.contracts import UnknownContextError, _compute_effective_rule_hash
+from opendqv.core.contracts import _compute_effective_rule_hash
 from opendqv.core.rule_parser import ContractStatus, Rule
 from opendqv.core.validator import validate_record, validate_batch, strict_schema_kwargs, declared_field_set
 from opendqv.security.auth import get_current_user, get_current_role
@@ -116,17 +116,9 @@ async def validate_single(
 
         _d._check_validate_in_states(contract, body.contract, allow_draft)
 
-    try:
-        rules, _ctx_status = _d.registry.get_rules_with_context_status(contract, body.context)
-    except UnknownContextError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    _context_warning = (
-        f"Context '{body.context}' is not declared on contract '{contract.name}'. "
-        f"Validation proceeded with base rules (no context overrides applied). "
-        f"If you intended a metadata tag (e.g. 'demo', 'ci', 'test') this is fine; "
-        f"if you intended an override context, declare it on the contract."
-        if _ctx_status == "undeclared" else None
-    )
+    # 3.0.0: `context` is a tag (quality stats, audit, metrics) and never
+    # changes which rules run — contracts no longer carry overrides.
+    rules = contract.rules
     result = validate_record(
         body.record,
         rules,
@@ -259,7 +251,6 @@ async def validate_single(
         # written. dry_run skips persistence (CRT165 MCP safety lock),
         # so the event_id returned is an idempotency token only.
         persisted=not body.dry_run,
-        context_warning=_context_warning,
     )
 
 
@@ -316,10 +307,7 @@ async def validate_batch_endpoint(
     _d._check_validate_in_states(contract, body.contract, allow_draft)
 
     batch_event_id = str(uuid7())
-    try:
-        rules = _d.registry.get_rules_with_context(contract, body.context)
-    except UnknownContextError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    rules = contract.rules   # 3.0.0: `context` is a tag only
     result = validate_batch(
         body.records,
         rules,
@@ -455,7 +443,6 @@ async def verify_trace_log_endpoint(
 async def validate_batch_file(
     contract: str = Query(..., description="Contract name"),
     version: str = Query("latest"),
-    context: str = Query(None),
     file: UploadFile = File(...),
     user: str = Depends(get_current_user),
 ):
@@ -467,10 +454,7 @@ async def validate_batch_file(
     """
     dc = _d._get_contract_versioned_or_404(contract, version)
 
-    try:
-        rules = _d.registry.get_rules_with_context(dc, context)
-    except UnknownContextError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    rules = dc.rules
 
     content = await file.read()
     filename = file.filename or ""

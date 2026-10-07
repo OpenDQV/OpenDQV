@@ -519,17 +519,16 @@ OpenDQV's `asset_id` field must be set to the OpenMetadata fully qualified name 
 ### Contract YAML snippet
 
 ```yaml
-contract:
-  name: customer
-  asset_id: "production-snowflake.analytics.public.customers"
-  version: "1.0"
-  owner: "data-governance"
-  owner_team: "governance"
-  owner_email: "governance@example.com"
-  rules:
-    - name: customer_id_not_null
-      type: not_empty
-      field: customer_id
+name: customer
+asset_id: "production-snowflake.analytics.public.customers"
+version: "1.0"
+owner: "data-governance"
+owner_team: "governance"
+owner_email: "governance@example.com"
+rules:
+  - name: customer_id_not_null
+    type: not_empty
+    field: customer_id
 ```
 
 > **Tip:** The easiest way to find the correct FQN is to open the asset in the OpenMetadata UI and copy it from the asset detail panel. The FQN is shown in the asset header and can be copied directly into `asset_id`.

@@ -481,7 +481,7 @@ Every validation response has the same shape:
 
 - `valid: false` means at least one `error`-severity rule failed. Do not write the record.
 - `valid: true` with non-empty `warnings` means the record passed but has quality concerns. Write it, but review the warnings.
-- `contract_hash` is the bare hex SHA-256 of the exact contract entry used (it equals `entry_hash`; `content_hash` covers the rule body only, `effective_rule_hash` the rules actually applied after context/filter scoping). Store it alongside the record for point-in-time audit evidence.
+- `contract_hash` is the bare hex SHA-256 of the exact contract entry used (it equals `entry_hash`; `content_hash` covers the rule body only, `effective_rule_hash` the rules actually applied on the call). Store it alongside the record for point-in-time audit evidence.
 - Each error carries a stable `error_code` and a `suggested_fix`. `counterpart_missing: true` marks a cross-field rule that failed because its counterpart field was absent or blank (otherwise `null`).
 - To understand any error: `GET /api/v1/contracts/{contract}/explain/{field}/{rule}` (e.g. `/contracts/customer/explain/email/valid_email`) — returns `rule_type`, `explanation`, `valid_examples`, `invalid_examples`, `constraint`, `curated_message`; the MCP `explain_error` tool returns the same shape.
 

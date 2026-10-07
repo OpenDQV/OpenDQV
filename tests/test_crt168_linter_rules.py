@@ -19,16 +19,15 @@ from opendqv.core.linter import lint_contract_file, lint_contract_yaml
 
 
 _BASE_YAML = """
-contract:
-  name: t
-  owner: T Team
-  owner_email: t@example.com
-  status: active
-  rules:
-    - name: r
-      type: not_empty
-      field: x
-      error_message: x is required
+name: t
+owner: T Team
+owner_email: t@example.com
+status: active
+rules:
+  - name: r
+    type: not_empty
+    field: x
+    error_message: x is required
 """
 
 
@@ -38,7 +37,7 @@ def _codes(result) -> set[str]:
 
 class TestOwnerEmailLint:
     def test_missing_owner_email_is_warning(self):
-        yaml_str = _BASE_YAML.replace("  owner_email: t@example.com\n", "")
+        yaml_str = _BASE_YAML.replace("owner_email: t@example.com\n", "")
         result = lint_contract_yaml(yaml_str)
         codes = _codes(result)
         assert "OWNER_EMAIL_MISSING" in codes
@@ -56,16 +55,15 @@ class TestOwnerEmailLint:
 
 
 _UNIQUE_YAML = """
-contract:
-  name: u
-  owner: U Team
-  owner_email: u@example.com
-  status: active
-  rules:
-    - name: unique_id
-      type: unique
-      field: id
-      error_message: {msg}
+name: u
+owner: U Team
+owner_email: u@example.com
+status: active
+rules:
+  - name: unique_id
+    type: unique
+    field: id
+    error_message: {msg}
 """
 
 

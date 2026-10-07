@@ -114,14 +114,14 @@ class TestPersistence:
 
     def test_yaml_round_trip_through_registry(self, tmp_path):
         from opendqv.core.contracts import ContractRegistry
-        (tmp_path / "strict_probe.yaml").write_text(yaml.safe_dump({"contract": {
+        (tmp_path / "strict_probe.yaml").write_text(yaml.safe_dump({
             "name": "strict_probe", "version": "1.0", "strict_schema": True, "allowed_fields": ["trace_id"],
             "rules": [{"name": "a", "type": "not_empty", "field": "amount"}],
-        }}), encoding="utf-8")
+        }), encoding="utf-8")
         reg = ContractRegistry(tmp_path)
         dc = reg.get("strict_probe")
         assert dc.strict_schema is True and dc.allowed_fields == ["trace_id"]
-        out = yaml.safe_load(reg._contract_to_yaml(dc))["contract"]
+        out = yaml.safe_load(reg._contract_to_yaml(dc))
         assert out["strict_schema"] is True and out["allowed_fields"] == ["trace_id"]
         permissive = reg._contract_to_yaml(dc.model_copy(update={"strict_schema": False, "allowed_fields": []}))
         assert "strict_schema" not in permissive
@@ -146,8 +146,8 @@ class TestExports:
 
     def test_linter_shapes(self):
         from opendqv.core.linter import lint_contract_yaml
-        bad = "contract:\n  name: c\n  version: '1.0'\n  strict_schema: yes_please\n  allowed_fields: [1]\n  rules:\n    - {name: a, type: not_empty, field: amount}\n"
+        bad = "name: c\nversion: '1.0'\nstrict_schema: yes_please\nallowed_fields: [1]\nrules:\n  - {name: a, type: not_empty, field: amount}\n"
         codes = {i.code for i in lint_contract_yaml(bad, "c").issues}
         assert {"STRICT_SCHEMA_NOT_BOOL", "ALLOWED_FIELDS_NOT_STRING_LIST"} <= codes
-        warn = "contract:\n  name: c\n  version: '1.0'\n  allowed_fields: [trace_id]\n  rules:\n    - {name: a, type: not_empty, field: amount}\n"
+        warn = "name: c\nversion: '1.0'\nallowed_fields: [trace_id]\nrules:\n  - {name: a, type: not_empty, field: amount}\n"
         assert "ALLOWED_FIELDS_WITHOUT_STRICT_SCHEMA" in {i.code for i in lint_contract_yaml(warn, "c").issues}

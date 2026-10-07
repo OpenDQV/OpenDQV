@@ -152,13 +152,11 @@ def otel_to_yaml(source: Union[str, dict], contract_name: str = "otel_telemetry"
     parsed = import_otel(source)
     # SEC-006: validate any generated lookup_file paths for path traversal
     _scan_rules_for_lookup_file(parsed["rules"])
-    contract = {
-        "contract": {
-            "name": contract_name,
-            "version": "1.0",
-            "description": "Imported from OpenTelemetry semantic conventions",
-            "status": "draft",
-            "rules": parsed["rules"],
-        }
+    contract = {   # 3.0.0: flat document, no `contract:` wrapper
+        "name": contract_name,
+        "version": "1.0",
+        "description": "Imported from OpenTelemetry semantic conventions",
+        "status": "draft",
+        "rules": parsed["rules"],
     }
     return _yaml.dump(contract, default_flow_style=False, sort_keys=False)

@@ -48,23 +48,33 @@ arithmetic.
 | `valid_uk_postcode` | postcode | CDD — address verification |
 | `valid_ni_number` | ni_number | HMRC format — identity document validation |
 
-## Contexts
+## Variants
 
-- **`retail_kyc`**: All failures block onboarding (severity: error). Use in the live KYC pipeline.
-- **`internal_review`**: Failures raise warnings only. Use for data quality monitoring and AML lookback triage dashboards.
+One contract per use (OpenDQV 3.0.0 removed the `contexts:` block these used to live in —
+see [docs/contexts.md](../../docs/contexts.md)):
+
+- **`bfsi_customer_retail_kyc.yaml`** (`bfsi_customer_retail_kyc`): all failures block onboarding
+  (severity: error), with KYC-specific messages on the DOB plausibility, NI number and postcode rules.
+  Use in the live KYC pipeline.
+- **`bfsi_customer_internal_review.yaml`** (`bfsi_customer_internal_review`): date of birth, NI number
+  and postcode failures raise warnings only (account number, name, email and phone stay errors).
+  Use for data quality monitoring and AML lookback triage dashboards.
+
+Each variant has its own version history and audit lineage. Select one by contract name; the
+optional `context` field on a validate request is only a tag for stats, the audit event and
+metrics, and never changes which rules run.
 
 ## Quick start
 
 ```bash
-# Copy to your contracts directory
-cp bfsi_customer.yaml /path/to/your/contracts/
+# Copy to your contracts directory (the variants too, if you use them)
+cp bfsi_customer*.yaml /path/to/your/contracts/
 
 # Validate a record
 curl -X POST http://localhost:8000/api/v1/validate \
   -H "Content-Type: application/json" \
   -d '{
-    "contract": "bfsi_customer",
-    "context": "retail_kyc",
+    "contract": "bfsi_customer_retail_kyc",
     "record": {
       "account_number": "GB123456",
       "full_name": "Jane Smith",

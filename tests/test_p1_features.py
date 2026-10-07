@@ -482,21 +482,19 @@ class TestREVIEWLifecycle:
         contracts_dir.mkdir()
 
         contract_data = {
-            "contract": {
-                "name": "test_lifecycle",
-                "version": "1.0",
-                "status": "draft",
-                "description": "Test",
-                "owner": "test",
-                "rules": [
-                    {
-                        "name": "r1",
-                        "type": "not_empty",
-                        "field": "name",
-                        "error_message": "Required",
-                    }
-                ],
-            }
+            "name": "test_lifecycle",
+            "version": "1.0",
+            "status": "draft",
+            "description": "Test",
+            "owner": "test",
+            "rules": [
+                {
+                    "name": "r1",
+                    "type": "not_empty",
+                    "field": "name",
+                    "error_message": "Required",
+                }
+            ],
         }
         (contracts_dir / "test_lifecycle.yaml").write_text(yaml.dump(contract_data))
 
@@ -774,7 +772,7 @@ class TestSDKContractCache:
             cache_data = {
                 "name": "customer", "version": "1.0",
                 "description": "Cached", "status": "active",
-                "rules": [], "contexts": [],
+                "rules": [],
             }
             with open(os.path.join(tmpdir, "customer.json"), "w") as f:
                 _json.dump(cache_data, f)

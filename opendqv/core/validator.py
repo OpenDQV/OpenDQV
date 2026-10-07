@@ -165,10 +165,10 @@ _CROSS_FIELD_DATE_TYPES = frozenset({"compare", "date_diff", "age_match"})
 _layout_conflicts_warned: set = set()
 _NO_LAYOUTS: dict = {}
 # The declared layouts for the validate call in progress. A ContextVar, not a
-# stamp on the Rule objects: `get_rules_with_context` shallow-copies the base
-# list, so a compare rule is the SAME object in the base list and in a context
-# list whose counterpart layout differs — per-call mutation of that object is a
-# lost-update race under threads (blind review of PR #166). The variable is
+# stamp on the Rule objects: Rule objects are shared by every concurrent call
+# on the same contract (and, before 3.0.0, across context rule lists), so
+# per-call mutation of one is a lost-update race under threads (blind review
+# of PR #166). The variable is
 # thread- and task-local and reset when the call returns, so handlers called
 # outside a validate call see no layouts (the ISO path).
 _date_layouts_var: ContextVar[dict] = ContextVar("opendqv_date_layouts", default=_NO_LAYOUTS)

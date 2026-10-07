@@ -10,8 +10,7 @@ from opendqv.core.rule_parser import Rule, ContractStatus
 
 @pytest.fixture
 def registry():
-    # The test copy of the library (conftest overlays the contexts fixtures
-    # onto it — the bundled library itself carries no contexts since 2.7.0).
+    # The test copy of the bundled library (conftest copies it to a temp dir).
     import os
     contracts_dir = Path(os.environ["OPENDQV_CONTRACTS_DIR"])
     return ContractRegistry(contracts_dir)
@@ -22,7 +21,7 @@ def _bundled_version(name: str) -> str:
     the golden copy and bumps on content change, so tests read it."""
     import yaml
     path = Path(__file__).parent.parent / "opendqv" / "contracts" / f"{name}.yaml"
-    return str(yaml.safe_load(path.read_text(encoding="utf-8"))["contract"]["version"])
+    return str(yaml.safe_load(path.read_text(encoding="utf-8"))["version"])
 
 
 class TestContractRegistry:
@@ -53,37 +52,6 @@ class TestContractRegistry:
         rule_names = [r.name for r in c.rules]
         assert "valid_email" in rule_names
         assert "name_required" in rule_names
-
-    def test_contract_has_contexts(self, registry):
-        c = registry.get("customer")
-        assert "kids_app" in c.contexts
-        assert "financial" in c.contexts
-
-
-class TestContextOverrides:
-    def test_no_context_returns_base_rules(self, registry):
-        c = registry.get("customer")
-        rules = registry.get_rules_with_context(c, None)
-        assert rules == c.rules
-
-    def test_kids_app_context_overrides_age(self, registry):
-        c = registry.get("customer")
-        rules = registry.get_rules_with_context(c, "kids_app")
-        age_rules = [r for r in rules if r.field == "age"]
-        # Should have a range rule for 5-17
-        range_rule = [r for r in age_rules if r.type == "range"]
-        assert len(range_rule) > 0
-        assert range_rule[0].min_value == 5
-        assert range_rule[0].max_value == 17
-
-    def test_unknown_context_falls_back_to_base_rules(self, registry):
-        # Unknown context → base rules, no exception.
-        # This allows context to be used as a stats tag (e.g. "demo", "ci")
-        # without requiring a matching context block in the YAML contract.
-        c = registry.get("customer")
-        base_rules = c.rules
-        result = registry.get_rules_with_context(c, "nonexistent_context_xyz")
-        assert result == base_rules
 
     def test_reload(self, registry):
         count_before = len(registry.list_contracts())
@@ -124,15 +92,13 @@ class TestAssetId:
     def test_asset_id_round_trips_through_yaml(self, tmp_path):
         """A YAML file with asset_id is loaded and preserved correctly."""
         yaml_content = {
-            "contract": {
-                "name": "asset_test",
-                "version": "1.0",
-                "description": "test",
-                "owner": "team",
-                "status": "active",
-                "asset_id": "urn:catalog:entity:42",
-                "rules": [],
-            }
+            "name": "asset_test",
+            "version": "1.0",
+            "description": "test",
+            "owner": "team",
+            "status": "active",
+            "asset_id": "urn:catalog:entity:42",
+            "rules": [],
         }
         p = tmp_path / "asset_test.yaml"
         p.write_text(yaml.dump(yaml_content))
@@ -204,12 +170,11 @@ class TestYamlParseErrors:
         bad_yaml = tmp_path / "bad.yaml"
         # Deliberately invalid YAML: mapping value not allowed here
         bad_yaml.write_text(
-            "contract:\n"
-            "  name: broken\n"
-            "  rules:\n"
-            "    - name: r1\n"
-            "      field: x\n"
-            "     type: not_empty\n"  # wrong indentation
+            "name: broken\n"
+            "rules:\n"
+            "  - name: r1\n"
+            "    field: x\n"
+            "   type: not_empty\n"  # wrong indentation
         )
         reg = ContractRegistry(tmp_path)
         # Contract should be skipped (logged as error), not crash the registry
@@ -218,7 +183,7 @@ class TestYamlParseErrors:
     def test_parse_error_message_contains_line(self, tmp_path):
         """ValueError from _load_file includes 'line' in the message."""
         bad_yaml = tmp_path / "bad2.yaml"
-        bad_yaml.write_text("contract:\n  name: x\n  rules:\n  - :\n    broken: [unclosed\n")
+        bad_yaml.write_text("name: x\nrules:\n- :\n  broken: [unclosed\n")
         reg_loader = ContractRegistry.__new__(ContractRegistry)
         reg_loader.contracts_dir = tmp_path
         reg_loader.history = ContractHistory(":memory:")
@@ -229,18 +194,17 @@ class TestYamlParseErrors:
     def test_valid_contract_loads_after_bad_one(self, tmp_path):
         """A bad YAML file does not prevent other valid contracts from loading."""
         bad = tmp_path / "aaa_bad.yaml"
-        bad.write_text("contract:\n  name: broken\nrules: [unclosed\n")
+        bad.write_text("name: broken\nrules: [unclosed\n")
         good = tmp_path / "zzz_good.yaml"
         good.write_text(
-            "contract:\n"
-            "  name: good_contract\n"
-            "  version: '1.0'\n"
-            "  status: active\n"
-            "  rules:\n"
-            "    - name: r1\n"
-            "      field: email\n"
-            "      type: not_empty\n"
-            "      error_message: required\n"
+            "name: good_contract\n"
+            "version: '1.0'\n"
+            "status: active\n"
+            "rules:\n"
+            "  - name: r1\n"
+            "    field: email\n"
+            "    type: not_empty\n"
+            "    error_message: required\n"
         )
         reg = ContractRegistry(tmp_path)
         assert reg.get("good_contract") is not None
@@ -258,15 +222,14 @@ class TestYamlParseErrors:
         bad.write_text(":\nbroken: [unclosed\n")
         good = tmp_path / "ok.yaml"
         good.write_text(
-            "contract:\n"
-            "  name: ok\n"
-            "  version: '1.0'\n"
-            "  status: active\n"
-            "  rules:\n"
-            "    - name: r1\n"
-            "      field: f\n"
-            "      type: not_empty\n"
-            "      error_message: required\n"
+            "name: ok\n"
+            "version: '1.0'\n"
+            "status: active\n"
+            "rules:\n"
+            "  - name: r1\n"
+            "    field: f\n"
+            "    type: not_empty\n"
+            "    error_message: required\n"
         )
         reg = ContractRegistry(tmp_path)
         assert len(reg.list_contracts()) == 1

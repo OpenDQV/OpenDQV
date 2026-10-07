@@ -74,79 +74,27 @@ def _enrich_top_failing_fields_with_severity(summary: dict) -> None:
     """Mutate summary in place: add `severity` to every top_failing_fields
     entry, looked up from the live registry. Cached per-contract so a
     summary with N rules across M contracts costs O(M) registry calls,
-    not O(N).
-
-    v2.3.23 round-3 review (Sonnet a154314ae2e179025): also normalize
-    the `rule` field on each entry — strips the synthesised
-    `ctx_<context>_` prefix when both context+base-rule are valid on
-    the contract. Storage stays canonical to execution; the read
-    surface presents the base rule name. Coalesces collisions when the
-    same rule appears in legacy-synth and canonical forms (e.g. when a
-    context was newly declared mid-window).
+    not O(N). (3.0.0: contracts carry no context overrides, so a rule's
+    severity is the one it declares.)
     """
     fields = summary.get("top_failing_fields") or []
     if not fields:
         return
     sev_cache: dict[str, dict[str, str]] = {}
-    contract_cache: dict[str, object] = {}
-    norm_cache: dict[str, callable] = {}
-    from opendqv.monitoring import _build_rule_normalizer
     for entry in fields:
-        cname = entry.get("contract") or ""
-        if cname not in contract_cache:
-            try:
-                contract_cache[cname] = (
-                    _d.registry.get(cname) if _d.registry else None
-                )
-            except Exception:
-                contract_cache[cname] = None
-        contract = contract_cache[cname]
-        if cname not in norm_cache:
-            norm_cache[cname] = _build_rule_normalizer(contract)
-        # Normalize first so severity lookup hits the canonical name.
-        rule_name = entry.get("rule", "") or ""
-        normalized = norm_cache[cname](rule_name)
-        if normalized != rule_name:
-            entry["rule"] = normalized
         if "severity" in entry:
             continue
+        cname = entry.get("contract") or ""
         if cname not in sev_cache:
-            sev_cache[cname] = _build_worst_case_severity_map(contract)
+            try:
+                contract = _d.registry.get(cname) if _d.registry else None
+            except Exception:
+                contract = None
+            sev_cache[cname] = {
+                r.name: (r.cached_severity_value or "error")
+                for r in (getattr(contract, "rules", None) or [])
+            }
         entry["severity"] = sev_cache[cname].get(entry.get("rule", ""), "unknown")
-
-
-_SEVERITY_RANK = {"info": 0, "warning": 1, "error": 2, "unknown": -1}
-
-
-def _build_worst_case_severity_map(contract) -> dict:
-    """v2.3.23 round-4 P1-D (Sonnet a410fe4a545b865bc): worst-case
-    severity per rule across base + every context override. A rule
-    that's `warning` in default but `error` under any context surfaces
-    as `error` so an ops dashboard escalates correctly. Mirror of
-    `opendqv/mcp_server.py:_severity_map` — kept in sync at every
-    update site.
-    """
-    if contract is None or not getattr(contract, "rules", None):
-        return {}
-    sev_map = {r.name: (r.cached_severity_value or "error") for r in contract.rules}
-    base_rule_names = set(sev_map)
-    field_to_rules: dict = {}
-    for r in contract.rules:
-        field_to_rules.setdefault(r.field, []).append(r.name)
-    for _ctx_name, overrides in (contract.contexts or {}).items():
-        for key, override in (overrides or {}).items():
-            sev = override.get("severity") if isinstance(override, dict) else None
-            if not sev:
-                continue
-            sev_rank = _SEVERITY_RANK.get(sev, -1)
-            if key in base_rule_names:
-                if sev_rank > _SEVERITY_RANK.get(sev_map.get(key, "error"), -1):
-                    sev_map[key] = sev
-            elif key in field_to_rules:
-                for rname in field_to_rules[key]:
-                    if sev_rank > _SEVERITY_RANK.get(sev_map.get(rname, "error"), -1):
-                        sev_map[rname] = sev
-    return sev_map
 
 
 def _scope_summary_to_contract(summary: dict, contract_name: str) -> dict:

@@ -169,13 +169,11 @@ def csvw_to_yaml(csvw_data: Union[str, dict], contract_name: str = "imported") -
     parsed = import_csvw(csvw_data)
     # SEC-006: validate any generated lookup_file paths for path traversal
     _scan_rules_for_lookup_file(parsed["rules"])
-    contract = {
-        "contract": {
-            "name": contract_name,
-            "version": "1.0",
-            "description": f"Imported from CSVW metadata ({parsed['metadata'].get('url', 'unknown')})",
-            "status": "draft",
-            "rules": parsed["rules"],
-        }
+    contract = {   # 3.0.0: flat document, no `contract:` wrapper
+        "name": contract_name,
+        "version": "1.0",
+        "description": f"Imported from CSVW metadata ({parsed['metadata'].get('url', 'unknown')})",
+        "status": "draft",
+        "rules": parsed["rules"],
     }
     return yaml.dump(contract, default_flow_style=False, sort_keys=False)

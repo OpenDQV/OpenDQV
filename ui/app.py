@@ -583,8 +583,6 @@ if section == "Contracts":
                     st.subheader(_display_name(detail["name"]))
                     st.caption(f"v{detail['version']}  ·  {detail['description']}  ·  owner: {detail.get('owner') or '—'}")
                     st.markdown(f"Status: {status_badge}")
-                    if detail.get("contexts"):
-                        st.markdown(f"Contexts: {', '.join(detail['contexts'])}")
 
                     st.markdown("**Rules:**")
                     st.dataframe(pd.DataFrame(detail["rules"]), width="stretch", hide_index=True)
@@ -1031,7 +1029,7 @@ if section == "Validate":
     with col2:
         val_version = st.text_input("Version", value="latest", key="val_version")
     with col3:
-        val_context = st.text_input("Context (optional)", value="", key="val_context")
+        val_context = st.text_input("Context tag (optional)", value="", key="val_context", help="Recorded with quality stats and the audit event; never changes which rules run")
 
     val_record_id = st.text_input("Record ID (optional)", value="", key="val_record_id", help="Echoed in the response for traceability")
 
@@ -1197,7 +1195,7 @@ if section == "Integration Guide":
             _guide_idx = contract_names.index(_guide_active) if _guide_active in contract_names else 0
             guide_contract = st.selectbox("Contract", contract_names, index=_guide_idx, key="guide_contract")
         with col2:
-            guide_context = st.text_input("Context (optional)", value="", key="guide_context")
+            guide_context = st.text_input("Context tag (optional)", value="", key="guide_context", help="Recorded with quality stats and the audit event; never changes which rules run")
 
         # ── Step 1: Generate a token for this source system ──
         st.markdown("---")
@@ -1557,18 +1555,14 @@ if section == "Code Export":
     st.header("Code Export (Push-Down Mode)")
     st.markdown("Embed validation rules directly into source systems as generated code — useful when the system can't make HTTP calls.")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
         gen_contract = st.text_input("Contract", value=st.session_state.get("active_contract", "customer"), key="gen_contract")
     with col2:
         target = st.selectbox("Target Platform", ["snowflake", "salesforce", "js"])
-    with col3:
-        gen_context = st.text_input("Context (optional)", value="", key="gen_context", help="A context name declared in the contract's contexts block; leave empty for the base rules")
 
     if st.button("Generate Code"):
         gen_params = {"contract_name": gen_contract, "target": target}
-        if gen_context:
-            gen_params["context"] = gen_context
         r = api_post(
             "/api/v1/generate",
             params=gen_params,
@@ -2568,10 +2562,6 @@ if section == "CLI Guide":
         "# Pipe from a file\nopendqv validate --contract customer --record @record.json",
         language="bash",
     )
-    st.code(
-        "# With context filter\nopendqv validate --contract customer --context salesforce --record @record.json",
-        language="bash",
-    )
 
     st.markdown("---")
 
@@ -2622,10 +2612,6 @@ if section == "CLI Guide":
     )
     st.code(
         "opendqv generate --contract customer --target salesforce --out validator.cls",
-        language="bash",
-    )
-    st.code(
-        "opendqv generate --contract customer --target js --context web",
         language="bash",
     )
 

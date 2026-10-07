@@ -16,12 +16,8 @@ import pytest
 import yaml
 from pathlib import Path
 
-# Lint the SHIPPED library, never the test copy: since 2.7.0 conftest overlays
-# five contexts-carrying fixtures onto the temp copy for the contexts tests,
-# so reading OPENDQV_CONTRACTS_DIR here would leave the real committed
-# customer / financial_services_customer / proof_of_play / salesforce_*
-# files unlinted — the exact bug class this file exists to catch (VBP-5 seat
-# finding, 2026-09-03).
+# Lint the SHIPPED library, never the test copy (VBP-5 seat finding,
+# 2026-09-03): the shipped files are the ones this file exists to protect.
 _contracts_dir = Path(__file__).parent.parent / "opendqv" / "contracts"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -36,27 +32,28 @@ def _load_all_contracts():
     return results
 
 def _is_canonical(contract_dict):
-    """Return True only for the canonical contract: wrapper format.
-    Semantic linting applies to this format only. The registry also loads
-    legacy list format (rules: [...]) and field-keyed onboarding format
-    (rules: {field: def}) — both are valid but use different structure."""
-    return isinstance(contract_dict, dict) and "contract" in contract_dict
+    """Return True for the canonical 3.0.0 document: flat, with top-level
+    name/rules. A legacy `contract:` wrapper is refused at load, so it is not
+    canonical (test_no_bundled_contract_uses_a_removed_block catches it)."""
+    return (
+        isinstance(contract_dict, dict)
+        and "contract" not in contract_dict
+        and isinstance(contract_dict.get("rules"), list)
+    )
 
 def _is_known_format(contract_dict):
     """Return True for any format the registry recognises."""
-    return isinstance(contract_dict, dict) and (
-        "contract" in contract_dict or "rules" in contract_dict
-    )
+    return isinstance(contract_dict, dict) and "rules" in contract_dict
 
 # Alias used throughout
 _is_standard_contract = _is_canonical
 
 def _rules_from(contract_dict):
     """Extract the rules list from a raw contract dict."""
-    return contract_dict.get("contract", {}).get("rules", [])
+    return contract_dict.get("rules", [])
 
 def _contract_name(contract_dict):
-    return contract_dict.get("contract", {}).get("name", "unknown")
+    return contract_dict.get("name", "unknown")
 
 
 # ── parametrised fixtures ─────────────────────────────────────────────────────
@@ -74,6 +71,20 @@ if _unrecognised:
         f"{_unrecognised}",
         stacklevel=1,
     )
+
+
+# ── 3.0.0: the shipped library is flat and carries no contexts ───────────────
+
+def test_library_is_not_empty():
+    """Guard against the helpers above silently selecting nothing."""
+    assert len(_standard_contracts) == len(_all_contracts) > 0
+
+
+@pytest.mark.parametrize("filename,contract", _all_contracts)
+def test_no_bundled_contract_uses_a_removed_block(filename, contract):
+    """The `contract:` wrapper and `contexts:` are refused at load in 3.0.0."""
+    assert "contract" not in contract, f"{filename}: legacy `contract:` wrapper"
+    assert "contexts" not in contract, f"{filename}: `contexts:` block"
 
 
 # ── ACT-LNT-001: every contract parses and has a name ────────────────────────

@@ -14,11 +14,10 @@ OpenDQV validates records before they are written to Delta Lake or any Spark-man
 Use the generic Spark two-level namespace as `asset_id`:
 
 ```yaml
-contract:
-  name: customer
-  version: "1.0"
-  asset_id: "spark://default/analytics/customer"
-  #          spark://{database}/{table}
+name: customer
+version: "1.0"
+asset_id: "spark://default/analytics/customer"
+#          spark://{database}/{table}
 ```
 
 For AWS EMR with Glue Catalog:

@@ -62,7 +62,8 @@ def _make_contract(name="test_contract", version="1.0", status="active"):
     contract.asset_id = None
     contract.downstream_consumers = []
     contract.rules = []
-    contract.contexts = {}
+    # 3.0.0: DataContract has no `contexts` attribute; the backend must not read one.
+    del contract.contexts
     return contract
 
 
@@ -108,6 +109,23 @@ class TestPostgresRecordVersion:
 
         # INSERT should have been called
         assert mock_cursor.execute.called
+
+    def test_record_version_writes_empty_contexts_column(self):
+        """3.0.0: contexts are gone, but the history column stays and every new row stores '{}'."""
+        backend, mock_psycopg2, mock_conn, mock_cursor = _make_pg_backend()
+        contract = _make_contract()
+        mock_cursor.fetchone.return_value = None
+
+        with patch.dict("sys.modules", {"psycopg2": mock_psycopg2}):
+            backend._connect = MagicMock(return_value=mock_conn)
+            backend.record_version(contract)
+
+        inserts = [c for c in mock_cursor.execute.call_args_list
+                   if "INSERT INTO contract_history" in c.args[0]]
+        assert len(inserts) == 1
+        sql, params = inserts[0].args
+        cols = [c.strip() for c in sql.split("(", 1)[1].split(")", 1)[0].split(",")]
+        assert params[cols.index("contexts")] == "{}"
 
     def test_record_version_skip_duplicate(self):
         """If last snapshot is identical, record_version skips the INSERT."""

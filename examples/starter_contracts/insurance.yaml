@@ -37,8 +37,8 @@
 #   documents_received is required for audit evidence of claims substantiation.
 #
 # HOW TO USE:
-#   1. Load this contract: POST /api/v1/contracts (name: "insurance_claim")
-#   2. Validate a record: POST /api/v1/validate/insurance_claim
+#   1. Load this contract: POST /api/v1/contracts (name: "insurance")
+#   2. Validate a record: POST /api/v1/validate/insurance
 #   3. See sample records: examples/starter_contracts/sample_records/insurance.json
 #
 # ADAPTING FOR YOUR SYSTEM:
@@ -48,7 +48,7 @@
 #   - Adjust reserve_amount max for your largest expected single-risk limit
 #   - For Lloyd's syndicates: align claim_status values with ECF2 workflow
 
-name: insurance_claim
+name: insurance
 version: "1.0.0"
 description: "Insurance claim record validation — claim identification, financials, fraud indicators, Solvency II compliance"
 asset_id: "urn:opendqv:example:insurance:insurance_claim"

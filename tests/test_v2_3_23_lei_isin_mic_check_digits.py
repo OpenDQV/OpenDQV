@@ -138,7 +138,7 @@ class TestMifidContractUsesCheckDigitRules:
         return yaml.safe_load(path.read_text(encoding="utf-8"))
 
     def test_lei_rules_use_checksum_not_regex(self, contract):
-        rules = contract["contract"]["rules"]
+        rules = contract["rules"]
         # All LEI-validation rules must be checksum-typed (not regex shape-only).
         lei_validation_rules = [
             r for r in rules
@@ -157,7 +157,7 @@ class TestMifidContractUsesCheckDigitRules:
             )
 
     def test_isin_rule_uses_checksum_not_regex(self, contract):
-        rules = contract["contract"]["rules"]
+        rules = contract["rules"]
         isin_rules = [r for r in rules if "isin" in r.get("name", "").lower()
                       and r.get("name", "").endswith("_valid")]
         assert isin_rules, "no ISIN validation rule found"
@@ -168,7 +168,7 @@ class TestMifidContractUsesCheckDigitRules:
             assert r.get("checksum_algorithm") == "isin_luhn"
 
     def test_mic_rule_uses_lookup_not_regex(self, contract):
-        rules = contract["contract"]["rules"]
+        rules = contract["rules"]
         mic_rules = [r for r in rules if r.get("field") == "venue_mic"
                      and r.get("name", "").endswith("_valid")]
         assert mic_rules, "no MIC validation rule found"
@@ -185,7 +185,7 @@ class TestMifidContractUsesCheckDigitRules:
         """The v2.3.22 contract carried 'shape only — full ISO 17442
         mod-97 check-digit verification is a v2.4 capability' in the
         error message. v2.3.23 round-3: that deferral is closed."""
-        rules = contract["contract"]["rules"]
+        rules = contract["rules"]
         for r in rules:
             field = r.get("field", "")
             if field.endswith("_lei") or field == "venue_mic" or "isin" in field:

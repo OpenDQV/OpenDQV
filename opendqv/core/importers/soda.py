@@ -353,7 +353,7 @@ def soda_checks_to_yaml(checks_yaml: dict) -> list[tuple[str, str]]:
     for entry in result["contracts"]:
         contract = entry["contract"]
         yaml_str = yaml.dump(
-            {"contract": contract},
+            contract,   # 3.0.0: flat document, no `contract:` wrapper
             default_flow_style=False,
             sort_keys=False,
             allow_unicode=True,

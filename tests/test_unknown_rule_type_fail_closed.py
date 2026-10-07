@@ -50,10 +50,10 @@ def test_stored_yaml_with_unknown_type_fails_to_load(tmp_path, caplog):
     """Core's stored-content answer: refuse at load (same as any other invalid rule)."""
     d = tmp_path / "c"
     d.mkdir()
-    (d / "good.yaml").write_text(yaml.safe_dump({"contract": {"name": "good", "version": "1.0", "rules": [
-        {"name": "r", "type": "not_empty", "field": "f"}]}}), encoding="utf-8")
-    (d / "typo.yaml").write_text(yaml.safe_dump({"contract": {"name": "typo", "version": "1.0", "rules": [
-        {"name": "r", "type": "not_emtpy", "field": "f"}]}}), encoding="utf-8")
+    (d / "good.yaml").write_text(yaml.safe_dump({"name": "good", "version": "1.0", "rules": [
+        {"name": "r", "type": "not_empty", "field": "f"}]}), encoding="utf-8")
+    (d / "typo.yaml").write_text(yaml.safe_dump({"name": "typo", "version": "1.0", "rules": [
+        {"name": "r", "type": "not_emtpy", "field": "f"}]}), encoding="utf-8")
     with caplog.at_level(logging.ERROR):
         reg = ContractRegistry(d)
     assert reg.get("good") is not None
@@ -121,35 +121,8 @@ def test_validate_record_never_sees_an_unknown_type():
 # ── Blind review of PR #165 (2026-09-05): two Rule() construction paths were
 # still outside the closed set and turned a 2.7.0 silent pass into a 500. ──
 
-def _contract_yaml(name, rules, contexts=None):
-    c = {"name": name, "version": "1.0", "rules": rules}
-    if contexts:
-        c["contexts"] = contexts
-    return yaml.safe_dump({"contract": c})
-
-
-def test_context_override_with_unknown_type_refuses_the_file_at_load(tmp_path, caplog):
-    d = tmp_path / "c"
-    d.mkdir()
-    (d / "ok.yaml").write_text(_contract_yaml("ok", [{"name": "age_min", "type": "min", "field": "age", "min": 18}],
-                                              {"kids": {"age_min": {"min": 13}}}), encoding="utf-8")
-    (d / "bad.yaml").write_text(_contract_yaml("bad", [{"name": "age_min", "type": "min", "field": "age", "min": 18}],
-                                               {"kids": {"age_min": {"type": "min_lenght"}}}), encoding="utf-8")
-    with caplog.at_level(logging.ERROR):
-        reg = ContractRegistry(d)
-    assert reg.get("ok") is not None
-    assert reg.get("bad") is None, "an override the model refuses must refuse the file, not every request"
-    msg = " ".join(r.getMessage() for r in caplog.records)
-    assert "bad.yaml" in msg and "context 'kids'" in msg and "min_lenght" in msg
-    assert reg.load_failures and reg.load_failures[0]["file"] == "bad.yaml"
-
-
-def test_linter_reports_unknown_type_in_a_context_override():
-    from opendqv.core.linter import lint_contract_yaml
-    res = lint_contract_yaml(_contract_yaml("t", [{"name": "age_min", "type": "min", "field": "age", "min": 18}],
-                                            {"kids": {"age_min": {"type": "min_lenght"}}}), "t")
-    hits = [i for i in res.issues if i.code == "UNKNOWN_RULE_TYPE"]
-    assert hits and "kids" in hits[0].message and "min_lenght" in hits[0].message
+def _contract_yaml(name, rules):
+    return yaml.safe_dump({"name": name, "version": "1.0", "rules": rules})   # 3.0.0: flat document
 
 
 def test_reload_response_names_the_file_that_did_not_load(client, admin_headers):
@@ -226,15 +199,3 @@ def test_handler_table_drift_is_a_runtime_error_not_an_assert():
     asserts = [n for n in tree.body if isinstance(n, ast.Assert)]
     assert not asserts, "module-level assert is stripped under python -O; use an explicit raise"
     assert "if frozenset(_RULE_HANDLERS) != RULE_TYPES" in src
-
-
-def test_malformed_context_block_is_refused_at_load_with_the_context_named(tmp_path, caplog):
-    d = tmp_path / "c"
-    d.mkdir()
-    (d / "bad.yaml").write_text(yaml.safe_dump({"contract": {"name": "bad", "version": "1.0",
-        "rules": [{"name": "r1", "field": "status", "type": "not_empty"}],
-        "contexts": {"eu": [{"name": "r2", "field": "status", "type": "not_empty"}]}}}), encoding="utf-8")
-    with caplog.at_level(logging.ERROR):
-        reg = ContractRegistry(d)
-    assert reg.get("bad") is None
-    assert "context 'eu'" in " ".join(r.getMessage() for r in caplog.records) and "mapping" in " ".join(r.getMessage() for r in caplog.records)

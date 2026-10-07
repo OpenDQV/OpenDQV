@@ -51,15 +51,6 @@ def contract_to_jsonschema(contract, strict: bool = None) -> dict:
         from opendqv.core.validator import declared_field_set
         for declared in sorted(declared_field_set(contract.rules, getattr(contract, "allowed_fields", None))):
             properties.setdefault(declared, {})
-        # Contexts may add fields; a single context-free strict schema must
-        # accept anything ANY context accepts, so declare the union of every
-        # context's rule targets too (additionalProperties: false then rejects
-        # only fields no context declares).
-        for _ctx_rules in (getattr(contract, "contexts", None) or {}).values():
-            for _d in _ctx_rules or []:
-                _f = _d.get("field") if isinstance(_d, dict) else getattr(_d, "field", None)
-                if _f:
-                    properties.setdefault(_f, {})
 
     for rule in contract.rules:
         field = rule.field

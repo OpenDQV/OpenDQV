@@ -39,12 +39,12 @@ def _make_active(name: str):
     from opendqv.api.routes import registry
 
     path = registry.contracts_dir / f"{name}.yaml"
-    path.write_text(yaml.safe_dump({"contract": {
+    path.write_text(yaml.safe_dump({
         "name": name, "version": "1.0", "status": "active",
         "description": "CRT177 governance fixture", "owner": "pytest",
         "rules": [{"name": "r1", "field": "email", "type": "not_empty",
                    "error_message": "email is required"}],
-    }}), encoding="utf-8")
+    }), encoding="utf-8")
     registry.reload()
     return name
 

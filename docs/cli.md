@@ -48,17 +48,17 @@ opendqv --version
 | `init` | — | `--dir`, `--force`, `--all` | Bootstrap a `contracts/` directory with a starter contract (`--all` copies every bundled contract) |
 | `list` | — | — | List all contracts with name, version, status, and rule count |
 | `show` | `<contract>` | — | Show contract metadata and a table of all rules with type, field, and severity |
-| `validate` | `<contract> <json>` | `--context` | Validate a JSON record string against a contract; exits 0 on PASS, 1 on FAIL |
-| `export-gx` | `<contract>` | `--context`, `--output`/`-o` | Export contract as a Great Expectations expectation suite JSON |
+| `validate` | `<contract> <json>` | — | Validate a JSON record string against a contract; exits 0 on PASS, 1 on FAIL |
+| `export-gx` | `<contract>` | `--output`/`-o` | Export contract as a Great Expectations expectation suite JSON |
 | `import-gx` | `<file>` | — | Import a GX suite JSON file and save as an OpenDQV YAML contract |
 | `import-dbt` | `<file>` | — | Import a dbt `schema.yml` and save as one or more YAML contracts |
 | `import-soda` | `<file>` | — | Import a Soda Core checks YAML and save as one or more YAML contracts |
 | `import-csv` | `<file>` | `--name` | Import a CSV rules file and save as a YAML contract |
 | `import-odcs` | `<file>` | `--name` | Import an ODCS v3.x contract (YAML or JSON) and save as an OpenDQV contract |
-| `export-odcs` | `<contract>` | `--context`, `--output`/`-o` | Export contract as ODCS v3.1.0 YAML (validates with `datacontract lint`) |
-| `export-dbt` | `<contract>` | `--context`, `--output`/`-o` | Export contract as a dbt `schema.yml` |
-| `generate` | `<contract> <target>` | `--context` | Generate push-down validation code for `salesforce`, `js`, or `snowflake` |
-| `validate-file` | `<contract> <path>` | `--context`, `--output-failures`, `--observe-only` | Validate a CSV or Parquet file against a contract (no API server required) |
+| `export-odcs` | `<contract>` | `--output`/`-o` | Export contract as ODCS v3.1.0 YAML (validates with `datacontract lint`) |
+| `export-dbt` | `<contract>` | `--output`/`-o` | Export contract as a dbt `schema.yml` |
+| `generate` | `<contract> <target>` | — | Generate push-down validation code for `salesforce`, `js`, or `snowflake` |
+| `validate-file` | `<contract> <path>` | `--output-failures`, `--observe-only` | Validate a CSV or Parquet file against a contract (no API server required) |
 | `fork` | `<src> <dst>` | `--force` | Copy a contract to a new name as a clean DRAFT v1.0 (preserves comments) |
 | `lint` | `<contract>` | `--format` | Lint a contract YAML for logical errors before deployment |
 | `onboard` | — | — | Launch the interactive setup wizard; first validation in ~90 seconds |
@@ -140,11 +140,9 @@ opendqv validate customer '{"name":"Alice","email":"alice@example.com","age":30}
 # Warnings: 0
 ```
 
-With a context overlay:
-
-```bash
-opendqv validate customer '{"name":"Alice"}' --context salesforce
-```
+To validate against a stricter variant of a contract (a context override before 3.0.0),
+publish the variant as its own contract and name that contract — see
+[contexts.md](contexts.md).
 
 ---
 

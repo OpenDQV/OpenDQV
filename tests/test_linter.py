@@ -369,7 +369,7 @@ class TestFilenameNameMismatch:
     def test_mismatch_emits_error(self):
         """Filename stem differs from YAML internal name → FILENAME_NAME_MISMATCH."""
         yaml_str = (
-            "contract:\n  name: media_content\n  version: \"1.0\"\n  status: draft\n"
+            "name: media_content\nversion: \"1.0\"\nstatus: draft\n"
             "rules: []\n"
         )
         result = lint_contract_yaml(yaml_str, contract_name="bauer_ad")
@@ -384,8 +384,8 @@ class TestFilenameNameMismatch:
     def test_matching_names_no_issue(self):
         """Filename and YAML name agree → no mismatch issue."""
         yaml_str = (
-            "contract:\n  name: customer\n  version: \"1.0\"\n  status: draft\n"
-            "  rules: []\n"  # 2.9.0: top-level rules beside contract: is an unknown document key
+            "name: customer\nversion: \"1.0\"\nstatus: draft\n"
+            "rules: []\n"
         )
         result = lint_contract_yaml(yaml_str, contract_name="customer")
         codes = [i.code for i in result.issues]
@@ -395,8 +395,8 @@ class TestFilenameNameMismatch:
     def test_no_filename_context_no_check(self):
         """When called without a filename hint, the mismatch check is skipped."""
         yaml_str = (
-            "contract:\n  name: media_content\n  version: \"1.0\"\n  status: draft\n"
-            "  rules: []\n"
+            "name: media_content\nversion: \"1.0\"\nstatus: draft\n"
+            "rules: []\n"
         )
         result = lint_contract_yaml(yaml_str)  # no contract_name
         codes = [i.code for i in result.issues]

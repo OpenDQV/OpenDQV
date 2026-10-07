@@ -42,11 +42,10 @@ marmot://{host}/assets/{marmot-asset-id}
 
 **Example:**
 ```yaml
-contract:
-  name: customer_master
-  asset_id: "marmot://marmot.internal/assets/a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-  version: "1.0"
-  owner: "data-governance"
+name: customer_master
+asset_id: "marmot://marmot.internal/assets/a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+version: "1.0"
+owner: "data-governance"
 ```
 
 ### Field mapping
@@ -539,21 +538,20 @@ marmot://{host}/assets/{marmot-asset-uuid}
 **Contract YAML example:**
 
 ```yaml
-contract:
-  name: customer_master
-  version: "1.0"
-  asset_id: "marmot://marmot.internal/assets/a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-  owner: "data-governance"
-  owner_team: "data-platform"          # synced to Marmot as contractOwnerTeam
-  owner_email: "governance@example.com"
-  downstream_consumers:                # Marmot MRNs of downstream consumers
-    - "mrn://dataset/tableau/sales_dashboard"
-    - "mrn://dataset/dbt/customer_mart"
-  rules:
-    - name: customer_id_not_null
-      type: not_empty
-      field: customer_id
-      error_message: "Customer ID is required (GDPR Article 30 controller identity)"
+name: customer_master
+version: "1.0"
+asset_id: "marmot://marmot.internal/assets/a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+owner: "data-governance"
+owner_team: "data-platform"          # synced to Marmot as contractOwnerTeam
+owner_email: "governance@example.com"
+downstream_consumers:                # Marmot MRNs of downstream consumers
+  - "mrn://dataset/tableau/sales_dashboard"
+  - "mrn://dataset/dbt/customer_mart"
+rules:
+  - name: customer_id_not_null
+    type: not_empty
+    field: customer_id
+    error_message: "Customer ID is required (GDPR Article 30 controller identity)"
 ```
 
 ---

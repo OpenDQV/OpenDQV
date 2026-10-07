@@ -778,7 +778,8 @@ class TestPickGovernanceTip:
             assert "governance_tip" in data
 
     async def test_validate_record_with_context(self):
-        """Context path in _tool_validate_record (lines 553-555)."""
+        """`context` is a pure tag (3.0.0): any value is accepted, the rule set
+        is unchanged, and there is no context_warning."""
         contracts = list(_registry.list_contracts())
         name = contracts[0]["name"] if contracts else "customer"
         result = await _tool_validate_record({
@@ -787,8 +788,8 @@ class TestPickGovernanceTip:
             "context": "nonexistent_context",
         })
         data = _parse(result)
-        # Should still return a result (context fallback to default rules)
         assert "contract" in data or "error" in data
+        assert "context_warning" not in data
 
     async def test_validate_record_with_agent_id_and_dry_run(self):
         """agent_id and dry_run params handled (lines 538-541)."""

@@ -29,9 +29,9 @@
 #   amount flow through to regulatory capital reports.
 #
 # HOW TO USE:
-#   1. Load this contract: POST /api/v1/contracts (name: "bank_transaction")
-#   2. Validate a record:  POST /api/v1/validate/bank_transaction
-#   3. Batch validate:     POST /api/v1/validate/bank_transaction/batch
+#   1. Load this contract: POST /api/v1/contracts (name: "banking")
+#   2. Validate a record:  POST /api/v1/validate/banking
+#   3. Batch validate:     POST /api/v1/validate/banking/batch
 #   4. Sample records:     examples/starter_contracts/sample_records/banking.json
 #
 # ADAPTING FOR YOUR SYSTEM:
@@ -40,7 +40,7 @@
 #   - Adjust amount range max for wholesale/corporate banking (default: retail)
 #   - Replace aml_flag lookup_values with your screening provider's codes
 
-name: bank_transaction
+name: banking
 version: "1.0.0"
 description: "Retail bank transaction validation — identifiers, amounts, AML screening, payment channel, PSD2/FCA/FATF compliance"
 asset_id: "urn:opendqv:example:banking:bank_transaction"

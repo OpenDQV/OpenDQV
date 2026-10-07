@@ -31,9 +31,9 @@
 #   error that can trigger regulatory investigation.
 #
 # HOW TO USE:
-#   1. Load this contract: POST /api/v1/contracts (name: "trade_record")
-#   2. Validate a record:  POST /api/v1/validate/trade_record
-#   3. Batch validate:     POST /api/v1/validate/trade_record/batch
+#   1. Load this contract: POST /api/v1/contracts (name: "financial_services")
+#   2. Validate a record:  POST /api/v1/validate/financial_services
+#   3. Batch validate:     POST /api/v1/validate/financial_services/batch
 #   4. Sample records:     examples/starter_contracts/sample_records/financial_services.json
 #
 # ADAPTING FOR YOUR SYSTEM:
@@ -42,7 +42,7 @@
 #   - Adjust quantity/price ranges for your asset class (derivatives may need higher ceilings)
 #   - For OTC derivatives, add an ISDA product_type field with your taxonomy
 
-name: trade_record
+name: financial_services
 version: "1.0.0"
 description: "Investment trade record validation — ISIN, LEI, MiFID II trade reporting fields, execution venue, asset class"
 asset_id: "urn:opendqv:example:financial_services:trade_record"

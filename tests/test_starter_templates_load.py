@@ -36,10 +36,23 @@ def loaded_registry(tmp_path_factory):
 
 @pytest.mark.parametrize("template", TEMPLATES, ids=lambda p: p.name)
 def test_template_loads_through_registry(template, loaded_registry):
-    # Flat-format templates are named from the filename stem; the `contract:` format
-    # from its own name: field. Either way the stem must resolve to a loaded contract.
-    stem = template.stem
-    assert stem in loaded_registry, f"{template.name} did not load (loaded: {sorted(loaded_registry)})"
+    # 3.0.0: every document is flat and is keyed by its own `name:` field, falling
+    # back to the filename stem when it has none.
+    import yaml
+
+    raw = yaml.safe_load(template.read_text(encoding="utf-8"))
+    name = raw.get("name") or template.stem
+    assert name in loaded_registry, f"{template.name} did not load as {name!r} (loaded: {sorted(loaded_registry)})"
+
+
+@pytest.mark.parametrize("template", TEMPLATES, ids=lambda p: p.name)
+def test_template_is_a_flat_document(template):
+    """3.0.0: the legacy `contract:` wrapper is refused at load — templates must be flat."""
+    import yaml
+
+    raw = yaml.safe_load(template.read_text(encoding="utf-8"))
+    assert "contract" not in raw, f"{template.name}: legacy top-level `contract:` wrapper"
+    assert "contexts" not in raw, f"{template.name}: `contexts:` is refused in 3.0.0"
 
 
 @pytest.mark.parametrize("template", TEMPLATES, ids=lambda p: p.name)
@@ -55,7 +68,7 @@ def test_template_uses_current_rule_shape(template):
     import yaml
 
     raw = yaml.safe_load(template.read_text(encoding="utf-8"))
-    rules = raw["contract"]["rules"] if "contract" in raw else raw["rules"]
+    rules = raw["rules"]
     for r in rules:
         assert "rule" not in r, f"{template.name}: legacy `rule:` key in {r}"
         for key in ("name", "type", "field", "severity", "error_message"):
@@ -72,7 +85,7 @@ def test_template_has_no_bare_yaml_booleans(template):
     import yaml
 
     raw = yaml.safe_load(template.read_text(encoding="utf-8"))
-    rules = raw["contract"]["rules"] if "contract" in raw else raw["rules"]
+    rules = raw["rules"]
     for r in rules:
         for v in r.get("allowed_values") or []:
             assert not isinstance(v, bool), f"{template.name}: {r['name']} has bare boolean {v!r} in allowed_values"
@@ -88,6 +101,6 @@ def test_required_if_block_only_on_required_if_rules(template):
     inert (only the required_if handler reads it) — gating is `condition:`."""
     import yaml
     raw = yaml.safe_load(template.read_text(encoding="utf-8"))
-    rules = (raw.get("contract") or raw).get("rules") or []
+    rules = raw.get("rules") or []
     stray = [r["name"] for r in rules if isinstance(r, dict) and "required_if" in r and r.get("type") != "required_if"]
     assert stray == [], f"{template.name}: required_if block on non-required_if rule(s) {stray} — use condition:"

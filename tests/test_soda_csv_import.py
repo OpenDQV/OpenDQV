@@ -123,8 +123,8 @@ class TestSodaImporter:
             assert isinstance(yaml_str, str)
 
             parsed = yaml.safe_load(yaml_str)
-            assert "contract" in parsed
-            assert parsed["contract"]["name"] == name
+            assert "contract" not in parsed  # 3.0.0: flat document
+            assert parsed["name"] == name
 
 
 # ---------------------------------------------------------------------------
@@ -209,7 +209,7 @@ class TestCSVImporter:
         assert result["contract"]["rules"] == []
 
     def test_csv_to_yaml(self):
-        """csv_rules_to_yaml() must return valid YAML with a 'contract' key."""
+        """csv_rules_to_yaml() must return a valid flat YAML contract document (3.0.0)."""
         csv_content = textwrap.dedent("""\
             field,rule_type,value,severity,error_message
             email,not_empty,,error,Email required
@@ -219,9 +219,9 @@ class TestCSVImporter:
 
         assert isinstance(yaml_str, str)
         parsed = yaml.safe_load(yaml_str)
-        assert "contract" in parsed
-        assert parsed["contract"]["name"] == "test_contract"
-        assert len(parsed["contract"]["rules"]) == 2
+        assert "contract" not in parsed
+        assert parsed["name"] == "test_contract"
+        assert len(parsed["rules"]) == 2
 
 
 # ---------------------------------------------------------------------------

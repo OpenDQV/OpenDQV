@@ -43,7 +43,7 @@ scrape_configs:
 
 **Label notes:**
 
-- `context` is set to `"none"` when no context override is provided.
+- `context` is the caller-supplied context tag from the validate request, or `"none"` when the request carried none. It is a tag only — it never changes which rules run.
 - `mode` distinguishes single-record (`/validate`) from batch (`/validate/batch`) calls.
 - The `opendqv_litestream_last_replication_age_seconds` gauge is initialised to `-1` at startup and updated by the Litestream health check if the backup integration is configured.
 
@@ -124,7 +124,7 @@ Each entry is a single JSON object on one line:
 |---|---|
 | `ts` | ISO 8601 UTC timestamp of the validation call |
 | `contract` | Contract name |
-| `context` | Context name, or `"default"` if none was applied |
+| `context` | Context tag from the validate request (a tag only), or `"default"` if none was supplied |
 | `record_index` | Zero-based index of the record within the batch |
 | `valid` | `true` if all error-severity rules passed |
 | `error_count` | Number of error-severity rule failures |

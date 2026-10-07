@@ -64,7 +64,7 @@ def _bundled_contract_names() -> list[str]:
 
 
 def _load_bundled(name: str) -> dict:
-    return yaml.safe_load((BUNDLED_DIR / f"{name}.yaml").read_text(encoding="utf-8"))["contract"]
+    return yaml.safe_load((BUNDLED_DIR / f"{name}.yaml").read_text(encoding="utf-8"))
 
 
 def _export_bundled(name: str) -> dict:
@@ -523,7 +523,7 @@ class TestImportNative:
     def test_odcs_to_yaml_override_name(self):
         name, text = odcs_to_yaml(NATIVE_ODCS, "override")
         assert name == "override"
-        assert yaml.safe_load(text)["contract"]["name"] == "override"
+        assert yaml.safe_load(text)["name"] == "override"
 
 
 class TestImportCustomOpenDQV:

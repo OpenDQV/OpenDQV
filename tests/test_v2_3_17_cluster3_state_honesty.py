@@ -27,12 +27,13 @@ Sub-patches in this cluster:
   discipline). Hashes the resolved Rule set after override
   application — see ``_compute_effective_rule_hash`` rationale.
 
-- N-6: ``get_contract(context=X)`` — Sonnet's read found this is
-  already correct (REST and MCP both call ``get_rules_with_context``
-  before returning rules; verified empirically against ``proof_of_play``
-  with billing/operations contexts). Plan claim was stale. We add a
-  regression test that locks in the correct behaviour against future
-  drift, but no production change.
+- N-6: ``get_contract(context=X)`` regression guard — removed in 3.0.0
+  together with ``contexts:`` (the ``?context=`` query parameter is gone).
+
+3.0.0: ``contexts:`` is gone, so ``context`` on validate is a pure tag and
+never changes which rules run. The F-J tests now pin that: the same record
+validated with and without a context tag carries the SAME
+``effective_rule_hash`` on both the REST and MCP paths.
 """
 
 from opendqv.core.contracts import (
@@ -159,16 +160,14 @@ class TestApprovedBySchemaHonesty:
             f"approved_by must be persisted to history, got: {rows}"
 
 
-# ── F-J: effective_rule_hash distinguishes context overrides ───────────
+# ── F-J: effective_rule_hash on every validate response ────────────────
 
 class TestEffectiveRuleHashOnRest:
-    """REST validate response carries effective_rule_hash. Two calls with
-    the same record but different contexts that resolve to different rule
-    sets MUST produce different effective_rule_hash values."""
+    """REST validate response carries effective_rule_hash. 3.0.0: a context
+    tag never changes the rule set, so the hash is the same with or without
+    one."""
 
-    def test_distinct_contexts_yield_distinct_hashes(self, client, auth_headers):
-        # proof_of_play has contexts: billing, operations — billing rewrites
-        # revenue_ceiling severity (warning → error) and error_message
+    def test_context_tag_does_not_change_effective_rule_hash(self, client, auth_headers):
         record = {
             "play_id": "p1",
             "advertiser_id": "a1",
@@ -194,13 +193,9 @@ class TestEffectiveRuleHashOnRest:
         h_b = r_b.json()["effective_rule_hash"]
 
         assert h_d and h_b, "effective_rule_hash must populate on every validate response"
-        assert h_d != h_b, \
-            f"billing context changes severity (warning→error) and rewrites error_message — hash must differ from default; got h_d={h_d}, h_b={h_b}"
-
-        # Static-triplet invariance (the exact gap effective_rule_hash closes):
-        # entry/content/contract hashes are the same across context calls.
-        assert r_d.json()["entry_hash"] == r_b.json()["entry_hash"], \
-            "entry_hash should be invariant to context (this is the gap effective_rule_hash fills)"
+        assert h_d == h_b, \
+            f"3.0.0: context is a pure tag — it must not change the rule set; got h_d={h_d}, h_b={h_b}"
+        assert r_d.json()["entry_hash"] == r_b.json()["entry_hash"]
 
 
 class TestEffectiveRuleHashOnMcp:
@@ -238,38 +233,8 @@ class TestEffectiveRuleHashOnMcp:
             "MCP in-process validate_record dict must carry effective_rule_hash"
         assert b.get("effective_rule_hash"), \
             "MCP in-process validate_record dict (with context) must carry effective_rule_hash"
-        assert d["effective_rule_hash"] != b["effective_rule_hash"], \
-            "billing context override must change effective_rule_hash on MCP path"
-
-
-# ── N-6: get_contract(context=X) regression guard ──────────────────────
-
-class TestGetContractContextOverridesRegression:
-    """Sonnet found N-6 was already fixed — REST get_contract correctly
-    returns rules with context overrides applied. This regression test
-    locks in the correct behaviour against future drift."""
-
-    def test_rest_get_contract_with_context_returns_overridden_rules(self, client, auth_headers):
-        r_default = client.get("/api/v1/contracts/proof_of_play", headers=auth_headers)
-        r_billing = client.get(
-            "/api/v1/contracts/proof_of_play?context=billing", headers=auth_headers,
-        )
-        assert r_default.status_code == 200
-        assert r_billing.status_code == 200
-
-        def find_rule(rules, name):
-            return next((r for r in rules if r.get("name") == name), None)
-
-        rd = find_rule(r_default.json().get("rules", []), "revenue_ceiling")
-        rb = find_rule(r_billing.json().get("rules", []), "revenue_ceiling")
-
-        assert rd is not None and rb is not None
-        # Default revenue_ceiling is severity:warning; billing override = severity:error
-        assert rd.get("severity") == "warning"
-        assert rb.get("severity") == "error", \
-            "billing context override must apply on REST get_contract (CRT170-J — payload reflects override)"
-        assert rd.get("error_message") != rb.get("error_message"), \
-            "billing context override must rewrite error_message"
+        assert d["effective_rule_hash"] == b["effective_rule_hash"], \
+            "3.0.0: context is a pure tag on the MCP path too — same rule set, same hash"
 
 
 # ── compute_effective_rule_hash unit tests ─────────────────────────────
@@ -296,27 +261,10 @@ rules:
         rules = reg.get("tc").rules
         assert _compute_effective_rule_hash(rules) == _compute_effective_rule_hash(rules)
 
-    def test_different_severity_produces_different_hash(self, tmp_path):
-        """Override that changes only severity must change the hash —
+    def test_different_severity_produces_different_hash(self):
+        """A rule set that differs only in severity must change the hash —
         rule-names-only would miss this, which is exactly the bug F-J fixes."""
-        contracts_dir = tmp_path / "contracts"
-        contracts_dir.mkdir()
-        (contracts_dir / "tc.yaml").write_text("""
-name: tc
-status: active
-version: "1.0"
-rules:
-  - name: x_required
-    field: x
-    type: not_empty
-    severity: warning
-contexts:
-  strict:
-    x_required:
-      severity: error
-""", encoding="utf-8")
-        reg = ContractRegistry(contracts_dir)
-        contract = reg.get("tc")
-        default_rules, _ = reg.get_rules_with_context_status(contract, None)
-        strict_rules, _ = reg.get_rules_with_context_status(contract, "strict")
-        assert _compute_effective_rule_hash(default_rules) != _compute_effective_rule_hash(strict_rules)
+        from opendqv.core.rule_parser import Rule
+        warn = [Rule(name="x_required", field="x", type="not_empty", severity="warning")]
+        err = [Rule(name="x_required", field="x", type="not_empty", severity="error")]
+        assert _compute_effective_rule_hash(warn) != _compute_effective_rule_hash(err)

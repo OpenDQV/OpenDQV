@@ -339,7 +339,7 @@ class TestOdcsPassthroughBlock:
                  "rules": [{"name": "id_req", "type": "not_empty", "field": "id", "error_message": "id required"}]}
         block.update(extra)
         (tmp_path / "passthru.yaml").write_text(
-            yaml.safe_dump({"contract": block}, sort_keys=False), encoding="utf-8")
+            yaml.safe_dump(block, sort_keys=False), encoding="utf-8")
         return tmp_path
 
     def test_a_contract_carrying_the_block_loads(self, tmp_path):
@@ -353,7 +353,7 @@ class TestOdcsPassthroughBlock:
         import yaml
         from opendqv.core.contracts import ContractRegistry
         reg = ContractRegistry(self._write(tmp_path, odcs=self.BLOCK))
-        rewritten = yaml.safe_load(reg._contract_to_yaml(reg.get("passthru")))["contract"]
+        rewritten = yaml.safe_load(reg._contract_to_yaml(reg.get("passthru")))
         assert rewritten["odcs"] == self.BLOCK
 
     def test_it_contributes_no_rules(self, tmp_path):
@@ -379,7 +379,7 @@ class TestOdcsPassthroughBlock:
         hits = [i for i in res.issues if i.code == "ODCS_BLOCK_NOT_ENFORCED"]
         assert [i.severity for i in hits] == ["info"]
         assert res.passed, "an unenforced block is not a lint failure"
-        assert not yaml.safe_load(path.read_text(encoding="utf-8"))["contract"].get("rules_from_odcs")
+        assert not yaml.safe_load(path.read_text(encoding="utf-8")).get("rules_from_odcs")
 
     def test_a_contract_without_the_block_says_nothing(self, tmp_path):
         from opendqv.core.contracts import ContractRegistry
@@ -398,7 +398,7 @@ class TestOdcsPassthroughBlock:
             return _compute_content_hash(
                 c.name, c.version, c.status.value, c.owner, c.owner_email, c.owner_team,
                 c.asset_id, c.description, c.downstream_consumers,
-                [r.model_dump(by_alias=True, mode="json") for r in c.rules], c.contexts,
+                [r.model_dump(by_alias=True, mode="json") for r in c.rules], {},
                 c.strict_schema, c.allowed_fields)
 
         plain = ContractRegistry(self._write(tmp_path / "a", odcs={})).get("passthru")

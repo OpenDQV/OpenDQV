@@ -107,7 +107,7 @@ def test_b5_unique_never_fabricates_duplicates_on_synthesised_column():
     assert validate_batch(recs, rules)["summary"]["failed"] == 2
 
 
-def test_b6_manifest_digest_keeps_zero_and_covers_allowlist_and_contexts():
+def test_b6_manifest_digest_keeps_zero_and_covers_allowlist_with_a_constant_contexts_slot():
     from library_manifest import _rules_digest
     with_zero = [{"name": "r", "type": "range", "field": "x", "min": 0, "max": 5}]
     without = [{"name": "r", "type": "range", "field": "x", "max": 5}]
@@ -115,7 +115,16 @@ def test_b6_manifest_digest_keeps_zero_and_covers_allowlist_and_contexts():
     base = [{"name": "r", "type": "not_empty", "field": "x"}]
     assert _rules_digest(base, {}) != _rules_digest(base, {"allowed_fields": ["trace_id"]})
     assert _rules_digest(base, {}) != _rules_digest(base, {"strict_schema": True})
-    assert _rules_digest(base, {}) != _rules_digest(base, {"contexts": {"web": {"x": {"type": "regex", "pattern": "^a$"}}}})
+    # 3.0.0: contexts are refused at load, so the digest no longer reads them —
+    # but the payload keeps a constant "contexts": {} slot so every digest (and
+    # the managed engine's pin of it) stays byte-identical to 2.x.
+    assert _rules_digest(base, {}) == _rules_digest(base, {"contexts": {"web": {"x": {"type": "regex", "pattern": "^a$"}}}})
+    import hashlib
+    import json
+    expected = hashlib.sha256(json.dumps(
+        {"rules": base, "strict_schema": False, "allowed_fields": [], "contexts": {}},
+        sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    assert _rules_digest(base, {}) == expected
     assert _rules_digest(base, {"allowed_fields": []}) == _rules_digest(base, {})
 
 

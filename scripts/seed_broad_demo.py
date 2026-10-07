@@ -349,7 +349,7 @@ def load_contract_rules(contract_name: str) -> list:
     if not yaml_path.exists():
         return []
     raw = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
-    return raw.get("contract", {}).get("rules", [])
+    return raw.get("rules", [])
 
 
 def _load_ref_values(lookup_file: str) -> list:

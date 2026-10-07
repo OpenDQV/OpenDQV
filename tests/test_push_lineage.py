@@ -63,15 +63,14 @@ class TestContractParsing:
     def test_downstream_consumers_parsed(self, tmp_path):
         from opendqv.core.contracts import ContractRegistry
         yaml_content = """
-contract:
-  name: test_dc
-  version: "1.0"
-  status: active
-  asset_id: "mrn://dataset/opendqv/test_dc"
-  downstream_consumers:
-    - "mrn://dataset/tableau/sales"
-    - "mrn://dataset/dbt/mart"
-  rules: []
+name: test_dc
+version: "1.0"
+status: active
+asset_id: "mrn://dataset/opendqv/test_dc"
+downstream_consumers:
+  - "mrn://dataset/tableau/sales"
+  - "mrn://dataset/dbt/mart"
+rules: []
 """
         (tmp_path / "test_dc.yaml").write_text(yaml_content, encoding="utf-8")
         reg = ContractRegistry(tmp_path)
@@ -85,13 +84,12 @@ contract:
     def test_catalog_visible_false_parsed(self, tmp_path):
         from opendqv.core.contracts import ContractRegistry
         yaml_content = """
-contract:
-  name: test_hidden
-  version: "1.0"
-  status: active
-  asset_id: "mrn://dataset/opendqv/test_hidden"
-  catalog_visible: false
-  rules: []
+name: test_hidden
+version: "1.0"
+status: active
+asset_id: "mrn://dataset/opendqv/test_hidden"
+catalog_visible: false
+rules: []
 """
         (tmp_path / "test_hidden.yaml").write_text(yaml_content, encoding="utf-8")
         reg = ContractRegistry(tmp_path)
@@ -102,12 +100,11 @@ contract:
     def test_catalog_visible_defaults_true_when_absent(self, tmp_path):
         from opendqv.core.contracts import ContractRegistry
         yaml_content = """
-contract:
-  name: test_visible
-  version: "1.0"
-  status: active
-  asset_id: "mrn://dataset/opendqv/test_visible"
-  rules: []
+name: test_visible
+version: "1.0"
+status: active
+asset_id: "mrn://dataset/opendqv/test_visible"
+rules: []
 """
         (tmp_path / "test_visible.yaml").write_text(yaml_content, encoding="utf-8")
         reg = ContractRegistry(tmp_path)
@@ -119,15 +116,14 @@ contract:
         """Backward compatibility — existing contracts without new fields load cleanly."""
         from opendqv.core.contracts import ContractRegistry
         yaml_content = """
-contract:
-  name: legacy
-  version: "2.1"
-  status: active
-  rules:
-    - name: chk_id
-      type: not_empty
-      field: id
-      severity: error
+name: legacy
+version: "2.1"
+status: active
+rules:
+  - name: chk_id
+    type: not_empty
+    field: id
+    severity: error
 """
         (tmp_path / "legacy.yaml").write_text(yaml_content, encoding="utf-8")
         reg = ContractRegistry(tmp_path)
@@ -144,18 +140,14 @@ contract:
 class TestLoadContracts:
     def test_hidden_contract_excluded(self, tmp_path):
         (tmp_path / "visible.yaml").write_text(yaml.dump({
-            "contract": {
-                "name": "visible", "status": "active",
-                "asset_id": "mrn://dataset/opendqv/visible",
-                "catalog_visible": True, "rules": [],
-            }
+            "name": "visible", "status": "active",
+            "asset_id": "mrn://dataset/opendqv/visible",
+            "catalog_visible": True, "rules": [],
         }), encoding="utf-8")
         (tmp_path / "hidden.yaml").write_text(yaml.dump({
-            "contract": {
-                "name": "hidden", "status": "active",
-                "asset_id": "mrn://dataset/opendqv/hidden",
-                "catalog_visible": False, "rules": [],
-            }
+            "name": "hidden", "status": "active",
+            "asset_id": "mrn://dataset/opendqv/hidden",
+            "catalog_visible": False, "rules": [],
         }), encoding="utf-8")
 
         pql = import_push_lineage()
@@ -168,11 +160,9 @@ class TestLoadContracts:
 
     def test_contract_without_catalog_visible_included(self, tmp_path):
         (tmp_path / "no_flag.yaml").write_text(yaml.dump({
-            "contract": {
-                "name": "no_flag", "status": "active",
-                "asset_id": "mrn://dataset/opendqv/no_flag",
-                "rules": [],
-            }
+            "name": "no_flag", "status": "active",
+            "asset_id": "mrn://dataset/opendqv/no_flag",
+            "rules": [],
         }), encoding="utf-8")
 
         pql = import_push_lineage()
@@ -242,12 +232,8 @@ class TestBuildRunEventOwnerTeam:
 
 class TestLoadHiddenNames:
     def test_returns_hidden_names(self, tmp_path):
-        (tmp_path / "a.yaml").write_text(yaml.dump({
-            "contract": {"name": "alpha", "catalog_visible": False, "rules": []}
-        }), encoding="utf-8")
-        (tmp_path / "b.yaml").write_text(yaml.dump({
-            "contract": {"name": "beta", "rules": []}
-        }), encoding="utf-8")
+        (tmp_path / "a.yaml").write_text(yaml.dump({"name": "alpha", "catalog_visible": False, "rules": []}), encoding="utf-8")
+        (tmp_path / "b.yaml").write_text(yaml.dump({"name": "beta", "rules": []}), encoding="utf-8")
 
         import importlib.util
         spec = importlib.util.spec_from_file_location(

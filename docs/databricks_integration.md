@@ -25,11 +25,10 @@ OpenDQV integrates natively with the Databricks platform — Auto Loader ingesti
 Use the Unity Catalog three-level namespace as `asset_id`:
 
 ```yaml
-contract:
-  name: customer
-  version: "1.0"
-  asset_id: "databricks://acme-prod.cloud.databricks.com/catalog/schema/customer"
-  #          databricks://{workspace-host}/{catalog}/{schema}/{table}
+name: customer
+version: "1.0"
+asset_id: "databricks://acme-prod.cloud.databricks.com/catalog/schema/customer"
+#          databricks://{workspace-host}/{catalog}/{schema}/{table}
 ```
 
 For non-Unity Catalog deployments, fall back to the generic Spark convention:
@@ -222,9 +221,8 @@ def orders_clean():
 Set `asset_id` to the Unity Catalog three-level identifier to link OpenDQV contracts to Unity Catalog tables. This enables cross-tool lineage in DataHub and Atlan when both are connected to the Databricks Unity Catalog lineage API.
 
 ```yaml
-contract:
-  name: customer
-  asset_id: "databricks://acme-prod.cloud.databricks.com/main/analytics/customers"
+name: customer
+asset_id: "databricks://acme-prod.cloud.databricks.com/main/analytics/customers"
 ```
 
 ```python

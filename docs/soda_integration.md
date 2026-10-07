@@ -44,23 +44,22 @@ For full importer details see [`importers.md`](importers.md).
 ### Example output
 
 ```yaml
-contract:
-  name: orders
-  asset_id: "soda::orders"
-  rules:
-    - name: order_id_not_null
-      type: not_empty
-      field: order_id
-      severity: error
-    - name: order_id_unique
-      type: unique
-      field: order_id
-      severity: error
-    - name: amount_min
-      type: min
-      field: amount
-      min: 0
-      severity: error
+name: orders
+asset_id: "soda::orders"
+rules:
+  - name: order_id_not_null
+    type: not_empty
+    field: order_id
+    severity: error
+  - name: order_id_unique
+    type: unique
+    field: order_id
+    severity: error
+  - name: amount_min
+    type: min
+    field: amount
+    min: 0
+    severity: error
 ```
 
 ---

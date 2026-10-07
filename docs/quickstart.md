@@ -155,7 +155,7 @@ You are up and running. Here are the natural next steps:
 - **Using Claude Desktop or Cursor?** Connect them directly to OpenDQV via the MCP server — read [`docs/llm_integration.md`](llm_integration.md) for setup instructions and available agent tools
 - **GraphQL API** (`/graphql`) — introspection active; query or mutate contracts.
 - **Token roles** — use `POST /api/v1/tokens/generate?username=alice&role=auditor` to create audit-only tokens for compliance reviewers. Roles: `validator` (default), `reader`, `auditor`, `editor`, `approver`, `admin`. See [`docs/production_deployment.md`](production_deployment.md) for role permissions.
-- **Context overrides** — validate the same contract differently per source system or tenant: [`docs/contexts.md`](contexts.md)
+- **Variants per source system or tenant** — publish one contract per variant (e.g. `salesforce_lead_web_form`); 3.0.0 removed context overrides: [`docs/contexts.md`](contexts.md)
 - **CLI reference** — local validation, contract lifecycle, code generation without a running server: [`docs/cli.md`](cli.md)
 - **Observability** — Prometheus metrics, alert rules, trace log, Grafana panels: [`docs/observability.md`](observability.md)
 - **LocalValidator** — validate without a running API server (Python-only, zero latency): [`docs/pandas_integration.md`](pandas_integration.md)

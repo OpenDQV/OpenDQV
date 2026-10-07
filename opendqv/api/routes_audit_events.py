@@ -65,7 +65,7 @@ def _decode_cursor(token: str) -> tuple[str, int]:
 async def list_audit_events(
     contract: Optional[str] = Query(None, description="Filter by contract name"),
     contract_version: Optional[str] = Query(None, description="Filter by contract version"),
-    context: Optional[str] = Query(None, description="Filter by context override (e.g. 'salesforce')"),
+    context: Optional[str] = Query(None, description="Filter by context tag (e.g. 'salesforce')"),
     since: Optional[str] = Query(
         None,
         description=(

@@ -39,8 +39,7 @@ def load_contracts() -> list[dict]:
     for path in sorted(CONTRACTS_DIR.glob("*.yaml")):
         with open(path, encoding="utf-8") as f:
             raw = yaml.safe_load(f)
-        # Contracts are nested under a top-level "contract:" key
-        data = raw.get("contract", raw)
+        data = raw   # 3.0.0: flat contract documents
         if (
             data.get("status") == "active"
             and data.get("asset_id")

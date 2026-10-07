@@ -13,7 +13,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from opendqv.core.contracts import CONTRACT_KEYS, ContractRegistry, DataContract
+from opendqv.core.contracts import (
+    CONTEXTS_UNSUPPORTED, CONTRACT_KEYS, ENVELOPE_UNSUPPORTED, ContractRegistry, DataContract,
+)
 from opendqv.core.linter import lint_contract_yaml
 from opendqv.core.rule_parser import RULE_KEYS, Rule, nearest_key, parse_rules
 
@@ -89,8 +91,8 @@ def _write(d: Path, name: str, doc: dict) -> Path:
 
 class TestContractKeys:
     def test_unknown_block_key_refuses_the_file_at_load_with_the_hint(self, tmp_path, caplog):
-        _write(tmp_path, "ok", {"contract": {"name": "ok", "version": "1.0", "rules": []}})
-        _write(tmp_path, "bad", {"contract": {"name": "bad", "version": "1.0", "onwer": "x", "rules": []}})
+        _write(tmp_path, "ok", {"name": "ok", "version": "1.0", "rules": []})
+        _write(tmp_path, "bad", {"name": "bad", "version": "1.0", "onwer": "x", "rules": []})
         with caplog.at_level(logging.ERROR):
             reg = ContractRegistry(tmp_path)
         assert reg.get("ok") is not None and reg.get("bad") is None
@@ -100,7 +102,7 @@ class TestContractKeys:
     def test_top_level_holder_key_for_anchors_is_unknown(self, tmp_path, caplog):
         (tmp_path / "anch.yaml").write_text(
             "_defaults: &d {severity: warning}\n"
-            "contract:\n  name: anch\n  version: '1.0'\n  rules:\n    - {<<: *d, name: a, type: not_empty, field: f, error_message: m}\n",
+            "name: anch\nversion: '1.0'\nrules:\n  - {<<: *d, name: a, type: not_empty, field: f, error_message: m}\n",
             encoding="utf-8")
         with caplog.at_level(logging.ERROR):
             reg = ContractRegistry(tmp_path)
@@ -108,15 +110,15 @@ class TestContractKeys:
         assert '"_defaults"' in " ".join(r.getMessage() for r in caplog.records)
 
     def test_misspelt_rule_key_in_a_stored_file_names_file_rule_and_key(self, tmp_path, caplog):
-        _write(tmp_path, "typo", {"contract": {"name": "typo", "version": "1.0", "rules": [
-            {"name": "span", "type": "date_diff", "field": "end", "date_diff_feild": "start", "date_diff_unit": "days", "min_value": 0, "error_message": "m"}]}})
+        _write(tmp_path, "typo", {"name": "typo", "version": "1.0", "rules": [
+            {"name": "span", "type": "date_diff", "field": "end", "date_diff_feild": "start", "date_diff_unit": "days", "min_value": 0, "error_message": "m"}]})
         with caplog.at_level(logging.ERROR):
             reg = ContractRegistry(tmp_path)
         assert reg.get("typo") is None
         msg = " ".join(r.getMessage() for r in caplog.records)
         assert "typo.yaml" in msg and 'rule "span"' in msg and '"date_diff_feild"' in msg
 
-    def test_legacy_flat_document_is_checked_too(self, tmp_path, caplog):
+    def test_flat_document_without_a_contract_block_is_checked(self, tmp_path, caplog):
         _write(tmp_path, "flat", {"name": "flat", "version": "1.0", "descripton": "x",
                                   "rules": [{"name": "a", "type": "not_empty", "field": "f", "error_message": "m"}]})
         with caplog.at_level(logging.ERROR):
@@ -124,34 +126,76 @@ class TestContractKeys:
         assert reg.get("flat") is None
         assert '"descripton" (did you mean "description"?)' in " ".join(r.getMessage() for r in caplog.records)
 
-    def test_context_override_with_unknown_key_is_refused_at_load(self, tmp_path, caplog):
-        _write(tmp_path, "ctx", {"contract": {"name": "ctx", "version": "1.0",
-                                              "rules": [{"name": "a", "type": "min", "field": "age", "min": 18, "error_message": "m"}],
-                                              "contexts": {"kids": {"a": {"mn": 13}}}}})
+    # 3.0.0: the wrapper and a contexts block get their own refusal, checked
+    # before the unknown-key check — never a generic "unknown key" with a hint.
+    def test_wrapped_document_is_refused_with_the_envelope_reason_not_unknown_key(self, tmp_path, caplog):
+        _write(tmp_path, "wrapped", {"contract": {"name": "wrapped", "version": "1.0", "rules": []}})
         with caplog.at_level(logging.ERROR):
             reg = ContractRegistry(tmp_path)
+        assert reg.get("wrapped") is None
+        assert [f for f in reg.load_failures if ENVELOPE_UNSUPPORTED in f["error"]], reg.load_failures
+        msg = " ".join(r.getMessage() for r in caplog.records)
+        assert "contract_envelope_unsupported" in msg and "did you mean" not in msg
+
+    def test_wrapper_with_other_unknown_keys_still_reports_the_envelope(self, tmp_path):
+        _write(tmp_path, "wrapped2", {"_anchors": {"x": 1}, "contract": {"name": "wrapped2", "version": "1.0", "rules": []}})
+        reg = ContractRegistry(tmp_path)
+        assert reg.get("wrapped2") is None
+        failures = " ".join(f["error"] for f in reg.load_failures)
+        assert ENVELOPE_UNSUPPORTED in failures and '"_anchors"' not in failures
+
+    @pytest.mark.parametrize("contexts", [{"kids": {"a": {"min": 13}}}, {}, []], ids=["block", "empty_map", "empty_list"])
+    def test_contexts_block_is_refused_with_the_contexts_reason_not_unknown_key(self, tmp_path, contexts):
+        _write(tmp_path, "ctx", {"name": "ctx", "version": "1.0",
+                                 "rules": [{"name": "a", "type": "min", "field": "age", "min": 18, "error_message": "m"}],
+                                 "contexts": contexts})
+        reg = ContractRegistry(tmp_path)
         assert reg.get("ctx") is None
-        assert "context 'kids'" in " ".join(r.getMessage() for r in caplog.records)
+        failures = " ".join(f["error"] for f in reg.load_failures)
+        assert CONTEXTS_UNSUPPORTED in failures and "did you mean" not in failures
+
+    def test_bare_null_contexts_key_is_tolerated(self, tmp_path):
+        (tmp_path / "nullctx.yaml").write_text(
+            "name: nullctx\nversion: '1.0'\ncontexts:\nrules:\n  - {name: a, type: not_empty, field: f, error_message: m}\n",
+            encoding="utf-8")
+        reg = ContractRegistry(tmp_path)
+        assert reg.get("nullctx") is not None
+
+    def test_contexts_is_not_a_contract_key(self):
+        assert "contexts" not in CONTRACT_KEYS and "contract" not in CONTRACT_KEYS
 
     def test_every_key_the_loader_reads_is_known(self):
         src = (ROOT / "opendqv" / "core" / "contracts.py").read_text(encoding="utf-8")
-        body = src.split("def _parse_contract_format")[1].split("def _parse_legacy_format")[0]
+        body = src.split("def _parse_contract_format")[1].split("def _parse_onboarding_format")[0]
         import re
-        read = set(re.findall(r'c\.get\("([a-z_]+)"', body)) | set(re.findall(r'c\["([a-z_]+)"\]', body))
+        read = set(re.findall(r'raw\.get\("([a-z_]+)"', body)) | set(re.findall(r'raw\["([a-z_]+)"\]', body))
+        assert len(read) > 10, "the loader's key reads were not found — the guard would be vacuous"
         assert read <= CONTRACT_KEYS, read - CONTRACT_KEYS
 
 
 class TestLinter:
     def test_codes_and_hints(self):
         res = lint_contract_yaml(
-            "_anchors: {x: 1}\ncontract:\n  name: t\n  onwer: x\n  rules:\n    - {name: a, type: not_empty, field: f, banana: 7, error_message: m}\n", "t")
+            "_anchors: {x: 1}\nname: t\nonwer: x\nrules:\n  - {name: a, type: not_empty, field: f, banana: 7, error_message: m}\n", "t")
         by_code = {}
         for i in res.issues:
             by_code.setdefault(i.code, []).append(i)
-        assert len(by_code["UNKNOWN_CONTRACT_KEY"]) == 2
-        assert any('"_anchors"' in i.message for i in by_code["UNKNOWN_CONTRACT_KEY"])
-        assert any('"onwer" (did you mean "owner"?)' in i.message for i in by_code["UNKNOWN_CONTRACT_KEY"])
+        # 3.0.0: one flat document → one issue naming every unknown top-level key
+        assert len(by_code["UNKNOWN_CONTRACT_KEY"]) == 1
+        msg = by_code["UNKNOWN_CONTRACT_KEY"][0].message
+        assert '"_anchors"' in msg and '"onwer" (did you mean "owner"?)' in msg
         assert [i.rule_name for i in by_code["UNKNOWN_RULE_KEY"]] == ["a"] and all(i.severity == "error" for i in by_code["UNKNOWN_RULE_KEY"])
+
+    @pytest.mark.parametrize("doc, code", [
+        ("contract:\n  name: t\n  rules: []\n", "CONTRACT_ENVELOPE_UNSUPPORTED"),
+        ("name: t\nrules: []\ncontexts: {}\n", "CONTRACT_CONTEXTS_UNSUPPORTED"),
+        ("name: t\nrules: []\ncontexts: {eu: {a: {severity: warning}}}\nonwer: x\n", "CONTRACT_CONTEXTS_UNSUPPORTED"),
+    ], ids=["wrapper", "contexts", "contexts_plus_unknown_key"])
+    def test_removed_blocks_get_their_own_code_not_unknown_contract_key(self, doc, code):
+        res = lint_contract_yaml(doc, "t")
+        codes = [i.code for i in res.issues]
+        assert codes == [code], codes
+        assert res.issues[0].severity == "error"
 
     def test_bundled_library_and_examples_carry_no_unknown_key(self):
         paths = sorted((ROOT / "opendqv" / "contracts").glob("*.yaml")) + sorted((ROOT / "examples").rglob("*.yaml"))
@@ -172,13 +216,13 @@ class TestAttestationRoundTrip:
     def test_fresh_file_serialiser_writes_all_four_and_the_other_read_attributes(self, tmp_path):
         reg = ContractRegistry(tmp_path)
         c = DataContract(name="att", version="1.0", status="active", owner="o", owner_email="o@x.org",
-                         asset_id="urn:x", sensitive_fields=["ssn"], contexts={"eu": {"a": {"severity": "warning"}}},
+                         asset_id="urn:x", sensitive_fields=["ssn"],
                          rules=[Rule(name="a", type="not_empty", field="f", error_message="m")], **self.FOUR)
-        raw = yaml.safe_load(reg._contract_to_yaml(c))["contract"]
+        raw = yaml.safe_load(reg._contract_to_yaml(c))   # 3.0.0: a flat document
         for k, v in self.FOUR.items():
             assert raw[k] == v, k
         assert raw["owner_email"] == "o@x.org" and raw["asset_id"] == "urn:x"
-        assert raw["sensitive_fields"] == ["ssn"] and raw["contexts"] == {"eu": {"a": {"severity": "warning"}}}
+        assert raw["sensitive_fields"] == ["ssn"] and "contexts" not in raw and "contract" not in raw
         assert set(raw) <= CONTRACT_KEYS   # and nothing the loader would refuse
 
     def test_bundled_contract_survives_load_serialise_load(self, tmp_path):

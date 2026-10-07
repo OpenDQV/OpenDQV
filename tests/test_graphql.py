@@ -20,12 +20,19 @@ class TestGraphQLQueries:
         assert any(c["name"] == "customer" for c in data["contracts"])
 
     def test_get_contract_detail(self, client, auth_headers):
-        query = '{ contract(name: "customer") { name version rules { name type field severity } contexts } }'
+        query = '{ contract(name: "customer") { name version rules { name type field severity } } }'
         r = client.post("/graphql", json={"query": query}, headers=auth_headers)
         assert r.status_code == 200
         data = r.json()["data"]["contract"]
         assert data["name"] == "customer"
         assert len(data["rules"]) > 0
+
+    def test_contract_detail_has_no_contexts_field(self, client, auth_headers):
+        """3.0.0: contexts are gone — ContractDetail.contexts no longer exists."""
+        query = '{ contract(name: "customer") { name contexts } }'
+        r = client.post("/graphql", json={"query": query}, headers=auth_headers)
+        errors = r.json().get("errors") or []
+        assert any("contexts" in e.get("message", "") for e in errors), r.text
 
     def test_contract_not_found(self, client, auth_headers):
         query = '{ contract(name: "nonexistent") { name } }'

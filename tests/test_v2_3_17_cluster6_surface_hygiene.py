@@ -114,6 +114,7 @@ class TestVersionSourceConsistency:
         import os
         import socket
         import subprocess
+        import sys
         import time
 
         # Find a free port
@@ -123,7 +124,7 @@ class TestVersionSourceConsistency:
 
         # Boot a real uvicorn for this test
         engine_proc = subprocess.Popen(
-            ["python", "-m", "uvicorn", "opendqv.main:app",
+            [sys.executable, "-m", "uvicorn", "opendqv.main:app",
              "--host", "127.0.0.1", "--port", str(port), "--log-level", "warning"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )

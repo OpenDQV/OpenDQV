@@ -161,8 +161,8 @@ class TestDbtImporter:
 
             # Must be valid YAML
             parsed = yaml.safe_load(yaml_str)
-            assert "contract" in parsed
-            assert parsed["contract"]["name"] == name
+            assert "contract" not in parsed  # 3.0.0: flat document
+            assert parsed["name"] == name
 
 
 # ---------------------------------------------------------------------------

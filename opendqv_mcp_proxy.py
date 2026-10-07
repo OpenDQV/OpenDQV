@@ -269,7 +269,7 @@ TOOLS = [
             "properties": {
                 "contract": {"type": "string", "description": "Contract name (e.g. 'customer', 'media_content'). Use list_contracts to discover available names."},
                 "record": {"type": "object", "description": "The data record to validate as a JSON object."},
-                "context": {"type": "string", "description": "Optional per-system context override (a name declared in the contract's contexts block). Omit for default rules."},
+                "context": {"type": "string", "description": "Optional caller-supplied tag recorded with quality stats, the audit event and metrics (e.g. 'ci', 'salesforce'). Never changes which rules run."},
                 "agent_id": {"type": "string", "description": "Your agent name or service identity."},
                 "hash": {"type": "string", "description": "Optional content_hash from list_versions to pin validation to a historical contract version. Returns 404 if no matching history entry."},
                 "record_id": {"type": "string", "description": "v2.3.17 F-Q: optional caller correlation ID echoed in the response."},
@@ -292,7 +292,7 @@ TOOLS = [
             "properties": {
                 "contract": {"type": "string", "description": "Contract name to validate all records against."},
                 "records": {"type": "array", "items": {"type": "object"}, "description": "List of data records. Maximum 10,000 per call."},
-                "context": {"type": "string", "description": "Optional per-system context override."},
+                "context": {"type": "string", "description": "Optional caller-supplied tag recorded with quality stats, the audit event and metrics (e.g. 'ci', 'salesforce'). Never changes which rules run."},
                 "agent_id": {"type": "string", "description": "Your agent name or service identity."},
                 "hash": {"type": "string", "description": "Optional content_hash from list_versions to pin all records to a historical contract version."},
             },
@@ -315,9 +315,7 @@ TOOLS = [
         "description": (
             "Get full contract details including all field rules, valid value constraints, and owner. "
             "Pass `hash` (the contract_hash from a prior validate response) to retrieve the exact "
-            "historical version that produced that hash — for point-in-time audit retrieval. "
-            "Pass `context` (a name declared in the contract's contexts block) to return the effective rule set "
-            "with that context's overrides resolved."
+            "historical version that produced that hash — for point-in-time audit retrieval."
         ),
         "inputSchema": {
             "type": "object",
@@ -325,7 +323,6 @@ TOOLS = [
                 "name": {"type": "string", "description": "Contract name."},
                 "version": {"type": "string", "description": "Contract version or 'latest' (default).", "default": "latest"},
                 "hash": {"type": "string", "description": "Contract hash (from a prior validate response). Takes precedence over version."},
-                "context": {"type": "string", "description": "Optional context to apply (a name declared in the contract's contexts block). Returns the effective rule set with overrides resolved."},
             },
             "required": ["name"],
         },
@@ -365,7 +362,6 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "Contract name."},
-                "context": {"type": "string", "description": "Optional context override."},
                 "strict": {
                     "type": "boolean",
                     "description": (
@@ -563,7 +559,7 @@ TOOLS = [
             "properties": {
                 "contract": {"type": "string", "description": "Filter by contract name."},
                 "contract_version": {"type": "string", "description": "Filter by contract version."},
-                "context": {"type": "string", "description": "Filter by context override (a name declared in the contract's contexts block)."},
+                "context": {"type": "string", "description": "Filter by context tag."},
                 "since": {"type": "string", "description": "ISO 8601 UTC start of window (inclusive). Defaults to 24h ago."},
                 "until": {"type": "string", "description": "ISO 8601 UTC end of window (exclusive)."},
                 "agent_id": {"type": "string", "description": "Filter by caller-asserted agent_id."},
@@ -643,15 +639,12 @@ def _call_tool(name: str, arguments: dict) -> str:
         elif name == "get_contract":
             version = arguments.get("version", "latest")
             contract_hash = arguments.get("hash")
-            context_arg = arguments.get("context")
             url = f"/api/v1/contracts/{arguments['name']}"
             params = []
             if contract_hash:
                 params.append(f"hash={contract_hash}")
             elif version != "latest":
                 params.append(f"version={version}")
-            if context_arg:
-                params.append(f"context={context_arg}")
             if params:
                 url += "?" + "&".join(params)
             resp = _client.get(url)
@@ -673,8 +666,6 @@ def _call_tool(name: str, arguments: dict) -> str:
 
         elif name == "get_contract_jsonschema":
             params = {}
-            if arguments.get("context"):
-                params["context"] = arguments["context"]
             if arguments.get("strict") is not None:
                 params["strict"] = "true" if arguments["strict"] else "false"
             resp = _client.get(

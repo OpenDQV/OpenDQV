@@ -296,10 +296,10 @@ class TestLintFileReadError:
 # ---------------------------------------------------------------------------
 
 class TestLintContractNameFromYaml:
-    """Lines 163-164: extract contract_name from contract.name in YAML."""
+    """Extract contract_name from the document's top-level name: (3.0.0 flat document)."""
 
     def test_contract_name_extracted_from_yaml(self):
-        yaml_str = "contract:\n  name: my_auto_contract\nrules:\n  []\n"
+        yaml_str = "name: my_auto_contract\nrules:\n  []\n"
         result = lint_contract_yaml(yaml_str, "")
         # contract_name should be auto-extracted from YAML
         assert result.contract_name == "my_auto_contract"

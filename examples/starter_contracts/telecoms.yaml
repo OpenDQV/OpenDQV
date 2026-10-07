@@ -17,13 +17,13 @@
 # intercept, fraud investigation, and traffic analysis obligations.
 #
 # HOW TO USE:
-#   1. Load: POST /api/v1/contracts (name: "cdr_record")
-#   2. Validate: POST /api/v1/validate/cdr_record
+#   1. Load: POST /api/v1/contracts (name: "telecoms")
+#   2. Validate: POST /api/v1/validate/telecoms
 #   3. Batch (large files): POST /api/v1/validate/batch with array of records
 #      For Parquet/CSV files, see roadmap T3 — file-based batch endpoint.
 #   4. Sample records: examples/starter_contracts/sample_records/telecoms.json
 
-name: cdr_record
+name: telecoms
 version: "1.0.0"
 description: "Call Detail Record validation — number formats, duration, charge, classification"
 asset_id: "urn:opendqv:example:telecoms:cdr_record"

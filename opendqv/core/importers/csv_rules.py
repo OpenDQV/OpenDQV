@@ -290,5 +290,5 @@ def import_csv_rules(csv_content: str, contract_name: str = "csv_import") -> dic
 def csv_rules_to_yaml(csv_content: str, contract_name: str = "csv_import") -> str:
     """Convert CSV rules to OpenDQV YAML string."""
     result = import_csv_rules(csv_content, contract_name)
-    output = {"contract": result["contract"]}
-    return yaml.dump(output, default_flow_style=False, sort_keys=False, allow_unicode=True)
+    # 3.0.0: the flat contract document — no `contract:` wrapper.
+    return yaml.dump(result["contract"], default_flow_style=False, sort_keys=False, allow_unicode=True)

@@ -72,7 +72,6 @@ class LocalValidator:
         self,
         record: dict,
         contract: str,
-        context: Optional[str] = None,
     ) -> dict:
         """
         Validate a single record against a named contract.
@@ -80,7 +79,6 @@ class LocalValidator:
         Args:
             record:   The record to validate, as a plain dict.
             contract: Name of the contract (matches the YAML filename stem).
-            context:  Optional context name for context-specific rule overrides.
 
         Returns:
             dict with keys: valid (bool), errors (list), warnings (list),
@@ -95,7 +93,7 @@ class LocalValidator:
                 f"Contract '{contract}' not found. "
                 f"Loaded contracts: {[c['name'] for c in self._registry.list_contracts()]}"
             )
-        rules = self._registry.get_rules_with_context(dc, context)
+        rules = dc.rules
         result = validate_record(record, rules, **strict_schema_kwargs(dc, rules))
         result["contract"] = contract
         result["version"] = dc.version
@@ -105,7 +103,6 @@ class LocalValidator:
         self,
         records: list[dict],
         contract: str,
-        context: Optional[str] = None,
     ) -> dict:
         """
         Validate a list of records against a named contract.
@@ -113,7 +110,6 @@ class LocalValidator:
         Args:
             records:  List of dicts to validate.
             contract: Name of the contract.
-            context:  Optional context name.
 
         Returns:
             dict with keys: summary (dict), results (list), contract (str).
@@ -127,7 +123,7 @@ class LocalValidator:
                 f"Contract '{contract}' not found. "
                 f"Loaded contracts: {[c['name'] for c in self._registry.list_contracts()]}"
             )
-        rules = self._registry.get_rules_with_context(dc, context)
+        rules = dc.rules
         result = validate_batch(records, rules, **strict_schema_kwargs(dc, rules))
         result["contract"] = contract
         result["version"] = dc.version

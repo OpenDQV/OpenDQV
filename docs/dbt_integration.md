@@ -60,14 +60,13 @@ opendqv import-dbt models/schema.yml
 The importer sets `asset_id` to `dbt::<model_name>`:
 
 ```yaml
-contract:
-  name: orders
-  asset_id: "dbt::orders"
-  rules:
-    - name: order_id_not_null
-      type: not_empty
-      field: order_id
-      severity: error
+name: orders
+asset_id: "dbt::orders"
+rules:
+  - name: order_id_not_null
+    type: not_empty
+    field: order_id
+    severity: error
 ```
 
 ---

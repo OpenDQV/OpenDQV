@@ -171,25 +171,24 @@ OpenDQV is the **write-time** layer. It blocks records before they enter any sys
 ## Contract authoring (YAML)
 
 ```yaml
-contract:
-  name: customer
-  version: "1.0"
-  description: "Customer master data quality contract"
-  owner: "Data Governance Team"
-  asset_id: "urn:opendqv:acme:customer:1.0"
-  rules:
-    - name: email_valid
-      type: regex
-      field: email
-      pattern: "^[^@]+@[^@]+\\.[^@]+$"
-      error_message: "Must be a valid email address"
-      severity: error
-    - name: age_range
-      type: range
-      field: age
-      min: 0
-      max: 120
-      severity: error
+name: customer
+version: "1.0"
+description: "Customer master data quality contract"
+owner: "Data Governance Team"
+asset_id: "urn:opendqv:acme:customer:1.0"
+rules:
+  - name: email_valid
+    type: regex
+    field: email
+    pattern: "^[^@]+@[^@]+\\.[^@]+$"
+    error_message: "Must be a valid email address"
+    severity: error
+  - name: age_range
+    type: range
+    field: age
+    min: 0
+    max: 120
+    severity: error
 ```
 
 ## OpenAPI spec

@@ -14,24 +14,23 @@ field the contract does not declare** — the JSON-Schema
 `additionalProperties: false` idea, enforced at the write boundary.
 
 ```yaml
-contract:
-  name: payments_feed
-  version: "1.0"
-  strict_schema: true
-  allowed_fields: [trace_id]  # allowed without a rule of their own
-  rules:
-    - name: amount_required
-      type: not_empty
-      field: amount
-    - name: amount_positive
-      type: min
-      field: amount
-      min: 0
-    - name: settled_after_booked
-      type: compare
-      field: settled_at
-      compare_to: booked_at   # booked_at is declared by this reference
-      compare_op: gte
+name: payments_feed
+version: "1.0"
+strict_schema: true
+allowed_fields: [trace_id]  # allowed without a rule of their own
+rules:
+  - name: amount_required
+    type: not_empty
+    field: amount
+  - name: amount_positive
+    type: min
+    field: amount
+    min: 0
+  - name: settled_after_booked
+    type: compare
+    field: settled_at
+    compare_to: booked_at   # booked_at is declared by this reference
+    compare_op: gte
 ```
 
 ## What counts as declared
@@ -63,8 +62,8 @@ producer sees all of them at once:
 }
 ```
 
-Single-record and batch validation behave identically. Contexts are applied
-first; the declared set is computed from the resolved rules.
+Single-record and batch validation behave identically; the declared set is
+computed from the contract's rules.
 
 ## Where it travels
 

@@ -165,7 +165,8 @@ d = json.load(sys.stdin)
 assert d.get('name') == 'customer'
 assert d.get('asset_id') == 'urn:opendqv:customer'
 assert len(d.get('rules',[])) > 0
-print(f'    {len(d[\"rules\"])} rules, {len(d[\"contexts\"])} contexts')
+assert 'contexts' not in d, 'contexts field removed in 3.0.0'
+print(f'    {len(d[\"rules\"])} rules')
 "
 
 # =============================================================================
@@ -243,18 +244,18 @@ print(f'    {len(d[\"points\"])} data points, asset_id={d[\"asset_id\"]}')
 "
 
 # =============================================================================
-step "11. Context-aware validation"
+step "11. Context is a tag only (3.0.0)"
 # =============================================================================
 CR=$(curl -sf -X POST http://localhost:8000/api/v1/validate \
   -H "Content-Type: application/json" \
   -d '{"record":{"email":"k@example.com","name":"Kid","age":25},
        "contract":"customer","context":"kids_app"}' || echo '{}')
-check_json "kids_app context → age 25 rejected (must be 5-17)" "$CR" "
+check_json "context tag never changes the rules (no override, no context_warning)" "$CR" "
 import sys, json
 d = json.load(sys.stdin)
-age_err = [e for e in d.get('errors',[]) if e['field']=='age']
-assert len(age_err) > 0, f'expected age error, got: {d}'
-print(f'    age error: {age_err[0][\"message\"]}')
+assert 'context_warning' not in d, d
+assert not [e for e in d.get('errors',[]) if e['field']=='age'], f'unexpected age error: {d}'
+print(f'    valid={d.get(\"valid\")}, no age error under context=kids_app')
 "
 
 # =============================================================================

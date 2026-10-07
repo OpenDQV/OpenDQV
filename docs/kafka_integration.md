@@ -427,13 +427,12 @@ def get_client_for_topic(topic: str) -> OpenDQVClient:
 Link OpenDQV contracts to Kafka topics using `asset_id`:
 
 ```yaml
-contract:
-  name: orders
-  asset_id: "kafka://your-cluster/raw.orders"
-  rules:
-    - name: order_id_required
-      type: not_empty
-      field: order_id
+name: orders
+asset_id: "kafka://your-cluster/raw.orders"
+rules:
+  - name: order_id_required
+    type: not_empty
+    field: order_id
 ```
 
 Use `kafka://{cluster-id}/{topic}` as the convention. This allows catalog tools (DataHub, Collibra) to correlate the contract with the Kafka topic lineage node.

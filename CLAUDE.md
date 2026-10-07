@@ -12,7 +12,7 @@ It validates records against YAML data contracts at the point of write — befor
 data enters the pipeline ("shift-left"). It is **not** a pipeline monitoring tool
 (that's Monte Carlo) or a pipeline test framework (that's dbt/Soda).
 
-**Version:** 2.10.5
+**Version:** 3.0.0
 **Stack:** FastAPI + Gunicorn/Uvicorn, Streamlit UI, SQLite/PostgreSQL, DuckDB (batch), MCP
 
 ---
@@ -38,8 +38,8 @@ opendqv/core/           Engine: validator, rule_parser, contracts, code_generato
 opendqv/core/importers/ 8 format importers: GX, dbt, Soda, CSV, ODCS, CSVW, OTel, NDC
 opendqv/contracts/      YAML data contracts (41 bundled, 22+ industry domains) — shipped in the wheel since v2.2.4.
                         Since v2.7.0 a MIRROR of the Cloud golden library (provenance in
-                        library_manifest.json at the repo root, not in the wheel); no bundled contract carries `contexts:` —
-                        the worked example is examples/contexts/customer.yaml
+                        library_manifest.json at the repo root, not in the wheel). Every contract is a flat
+                        document; `contexts:` was removed in 3.0.0 (see docs/contexts.md)
 opendqv/contracts/ref/  Lookup reference files (.txt) used by lookup rules
 opendqv/sdk/            Python SDK: sync client, async client, local validator
 opendqv/security/       JWT PAT auth (auth.py)
@@ -93,6 +93,14 @@ python -m opendqv.cli validate customer '{"name":"Alice","age":30}'
 ---
 
 ## Critical conventions
+
+### Contract documents (3.0.0)
+- A contract YAML is FLAT: `name`, `version`, `rules`, … are top-level keys. A top-level
+  `contract:` wrapper is refused (`contract_envelope_unsupported`), as is any `contexts:` block
+  (`contract_contexts_unsupported`; a bare null `contexts:` is tolerated) — at the shared parse point
+  `check_removed_blocks()` in `core/contracts.py`, so load, `/import/*`, `fork` and `lint` all refuse.
+- No context overrides: a variant is its own contract (`salesforce_lead_web_form`). `context` on
+  validate / validate batch is a tag only (stats, audit event, metrics) and never changes which rules run.
 
 ### Rule model field naming
 - YAML contracts use aliases: `min:`, `max:` (user-facing short names)

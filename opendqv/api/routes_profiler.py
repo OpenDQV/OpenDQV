@@ -56,7 +56,7 @@ async def profile_data(
     result = profile_records(records, contract_name=contract_name)
 
     if save:
-        contract_data = {"contract": result["contract"]}
+        contract_data = result["contract"]   # 3.0.0: flat document, no `contract:` wrapper
         yaml_content = _yaml.dump(contract_data, default_flow_style=False, sort_keys=False, allow_unicode=True)
         contracts_dir = str(config.CONTRACTS_DIR)
         file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")
@@ -97,7 +97,7 @@ async def profile_file(
     result = profile_records(records, contract_name=contract_name)
 
     if save:
-        contract_data = {"contract": result["contract"]}
+        contract_data = result["contract"]   # 3.0.0: flat document, no `contract:` wrapper
         yaml_content = _yaml.dump(contract_data, default_flow_style=False, sort_keys=False, allow_unicode=True)
         contracts_dir = str(config.CONTRACTS_DIR)
         file_path = os.path.join(contracts_dir, f"{contract_name}.yaml")

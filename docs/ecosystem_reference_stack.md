@@ -67,22 +67,21 @@ contracts/customer.yaml
 **Step 1:** Author your rules once in OpenDQV YAML:
 
 ```yaml
-contract:
-  name: customer
-  version: "1.0"
-  asset_id: "urn:opendqv:acme:customer:1.0"
-  rules:
-    - name: email_valid
-      field: email
-      type: regex
-      pattern: "^[^@]+@[^@]+\\.[^@]+$"
-      error_message: "Must be a valid email address"
-    - name: age_range
-      field: age
-      type: range
-      min: 0
-      max: 120
-      error_message: "Age must be between 0 and 120"
+name: customer
+version: "1.0"
+asset_id: "urn:opendqv:acme:customer:1.0"
+rules:
+  - name: email_valid
+    field: email
+    type: regex
+    pattern: "^[^@]+@[^@]+\\.[^@]+$"
+    error_message: "Must be a valid email address"
+  - name: age_range
+    field: age
+    type: range
+    min: 0
+    max: 120
+    error_message: "Age must be between 0 and 120"
 ```
 
 **Step 2:** Enforce at write time via OpenDQV:
@@ -175,10 +174,9 @@ urn:opendqv:{organisation}:{contract_name}:{version}
 
 Example:
 ```yaml
-contract:
-  name: customer
-  version: "2.1"
-  asset_id: "urn:opendqv:acme-corp:customer:2.1"
+name: customer
+version: "2.1"
+asset_id: "urn:opendqv:acme-corp:customer:2.1"
 ```
 
 This URI can be used to link an OpenDQV contract to:

@@ -284,96 +284,92 @@ Apply checksum validation only when the identifier type is present:
 ### Banking contract
 
 ```yaml
-contract:
-  name: payment_instruction
-  version: "1.0"
-  rules:
-    - name: iban_format
-      type: regex
-      field: creditor_iban
-      pattern: "^[A-Z]{2}\\d{2}[A-Z0-9]{1,30}$"
-      error_message: "Creditor IBAN format is invalid"
-      severity: error
+name: payment_instruction
+version: "1.0"
+rules:
+  - name: iban_format
+    type: regex
+    field: creditor_iban
+    pattern: "^[A-Z]{2}\\d{2}[A-Z0-9]{1,30}$"
+    error_message: "Creditor IBAN format is invalid"
+    severity: error
 
-    - name: iban_checksum
-      type: checksum
-      field: creditor_iban
-      checksum_algorithm: iban_mod97
-      error_message: "Creditor IBAN has invalid check digits"
-      severity: error
+  - name: iban_checksum
+    type: checksum
+    field: creditor_iban
+    checksum_algorithm: iban_mod97
+    error_message: "Creditor IBAN has invalid check digits"
+    severity: error
 
-    - name: lei_checksum
-      type: checksum
-      field: originator_lei
-      checksum_algorithm: lei_mod97
-      error_message: "Originator LEI check digits are invalid"
-      severity: error
+  - name: lei_checksum
+    type: checksum
+    field: originator_lei
+    checksum_algorithm: lei_mod97
+    error_message: "Originator LEI check digits are invalid"
+    severity: error
 ```
 
 ### Healthcare contract
 
 ```yaml
-contract:
-  name: patient_record
-  version: "1.0"
-  rules:
-    - name: nhs_format
-      type: regex
-      field: nhs_number
-      pattern: "^\\d{10}$"
-      error_message: "NHS number must be 10 digits"
-      severity: error
+name: patient_record
+version: "1.0"
+rules:
+  - name: nhs_format
+    type: regex
+    field: nhs_number
+    pattern: "^\\d{10}$"
+    error_message: "NHS number must be 10 digits"
+    severity: error
 
-    - name: nhs_checksum
-      type: checksum
-      field: nhs_number
-      checksum_algorithm: nhs_mod11
-      error_message: "NHS number check digit is invalid"
-      severity: error
+  - name: nhs_checksum
+    type: checksum
+    field: nhs_number
+    checksum_algorithm: nhs_mod11
+    error_message: "NHS number check digit is invalid"
+    severity: error
 ```
 
 ### Retail/FMCG contract
 
 ```yaml
-contract:
-  name: product_master
-  version: "1.0"
-  rules:
-    - name: gtin_format
-      type: regex
-      field: gtin
-      pattern: "^\\d{8}$|^\\d{12}$|^\\d{13}$|^\\d{14}$"
-      error_message: "GTIN must be 8, 12, 13, or 14 digits"
-      severity: error
+name: product_master
+version: "1.0"
+rules:
+  - name: gtin_format
+    type: regex
+    field: gtin
+    pattern: "^\\d{8}$|^\\d{12}$|^\\d{13}$|^\\d{14}$"
+    error_message: "GTIN must be 8, 12, 13, or 14 digits"
+    severity: error
 
-    - name: gtin_checksum
-      type: checksum
-      field: gtin
-      checksum_algorithm: mod10_gs1
-      error_message: "GTIN check digit is invalid"
-      severity: error
+  - name: gtin_checksum
+    type: checksum
+    field: gtin
+    checksum_algorithm: mod10_gs1
+    error_message: "GTIN check digit is invalid"
+    severity: error
 ```
 
 ### Automotive/Insurance contract
 
 ```yaml
-contract:
-  name: vehicle_record
-  version: "1.0"
-  rules:
-    - name: vin_format
-      type: regex
-      field: vin
-      pattern: "^[A-HJ-NPR-Z0-9]{17}$"
-      error_message: "VIN format is invalid"
-      severity: error
+name: vehicle_record
+version: "1.0"
+rules:
+  - name: vin_format
+    type: regex
+    field: vin
+    pattern: "^[A-HJ-NPR-Z0-9]{17}$"
+    error_message: "VIN format is invalid"
+    severity: error
 
-    - name: vin_checksum
-      type: checksum
-      field: vin
-      checksum_algorithm: vin_mod11
-      error_message: "VIN check digit is invalid"
-      severity: error
+  - name: vin_checksum
+    type: checksum
+    field: vin
+    checksum_algorithm: vin_mod11
+    error_message: "VIN check digit is invalid"
+    severity: error
 ```
 
 ## See also
