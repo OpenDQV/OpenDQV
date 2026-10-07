@@ -161,9 +161,7 @@ def test_create_draft_writes_flat(tmp_path):
 def test_rule_mutation_and_lifecycle_write_flat(tmp_path):
     reg = _registry(tmp_path, {"widget.yaml": FLAT})
     reg.add_rule("widget", {"name": "qty_min", "type": "min", "field": "qty", "min": 0, "error_message": "x"})
-    # "1.0" is the registry key; the draft counter bumps the object's version
-    # without re-keying it (pre-existing since 2.x, not part of 3.0.0).
-    reg.submit_for_review("widget", "1.0", "maker")
+    reg.submit_for_review("widget", reg.get("widget").version, "maker")
     c = _assert_flat_and_reloads(tmp_path, "widget.yaml", "widget")
     assert {r.name for r in c.rules} == {"sku_required", "qty_min"}
     assert c.status.value == "review" and c.proposed_by == "maker"
