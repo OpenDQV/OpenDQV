@@ -1,0 +1,248 @@
+{
+  "agriculture_batch@0.1": {
+    "content_hash": "e780d51a57a7b77a44869fa6e087473f80b071230f60e4882835f9bff73b7f71",
+    "effective_rule_hash": "627196c5e821687406df95039d2283adfd2e64ac82962c98f5bd0f2d6a3d34e2",
+    "entry_hash": "4b60c10c6ec7c051f390e2d821c55df8edca03269d137e570ffaae856d697a0e",
+    "rules_sha256": "b64cff8c90f216e723a692541022b65d210c0070110da33998de96916505a839"
+  },
+  "automotive_vehicle@0.1": {
+    "content_hash": "8ed9cef4b3f5f9bc254cb0f2c6ed5c7e97e4e055fccb78b9ab7ca6b2595a4119",
+    "effective_rule_hash": "f8f3186d35d917077a68ac35b2da955469f45f7a56092ab63a63d4eb5ef11e81",
+    "entry_hash": "2773a3ba76ae77150458c32185a58f1d2bdadd23899e12261b6feed6a63543d0",
+    "rules_sha256": "ca21f2963236a45e87782787aa9db846971d8927766f1672f75c76704e310261"
+  },
+  "banking_transaction@0.1": {
+    "content_hash": "237d5c64f481500ee22676f051f838b75328d6ce460bbe159db89d2dac426924",
+    "effective_rule_hash": "27df7980064b76a868dcc92284cf2f52abdece038056ae2994f5953acc886dc5",
+    "entry_hash": "e4c79597fbe618101ad7d5815eff5e59a6c5dcea805baf64c0bc3bbebab64ba7",
+    "rules_sha256": "5d2c2eec69bcc80324b6f95fbe8e1323c97de8b879f3324be8aa99a804e593f9"
+  },
+  "building_safety_golden_thread@0.1": {
+    "content_hash": "ab9695785d774f567c019fe46eb7814ea1cf177c3dc311a817147fa4e54f2e66",
+    "effective_rule_hash": "805e2b947922555fe23b4d9b6ab85265ae992ac77ff9dbd63066b2647acafa23",
+    "entry_hash": "43afddfea4aea638565481cf52dc96b9afee0b7d7517537672ebaa97231459c6",
+    "rules_sha256": "4a4147cff91fa77c90d02eeb2eb86545e579f5d10c6ff9180a8b7daa6550d182"
+  },
+  "companies_house_filing@0.1": {
+    "content_hash": "907cde456de7e426e11ab1aaf49373984f73109113ba04db6d75002576b07b4c",
+    "effective_rule_hash": "21b444b2bca49eb4e01635bed03c127ff01f602bd816f755ddc08c4d616eb7e2",
+    "entry_hash": "d4b3dda871fd22de65bbdf8a0aa0a0fdd2b1e094518eeff74dcd9af8b0927ac3",
+    "rules_sha256": "0e24cbc13045e46e9e9e2cb0526f2fcb13d45fa110910086f6c0eafd3ecf1af5"
+  },
+  "customer@0.1": {
+    "content_hash": "fa405745df73f6705c0d2c9eb169fb394519934b26cedaeca8b0ce7aefe0e7b3",
+    "effective_rule_hash": "57fd8dadf183ded8b355b7532f50f01dd6400b4c9fca94305cf9c12ecde6f9e1",
+    "entry_hash": "79cfcd0b4907dfef10ce59b3d52e515013922583105a02ffdaf9cfcaf709392e",
+    "rules_sha256": "0b4d74366b4d69c16f4070582be52e9ddcd8ed042fa445206fffbab4513648a4"
+  },
+  "dora_ict_incident@0.1": {
+    "content_hash": "e5621368c95755b674688faf508a604effdb899498b223bc7e51483e082caeb1",
+    "effective_rule_hash": "3d1809d6ba93b7cda2c75597da9965eb1dbede44dae0ca6f619b3b8c52e20c44",
+    "entry_hash": "64feccc32da6ca8c6e1ebf773a61a245a407799247fb47d2d3eff21507a88290",
+    "rules_sha256": "b96c09fc7c6749bf4f6effdf402b89a6e7264e2698ed7211d49df703c97a9acc"
+  },
+  "education_student@0.1": {
+    "content_hash": "5c4b20a51d0c0707141d172ec0df148d99679d21dbba990089effa3695324d40",
+    "effective_rule_hash": "ac35f2215084af6e97f06a20ffb3351cd714145e351ef161f01c50c4780dbac2",
+    "entry_hash": "062444acbb8febb2fc54d978cb5972fddb29d05aa548923b5e1f62026412858d",
+    "rules_sha256": "54bb6c8fbca923445d5de33c5aa75a79682fb351a6ed8a934eb630e4b885495b"
+  },
+  "eu_gdpr_dsar_request@0.1": {
+    "content_hash": "fd5cef184ca299e322dfb4e5c699e6c71e6b8631d2925a8b09996d1dc4879a7c",
+    "effective_rule_hash": "a6012bd210e1df6959aa0e6a9d3b96783ec70b3d35932051ea8a44f44a7ba418",
+    "entry_hash": "e32131329c2c5c9a11236f691b64c245507734f6a238ddc06d58d1252c3ed21a",
+    "rules_sha256": "cc931242fcbe83a1ee26a5b989c749c2118461e623a275367a6d3d160be92721"
+  },
+  "eu_gdpr_processing_record@0.1": {
+    "content_hash": "d9b10fbe07f3ba99e741aa0cc535881fa32ee4fd163f3b93edf572eb40f0faef",
+    "effective_rule_hash": "f229fa1df2e5a65e367d651e60a0188d74602a9df54bbbb9fc3a3242097e8c6a",
+    "entry_hash": "3167a244f95f8420ed009e347d6d32cd9a234b94da7c7deaf74fcf02d7c14a11",
+    "rules_sha256": "1b722e0c86bdd7877e686435eb658b7a08ddb013c8a6ab2b89657c16ddd2fe90"
+  },
+  "financial_services_customer@0.1": {
+    "content_hash": "7316cd21e37320647aa949e190bd488891c8e960d963b705e6846e16d769b82c",
+    "effective_rule_hash": "cb627a2d3c26e5f2cd24223938c30d27b053b0df34623e65ce571e0677e32b3c",
+    "entry_hash": "dbee4f995ca53918a22b9c0c9decae705d2212242abb581886f49cd77cc83e76",
+    "rules_sha256": "0cb7a1fbce9fadf48be8ff29a0d013c3ad97f60a3a7017103f092a9748e6cc44"
+  },
+  "financial_trade@0.1": {
+    "content_hash": "0de4a22f7b3b7d1d04c5de5d727f7dd15ed4fa32e2358e1064bf01b6342155eb",
+    "effective_rule_hash": "6956fdf73ecacef58059f8c237d1d5ba7c421156800fd2f6d7a5476291e67eec",
+    "entry_hash": "ba071f8681ed5fc4ce6b40b9b638d4345625016af90f583a905a61549ad3c540",
+    "rules_sha256": "c964992bc6c0e316122abf75833ff9a36ee9f96e6ec63711c8327fe9da77f5d5"
+  },
+  "fmcg_product@0.1": {
+    "content_hash": "1877bef3083f66fa6ece6e55af0bf97d9285adfc5b2694651aade9c760094fd8",
+    "effective_rule_hash": "5fcb7ad288aad9cf917409b5ce96bba347b1cad190078f5869aa03c5157c84ba",
+    "entry_hash": "c36513d7745eed6ed4122434383b3053cf59973b7fdecc080bcace9ddd48f5f7",
+    "rules_sha256": "603b0af787ec73dcd3eb476cda2e6cdd7abd9fb6500526361be7f8c0eeb10bf1"
+  },
+  "gdpr_dsar_request@0.1": {
+    "content_hash": "c0a101f44594b613214843f92700ea45dba5dc37a80ac4bfb5278fb2d7dbd2fc",
+    "effective_rule_hash": "b11f639d2babd5ce250c64d7f98a3126df8269227f7a2815a76452d0075ab3c9",
+    "entry_hash": "15b051303b571855d31481d7e24ed88d20a3c92bd79885ab073f492e4472a020",
+    "rules_sha256": "173366b11d052d2aeccec98227770ccc966cba9a44f92199531887b221fc8535"
+  },
+  "gdpr_processing_record@0.1": {
+    "content_hash": "adba4d84612ac201f1870ec2e3983c519c06c89f282c38ae19be64c58e4e6e34",
+    "effective_rule_hash": "32cfe1391a08f04eb8d9be58b86d240cded3e16b46b3bbdfc2dcd26f0c728feb",
+    "entry_hash": "2d80b6ce3de6e7f863904029abc192b56fd3b649120b12fd1c1622e8ff67782f",
+    "rules_sha256": "036f000ca1f08b9f806973213a7332ee6249c638b923f9dd91150de3c9d08680"
+  },
+  "hipaa_disclosure_accounting@0.1": {
+    "content_hash": "5f3972d0ee9c1e710b09b07b578c4b7abf22da13ce54f9c8950ab49911c1ea02",
+    "effective_rule_hash": "d6240567201cfa00efcb89526843612dce1511015e3213a1ac83f35f27017950",
+    "entry_hash": "03d316fb304fa1eb73a6b92081f6ae4ca7c706ba013e5aac8e3f622794e8c94a",
+    "rules_sha256": "2ae321bc9220ddefc67875268af93e004698a13fecbd2e61d56e6ea7a63f8a30"
+  },
+  "hr_employee@0.1": {
+    "content_hash": "1b8d08f587ccd05c24402908e345bb11d638edc335c53355534b7686873793b2",
+    "effective_rule_hash": "0156c5568d497019cad652bdcd818e7d2c11c8205de2cf16b0620ce33b744e98",
+    "entry_hash": "05711b321fea89ea217fcc455ccabf4224d49e459c5c3d86f5264f4408d37979",
+    "rules_sha256": "73f0c497c7e980a6a0719ad1075958b6f7327c16e13de05d1d8a99427da57f4b"
+  },
+  "insurance_claim@0.1": {
+    "content_hash": "dce39a3fc6dedabd0f92074a6057db71a1685671bb2ab6d7ccb5a4aab8b3d5b9",
+    "effective_rule_hash": "8b7e27bb6280dfd765bb23636bab2f508ce05e319b2123c5928bc613c1bf8418",
+    "entry_hash": "c079b6266d7771e6026b93470285e2dd63eeedfdcb3c4ed495d9ee5dd793dd7a",
+    "rules_sha256": "0592e47ed5993762a9b3577ba7a0d9e5eb418f5d40ecbfc2b726e96681edcfba"
+  },
+  "logistics_shipment@0.1": {
+    "content_hash": "fd727ba76f074b8b46fc046d308d22cb03ef42290e658f39bf1f74f311d35fe3",
+    "effective_rule_hash": "efba6504c7c3939ab0b59971e8de72a794ff8cf4898b0e457ea1c2f9a1f58274",
+    "entry_hash": "df6d545263cf91258ba1de3c34de8ea069de4c103556bcdafd3bf5ecc79f5113",
+    "rules_sha256": "79ef84f68652035b2826dabf40f09a8fc5bcc5fe16bffe057c3e1ee9dad82d2f"
+  },
+  "manufacturing_iot@0.1": {
+    "content_hash": "bc7727086587cec893614f189126846220b8fef2a74a2d8b7654e41a43b87d74",
+    "effective_rule_hash": "9a8107eef820b9c5b11636da5d273e38b893fad5d8434224411fd0ca85b03bc0",
+    "entry_hash": "18a8c796b9f0cdb7c0b0aede5bc560eda341f0e0956b62fed629623860909cf6",
+    "rules_sha256": "1393a087c45a59fde1dc24a98e7b2753d5973127840481727dfd338b3cf0c0e7"
+  },
+  "martyns_law_event@0.1": {
+    "content_hash": "e4f902c7e36ace73d7ee8ed45deea32a788c84dbb72e26fdc9c92309d74f5022",
+    "effective_rule_hash": "1ecfdc30d93bc634dd2b7a79b7524f996b4968db956563e218712fd329522cb7",
+    "entry_hash": "df1e2e0fb279e228f9eb13a4eb4d64baf95efb1347b4e7074a07a96294b123c5",
+    "rules_sha256": "5f3a54262075e56b928c0845c648db663dd5b9f48dbcd2a6cff96079fb28d206"
+  },
+  "martyns_law_venue@0.1": {
+    "content_hash": "96005dfabbf0344390a6850a354c7a03a86f9805dfff4a5a0355e7442a21b6f6",
+    "effective_rule_hash": "1ba63b7f266d40d37dd34aea4ebd9c8b3c10d6237a7ce8a44606658fbc0d8b08",
+    "entry_hash": "0cfd956412b4d26854d32999bc4b17291fbc59824a39fd35cef172b70c37f344",
+    "rules_sha256": "27610c4d469fd0e9bd8eaeed539800eab6571c2dce0473826c03b655e0966be6"
+  },
+  "media_content@0.1": {
+    "content_hash": "6ee5ab250fbf87a355090420bb53bc2656f12debba47cd4b18e57d4dfae2a0d3",
+    "effective_rule_hash": "61ed5231962fe088f32a8a9686c7dc256da018660b079879842363029aee74fd",
+    "entry_hash": "2cbb5e9dfe5a6aad27700b11f96281747d7c3a29f770da4d8863ad352652eaad",
+    "rules_sha256": "b31bba7030e4e55761258933aa502eb377ac64a598366d317bb0d57c6584f79f"
+  },
+  "mifid_transaction_report@0.1": {
+    "content_hash": "6d7aa70f7eecb1d8af174d9249f13c32022d1c781dffee0132d2db44996c8350",
+    "effective_rule_hash": "e566ad83710d57b4c2f2c142c7a28b3eb51baf2fd2625cc45355b93fb83eceb5",
+    "entry_hash": "559a7016c50e9bdfe2dbaf3e00586803510738b92a5418a8c11da4c9331d8280",
+    "rules_sha256": "0262fcf861f937523ea8c9b825235179ae8b0857f7453a5d75538c573006992b"
+  },
+  "nhs_dsp_patient@0.1": {
+    "content_hash": "b8a9035238b8cd0e573ee0e519176c1403d454e141369a39e6526f13fe613056",
+    "effective_rule_hash": "822b837f9d7a103beec013658496b654073c2aa72235aaff1867b69662acb390",
+    "entry_hash": "c0794022a517db953ad30e7e35be7e35737b900d4a2635baadf5504b4ebbacfe",
+    "rules_sha256": "63b080e8095a68cfdc715f9a3d6199d6221669f920abe98399bdb165d9b83f45"
+  },
+  "ofgem_meter_reading@0.1": {
+    "content_hash": "674482ffc7e4c5edffcfe67e93c7c348055fd3526d1eddefd818ac4581b98de5",
+    "effective_rule_hash": "13061ec83563da9f0710e87f12f7950ff0326fc2a632b11f3551f61042cba435",
+    "entry_hash": "cbf3e4ca6e99b3bfef837e0053b67d126769df7cf4575b64a519ac2831b06ef2",
+    "rules_sha256": "a23ea529ca528d2e97b99ca3cda8ff308be84853ff5c88865d84c2dab2a79817"
+  },
+  "ofwat_meter_reading@0.1": {
+    "content_hash": "cb0b20633098fc629b1b7665effd00016d231c9afa114a99d2c083293ee26dd3",
+    "effective_rule_hash": "4c4d84a18c4ed5eb477410e4b8ce4595a258e54469ac5097c2c887527aa37a26",
+    "entry_hash": "46a39710245e73a38169925a16cb4399120200a3325bf66f5059fd0d7e1be424",
+    "rules_sha256": "130a639e6313e3c6cbbcaffe2fa796cdbaf023856b4a4b7d693735765137b22f"
+  },
+  "pharma_clinical_trial@0.1": {
+    "content_hash": "473db8f094e94eb06e5aeee96360658e7979bef1654c5025a668e4550b9a4a22",
+    "effective_rule_hash": "c048fd13878f9d42ab8c142e973787d10905c201c44c7b42010cfff3f6c1f1a9",
+    "entry_hash": "9244fd30272edce8ce841d996286e7a00c251744f25ff2939480768d734338a3",
+    "rules_sha256": "ae22109f6ffcd0cd05d2b3ecc779588d7f8a36db981297a2e2d544e742e0a2a8"
+  },
+  "ppds_menu_item@0.1": {
+    "content_hash": "31453eb8f0a2f58c0922e276fd07a9ecf4c39c7c399cf855b03c81f8c704bca5",
+    "effective_rule_hash": "501af9e96a04f51c38ba3f8ef138138aa2137badfaa6ed11c04882b80ad9bdb6",
+    "entry_hash": "53f79eb1b1f58f1e7be1f4c48e3e9202e81cc4975cbe809603b249718d6a2ffc",
+    "rules_sha256": "7e81908e8c6c02b1988e1c60c97d1d10f1b4def7e898caed59ac601bab6784e3"
+  },
+  "proof_of_play@0.1": {
+    "content_hash": "bff11ccfdde35c7f40695be2cf68118cdcfcb97b8ec14a27c680e14b09b329a3",
+    "effective_rule_hash": "08803bcc33ac5b8e6933e620e9963eefbba8d94c5fef09a2392e8cbed47b5263",
+    "entry_hash": "74ac5b8ec89c3d247c611bffd224f5dcb257e12c6212e909965d919dc0714f43",
+    "rules_sha256": "b55fb1313f925b9d2ef06f9b9ae463f8b5b91d5d0079eae56d449f18cacadcf5"
+  },
+  "public_sector_service@0.1": {
+    "content_hash": "da0b40c46d1fc9d51930ec398e3325c94fee320205a7c270b6d84ded5c9a88da",
+    "effective_rule_hash": "ac119ef9016a90634d9fb8ad7454d607f1778d16ec92c3906a483f4296430ea2",
+    "entry_hash": "c32284fa1b7df54bea5b8a82419b7efaacc7b0d435144e443b4593dfcdc308c1",
+    "rules_sha256": "1424c490f3d205907a36630721ec2f6b8c5c26aa7ab59351bb7bc1429132164a"
+  },
+  "real_estate_property@0.1": {
+    "content_hash": "7b589c834c4731b2839e5a9a4657c064f1d83a9ad827ce0761c815faed244a72",
+    "effective_rule_hash": "44f30cb976b72b886399c8184fa7fbb585ab8ac6987b2ec99e509391b7886718",
+    "entry_hash": "2fd71fd646568243d23039f79bd3ee2eaeb750ba817eafa4929d661eca95c4df",
+    "rules_sha256": "59cff8383e8dc78530d5126ed888c8ed7db801713dde210b51bda5fca6d99e88"
+  },
+  "retail_product@0.1": {
+    "content_hash": "57d100dd3c0fb661fa18b3faafe4dfa59a530801011e7c39594bccdee79e3902",
+    "effective_rule_hash": "1475c5598458bc0ed93d72bfb8ad2c79ebea2e8ba71939bfda41bdd027dcb6fc",
+    "entry_hash": "1ba0813e6352d2e9ba1bbf5babb8cf545047ed06d0ea7189e2301d5df9ff31fe",
+    "rules_sha256": "abeedeed7aed4b5ca691e095aae0641b9bf35e370c42a58ebb7551c165f2cff1"
+  },
+  "salesforce_contact@0.1": {
+    "content_hash": "b0acf570358cd5c59dcf9ad02d76ef98c0b8e55ee304664ba0d586702ba4b7fe",
+    "effective_rule_hash": "64d07b7f6d6e4bbab2f8d8ffbd1911aadb952077bea014db15dc248bd3f83bad",
+    "entry_hash": "8fd89bb474b4d3e7fb1f5f9dde536e2f43f1e3b91e7575128a6456a4e3a5a3d8",
+    "rules_sha256": "c97ac1bf21a8853a8b5dd8ee32b6bd5e1ecd501b8fcc3740255ebeb9acdc5951"
+  },
+  "salesforce_lead@0.1": {
+    "content_hash": "6dff55dd3a6def28446f77d65b0f1ab9695dc243d86f3481fc49ee334d2b3ada",
+    "effective_rule_hash": "d82b9c46a250a9ef7c75cfce9169ed841e17b581380eca44474403af1b73071f",
+    "entry_hash": "b9cbc3cbc4ff596b541d3d45543554e7013987acc1b659db2f4a5bdae2ec00e9",
+    "rules_sha256": "7bb63e9d4dc447db846d70c3d2dcf446db311b895fd3c458b39ba76cde0906ed"
+  },
+  "social_media_age_compliance@0.1": {
+    "content_hash": "1b16fbc9852b182a37544ae1d1ac571e3f52ec57b5abb3b86d1851ef711f420c",
+    "effective_rule_hash": "8c6de9e9cc8242df75cf451272bb7f19516e018df012b820899d18bbed224323",
+    "entry_hash": "beb3e24b9a6d952411c4f72cba5e766e388cafe41cff8d50ad53f376596007be",
+    "rules_sha256": "86730da011f9823e6e9c1432d5331cd8bd60267ef4c78f98798b418e86557408"
+  },
+  "sox_control_test@0.1": {
+    "content_hash": "57a9dcb5bd60390dcb20a393c085e178be835b9eac0c797ea84c4094811aaa93",
+    "effective_rule_hash": "de2c629de704e5f80ee4b3c444adaa88c592376b74bf3c99adcb922c5a45469d",
+    "entry_hash": "4f3e1c1947ee9eb822ac0a31618ed9b35aa1f6aad70a3e87ddd839bc7523b06b",
+    "rules_sha256": "b778a0e2d0f7b6925f629aeda2d4cd016697d108d02150ac96455dac1d2143ae"
+  },
+  "technology_event@0.1": {
+    "content_hash": "4e7a28976c3612ae4e3b897f08fd88d8b85510108145abc1ed9621f7c2ad848a",
+    "effective_rule_hash": "53ee0aa5c5f2431e5cbb40f3986d9f27e462e0f4538a3b45f155372dfa915f8c",
+    "entry_hash": "9012bee8eb291e2c7e25eae9493fd347a61de600f09b7177db479b85434fac1b",
+    "rules_sha256": "075e3c0ad8a5fae1663e0360f5691adc42ea9f440088730e49ab6482929264a1"
+  },
+  "telecoms_cdr@0.1": {
+    "content_hash": "6b5844b72002c02a686a84f3283f5f89dea996d2f34b127f46648ec3f584aaf0",
+    "effective_rule_hash": "1e4ef5228087b411c06792367adb837149cf3128aeb20298df6cebcd95674081",
+    "entry_hash": "d0937871ed2c6ce81c917581bb7452a38c032d3b14b6d297a808a145539cb33d",
+    "rules_sha256": "8d230e87339b9020754baaa954645d26ae41ca0614bdd75ddea789e90740a1c9"
+  },
+  "travel_booking@0.1": {
+    "content_hash": "3a3517268a3d0b8885805445cc364948c381616ac584305b05b6382f6c38bc1d",
+    "effective_rule_hash": "2ca467e182135432074623743a47714a5d5c9c87e47fdb2a6eb991a3ce88174e",
+    "entry_hash": "d08bac259680d808ad58c7c673a64b357e116771f1d71b50f7ccbbd76690a27f",
+    "rules_sha256": "a1646bd7c6964482eb65399adf385d4dbba8dc1cab9ed1b8fe8705de67fb4080"
+  },
+  "universal_benchmark@0.1": {
+    "content_hash": "9b8d721cd9235a2d6f5bd4b66c3942f2d314c831b2aa0d219edcb7389cd3c9f4",
+    "effective_rule_hash": "db9caec2b7fdf6012b963d882b13eaf801e711257679e1f3b3078baaa7cfb7ed",
+    "entry_hash": "f9e080fdd53aed4783fb08b1728bff80d1330554945f030dbde2fdc6dfad4762",
+    "rules_sha256": "c95183106a79118af1c5beb81825a92d4a81b8e788835a2d5c60102fdc2cef2b"
+  }
+}
