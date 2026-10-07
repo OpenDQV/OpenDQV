@@ -1882,3 +1882,11 @@ class ContractRegistry:
         tmp.write_text(yaml.safe_dump(raw, default_flow_style=False, allow_unicode=True, sort_keys=False), encoding="utf-8")
         tmp.replace(path)
         self._rekey_path(name, contract.version, path)
+        # The draft patch counter advanced the object's version in place; move
+        # its registry key with it, or get(name, new_version) finds nothing
+        # and every later transition must be called with the stale key.
+        if previous_version and previous_version != contract.version:
+            versions = self._contracts.setdefault(name, {})
+            if versions.get(previous_version) is contract:
+                del versions[previous_version]
+            versions[contract.version] = contract
