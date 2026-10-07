@@ -2,6 +2,85 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [3.0.0] - 2026-10-07
+
+### BREAKING — `contexts:` and the `contract:` wrapper are refused (aligned with the managed engine)
+
+Cloud leads and Core follows: Core now refuses exactly what OpenDQV Cloud
+refuses, with the same error codes. **This release deliberately skips the
+usual deprecation cycle** — there is no 2.x release that warns first. There
+are no known users of either feature (Pilot ruling: zero users → align the
+engines now).
+
+**`contexts:` is removed.** A contract that carries a `contexts:` block — any
+value, including `{}` or `[]` — is refused on every way in: file load (the
+file is reported in `load_failures` and the other contracts load), the
+`/import/*` endpoints (HTTP 422, nothing written), `opendqv fork`, and
+`opendqv lint` (`CONTRACT_CONTEXTS_UNSUPPORTED`). A bare `contexts:` with no
+value is tolerated. The refusal reads:
+
+> contract_contexts_unsupported: This contract declares a 'contexts' block, which OpenDQV Core does not support. Remove the 'contexts' block, or publish one contract per context (e.g. 'salesforce_lead_web_form') so each has its own version history and audit lineage.
+
+To migrate, copy the contract as `<contract>_<context>` and fold that
+context's overrides into its rules (`docs/contexts.md`).
+
+`context` on `POST /validate` and `POST /validate/batch` (REST, MCP
+`validate_record` / `validate_batch`, the SDK client) **stays, as a tag
+only**: it is recorded with quality stats, the audit event and metrics, and
+it never changes which rules run. Removed with the overrides:
+
+- the `?context=` parameter on `GET /contracts/{name}`,
+  `GET /contracts/{name}/jsonschema`, `POST /generate`, `GET /export/gx/{name}`,
+  `GET /export/odcs/{name}` and `POST /validate/batch/file`; the `context` key
+  on the `/generate` response and in the exported GX suite's `meta`;
+- GraphQL `contract { contexts }` and the `context` argument of the
+  `validate` / `validateBatch` mutations;
+- MCP `get_contract.context` and `get_contract_jsonschema.context`, in both
+  `opendqv/mcp_server.py` and `opendqv_mcp_proxy.py`;
+- the CLI `--context` flag (validate, validate-file, export-gx, export-odcs,
+  export-dbt, generate) and `LocalValidator.validate/validate_batch(context=)`;
+- `context_warning` on validate responses and the undeclared-context 404;
+- the `contexts` field on the contract detail and as-of responses;
+- internals: `get_rules_with_context`, `get_rules_with_context_status`,
+  `_check_contexts`, `UnknownContextError`, the `ctx_` rule-name heuristics in
+  monitoring (and the `registry=` argument of
+  `hydrate_stats_from_persistent_store`), and the worst-case-across-contexts
+  severity walk;
+- `examples/contexts/` and the context tests.
+
+`effective_rule_hash` is kept; it now always hashes the contract's own rules.
+
+**The `contract:` wrapper is removed.** A contract YAML document is flat —
+`name`, `version`, `rules` and every other contract field are top-level keys.
+A file with a top-level `contract:` key is refused on the same paths, before
+the contexts check:
+
+> contract_envelope_unsupported: contract YAML uses the legacy top-level 'contract:' wrapper — remove the wrapper so name/version/rules are top-level fields.
+
+To migrate, delete the `contract:` line and dedent everything under it one
+level. All 41 bundled contracts, the examples and the docs are converted
+(content unchanged — `library_manifest.json` is byte-identical), and every
+writer (draft creation, rule mutations, lifecycle transitions,
+`create_version`, the eight importers, the profiler, the onboarding wizard,
+`opendqv fork`) emits the flat document. The flat parser takes `name:` from
+the document and falls back to the file stem. The check runs once, at the
+shared parse point (`check_contract_keys` in `opendqv.core.contracts`):
+wrapper, then contexts, then unknown keys. `DOCUMENT_KEYS` is gone.
+
+**No hash moved.** The hash payload keeps the contexts slot, passing the
+constant `{}`; the history `contexts` column stays and is written as `'{}'`;
+`library_manifest.json`'s `rules_sha256` keeps `"contexts": {}`. A new golden
+test (`tests/test_v3_golden_hashes.py`, fixture generated on the v2.10.5 tag)
+pins `content_hash`, `entry_hash`, `effective_rule_hash` and `rules_sha256`
+for every bundled contract: 2.10.5 = 3.0.0. Stored history rows that carry a
+contexts block still verify (`opendqv audit-verify` hashes the stored column)
+and still load: the rebuilt contract drops the block and a warning is
+logged. On the first boot of 3.0.0 over a database whose latest row for a
+contract carries a non-empty contexts block, that contract records one new
+history row (its contexts now read `{}`) — expected, and correct.
+
+---
+
 ## [2.10.5] - 2026-09-29
 
 ### Docs — bundled-contract examples cite version 0.1
