@@ -345,3 +345,29 @@ def test_mcp_both_entry_points_drop_override_context():
         assert "contexts block" not in src
         assert "context_warning" not in src
         assert "get_rules_with_context" not in src
+
+
+# ── Red-team follow-ups ──────────────────────────────────────────────────────
+
+def test_duplicate_name_version_is_refused_not_shadowed(tmp_path):
+    reg = _registry(tmp_path, {"a_first.yaml": FLAT, "b_second.yaml": FLAT.replace("sku_required", "other_rule")})
+    assert [r.name for r in reg.get("widget").rules] == ["sku_required"]
+    err = _failure(reg, "b_second.yaml")
+    assert "already loaded from a_first.yaml" in err
+
+
+def test_fork_accepts_onboarding_format_source(tmp_path, monkeypatch):
+    src = "metadata:\n  version: '2'\nrules:\n  email:\n    type: string\n    required: true\n"
+    (tmp_path / "onb.yaml").write_text(src, encoding="utf-8")
+    _fork(tmp_path, monkeypatch, "onb", "onb2")
+    doc = yaml.safe_load((tmp_path / "onb2.yaml").read_text(encoding="utf-8"))
+    assert doc["name"] == "onb2" and doc["status"] == "draft"
+
+
+def test_fork_refuses_when_textual_rewrite_misses(tmp_path, monkeypatch, capsys):
+    src = 'description: "first\nname: inside the scalar"\n' + FLAT
+    (tmp_path / "widget.yaml").write_text(src, encoding="utf-8")
+    with pytest.raises(SystemExit):
+        _fork(tmp_path, monkeypatch, "widget", "gadget")
+    assert "did not produce a valid DRAFT" in capsys.readouterr().err
+    assert not (tmp_path / "gadget.yaml").exists()

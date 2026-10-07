@@ -43,7 +43,7 @@ def _contract(name: str):
     from opendqv.core.contracts import DataContract
     from opendqv.core.rule_parser import Rule
     from opendqv.core.validator import strict_schema_kwargs
-    raw = yaml.safe_load((BUNDLED / f"{name}.yaml").read_text(encoding="utf-8"))["contract"]
+    raw = yaml.safe_load((BUNDLED / f"{name}.yaml").read_text(encoding="utf-8"))   # flat document (3.0.0)
     rules = [Rule(**r) for r in raw.get("rules", [])]
     dc = DataContract(name=raw["name"], rules=rules, strict_schema=bool(raw.get("strict_schema")),
                       allowed_fields=raw.get("allowed_fields") or [])

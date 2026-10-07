@@ -63,7 +63,16 @@ level. All 41 bundled contracts, the examples and the docs are converted
 writer (draft creation, rule mutations, lifecycle transitions,
 `create_version`, the eight importers, the profiler, the onboarding wizard,
 `opendqv fork`) emits the flat document. The flat parser takes `name:` from
-the document and falls back to the file stem. The check runs once, at the
+the document and falls back to the file stem — a 2.x flat ("legacy") file was
+always keyed by its stem, so a flat file whose `name:` differs from its
+filename now loads under its `name:` (`opendqv lint` reports
+`FILENAME_NAME_MISMATCH`; the 14 starter templates in
+`examples/starter_contracts/` that differed now declare their stem). Because
+the name comes from the document, two files declaring the same name and
+version are no longer silently shadowed: the first file (sorted) loads and
+the other is reported in `load_failures`. `opendqv fork` re-parses its output
+and refuses rather than write a file whose top-level `name:` it failed to
+rewrite. The check runs once, at the
 shared parse point (`check_contract_keys` in `opendqv.core.contracts`):
 wrapper, then contexts, then unknown keys. `DOCUMENT_KEYS` is gone.
 

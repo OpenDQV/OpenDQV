@@ -649,14 +649,19 @@ def cmd_fork(args):
     content = src_path.read_text(encoding="utf-8")
 
     # 3.0.0: the shared parse-point check — a source carrying the legacy
-    # `contract:` wrapper or a `contexts:` block is refused, never copied.
+    # `contract:` wrapper or a `contexts:` block is refused, never copied. The
+    # field-keyed onboarding format has its own vocabulary, so it gets only the
+    # removed-block check (as the loader does).
     import yaml as _yaml_fork
-    from opendqv.core.contracts import check_contract_keys
+    from opendqv.core.contracts import check_contract_keys, check_removed_blocks
     try:
         src_doc = _yaml_fork.safe_load(content)
         if not isinstance(src_doc, dict):
             raise ValueError("source is not a contract document")
-        check_contract_keys(src_doc)
+        if isinstance(src_doc.get("rules"), dict):
+            check_removed_blocks(src_doc)
+        else:
+            check_contract_keys(src_doc)
     except (ValueError, _yaml_fork.YAMLError) as exc:
         print(f"Error: cannot fork '{args.src}': {exc}", file=sys.stderr)
         sys.exit(1)
@@ -678,6 +683,19 @@ def cmd_fork(args):
         )
         if not n:
             content = content.rstrip("\n") + f"\n{key}: {value}\n"
+
+    # The rewrite is textual (to keep comments); prove it hit the real keys —
+    # a column-0 `name:` inside a quoted multi-line scalar would not.
+    try:
+        forked = _yaml_fork.safe_load(content)
+    except _yaml_fork.YAMLError as exc:
+        forked, err = None, str(exc)
+    else:
+        err = ""
+    if not isinstance(forked, dict) or forked.get("name") != args.dst or str(forked.get("status")) != "draft":
+        print(f"Error: cannot fork '{args.src}': rewriting its top-level keys did not produce a "
+              f"valid DRAFT named '{args.dst}' {err}— edit a copy by hand.", file=sys.stderr)
+        sys.exit(1)
 
     dst_path.write_text(content, encoding="utf-8")
 

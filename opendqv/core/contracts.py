@@ -200,6 +200,9 @@ _HASH_DOMAIN_CONTENT_FIELDS = (
     "name", "version", "status",
     "owner", "owner_email", "owner_team", "asset_id", "description",
     "downstream_consumers",
+    # "contexts" is a frozen slot since 3.0.0: DataContract has no such field,
+    # but the payload keeps the position (always {} for new rows, the stored
+    # column for history rows) so no content_hash or entry_hash moves.
     "rules", "contexts",
     # CRT180: strict-schema flag + declared-field allow-list. They join the
     # canonical payload ONLY when set, so every pre-CRT180 contract keeps its
@@ -1050,6 +1053,16 @@ class ContractRegistry:
             try:
                 contract = self._load_file(path)
                 if contract:
+                    # 3.0.0: the name comes from the document, not the file
+                    # stem, so two files can claim the same (name, version).
+                    # The first (sorted) file keeps it; the other is refused
+                    # rather than silently shadowing it.
+                    if contract.version in self._contracts.get(contract.name, {}):
+                        first = self._contract_paths[contract.name][contract.version].name
+                        raise ValueError(
+                            f"contract '{contract.name}' version {contract.version} is already "
+                            f"loaded from {first}; each (name, version) must come from one file"
+                        )
                     self._note_unenforced_blocks(contract, path)
                     if contract.name not in self._contracts:
                         self._contracts[contract.name] = {}
