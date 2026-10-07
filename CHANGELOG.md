@@ -2,7 +2,7 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [3.0.1] - Unreleased
+## [3.0.1] - 2026-10-07
 
 ### Audit chain — `opendqv audit-verify` passes on the chains the engine writes
 
@@ -24,6 +24,14 @@ All notable changes to OpenDQV are documented here.
   recorded `active`, and reported by name and count. Any other edit to a row
   (description, any other status change, the strict flag) still fails the
   chain.
+
+### Contracts — a draft rule edit no longer loses the contract
+
+- **A rule change on a draft bumps its version, but the registry kept the
+  contract under the old version.** `get(name, new_version)` returned nothing
+  and the old version still resolved to the edited contract (since 2.x). The
+  registry is now re-keyed with the new version when the draft's YAML is
+  re-written (#196).
 
 ---
 
