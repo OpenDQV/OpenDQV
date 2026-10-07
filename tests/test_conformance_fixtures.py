@@ -39,7 +39,7 @@ def _contract_and_rules(name: str):
     reg = ContractRegistry(ROOT / "opendqv" / "contracts")
     contract = reg.get(name)
     assert contract is not None, name
-    return contract, reg.get_rules_with_context(contract, None)
+    return contract, contract.rules
 
 
 def test_corpus_present():

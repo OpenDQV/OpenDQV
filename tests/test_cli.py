@@ -195,8 +195,8 @@ class TestCLIImportODCS:
         odcs_file.write_text(yaml.dump(SAMPLE_ODCS))
         self._run_import(tmp_path, odcs_file)
         parsed = yaml.safe_load((tmp_path / "cli_test_contract.yaml").read_text(encoding="utf-8"))
-        assert "contract" in parsed
-        assert isinstance(parsed["contract"]["rules"], list)
+        assert "contract" not in parsed          # 3.0.0: flat document
+        assert isinstance(parsed["rules"], list)
 
     def test_import_odcs_name_override(self, tmp_path):
         odcs_file = tmp_path / "test.yaml"
@@ -258,11 +258,11 @@ class TestCLIExportODCS:
         r = run("export-odcs", "nonexistent_zzz")
         assert r.returncode != 0
 
-    def test_export_odcs_with_context(self):
+    def test_export_odcs_context_flag_removed(self):
+        """3.0.0: contexts are gone, so --context is no longer a flag."""
         r = run("export-odcs", "customer", "--context", "kids_app")
-        assert r.returncode == 0
-        parsed = yaml.safe_load(r.stdout)
-        assert parsed["apiVersion"] == "v3.1.0"
+        assert r.returncode != 0
+        assert "--context" in r.stderr
 
 
 # ---------------------------------------------------------------------------
@@ -438,7 +438,7 @@ class TestCLIDryRunDoesNotWrite:
         src.mkdir()
         dest = tmp_path / "dest"
         dest.mkdir()
-        (src / "probe.yaml").write_text("contract:\n  name: probe\n  rules: []\n")
+        (src / "probe.yaml").write_text("name: probe\nrules: []\n")
         self._run_import_dir(dest, src, dry_run=True)
         assert list(dest.glob("*.yaml")) == [], "dry-run wrote files to disk"
 
@@ -448,7 +448,7 @@ class TestCLIDryRunDoesNotWrite:
         src.mkdir()
         dest = tmp_path / "dest"
         dest.mkdir()
-        (src / "probe.yaml").write_text("contract:\n  name: probe\n  rules: []\n")
+        (src / "probe.yaml").write_text("name: probe\nrules: []\n")
         out = self._run_import_dir(dest, src, dry_run=True)
         assert "dry-run" in out.lower()
 
@@ -458,7 +458,7 @@ class TestCLIDryRunDoesNotWrite:
         src.mkdir()
         dest = tmp_path / "dest"
         dest.mkdir()
-        (src / "probe.yaml").write_text("contract:\n  name: probe\n  rules: []\n")
+        (src / "probe.yaml").write_text("name: probe\nrules: []\n")
         self._run_import_dir(dest, src, dry_run=False)
         # The command reads YAML but doesn't copy to dest in the current implementation —
         # it validates and counts. The point is it runs without error.

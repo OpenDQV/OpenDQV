@@ -139,18 +139,19 @@ class TestValidateSingle:
         r = client.post("/api/v1/validate", json=body)
         assert r.status_code == 401
 
-    def test_context_override(self, client, auth_headers):
-        # kids_app context: age must be 5-17
-        body = {
-            "record": {"email": "kid@example.com", "age": 25, "name": "Kiddo"},
-            "contract": "customer",
-            "context": "kids_app",
-        }
-        r = client.post("/api/v1/validate", json=body, headers=auth_headers)
-        data = r.json()
-        # Age 25 should fail in kids_app context (5-17)
-        age_errors = [e for e in data["errors"] if e["field"] == "age"]
-        assert len(age_errors) > 0
+    def test_context_is_a_tag_and_never_changes_the_rules(self, client, auth_headers):
+        # 3.0.0: contracts carry no context overrides — `context` tags stats/audit
+        # only, so the verdict is identical with and without it.
+        record = {"email": "kid@example.com", "age": 25, "name": "Kiddo"}
+        plain = client.post("/api/v1/validate", json={"record": record, "contract": "customer"},
+                            headers=auth_headers)
+        tagged = client.post("/api/v1/validate",
+                             json={"record": record, "contract": "customer", "context": "kids_app"},
+                             headers=auth_headers)
+        assert plain.status_code == tagged.status_code == 200
+        assert tagged.json()["valid"] == plain.json()["valid"]
+        assert tagged.json()["errors"] == plain.json()["errors"]
+        assert "context_warning" not in tagged.json()
 
 
 class TestValidateBatch:

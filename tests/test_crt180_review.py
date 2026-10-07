@@ -97,9 +97,9 @@ def test_b3_active_to_draft_snapshots_strict_flags(tmp_path):
     from opendqv.core.contracts import ContractStatus
 
     (tmp_path / "c9.yaml").write_text(
-        "contract:\n  name: c9\n  version: '1.0'\n  status: active\n  strict_schema: true\n"
-        "  allowed_fields: [trace_id]\n  rules:\n"
-        "    - name: a_req\n      type: not_empty\n      field: a\n      error_message: a required\n",
+        "name: c9\nversion: '1.0'\nstatus: active\nstrict_schema: true\n"
+        "allowed_fields: [trace_id]\nrules:\n"
+        "  - name: a_req\n    type: not_empty\n    field: a\n    error_message: a required\n",
         encoding="utf-8",
     )
     reg = ContractRegistry(tmp_path)

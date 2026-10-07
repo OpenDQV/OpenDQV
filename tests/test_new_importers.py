@@ -54,8 +54,8 @@ class TestCSVWImporter:
         import yaml
         result = csvw_to_yaml(self.SAMPLE, "test_contract")
         parsed = yaml.safe_load(result)
-        assert parsed["contract"]["name"] == "test_contract"
-        assert len(parsed["contract"]["rules"]) > 0
+        assert parsed["name"] == "test_contract"
+        assert len(parsed["rules"]) > 0
 
     def test_json_string_input(self):
         import json
@@ -136,7 +136,8 @@ class TestOTelImporter:
         import yaml
         result = otel_to_yaml(self.SAMPLE)
         parsed = yaml.safe_load(result)
-        assert "contract" in parsed
+        assert "contract" not in parsed          # 3.0.0: flat document
+        assert isinstance(parsed["rules"], list) and parsed["name"]
 
     def test_metadata_source(self):
         result = import_otel(self.SAMPLE)
@@ -241,5 +242,5 @@ class TestNDCImporter:
         from opendqv.core.importers.ndc import ndc_to_yaml
         result = ndc_to_yaml({"fields": ["ndc_code"]}, "pharma_test")
         parsed = yaml.safe_load(result)
-        assert parsed["contract"]["name"] == "pharma_test"
-        assert len(parsed["contract"]["rules"]) > 0
+        assert parsed["name"] == "pharma_test"
+        assert len(parsed["rules"]) > 0

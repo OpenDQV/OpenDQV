@@ -1,162 +1,96 @@
 """
-Endpoint consistency tests — ACT-049-EC series.
+Endpoint consistency tests — ACT-049-EC series (reworked for 3.0.0).
 
-Any endpoint that accepts a `context` parameter and calls get_rules_with_context()
-must accept unknown context names gracefully — returning base rules with no error
-(HTTP 200, not 422). This allows `context` to double as a stats tag for contexts
-that don't need rule overrides (e.g. "demo", "ci", "test").
+3.0.0 removed context overrides: a contract carries no `contexts:` block, so
+`context` on POST /validate and /validate/batch is a pure tag (quality stats,
+audit, metrics) and never changes which rules run. Any tag value is accepted
+and the verdict is identical to the untagged call.
 
-The parametrised structure ensures every context-accepting endpoint is covered.
-Add new endpoints to CONTEXT_ENDPOINTS to keep this guarantee.
+The rule-selecting `?context=` query parameter was removed from every other
+endpoint (contract read, JSON Schema, code generation, GX/ODCS export, batch
+file upload); the OpenAPI guard below keeps it from coming back.
 """
 import io
+
 import pytest
 
 
-# ── Registry of all context-accepting endpoints ──────────────────────────────
-#
-# Format: (endpoint_id, method, url_template, kwargs_factory)
-# kwargs_factory receives the TestClient and auth_headers and returns the
-# keyword arguments to pass to client.request().
-#
-# To add a new endpoint: append an entry here. The test will automatically
-# verify that unknown context → 422.
+# ── ACT-049-EC-001: `context` on validate is a tag — any value, same verdict ──
 
-def _validate_kwargs(client, auth_headers):
-    return dict(
-        json={"contract": "customer", "context": "nonexistent_ctx_xyz", "record": {"name": "Alice"}},
-        headers=auth_headers,
+RECORD = {"name": "Alice", "age": 10}
+
+
+def _validate(client, auth_headers, context):
+    body = {"contract": "customer", "record": RECORD}
+    if context is not None:
+        body["context"] = context
+    return client.post("/api/v1/validate", json=body, headers=auth_headers)
+
+
+def _validate_batch(client, auth_headers, context):
+    body = {"contract": "customer", "records": [RECORD]}
+    if context is not None:
+        body["context"] = context
+    return client.post("/api/v1/validate/batch", json=body, headers=auth_headers)
+
+
+def _verdict(endpoint_id, body):
+    if endpoint_id == "validate":
+        return body["valid"], body["errors"]
+    return [(r["valid"], r["errors"]) for r in body["results"]]
+
+
+TAG_ENDPOINTS = [("validate", _validate), ("validate_batch", _validate_batch)]
+
+
+@pytest.mark.parametrize("endpoint_id,call", TAG_ENDPOINTS, ids=[ep[0] for ep in TAG_ENDPOINTS])
+@pytest.mark.parametrize("tag", ["nonexistent_ctx_xyz", "kids_app", "demo"])
+def test_context_tag_is_accepted_and_never_changes_the_verdict(
+    endpoint_id, call, tag, client, auth_headers
+):
+    untagged = call(client, auth_headers, None)
+    tagged = call(client, auth_headers, tag)
+    assert untagged.status_code == 200, untagged.text[:200]
+    assert tagged.status_code == 200, (
+        f"Endpoint '{endpoint_id}' rejected context tag {tag!r} with {tagged.status_code}: "
+        f"{tagged.text[:200]}"
     )
-
-def _validate_batch_kwargs(client, auth_headers):
-    return dict(
-        json={"contract": "customer", "context": "nonexistent_ctx_xyz", "records": [{"name": "Alice"}]},
-        headers=auth_headers,
-    )
-
-def _validate_batch_file_kwargs(client, auth_headers):
-    csv_content = b"name,email\nAlice,alice@example.com\n"
-    return dict(
-        params={"contract": "customer", "context": "nonexistent_ctx_xyz"},
-        files={"file": ("test.csv", io.BytesIO(csv_content), "text/csv")},
-        headers=auth_headers,
-    )
-
-def _generate_kwargs(client, auth_headers):
-    return dict(
-        params={"contract_name": "customer", "target": "snowflake", "context": "nonexistent_ctx_xyz"},
-        headers=auth_headers,
-    )
-
-def _export_gx_kwargs(client, auth_headers):
-    return dict(
-        params={"context": "nonexistent_ctx_xyz"},
-        headers=auth_headers,
-    )
-
-def _export_odcs_kwargs(client, auth_headers):
-    return dict(
-        params={"context": "nonexistent_ctx_xyz"},
-        headers=auth_headers,
-    )
+    assert _verdict(endpoint_id, tagged.json()) == _verdict(endpoint_id, untagged.json())
+    assert "context_warning" not in tagged.json()
 
 
-CONTEXT_ENDPOINTS = [
-    ("validate",            "POST", "/api/v1/validate",                        _validate_kwargs),
-    ("validate_batch",      "POST", "/api/v1/validate/batch",                  _validate_batch_kwargs),
-    ("validate_batch_file", "POST", "/api/v1/validate/batch/file",             _validate_batch_file_kwargs),
-    ("generate",            "POST", "/api/v1/generate",                        _generate_kwargs),
-    ("export_gx",           "GET",  "/api/v1/export/gx/customer",              _export_gx_kwargs),
-    ("export_odcs",         "GET",  "/api/v1/export/odcs/customer",            _export_odcs_kwargs),
+# ── ACT-049-EC-002: no other endpoint declares a rule-selecting `context` ─────
+
+# (method, path) of every endpoint that took `?context=` to select override
+# rules before 3.0.0.
+REMOVED_CONTEXT_PARAM = [
+    ("get",  "/api/v1/contracts/{name}"),
+    ("get",  "/api/v1/contracts/{name}/jsonschema"),
+    ("post", "/api/v1/generate"),
+    ("get",  "/api/v1/export/gx/{contract_name}"),
+    ("get",  "/api/v1/export/odcs/{contract_name}"),
+    ("post", "/api/v1/validate/batch/file"),
 ]
 
 
-# ── ACT-049-EC-001: unknown context → base rules (200) on every context endpoint
-
-@pytest.mark.parametrize(
-    "endpoint_id,method,url,kwargs_factory",
-    CONTEXT_ENDPOINTS,
-    ids=[ep[0] for ep in CONTEXT_ENDPOINTS],
-)
-def test_unknown_context_uses_base_rules(
-    endpoint_id, method, url, kwargs_factory, client, auth_headers
-):
-    """Every endpoint that accepts context must handle an unknown context gracefully.
-
-    Unknown context → base rules applied, no error. This allows context to be used
-    as a stats tag (e.g. "demo", "ci") without a matching context block in the YAML.
-    """
-    kwargs = kwargs_factory(client, auth_headers)
-    resp = client.request(method, url, **kwargs)
-    assert resp.status_code not in (422, 500), (
-        f"Endpoint '{endpoint_id}' ({method} {url}) returned {resp.status_code} "
-        f"for unknown context — expected base-rules fallback (not 422/500). "
-        f"Response: {resp.text[:200]}"
-    )
+@pytest.mark.parametrize("method,path", REMOVED_CONTEXT_PARAM, ids=[p for _, p in REMOVED_CONTEXT_PARAM])
+def test_removed_context_query_param_is_not_declared(method, path, client):
+    spec = client.app.openapi()
+    op = spec["paths"][path][method]
+    params = [p["name"] for p in op.get("parameters", [])]
+    assert "context" not in params, f"{method.upper()} {path} declares `context` again: {params}"
 
 
-# ── ACT-049-EC-002: known context is accepted on every context endpoint ───────
-
-def _validate_known_ctx_kwargs(client, auth_headers):
-    return dict(
-        json={"contract": "customer", "context": "kids_app", "record": {"name": "Alice", "age": 10}},
-        headers=auth_headers,
-    )
-
-def _validate_batch_known_ctx_kwargs(client, auth_headers):
-    return dict(
-        json={"contract": "customer", "context": "kids_app", "records": [{"name": "Alice", "age": 10}]},
-        headers=auth_headers,
-    )
-
-def _validate_batch_file_known_ctx_kwargs(client, auth_headers):
-    csv_content = b"name,age\nAlice,10\n"
-    return dict(
-        params={"contract": "customer", "context": "kids_app"},
-        files={"file": ("test.csv", io.BytesIO(csv_content), "text/csv")},
-        headers=auth_headers,
-    )
-
-def _generate_known_ctx_kwargs(client, auth_headers):
-    return dict(
-        params={"contract_name": "customer", "target": "snowflake", "context": "kids_app"},
-        headers=auth_headers,
-    )
-
-def _export_gx_known_ctx_kwargs(client, auth_headers):
-    return dict(
-        params={"context": "kids_app"},
-        headers=auth_headers,
-    )
-
-def _export_odcs_known_ctx_kwargs(client, auth_headers):
-    return dict(
-        params={"context": "kids_app"},
-        headers=auth_headers,
-    )
-
-
-CONTEXT_ENDPOINTS_KNOWN = [
-    ("validate",            "POST", "/api/v1/validate",                        _validate_known_ctx_kwargs),
-    ("validate_batch",      "POST", "/api/v1/validate/batch",                  _validate_batch_known_ctx_kwargs),
-    ("validate_batch_file", "POST", "/api/v1/validate/batch/file",             _validate_batch_file_known_ctx_kwargs),
-    ("generate",            "POST", "/api/v1/generate",                        _generate_known_ctx_kwargs),
-    ("export_gx",           "GET",  "/api/v1/export/gx/customer",              _export_gx_known_ctx_kwargs),
-    ("export_odcs",         "GET",  "/api/v1/export/odcs/customer",            _export_odcs_known_ctx_kwargs),
-]
-
-@pytest.mark.parametrize(
-    "endpoint_id,method,url,kwargs_factory",
-    CONTEXT_ENDPOINTS_KNOWN,
-    ids=[ep[0] for ep in CONTEXT_ENDPOINTS_KNOWN],
-)
-def test_known_context_is_accepted(
-    endpoint_id, method, url, kwargs_factory, client, auth_headers
-):
-    """A valid context must not be rejected by any context-accepting endpoint."""
-    kwargs = kwargs_factory(client, auth_headers)
-    resp = client.request(method, url, **kwargs)
-    assert resp.status_code not in (422, 404, 500), (
-        f"Endpoint '{endpoint_id}' ({method} {url}) rejected valid context 'kids_app' "
-        f"with {resp.status_code}. Response: {resp.text[:200]}"
-    )
+def test_batch_file_ignores_a_stray_context_query_param(client, auth_headers):
+    """An old client still sending `?context=` gets the base verdict, not an error."""
+    def run(params):
+        return client.post(
+            "/api/v1/validate/batch/file",
+            params=params,
+            files={"file": ("test.csv", io.BytesIO(b"name,age\nAlice,10\n"), "text/csv")},
+            headers=auth_headers,
+        )
+    plain = run({"contract": "customer"})
+    stray = run({"contract": "customer", "context": "kids_app"})
+    assert plain.status_code == stray.status_code == 200, (plain.text[:200], stray.text[:200])
+    assert stray.json()["summary"] == plain.json()["summary"]

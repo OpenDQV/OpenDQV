@@ -210,14 +210,14 @@ class TestRuleVelocitySeparatesDistinctRules:
                 "billing", "1.0", "default",
                 total=10, passed=8, failed=2,
                 rule_failure_counts={
-                    "ctx_billing_revenue_ceiling": 2,
-                    "ctx_billing_dwell_seconds_max": 2,
+                    "revenue_ceiling": 2,
+                    "dwell_seconds_max": 2,
                 },
             )
         qa = QualityAnalytics(db)
         result = qa.rule_failure_velocity("billing", window_hours=24, bucket_minutes=60)
-        revenue = result["series"]["ctx_billing_revenue_ceiling"]
-        dwell = result["series"]["ctx_billing_dwell_seconds_max"]
+        revenue = result["series"]["revenue_ceiling"]
+        dwell = result["series"]["dwell_seconds_max"]
         # Series must be present, separable, and identical when
         # input data is identical — confirms reviewer's observation
         # was real data, not a bug. Aggregator is correct.

@@ -96,9 +96,12 @@ class TestGXImporter:
         assert isinstance(yaml_str, str)
         # Must be valid YAML
         parsed = yaml.safe_load(yaml_str)
-        assert "contract" in parsed
+        # 3.0.0: a flat document — no `contract:` wrapper
+        assert "contract" not in parsed
+        assert parsed["name"] == "customer_contacts"
+        assert isinstance(parsed["rules"], list) and parsed["rules"]
 
-        assert "contract:" in yaml_str
+        assert not yaml_str.startswith("contract:")
         assert "name: customer_contacts" in yaml_str
         assert "rules:" in yaml_str
 

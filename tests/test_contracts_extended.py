@@ -310,7 +310,7 @@ class TestSchemaRegistry:
 
 
 # ---------------------------------------------------------------------------
-# TestGenerateCodeErrors — generate_code UnknownContextError (lines 841-842)
+# TestGenerateCodeErrors — see the class below (POST /generate error paths)
 # ---------------------------------------------------------------------------
 
 class TestExplainContractRuleTypeBranches:
@@ -377,16 +377,21 @@ class TestExplainContractRuleTypeBranches:
 class TestGenerateCodeErrors:
     """POST /generate — error paths."""
 
-    def test_generate_with_unknown_context_falls_back_to_base_rules(self, client, auth_headers):
-        """Unknown context falls back to base rules (no UnknownContextError raised)."""
+    def test_generate_has_no_context_parameter(self, client, auth_headers):
+        """3.0.0: contexts are gone — /generate has no ?context= parameter, so a
+        stray one changes nothing and the response carries no `context` key."""
+        base = client.post(
+            f"/api/v1/generate?contract_name={KNOWN_CONTRACT}&target=snowflake",
+            headers=auth_headers,
+        )
         r = client.post(
             f"/api/v1/generate?contract_name={KNOWN_CONTRACT}&target=snowflake&context=nonexistent_context_xyz",
             headers=auth_headers,
         )
-        # Falls back to base rules → 200 with generated code
-        assert r.status_code == 200
+        assert r.status_code == 200 and base.status_code == 200
         data = r.json()
-        assert "code" in data
+        assert "code" in data and "context" not in data
+        assert data["code"] == base.json()["code"]
 
     def test_generate_unknown_contract_returns_404(self, client, auth_headers):
         r = client.post(

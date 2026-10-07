@@ -202,7 +202,7 @@ def test_no_bundled_contract_declares_a_non_iso_layout_on_a_cross_field_date_fie
     found = []
     for entry in reg.list_contracts(include_all=True):
         c = reg.get(entry["name"])
-        rules = reg.get_rules_with_context(c, None)
+        rules = c.rules
         layouts = {f: fmt for f, fmt in resolve_date_layouts(rules).items() if fmt not in iso}
         for r in rules:
             reads = {r.field} | ({_counterpart_field(r)} if r.type in _CROSS_FIELD_DATE_TYPES else set())
@@ -215,19 +215,19 @@ def test_no_bundled_contract_declares_a_non_iso_layout_on_a_cross_field_date_fie
 def test_linter_reports_a_layout_conflict_as_a_warning():
     from opendqv.core.linter import lint_contract_yaml
     res = lint_contract_yaml('''
-contract:
-  name: t
-  rules:
-    - {name: a, type: date_format, field: d, format: "DD/MM/YYYY", error_message: a}
-    - {name: b, type: date_format, field: d, format: "YYYY-MM-DD", error_message: b}
-    - {name: c, type: date_format, field: d, format: "DD/MM/YYYY", error_message: c}
+name: t
+rules:
+  - {name: a, type: date_format, field: d, format: "DD/MM/YYYY", error_message: a}
+  - {name: b, type: date_format, field: d, format: "YYYY-MM-DD", error_message: b}
+  - {name: c, type: date_format, field: d, format: "DD/MM/YYYY", error_message: c}
 ''', "t")
     hits = [i for i in res.issues if i.code == "DATE_LAYOUT_CONFLICT"]
     assert [(i.severity, i.rule_name) for i in hits] == [("warning", "b")]
 
 
-def test_context_rebuilt_rules_with_reused_addresses_are_stamped_every_call():
-    """Sonnet red-team: a context merge mints fresh Rule objects each request and
+def test_rebuilt_rules_with_reused_addresses_are_stamped_every_call():
+    """Sonnet red-team: a rule list rebuilt per request (the pre-3.0.0 context
+    merge did this; a draft edit or snapshot rebuild still can) mints fresh Rule objects and
     CPython reuses their addresses, so identity-keyed memoisation served stale
     stamps. Two contracts with different layouts, rebuilt alternately."""
     uk = parse_rules(UK)
@@ -250,11 +250,11 @@ def test_dropping_the_format_rule_from_a_live_list_returns_to_iso():
     assert [e["rule"] for e in out["errors"]] == ["end_after_start", "span"]
 
 
-def test_compare_object_shared_between_base_and_context_lists_under_threads():
-    """Blind review (PR #166): get_rules_with_context shallow-copies the base list,
-    so the compare rule is the SAME object in both lists. Stamping it per call was
-    a lost-update race; layouts now live in a per-call ContextVar. 8 threads,
-    alternating base (ISO) and context (UK) lists that share the compare object."""
+def test_compare_object_shared_between_two_rule_lists_under_threads():
+    """Blind review (PR #166): two rule lists that share a compare Rule object
+    (the pre-3.0.0 context merge shallow-copied the base list). Stamping it per
+    call was a lost-update race; layouts now live in a per-call ContextVar. 8
+    threads, alternating an ISO list and a UK list that share the compare object."""
     import threading
     base = parse_rules('''
 rules:
@@ -298,12 +298,12 @@ def test_linter_conflict_compares_normalised_layouts():
     # Blind review: 'YYYY-MM-DD' and '%Y-%m-%d' are the same layout to the engine.
     from opendqv.core.linter import lint_contract_yaml
     res = lint_contract_yaml('''
-contract:
-  name: t
-  rules:
-    - {name: a, type: date_format, field: d, format: "YYYY-MM-DD", error_message: a}
-    - {name: b, type: date_format, field: d, format: "%Y-%m-%d", error_message: b}
+name: t
+rules:
+  - {name: a, type: date_format, field: d, format: "YYYY-MM-DD", error_message: a}
+  - {name: b, type: date_format, field: d, format: "%Y-%m-%d", error_message: b}
 ''', "t")
+    assert not [i for i in res.issues if i.severity == "error"], res.issues   # the document itself is accepted
     assert not [i for i in res.issues if i.code == "DATE_LAYOUT_CONFLICT"]
 
 

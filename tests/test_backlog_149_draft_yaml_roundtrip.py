@@ -26,12 +26,12 @@ def _reg(tmp_path) -> ContractRegistry:
 
 @pytest.mark.parametrize("path", sorted(BUNDLED.glob("*.yaml")), ids=lambda p: p.stem)
 def test_every_bundled_contract_round_trips_through_the_draft_writer(tmp_path, path):
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))["contract"]
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     rules = [Rule(**r) for r in raw.get("rules", [])]
     dc = DataContract(name=raw["name"], version=str(raw.get("version", "1.0")), rules=rules,
                       description=raw.get("description", ""), owner=raw.get("owner", ""))
     text = _reg(tmp_path)._contract_to_yaml(dc)
-    back = [Rule(**r) for r in yaml.safe_load(text)["contract"]["rules"]]
+    back = [Rule(**r) for r in yaml.safe_load(text)["rules"]]
     assert [_norm(r) for r in back] == [_norm(r) for r in rules]
 
 
@@ -47,7 +47,7 @@ def test_mcp_draft_keeps_every_parameter(tmp_path):
         {"name": "rng", "type": "range", "field": "n", "min": 1, "max": 9},
     ]
     c = reg.create_draft(name="MCP_lossless", description="d", owner="o", created_by="a", rules_data=rules)
-    on_disk = yaml.safe_load((reg.contracts_dir / "MCP_lossless.yaml").read_text(encoding="utf-8"))["contract"]
+    on_disk = yaml.safe_load((reg.contracts_dir / "MCP_lossless.yaml").read_text(encoding="utf-8"))
     by_name = {r["name"]: r for r in on_disk["rules"]}
     assert by_name["cmp"]["compare_to"] == "start" and by_name["cmp"]["condition"]["value"] == "range"
     assert by_name["cmp"]["optional"] is True
@@ -67,7 +67,7 @@ def test_mcp_draft_keeps_every_parameter(tmp_path):
 
 def test_historical_keys_still_present(tmp_path):
     text = _reg(tmp_path)._contract_to_yaml(DataContract(name="t", rules=[Rule(name="r", type="not_empty", field="f")]))
-    r = yaml.safe_load(text)["contract"]["rules"][0]
+    r = yaml.safe_load(text)["rules"][0]
     for k in ("name", "description", "type", "field", "severity", "error_message", "negate", "all_of"):
         assert k in r
     assert list(r)[:6] == ["name", "description", "type", "field", "severity", "error_message"]

@@ -247,7 +247,7 @@ class TestVersioningAPI:
         import yaml as _yaml
         base_version = str(_yaml.safe_load(
             (pathlib.Path(os.environ["OPENDQV_CONTRACTS_DIR"]) / "customer.yaml").read_text(encoding="utf-8")
-        )["contract"]["version"])  # the bundled version bumps with the golden library (2.7.0)
+        )["version"])  # the bundled version bumps with the golden library (2.7.0); 3.0.0: flat document
         resp = client.get(
             f"/api/v1/contracts/customer/diff?version_a={base_version}&version_b=3.0",
             headers=approver_headers,
@@ -392,7 +392,7 @@ class TestHistoricalHashEcho:
         original_yaml = yaml_path.read_text(encoding="utf-8")
 
         import yaml as _yaml
-        on_disk_version = _yaml.safe_load(original_yaml)["contract"]["version"]
+        on_disk_version = _yaml.safe_load(original_yaml)["version"]
 
         try:
             hist_before = client.get(
@@ -500,6 +500,13 @@ class TestHashDomainCompleteness:
 
         all_fields = set(DataContract.model_fields.keys())
         content = set(_HASH_DOMAIN_CONTENT_FIELDS)
+        # 3.0.0: DataContract.contexts is gone, but the hash payload keeps the
+        # "contexts" slot as the constant {} so no hash moves — a frozen slot.
+        assert "contexts" in _HASH_DOMAIN_CONTENT_FIELDS, (
+            "the 'contexts' slot must stay in the hash domain (constant {}) — "
+            "removing it moves every contract hash (tests/test_v3_golden_hashes.py)"
+        )
+        frozen_constant_slots = {"contexts"}
         excluded = self.EXCLUDED_FROM_HASH
 
         overlap = content & excluded
@@ -517,7 +524,7 @@ class TestHashDomainCompleteness:
             "display flags, server-set provenance)."
         )
 
-        ghosts = content - all_fields
+        ghosts = content - all_fields - frozen_constant_slots
         assert not ghosts, (
             f"_HASH_DOMAIN_CONTENT_FIELDS references unknown DataContract fields: "
             f"{ghosts}. Field renamed or removed without updating the hash domain."

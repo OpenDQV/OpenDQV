@@ -58,7 +58,7 @@ def contracts_dir(tmp_path):
 @pytest.fixture
 def draft_contract(contracts_dir):
     """Create a minimal draft contract in the temp contracts dir."""
-    content = "contract:\n  name: test_draft\n  version: \"1.0\"\n  status: draft\n  rules: []\n"
+    content = "name: test_draft\nversion: \"1.0\"\nstatus: draft\nrules: []\n"
     (contracts_dir / "test_draft.yaml").write_text(content, encoding="utf-8")
     return "test_draft"
 
@@ -66,7 +66,7 @@ def draft_contract(contracts_dir):
 @pytest.fixture
 def review_contract(contracts_dir):
     """Create a minimal review contract in the temp contracts dir."""
-    content = "contract:\n  name: test_review\n  version: \"1.0\"\n  status: review\n  rules: []\n"
+    content = "name: test_review\nversion: \"1.0\"\nstatus: review\nrules: []\n"
     (contracts_dir / "test_review.yaml").write_text(content, encoding="utf-8")
     return "test_review"
 
@@ -122,7 +122,7 @@ class TestCmdShowDirect:
 
     def test_show_contract_with_no_rules(self, contracts_dir):
         """Contract with empty rules list shows '(no rules)'."""
-        content = "contract:\n  name: empty_rules\n  version: \"1.0\"\n  status: draft\n  rules: []\n"
+        content = "name: empty_rules\nversion: \"1.0\"\nstatus: draft\nrules: []\n"
         (contracts_dir / "empty_rules.yaml").write_text(content, encoding="utf-8")
         args = argparse.Namespace(contract="empty_rules")
         out, _, rc = _capture(cli_module.cmd_show, args)
@@ -145,30 +145,30 @@ class TestCmdValidateDirect:
     INVALID_RECORD = json.dumps({"email": "not-an-email", "age": -5})
 
     def test_validate_pass(self, contracts_dir):
-        args = argparse.Namespace(contract="customer", json=self.VALID_RECORD, context=None)
+        args = argparse.Namespace(contract="customer", json=self.VALID_RECORD)
         out, _, rc = _capture(cli_module.cmd_validate, args)
         assert "PASS" in out
         assert rc == 0
 
     def test_validate_fail(self, contracts_dir):
-        args = argparse.Namespace(contract="customer", json=self.INVALID_RECORD, context=None)
+        args = argparse.Namespace(contract="customer", json=self.INVALID_RECORD)
         out, _, rc = _capture(cli_module.cmd_validate, args)
         assert "FAIL" in out
         assert rc != 0
 
     def test_validate_invalid_json(self, contracts_dir):
-        args = argparse.Namespace(contract="customer", json="not json", context=None)
+        args = argparse.Namespace(contract="customer", json="not json")
         _, err, rc = _capture(cli_module.cmd_validate, args)
         assert rc != 0
         assert "Invalid JSON" in err
 
     def test_validate_contract_not_found(self, contracts_dir):
-        args = argparse.Namespace(contract="nonexistent_zzz", json="{}", context=None)
+        args = argparse.Namespace(contract="nonexistent_zzz", json="{}")
         _, err, rc = _capture(cli_module.cmd_validate, args)
         assert rc != 0
 
     def test_validate_shows_errors(self, contracts_dir):
-        args = argparse.Namespace(contract="customer", json=self.INVALID_RECORD, context=None)
+        args = argparse.Namespace(contract="customer", json=self.INVALID_RECORD)
         out, _, rc = _capture(cli_module.cmd_validate, args)
         assert "Errors:" in out
 
@@ -181,7 +181,7 @@ class TestCmdExportGXDirect:
     """cmd_export_gx — direct call coverage."""
 
     def test_export_gx_stdout(self, contracts_dir):
-        args = argparse.Namespace(contract="customer", context=None, output=None)
+        args = argparse.Namespace(contract="customer", output=None)
         out, _, rc = _capture(cli_module.cmd_export_gx, args)
         parsed = json.loads(out)
         assert "expectations" in parsed
@@ -189,19 +189,14 @@ class TestCmdExportGXDirect:
 
     def test_export_gx_to_file(self, tmp_path, contracts_dir):
         out_file = tmp_path / "customer_gx.json"
-        args = argparse.Namespace(contract="customer", context=None, output=str(out_file))
+        args = argparse.Namespace(contract="customer", output=str(out_file))
         _capture(cli_module.cmd_export_gx, args)
         assert out_file.exists()
         parsed = json.loads(out_file.read_text())
         assert "expectations" in parsed
 
-    def test_export_gx_with_context(self, contracts_dir):
-        args = argparse.Namespace(contract="customer", context="kids_app", output=None)
-        out, _, rc = _capture(cli_module.cmd_export_gx, args)
-        assert rc == 0
-
     def test_export_gx_not_found(self, contracts_dir):
-        args = argparse.Namespace(contract="nonexistent_zzz", context=None, output=None)
+        args = argparse.Namespace(contract="nonexistent_zzz", output=None)
         _, err, rc = _capture(cli_module.cmd_export_gx, args)
         assert rc != 0
 
@@ -331,14 +326,14 @@ class TestCmdExportDBTDirect:
 
     def test_export_dbt_to_file(self, tmp_path, contracts_dir):
         out_file = tmp_path / "customer_dbt.yml"
-        args = argparse.Namespace(contract="customer", context=None, output=str(out_file))
+        args = argparse.Namespace(contract="customer", output=str(out_file))
         _capture(cli_module.cmd_export_dbt, args)
         assert out_file.exists()
         parsed = yaml.safe_load(out_file.read_text(encoding="utf-8"))
         assert parsed["version"] == 2
 
     def test_export_dbt_not_found(self, contracts_dir):
-        args = argparse.Namespace(contract="nonexistent_zzz", context=None, output=None)
+        args = argparse.Namespace(contract="nonexistent_zzz", output=None)
         _, err, rc = _capture(cli_module.cmd_export_dbt, args)
         assert rc != 0
 
@@ -375,7 +370,7 @@ class TestCmdValidateFileDirect:
     def test_validate_file_pass(self, contracts_dir, customer_csv):
         args = argparse.Namespace(
             contract="customer", path=str(customer_csv),
-            context=None, output_failures=None, observe_only=False,
+            output_failures=None, observe_only=False,
         )
         out, _, rc = _capture(cli_module.cmd_validate_file, args)
         assert "PASS" in out
@@ -384,7 +379,7 @@ class TestCmdValidateFileDirect:
     def test_validate_file_fail(self, contracts_dir, invalid_csv):
         args = argparse.Namespace(
             contract="customer", path=str(invalid_csv),
-            context=None, output_failures=None, observe_only=False,
+            output_failures=None, observe_only=False,
         )
         out, _, rc = _capture(cli_module.cmd_validate_file, args)
         assert "FAIL" in out
@@ -393,7 +388,7 @@ class TestCmdValidateFileDirect:
     def test_validate_file_observe_only(self, contracts_dir, invalid_csv):
         args = argparse.Namespace(
             contract="customer", path=str(invalid_csv),
-            context=None, output_failures=None, observe_only=True,
+            output_failures=None, observe_only=True,
         )
         out, _, rc = _capture(cli_module.cmd_validate_file, args)
         assert "OBSERVATION RUN" in out
@@ -403,7 +398,7 @@ class TestCmdValidateFileDirect:
         failures_file = tmp_path / "failures.csv"
         args = argparse.Namespace(
             contract="customer", path=str(invalid_csv),
-            context=None, output_failures=str(failures_file), observe_only=False,
+            output_failures=str(failures_file), observe_only=False,
         )
         out, _, rc = _capture(cli_module.cmd_validate_file, args)
         assert failures_file.exists()
@@ -411,7 +406,7 @@ class TestCmdValidateFileDirect:
     def test_validate_file_not_found(self, contracts_dir):
         args = argparse.Namespace(
             contract="customer", path="/tmp/nonexistent_zzz.csv",
-            context=None, output_failures=None, observe_only=False,
+            output_failures=None, observe_only=False,
         )
         _, err, rc = _capture(cli_module.cmd_validate_file, args)
         assert rc != 0
@@ -421,7 +416,7 @@ class TestCmdValidateFileDirect:
         bad.write_text("data")
         args = argparse.Namespace(
             contract="customer", path=str(bad),
-            context=None, output_failures=None, observe_only=False,
+            output_failures=None, observe_only=False,
         )
         _, err, rc = _capture(cli_module.cmd_validate_file, args)
         assert rc != 0
@@ -429,7 +424,7 @@ class TestCmdValidateFileDirect:
     def test_validate_file_contract_not_found(self, contracts_dir, customer_csv):
         args = argparse.Namespace(
             contract="nonexistent_zzz", path=str(customer_csv),
-            context=None, output_failures=None, observe_only=False,
+            output_failures=None, observe_only=False,
         )
         _, err, rc = _capture(cli_module.cmd_validate_file, args)
         assert rc != 0
@@ -439,7 +434,7 @@ class TestCmdValidateFileDirect:
         empty.write_text("email,age\n", encoding="utf-8")  # header only, no records
         args = argparse.Namespace(
             contract="customer", path=str(empty),
-            context=None, output_failures=None, observe_only=False,
+            output_failures=None, observe_only=False,
         )
         out, _, rc = _capture(cli_module.cmd_validate_file, args)
         assert "empty" in out.lower()
@@ -476,7 +471,7 @@ class TestCmdForkDirect:
 
     def test_fork_refuses_overwrite_without_force(self, contracts_dir):
         (contracts_dir / "already_there.yaml").write_text(
-            "contract:\n  name: already_there\n  version: \"1.0\"\n  rules: []\n",
+            "name: already_there\nversion: \"1.0\"\nrules: []\n",
             encoding="utf-8",
         )
         args = argparse.Namespace(src="customer", dst="already_there", force=False)
@@ -486,7 +481,7 @@ class TestCmdForkDirect:
 
     def test_fork_overwrites_with_force(self, contracts_dir):
         (contracts_dir / "target.yaml").write_text(
-            "contract:\n  name: target\n  version: \"9.9\"\n  rules: []\n",
+            "name: target\nversion: \"9.9\"\nrules: []\n",
             encoding="utf-8",
         )
         args = argparse.Namespace(src="customer", dst="target", force=True)
@@ -537,7 +532,7 @@ class TestCmdLintDirect:
         """Lint a contract with logical errors — covers lines 538-542."""
         broken = contracts_dir / "broken_lint.yaml"
         broken.write_text(
-            "contract:\n  name: broken_lint\n  version: \"1.0\"\n  status: draft\n"
+            "name: broken_lint\nversion: \"1.0\"\nstatus: draft\n"
             "rules:\n"
             "  - name: bad_range\n    type: range\n    field: age\n"
             "    min: 100\n    max: 10\n    error_message: bad\n",
@@ -569,18 +564,18 @@ class TestCmdGenerateDirect:
 
     @pytest.mark.parametrize("target", ["snowflake", "spark", "bigquery", "js", "salesforce"])
     def test_generate_target(self, target, contracts_dir):
-        args = argparse.Namespace(contract="customer", target=target, context=None)
+        args = argparse.Namespace(contract="customer", target=target)
         out, _, rc = _capture(cli_module.cmd_generate, args)
         assert rc == 0
         assert len(out) > 0
 
     def test_generate_invalid_target(self, contracts_dir):
-        args = argparse.Namespace(contract="customer", target="invalid_zzz", context=None)
+        args = argparse.Namespace(contract="customer", target="invalid_zzz")
         _, err, rc = _capture(cli_module.cmd_generate, args)
         assert rc != 0
 
     def test_generate_contract_not_found(self, contracts_dir):
-        args = argparse.Namespace(contract="nonexistent_zzz", target="snowflake", context=None)
+        args = argparse.Namespace(contract="nonexistent_zzz", target="snowflake")
         _, err, rc = _capture(cli_module.cmd_generate, args)
         assert rc != 0
 
@@ -744,7 +739,7 @@ class TestCmdContractsImportDirDirect:
         src = tmp_path / "src"
         src.mkdir()
         (src / "probe.yaml").write_text(
-            "contract:\n  name: probe\n  version: \"1.0\"\n  status: draft\n  rules: []\n",
+            "name: probe\nversion: \"1.0\"\nstatus: draft\nrules: []\n",
             encoding="utf-8",
         )
         args = argparse.Namespace(directory=str(src), dry_run=False)

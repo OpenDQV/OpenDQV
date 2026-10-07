@@ -15,19 +15,26 @@ Every stamp was therefore a silent no-op on disk:
     and persisted state disagreed.
   * ``source`` and ``created_by`` were dropped on ALL EIGHT importers, losing
     import provenance from the audit trail.
+
+3.0.0: the ``contract:`` wrapper is gone — a contract document is flat, so the
+stamps land at the top level, where the loader now reads them, and a wrapped
+or ``contexts:``-carrying document is refused with HTTP 422 before anything is
+stamped or saved.
 """
 import yaml
 
 import pytest
+from fastapi import HTTPException
 
 from opendqv.api.routes_imports import _apply_import_meta
+from opendqv.core.contracts import CONTEXTS_UNSUPPORTED, ENVELOPE_UNSUPPORTED
 from opendqv.core.contracts import ContractRegistry
 from opendqv.core.rule_parser import ContractStatus
 
 
 def _roundtrip(tmp_path, contract_body, created_by=""):
     """Stamp a contract doc the way an import save does, then load it back."""
-    doc = yaml.safe_load(yaml.safe_dump({"contract": contract_body}))
+    doc = yaml.safe_load(yaml.safe_dump(contract_body))
     _apply_import_meta(doc, created_by)
     (tmp_path / f"{contract_body['name']}.yaml").write_text(
         yaml.safe_dump(doc), encoding="utf-8"
@@ -72,24 +79,35 @@ class TestImportProvenanceReachesDisk:
                        created_by="alice")
         assert c.proposed_by == "alice"
 
-    def test_meta_written_into_nested_block_not_top_level(self, tmp_path):
-        """The root cause: stamps must land inside `contract:`, not beside it."""
-        doc = yaml.safe_load(yaml.safe_dump({"contract": {"name": "imp4", "rules": []}}))
+    def test_meta_written_at_top_level_of_flat_document(self, tmp_path):
+        """3.0.0: the document is flat, so stamps sit at the top level — the
+        same place the loader reads them."""
+        doc = yaml.safe_load(yaml.safe_dump({"name": "imp4", "rules": []}))
         _apply_import_meta(doc, "bob")
-        assert doc["contract"]["status"] == "draft"
-        assert doc["contract"]["source"] == "import"
-        assert doc["contract"]["proposed_by"] == "bob"
-        assert "status" not in doc, "stamp must not be written at the top level"
-        assert "source" not in doc
+        assert doc["status"] == "draft"
+        assert doc["source"] == "import"
+        assert doc["proposed_by"] == "bob"
+        assert "contract" not in doc
 
 
-class TestApplyImportMetaIsSafe:
-    def test_no_contract_block_is_a_noop(self):
-        doc = {"something_else": {}}
-        _apply_import_meta(doc, "alice")  # must not raise
+class TestApplyImportMetaRefusesWhatTheLoaderRefuses:
+    def test_wrapped_document_is_422_envelope_unsupported(self):
+        doc = {"contract": {"name": "imp5", "rules": []}}
+        with pytest.raises(HTTPException) as ei:
+            _apply_import_meta(doc, "alice")
+        assert ei.value.status_code == 422
+        assert ei.value.detail == ENVELOPE_UNSUPPORTED
+        assert doc == {"contract": {"name": "imp5", "rules": []}}, "nothing stamped"
+
+    def test_contexts_block_is_422_contexts_unsupported(self):
+        doc = {"name": "imp6", "rules": [], "contexts": {"web": {}}}
+        with pytest.raises(HTTPException) as ei:
+            _apply_import_meta(doc, "alice")
+        assert ei.value.status_code == 422
+        assert ei.value.detail == CONTEXTS_UNSUPPORTED
         assert "status" not in doc
 
-    def test_non_dict_contract_block_is_a_noop(self):
-        doc = {"contract": "not-a-dict"}
-        _apply_import_meta(doc, "alice")  # must not raise
-        assert doc["contract"] == "not-a-dict"
+    def test_non_dict_document_is_422(self):
+        with pytest.raises(HTTPException) as ei:
+            _apply_import_meta("not-a-dict", "alice")
+        assert ei.value.status_code == 422

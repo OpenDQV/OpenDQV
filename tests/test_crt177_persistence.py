@@ -11,7 +11,7 @@ provenance never reached disk:
     the durability guarantee was exactly inverted.
   * `set_status` persisted via an unanchored ``^( +status: )\\S+`` regex that
     rewrote EVERY indented ``status:`` line in the file — corrupting any nested
-    ``status`` key (a rule field named `status`, a context override) — and wrote
+    ``status`` key (a rule field named `status`, a nested block) — and wrote
     non-atomically.
 
 Both are fixed by serialising status + provenance structurally through the
@@ -33,7 +33,7 @@ from opendqv.core.rule_parser import ContractStatus
 
 def _write(dirpath, name, body):
     (dirpath / f"{name}.yaml").write_text(
-        yaml.safe_dump({"contract": body}), encoding="utf-8"
+        yaml.safe_dump(body), encoding="utf-8"
     )
 
 
@@ -87,16 +87,16 @@ class TestStatusWriteDoesNotCorruptNestedKeys:
         _write(cdir, "c5", {
             "name": "c5", "version": "1.0", "status": "active",
             "rules": [{"name": "r1", "field": "status", "type": "not_empty"}],
-            # a well-formed override (2.8.0 constructs contexts at load) that keeps a
-            # nested `status` key in the file: the rule's field and the override key
-            "contexts": {"eu": {"r1": {"error_message": "status is required in the EU"}}},
+            # a nested `status` key in the file (3.0.0: contexts are gone; the
+            # verbatim `odcs:` block carries ODCS's own `status`)
+            "odcs": {"status": "proposed"},
         })
         ContractRegistry(cdir).set_status("c5", "1.0", ContractStatus.ARCHIVED)
 
-        raw = yaml.safe_load((cdir / "c5.yaml").read_text(encoding="utf-8"))["contract"]
+        raw = yaml.safe_load((cdir / "c5.yaml").read_text(encoding="utf-8"))
         assert raw["status"] == "archived"                       # lifecycle status changed
         assert raw["rules"][0]["field"] == "status"              # rule field untouched
-        assert raw["contexts"]["eu"]["r1"]["error_message"].startswith("status")   # context override untouched
+        assert raw["odcs"]["status"] == "proposed"               # nested status key untouched
 
     def test_write_is_atomic_no_tmp_left_behind(self, cdir):
         _write(cdir, "c6", {"name": "c6", "version": "1.0", "status": "draft", "rules": []})
@@ -110,9 +110,9 @@ class TestPersistenceFailureIsReported:
     adversarial review of the first cut of this fix, which logged and continued."""
 
     def test_legacy_format_transition_persists(self, cdir):
-        """Flat `rules:` list — no `contract:` block. Status/provenance are
-        written at the top level and read back there, so the transition is
-        durable rather than a silent no-op."""
+        """Flat document with no `name:` (the name falls back to the file
+        stem). Status/provenance are written at the top level and read back
+        there, so the transition is durable rather than a silent no-op."""
         (cdir / "legacy_c.yaml").write_text(
             yaml.safe_dump({"version": "1.0",
                             "rules": [{"name": "r", "field": "f", "type": "not_empty"}]}),

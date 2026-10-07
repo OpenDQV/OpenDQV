@@ -15,8 +15,8 @@ Pins the response-shape contract intelligence surface added in v2.3.12:
      document with rule-derived constraints and surfaces unmapped (cross-
      field) rules under x-opendqv-unmapped — never silently drops them.
 
-  4. GET /contracts/{name}?context=X returns the EFFECTIVE rule set with
-     overrides resolved (not just the base rules + a side-channel).
+  (Item 4 — GET /contracts/{name}?context=X resolving context overrides —
+  was removed with `contexts:` in 3.0.0.)
 """
 
 import yaml
@@ -46,16 +46,6 @@ def _seed_contract_with_history(tmp_path, monkeypatch):
                  "pattern": r"^[^@]+@[^@]+$",
                  "error_message": "invalid email"},
             ],
-            "contexts": {
-                "kids_app": {
-                    "age_range": {
-                        "type": "range",
-                        "min": 4,
-                        "max": 13,
-                        "error_message": "kids_app: age must be 4-13",
-                    }
-                }
-            },
         }),
         encoding="utf-8",
     )
@@ -179,21 +169,3 @@ class TestJSONSchemaEmitter:
         )
         assert resp.status_code == 404
 
-
-# 4 ──────────────────────────────────────────────────────────────────
-class TestGetContractContextResolution:
-
-    def test_context_overrides_applied_to_rules_field(self, tmp_path, monkeypatch):
-        registry = _seed_contract_with_history(tmp_path, monkeypatch)
-        scoped = registry.get_rules_with_context(registry.get("demo_v12"), "kids_app")
-        age = next(r for r in scoped if r.name == "age_range")
-        assert age.min_value == 4
-        assert age.max_value == 13
-
-    def test_context_endpoint_404_for_unknown_context(self, client, auth_headers):
-        resp = client.get(
-            "/api/v1/contracts/customer",
-            headers=auth_headers,
-            params={"context": "this_context_does_not_exist"},
-        )
-        assert resp.status_code == 404

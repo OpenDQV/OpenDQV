@@ -151,67 +151,70 @@ class TestGenerateContractYaml:
         assert isinstance(result, str)
 
     def test_top_level_key(self):
+        """3.0.0: the generated document is flat — no `contract:` wrapper."""
         doc = self._parse("customer", ["email"])
-        assert "contract" in doc
+        assert "contract" not in doc
+        assert doc["name"] == "customer"
+        assert "rules" in doc
 
     def test_contract_name(self):
         doc = self._parse("order", ["name"])
-        assert doc["contract"]["name"] == "order"
+        assert doc["name"] == "order"
 
     def test_contract_status_active(self):
         doc = self._parse("order", ["email"])
-        assert doc["contract"]["status"] == "active"
+        assert doc["status"] == "active"
 
     def test_rules_list(self):
         doc = self._parse("customer", ["email", "name"])
-        assert isinstance(doc["contract"]["rules"], list)
-        assert len(doc["contract"]["rules"]) == 2
+        assert isinstance(doc["rules"], list)
+        assert len(doc["rules"]) == 2
 
     def test_rule_fields_correct(self):
         doc = self._parse("customer", ["email", "name"])
-        rules = doc["contract"]["rules"]
+        rules = doc["rules"]
         rule_fields = {r["field"] for r in rules}
         assert rule_fields == {"email", "name"}
 
     def test_regex_rule_has_pattern(self):
         doc = self._parse("customer", ["email"])
-        rule = doc["contract"]["rules"][0]
+        rule = doc["rules"][0]
         assert rule["type"] == "regex"
         assert "pattern" in rule
 
     def test_range_rule_has_min_max(self):
         doc = self._parse("person", ["age"])
-        rule = doc["contract"]["rules"][0]
+        rule = doc["rules"][0]
         assert rule["type"] == "range"
         assert "min" in rule
         assert "max" in rule
 
     def test_min_rule_has_min(self):
         doc = self._parse("sale", ["amount"])
-        rule = doc["contract"]["rules"][0]
+        rule = doc["rules"][0]
         assert rule["type"] == "min"
         assert "min" in rule
 
     def test_all_rules_have_severity(self):
         doc = self._parse("customer", ["email", "name", "age"])
-        for rule in doc["contract"]["rules"]:
+        for rule in doc["rules"]:
             assert rule.get("severity") == "error"
 
     def test_all_rules_have_error_message(self):
         doc = self._parse("customer", ["email", "name"])
-        for rule in doc["contract"]["rules"]:
+        for rule in doc["rules"]:
             assert rule.get("error_message")
 
     def test_multiple_fields_all_present(self):
         fields = ["email", "name", "phone", "age", "dob"]
         doc = self._parse("customer", fields)
-        rule_fields = [r["field"] for r in doc["contract"]["rules"]]
+        rule_fields = [r["field"] for r in doc["rules"]]
         for f in fields:
             assert f in rule_fields
 
     def test_unknown_fields_produce_not_empty(self):
         doc = self._parse("record", ["foobar"])
-        assert doc["contract"]["rules"][0]["type"] == "not_empty"
+        assert doc["rules"][0]["type"] == "not_empty"
 
 
 # ── build_sample_records ────────────────────────────────────────────────────────
@@ -444,7 +447,7 @@ class TestBuildSampleRecordsFromRules:
         if not contract_path.exists():
             pytest.skip("nhs_dsp_patient.yaml not present")
         data = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
-        rules = data["contract"]["rules"]
+        rules = data["rules"]
         valid, invalid = build_sample_records_from_rules(rules)
         # blood_type and nhs_number should be valid examples, not "sample_value".
         # nhs_number is gated by a Modulus 11 checksum (2.7.0 golden library):
@@ -997,8 +1000,8 @@ class TestOnboardingWizardRun:
         )
         raw = result.contract_path.read_text()
         doc = yaml.safe_load(raw)
-        assert "contract" in doc
-        assert doc["contract"]["name"] == "myentity"
+        assert "contract" not in doc  # 3.0.0: flat document
+        assert doc["name"] == "myentity"
 
     def test_run_elapsed_positive(self, tmp_path):
         result = self._simulate_run(
@@ -1057,7 +1060,7 @@ class TestOnboardingWizardRun:
         """When contract already exists and user answers 'y', it is overwritten."""
         entity = "customer"
         existing = tmp_path / f"{entity}.yaml"
-        existing.write_text("contract:\n  name: customer\n")
+        existing.write_text("name: customer\n")
         # tmp_path has one template (customer); "2" selects "Build my own"
         result = self._simulate_run(
             tmp_path,
@@ -1070,7 +1073,7 @@ class TestOnboardingWizardRun:
         """When contract already exists and user answers 'N', entity becomes entity_demo."""
         entity = "customer"
         existing = tmp_path / f"{entity}.yaml"
-        existing.write_text("contract:\n  name: customer\n")
+        existing.write_text("name: customer\n")
         # tmp_path has one template (customer); "2" selects "Build my own"
         result = self._simulate_run(
             tmp_path,
@@ -1331,7 +1334,7 @@ class TestWizardOutputRegressions:
     def test_questionary_select_template_chosen(self, tmp_path):
         """ACT-016: questionary.select() returns a template dict — wizard uses it."""
         tmpl = tmp_path / "customer.yaml"
-        tmpl.write_text("contract:\n  name: customer\n  rules:\n    - name: email_regex\n      field: email\n      type: regex\n      pattern: '.*'\n      severity: error\n      error_message: 'bad'\n")
+        tmpl.write_text("name: customer\nrules:\n  - name: email_regex\n    field: email\n    type: regex\n    pattern: '.*'\n    severity: error\n    error_message: 'bad'\n")
 
         wiz = OnboardingWizard(contracts_dir=tmp_path)
         templates = wiz._list_templates()
@@ -1350,7 +1353,7 @@ class TestWizardOutputRegressions:
         """ACT-016: choosing _BUILD_OWN sentinel falls through to custom field entry."""
         import opendqv.core.onboarding as mod
         tmpl = tmp_path / "customer.yaml"
-        tmpl.write_text("contract:\n  name: customer\n  rules:\n    - name: r\n      field: email\n      type: not_empty\n      severity: error\n      error_message: 'req'\n")
+        tmpl.write_text("name: customer\nrules:\n  - name: r\n    field: email\n    type: not_empty\n    severity: error\n    error_message: 'req'\n")
 
         mock_text = MagicMock()
         mock_text.ask.side_effect = ["order", "email, name"]
@@ -1379,7 +1382,7 @@ class TestWizardOutputRegressions:
     def test_questionary_confirm_used_for_overwrite(self, tmp_path):
         """ACT-018: questionary.confirm() used when contract file already exists."""
         existing = tmp_path / "myent.yaml"
-        existing.write_text("contract:\n  name: myent\n")
+        existing.write_text("name: myent\n")
 
         mock_text = MagicMock()
         mock_text.ask.side_effect = ["myent", "email, name"]
@@ -1401,7 +1404,7 @@ class TestWizardOutputRegressions:
     def test_questionary_confirm_rename_on_false(self, tmp_path):
         """ACT-018: confirm() returning False renames entity to entity_demo."""
         existing = tmp_path / "myent.yaml"
-        existing.write_text("contract:\n  name: myent\n")
+        existing.write_text("name: myent\n")
 
         mock_text = MagicMock()
         mock_text.ask.side_effect = ["myent", "email, name"]
@@ -1428,7 +1431,7 @@ class TestWizardOutputRegressions:
             orig_print(*args, **kwargs)
 
         tmpl = tmp_path / "customer.yaml"
-        tmpl.write_text("contract:\n  name: customer\n  rules:\n    - name: r\n      field: email\n      type: not_empty\n      severity: error\n      error_message: 'req'\n")
+        tmpl.write_text("name: customer\nrules:\n  - name: r\n    field: email\n    type: not_empty\n    severity: error\n    error_message: 'req'\n")
 
         wiz = OnboardingWizard(contracts_dir=tmp_path)
         contexts = [
@@ -1468,7 +1471,7 @@ class TestWizardOutputRegressions:
     def test_questionary_search_filter_enabled(self, tmp_path):
         """ACT-016: questionary.select() is called with use_search_filter=True."""
         tmpl = tmp_path / "customer.yaml"
-        tmpl.write_text("contract:\n  name: customer\n  rules:\n    - name: r\n      field: email\n      type: not_empty\n      severity: error\n      error_message: 'req'\n")
+        tmpl.write_text("name: customer\nrules:\n  - name: r\n    field: email\n    type: not_empty\n    severity: error\n    error_message: 'req'\n")
 
         mock_text = MagicMock()
         mock_text.ask.side_effect = ["order", "email"]
@@ -1767,7 +1770,7 @@ class TestListTemplatesEdgeCases:
         excluded = list(_ob._EXCLUDED_TEMPLATES)
         if not excluded:
             pytest.skip("No excluded templates defined")
-        (tmp_path / f"{excluded[0]}.yaml").write_text("contract:\n  name: skip_me\n  rules: []\n")
+        (tmp_path / f"{excluded[0]}.yaml").write_text("name: skip_me\nrules: []\n")
         wiz = OnboardingWizard(contracts_dir=tmp_path)
         result = wiz._list_templates()
         names = [t["name"] for t in result]

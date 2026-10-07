@@ -64,17 +64,16 @@ class TestBatchParity:
 
 class TestSurfaces:
     CONTRACT_YAML = """
-contract:
-  name: crt180_probe
-  version: "1.0"
-  owner: qa
-  owner_email: qa@example.com
-  rules:
-    - name: email_required
-      type: not_empty_string
-      field: email
-      severity: error
-      error_message: Email is required
+name: crt180_probe
+version: "1.0"
+owner: qa
+owner_email: qa@example.com
+rules:
+  - name: email_required
+    type: not_empty_string
+    field: email
+    severity: error
+    error_message: Email is required
 """
 
     def test_linter_knows_the_type(self):
@@ -123,5 +122,5 @@ contract:
 
     def test_yaml_parses(self):
         data = yaml.safe_load(self.CONTRACT_YAML)
-        rules = [Rule(**r) for r in data["contract"]["rules"]]
+        rules = [Rule(**r) for r in data["rules"]]
         assert rules[0].type == "not_empty_string"
