@@ -22,3 +22,14 @@ GHSA-6v7p-g79w-8964
 # main branch still vendors 70.3.0, so no pip release can clear it yet.
 # Re-evaluate when pip's vendor.txt moves setuptools past 78.1.1.
 CVE-2025-47273
+
+# CVE-2026-97687 / CVE-2026-97689: urllib3 HTTPS-proxy TLS override + chunk-
+# parser memory DoS (High). The flagged urllib3 2.7.0 is pip's *vendored* copy
+# (pip/_vendor/vendor.txt pins urllib3==2.7.0 in pip 26.2.1, the latest
+# release, and on pip's main branch as of 2026-10-07). OpenDQV's own urllib3 is
+# 2.8.0 (poetry.lock / requirements.txt, #195) and scans clean; pip runs only
+# at image-build time, never at container runtime (entrypoint is gunicorn).
+# Re-evaluate when a pip release vendors urllib3>=2.8.0 — then bump the
+# Dockerfile `pip>=` pin and delete these two entries.
+CVE-2026-97687
+CVE-2026-97689
