@@ -167,8 +167,23 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
         ))
         return result
 
-    # Use contract name from YAML if not provided
-    contract_node = data.get("contract", {})
+    # 3.0.0: the loader refuses the `contract:` wrapper and a `contexts:` block
+    # before reading anything else; report the engine's own message and stop —
+    # nothing further in the file reaches the engine.
+    from opendqv.core.contracts import check_removed_blocks
+    try:
+        check_removed_blocks(data)
+    except ValueError as exc:
+        result.issues.append(LintIssue(
+            severity="error",
+            rule_name=None,
+            code=str(exc).split(":", 1)[0].upper(),
+            message=str(exc),
+        ))
+        return result
+
+    # Use contract name from YAML if not provided. The document is flat.
+    contract_node = data
     yaml_internal_name = contract_node.get("name", "") if isinstance(contract_node, dict) else ""
 
     if not contract_name:
@@ -196,31 +211,30 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
         ))
 
     # ── Contract-level (CRT180): strict_schema / fields shape ─────────────────
-    if isinstance(data.get("contract"), dict):
-        _strict = contract_node.get("strict_schema")
-        if _strict is not None and not isinstance(_strict, bool):
-            result.issues.append(LintIssue(
-                severity="error", rule_name=None, code="STRICT_SCHEMA_NOT_BOOL",
-                message=f"contract.strict_schema must be true or false, got {_strict!r}.",
-            ))
-        if "fields" in contract_node and "allowed_fields" not in contract_node:
-            result.issues.append(LintIssue(
-                severity="warning", rule_name=None, code="FIELDS_KEY_DEPRECATED",
-                message="contract.fields is a deprecated alias — rename it to allowed_fields.",
-            ))
-        _fields = contract_node.get("allowed_fields", contract_node.get("fields"))
-        if _fields is not None and (
-            not isinstance(_fields, list) or not all(isinstance(f, str) and f for f in _fields)
-        ):
-            result.issues.append(LintIssue(
-                severity="error", rule_name=None, code="ALLOWED_FIELDS_NOT_STRING_LIST",
-                message="contract.allowed_fields must be a list of non-empty field names.",
-            ))
-        elif _fields and not _strict:
-            result.issues.append(LintIssue(
-                severity="warning", rule_name=None, code="ALLOWED_FIELDS_WITHOUT_STRICT_SCHEMA",
-                message="contract.allowed_fields has no effect unless strict_schema: true.",
-            ))
+    _strict = contract_node.get("strict_schema")
+    if _strict is not None and not isinstance(_strict, bool):
+        result.issues.append(LintIssue(
+            severity="error", rule_name=None, code="STRICT_SCHEMA_NOT_BOOL",
+            message=f"contract.strict_schema must be true or false, got {_strict!r}.",
+        ))
+    if "fields" in contract_node and "allowed_fields" not in contract_node:
+        result.issues.append(LintIssue(
+            severity="warning", rule_name=None, code="FIELDS_KEY_DEPRECATED",
+            message="contract.fields is a deprecated alias — rename it to allowed_fields.",
+        ))
+    _fields = contract_node.get("allowed_fields", contract_node.get("fields"))
+    if _fields is not None and (
+        not isinstance(_fields, list) or not all(isinstance(f, str) and f for f in _fields)
+    ):
+        result.issues.append(LintIssue(
+            severity="error", rule_name=None, code="ALLOWED_FIELDS_NOT_STRING_LIST",
+            message="contract.allowed_fields must be a list of non-empty field names.",
+        ))
+    elif _fields and not _strict:
+        result.issues.append(LintIssue(
+            severity="warning", rule_name=None, code="ALLOWED_FIELDS_WITHOUT_STRICT_SCHEMA",
+            message="contract.allowed_fields has no effect unless strict_schema: true.",
+        ))
 
     # ── D6 (docs/contract_conformance.md): format-only fields accept "" ───────
     # Core treats an empty string as absent for every non-presence rule, so a
@@ -228,9 +242,7 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
     # not_empty_string rule accepts "". Advisory (info): optional-when-present
     # fields are a legitimate design, so this must never fail a lint or dirty
     # the bundled library; it exists so an author who meant "required" sees it.
-    _rules_node = contract_node.get("rules") if isinstance(contract_node, dict) else None
-    if not isinstance(_rules_node, list):
-        _rules_node = data.get("rules") if isinstance(data.get("rules"), list) else []
+    _rules_node = data.get("rules") if isinstance(data.get("rules"), list) else []
     # A field's presence is decided by a presence rule, or conditionally by
     # required_if; a rule marked optional or carrying a condition has decided
     # for itself.
@@ -274,10 +286,10 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
             ))
 
     # ── Contract-level: owner_email present and well-shaped ──────────────────
-    # Skip the check on top-level fragment YAML (just `rules:`) — there is no
-    # contract block to attach an owner_email to. Only flag when the YAML
-    # genuinely declares a contract block.
-    if isinstance(data.get("contract"), dict):
+    # Skip the check on fragment YAML (just `rules:`) — there is no contract to
+    # attach an owner_email to. Only flag when the YAML genuinely declares a
+    # contract (it carries a `name:`).
+    if "name" in data:
         owner_email = contract_node.get("owner_email")
         if not owner_email:
             result.issues.append(LintIssue(
@@ -301,12 +313,7 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
                 ),
             ))
 
-    # Bundled contracts nest rules under `contract:`; legacy / fragment YAML
-    # used in unit tests puts them at the top level. Accept both.
-    if isinstance(contract_node, dict) and "rules" in contract_node:
-        raw_rules = contract_node.get("rules", [])
-    else:
-        raw_rules = data.get("rules", [])
+    raw_rules = data.get("rules", [])
     if not isinstance(raw_rules, list):
         result.issues.append(LintIssue(
             severity="error",
@@ -347,7 +354,7 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
                      "`rules:`."),
         ))
 
-    # ── Unknown keys (2.9.0) — document, contract block, and each rule's own keys ──
+    # ── Unknown keys (2.9.0) — the contract document and each rule's own keys ──
     def _key_issue(code, rule_name, kind, who, unknown, known):
         parts = []
         for k in unknown:
@@ -358,16 +365,11 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
             message=(f"{kind} {who}: unknown key(s) {', '.join(parts)} — the engine does not read them and "
                      f"refuses the contract at load; remove or fix the spelling."),
         ))
-    from opendqv.core.contracts import CONTRACT_KEYS, DOCUMENT_KEYS
-    if isinstance(data, dict) and not (isinstance(raw_rules, dict)):   # the field-keyed format has its own vocabulary
-        if isinstance(contract_node, dict) and "contract" in data:
-            top = [k for k in data if k not in DOCUMENT_KEYS]
-            if top:
-                _key_issue("UNKNOWN_CONTRACT_KEY", None, "document", "top level", top, DOCUMENT_KEYS)
-            block, who = contract_node, str(contract_node.get("name", contract_name))
-        else:
-            block, who = data, str(data.get("name", contract_name))
-        unknown = [k for k in block if k not in CONTRACT_KEYS] if isinstance(block, dict) else []
+    from opendqv.core.contracts import CONTRACT_KEYS
+    if not isinstance(raw_rules, dict):   # the field-keyed format has its own vocabulary
+        who = str(data.get("name", contract_name))
+        # a bare `contexts:` (null) is tolerated by the loader, so not unknown
+        unknown = [k for k in data if k not in CONTRACT_KEYS and k != "contexts"]
         if unknown:
             _key_issue("UNKNOWN_CONTRACT_KEY", None, "contract", f'"{who}"', unknown, CONTRACT_KEYS)
     for raw in raw_rules if isinstance(raw_rules, list) else []:
@@ -375,25 +377,6 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
             unknown = [k for k in raw if k not in RULE_KEYS]
             if unknown:
                 _key_issue("UNKNOWN_RULE_KEY", raw.get("name"), "rule", f'"{raw.get("name", "<unnamed>")}"', unknown, RULE_KEYS)
-
-    # ── contexts: override types (2.8.0) ──────────────────────────────────────
-    # An override is merged and constructed at load; an unknown type there
-    # refuses the whole file, so name it here first.
-    contexts_node = (contract_node.get("contexts") if isinstance(contract_node, dict) else None) or {}
-    if isinstance(contexts_node, dict):
-        for ctx_name, overrides in contexts_node.items():
-            if not isinstance(overrides, dict):
-                continue
-            for key, override in overrides.items():
-                if isinstance(override, dict) and override.get("type") is not None \
-                        and override.get("type") not in _KNOWN_RULE_TYPES:
-                    result.issues.append(LintIssue(
-                        severity="error",
-                        rule_name=str(key),
-                        code="UNKNOWN_RULE_TYPE",
-                        message=(f"Context '{ctx_name}' override '{key}' sets unknown rule type "
-                                 f"'{override.get('type')}'. Known types: {sorted(_KNOWN_RULE_TYPES)}"),
-                    ))
 
     # ── Declared date layouts (2.8.0) ─────────────────────────────────────────
     # A field's first date_format `format` is the layout every cross-field date

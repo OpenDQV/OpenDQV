@@ -68,22 +68,12 @@ async def get_contract(
             "Takes precedence over `version`."
         ),
     ),
-    context: Optional[str] = Query(
-        None,
-        description=(
-            "Optional context to apply (e.g. 'salesforce', 'kids_app'). "
-            "When provided, the returned `rules` are the effective rule set with "
-            "context overrides resolved — what validate_record(context=...) would "
-            "actually run. Default rules are returned when omitted."
-        ),
-    ),
 ):
     """Get full detail of a data contract including its rules.
 
     By default returns the latest version. Pass ?version=<v> for a named version,
     or ?hash=<contract_hash> to retrieve the exact historical version that produced
-    a hash returned on a prior validate response. Pass ?context=<name> to return
-    the rules already merged with that context's overrides.
+    a hash returned on a prior validate response.
     """
     _entry_hash = None
     _content_hash = None
@@ -119,16 +109,6 @@ async def get_contract(
             return None
 
     effective_rules = list(contract.rules)
-    if context:
-        if context not in (contract.contexts or {}):
-            raise HTTPException(
-                status_code=404,
-                detail=f"Context '{context}' not defined for contract '{name}'.",
-            )
-        try:
-            effective_rules = _d.registry.get_rules_with_context(contract, context)
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
 
     return ContractDetail(
         name=contract.name,
@@ -162,7 +142,6 @@ async def get_contract(
             )
             for r in effective_rules
         ],
-        contexts=sorted(contract.contexts.keys()),
         asset_id=contract.asset_id,
         owner_team=contract.owner_team,
         owner_email=contract.owner_email,
@@ -428,15 +407,6 @@ async def get_quality_trend(
     points = _d._quality_stats.get_trend(
         name, days=days, context=context, by=by, include_system=include_system,
     )
-    # v2.3.23 round-3 review (Sonnet a154314ae2e179025): strip the
-    # synthesised `ctx_<context>_` prefix from rule names at the emit
-    # boundary so consumers see the base rule name. Storage stays
-    # canonical (the override IS what fired); presentation collapses.
-    # Coalesces collisions when both legacy-synth and canonical names
-    # appear in the same window. Must run BEFORE severity tagging so
-    # the severity lookup hits the canonical rule name.
-    from opendqv.monitoring import normalize_trend_rule_names
-    points = normalize_trend_rule_names(points, c, by)
     # v2.3.23 round-3 review (Sonnet afac7ed4604cc1e07): tag rule entries
     # with severity from the live registry. Must mutate the raw dict
     # BEFORE QualityTrendPoint(**p) — Pydantic V2's model_fields_set is
@@ -542,7 +512,6 @@ async def get_contract_at_timestamp(
         "owner": snapshot["owner"],
         "opendqv_node_id": snapshot["opendqv_node_id"],
         "rules": snapshot["rules"],
-        "contexts": snapshot["contexts"],
     }
 
 
@@ -815,7 +784,6 @@ async def list_contract_versions(
 async def get_contract_jsonschema(
     request: Request,
     name: str,
-    context: Optional[str] = Query(None, description="Optional context to apply (e.g. 'salesforce', 'kids_app')"),
     strict: Optional[bool] = Query(
         None,
         description=(
@@ -835,14 +803,6 @@ async def get_contract_jsonschema(
     contract = _d.registry.get(name)
     if not contract:
         raise HTTPException(status_code=404, detail=f"Contract '{name}' not found")
-
-    if context:
-        try:
-            scoped_rules = _d.registry.get_rules_with_context(contract, context)
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        scoped = contract.model_copy(update={"rules": scoped_rules})
-        return contract_to_jsonschema(scoped, strict=strict)
 
     return contract_to_jsonschema(contract, strict=strict)
 
@@ -1139,13 +1099,11 @@ async def generate_code_endpoint(
     contract_name: str = Query(..., description="Contract to generate code for"),
     target: str = Query(..., description="Target platform: snowflake, salesforce, js, spark, bigquery"),
     version: str = Query("latest"),
-    context: str = Query(None, description="Optional context to apply (e.g. 'salesforce', 'kids_app')"),
     user=Depends(get_current_user),
 ):
     """Generate validation code for a target platform from a contract's rules."""
     from opendqv.core.code_generator import generate_code
     contract = _d._get_contract_versioned_or_404(contract_name, version)
 
-    rules = _d.registry.get_rules_with_context(contract, context)
-    code = generate_code(rules, target, contract_name=contract.name, contract_version=contract.version)
-    return {"contract": contract.name, "target": target, "context": context, "code": code}
+    code = generate_code(contract.rules, target, contract_name=contract.name, contract_version=contract.version)
+    return {"contract": contract.name, "target": target, "code": code}

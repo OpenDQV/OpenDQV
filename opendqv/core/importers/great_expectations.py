@@ -311,8 +311,8 @@ def import_gx_suite(suite_json: dict) -> dict:
 def gx_suite_to_yaml(suite_json: dict) -> str:
     """Convert GX suite to OpenDQV YAML string."""
     result = import_gx_suite(suite_json)
-    output = {"contract": result["contract"]}
-    return yaml.dump(output, default_flow_style=False, sort_keys=False, allow_unicode=True)
+    # 3.0.0: the flat contract document — no `contract:` wrapper.
+    return yaml.dump(result["contract"], default_flow_style=False, sort_keys=False, allow_unicode=True)
 
 
 # ---------------------------------------------------------------------------

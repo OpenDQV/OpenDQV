@@ -97,27 +97,16 @@ from opendqv.core.quality_stats import QualityStats as _QualityStats, quality_co
 from opendqv.core.quality_analytics import QualityAnalytics as _QualityAnalytics
 
 
-_SEVERITY_RANK = {"info": 0, "warning": 1, "error": 2, "unknown": -1}
-
-
 def _severity_map(contract_name: str) -> dict:
-    """Build {rule_name: worst-case-severity} from the live registry.
-
-    v2.3.23 round-4 P1-D (Sonnet a410fe4a545b865bc): walks both base
-    rules and all context overrides, returning the WORST-CASE severity
-    per rule. A rule that's `warning` in default but `error` under any
-    context override surfaces as `error` so an ops dashboard escalates
-    correctly. Reviewer's exact case: `revenue_ceiling` is warning in
-    default, error in billing context — pre-fix the dashboard showed
-    warning, masking live errors. Over-classifying (showing error when
-    a context demoted to warning) is the survivable false positive;
-    under-classifying is the defect.
+    """Build {rule_name: severity} from the live registry.
 
     Used to tag entries on top_failing_rules / top_failing_rules_ranked
     so consumers can rank a rule's operational priority correctly — a
     warning failing 100x must not outrank an error failing 50x in a
     dashboard. Returns empty dict when the contract is missing (e.g.
     removed) or has no rules — callers default to "unknown" in that case.
+    (3.0.0: contracts carry no context overrides, so a rule's severity is
+    the one it declares.)
     """
     if not contract_name:
         return {}
@@ -127,44 +116,7 @@ def _severity_map(contract_name: str) -> dict:
         return {}
     if not contract or not getattr(contract, "rules", None):
         return {}
-    # Base severity for every rule, then promote based on context overrides.
-    sev_map: dict = {
-        r.name: (r.cached_severity_value or "error") for r in contract.rules
-    }
-    base_rule_names = set(sev_map)
-    # Build field → [rules-on-that-field] map for branch-2 (field-name)
-    # override resolution. core/contracts.py override resolution order:
-    #   1. rule-name match → modify that rule
-    #   2. field-name match → modify every rule on that field
-    #   3. neither → mint a synthetic ctx_<context>_<key> rule
-    # Branches 1 + 2 can mutate severity at runtime; we walk both here.
-    field_to_rules: dict = {}
-    for r in contract.rules:
-        field_to_rules.setdefault(r.field, []).append(r.name)
-    for _ctx_name, overrides in (contract.contexts or {}).items():
-        for key, override in (overrides or {}).items():
-            sev = override.get("severity") if isinstance(override, dict) else None
-            if not sev:
-                continue
-            sev_rank = _SEVERITY_RANK.get(sev, -1)
-            if key in base_rule_names:
-                # Branch 1: rule-name match — mutate that single rule.
-                if sev_rank > _SEVERITY_RANK.get(sev_map.get(key, "error"), -1):
-                    sev_map[key] = sev
-            elif key in field_to_rules:
-                # Branch 2: field-name match — mutate every rule on that field.
-                for rname in field_to_rules[key]:
-                    if sev_rank > _SEVERITY_RANK.get(sev_map.get(rname, "error"), -1):
-                        sev_map[rname] = sev
-            # Branch 3 mints `ctx_<context>_<key>` synthetic rules. Those
-            # don't appear in base contract.rules so they're absent from
-            # sev_map. The normalize_trend_rule_names path strips these
-            # to base rule names where possible; truly synthetic rules
-            # (no base equivalent) carry the override's severity at write
-            # time and surface as severity="unknown" in this map. That's
-            # acceptable — synthetic rules are by definition new and the
-            # registry walk cannot distinguish them from arbitrary names.
-    return sev_map
+    return {r.name: (r.cached_severity_value or "error") for r in contract.rules}
 
 
 def _error_envelope(
@@ -335,7 +287,7 @@ async def list_tools() -> list[types.Tool]:
                     },
                     "context": {
                         "type": "string",
-                        "description": "Optional per-system context override (a name declared in the contract's contexts block). Omit for default rules.",
+                        "description": "Optional caller-supplied tag recorded with quality stats, the audit event and metrics (e.g. 'ci', 'salesforce'). Never changes which rules run.",
                     },
                     "agent_id": {
                         "type": "string",
@@ -382,7 +334,7 @@ async def list_tools() -> list[types.Tool]:
                     },
                     "context": {
                         "type": "string",
-                        "description": "Optional per-system context override.",
+                        "description": "Optional caller-supplied tag recorded with quality stats, the audit event and metrics (e.g. 'ci', 'salesforce'). Never changes which rules run.",
                     },
                     "agent_id": {
                         "type": "string",
@@ -424,10 +376,7 @@ async def list_tools() -> list[types.Tool]:
                 "Use this to understand what a contract requires before validating, "
                 "or to generate type-safe data structures that match the contract. "
                 "Pass `hash` (the contract_hash from a prior validate response) to retrieve "
-                "the exact historical version that produced that hash — for point-in-time audit retrieval. "
-                "Pass `context` (a name declared in the contract's contexts block) to return the effective rule set "
-                "with that context's overrides already merged in — what validate_record(context=...) "
-                "would actually run."
+                "the exact historical version that produced that hash — for point-in-time audit retrieval."
             ),
             inputSchema={
                 "type": "object",
@@ -444,10 +393,6 @@ async def list_tools() -> list[types.Tool]:
                     "hash": {
                         "type": "string",
                         "description": "SHA-256 contract_hash from a prior validate response. Takes precedence over `version`.",
-                    },
-                    "context": {
-                        "type": "string",
-                        "description": "Optional context (a name declared in the contract's contexts block). When set, rules are returned with that context's overrides resolved.",
                     },
                 },
                 "required": ["name"],
@@ -500,10 +445,6 @@ async def list_tools() -> list[types.Tool]:
                 "type": "object",
                 "properties": {
                     "name": {"type": "string", "description": "Contract name."},
-                    "context": {
-                        "type": "string",
-                        "description": "Optional context to apply (a name declared in the contract's contexts block).",
-                    },
                     "strict": {
                         "type": "boolean",
                         "description": (
@@ -820,7 +761,7 @@ async def list_tools() -> list[types.Tool]:
                 "properties": {
                     "contract": {"type": "string", "description": "Filter by contract name."},
                     "contract_version": {"type": "string", "description": "Filter by contract version."},
-                    "context": {"type": "string", "description": "Filter by context override."},
+                    "context": {"type": "string", "description": "Filter by context tag."},
                     "since": {"type": "string", "description": "ISO 8601 UTC start of window. Default: 24h ago."},
                     "until": {"type": "string", "description": "ISO 8601 UTC end of window."},
                     "agent_id": {"type": "string", "description": "Filter by caller-asserted agent_id."},
@@ -988,20 +929,8 @@ async def _tool_validate_record(args: dict) -> list[types.TextContent]:
             remediation="Call list_contracts to see available contract names.",
         ))]
 
-    # v2.3.17 F-A (MCP in-process context path) fix: route through the
-    # registry's get_rules_with_context_status so context overrides on a
-    # historical contract apply correctly (the previous code replaced
-    # `rules` with the raw `contract.contexts[context]` dict — Rule
-    # objects vs raw dicts — which silently broke override application).
-    # Same call as REST so both paths converge on identical rule resolution.
-    rules, _ctx_status = _registry.get_rules_with_context_status(contract, context)
-    _context_warning = (
-        f"Context '{context}' is not declared on contract '{contract_name}'. "
-        f"Validation proceeded with base rules (no context overrides applied). "
-        f"If you intended a metadata tag (e.g. 'demo', 'ci', 'test') this is fine; "
-        f"if you intended an override context, declare it on the contract."
-        if _ctx_status == "undeclared" else None
-    )
+    # 3.0.0: `context` is a tag only — the contract's own rules always run.
+    rules = contract.rules
 
     from opendqv.core.contracts import _compute_effective_rule_hash
     result = _validate_record(record, rules, contract_name, **strict_schema_kwargs(contract, rules))
@@ -1010,8 +939,6 @@ async def _tool_validate_record(args: dict) -> list[types.TextContent]:
     result["effective_rule_hash"] = _compute_effective_rule_hash(rules)
     if contract.status == ContractStatus.DRAFT:
         result["draft_notice"] = _DRAFT_NOTICE
-    if _context_warning:
-        result["context_warning"] = _context_warning
     result["governance_tip"] = _pick_governance_tip(rules, result.get("errors", []))
     return [types.TextContent(type="text", text=json.dumps(result, default=str))]
 
@@ -1085,20 +1012,8 @@ async def _tool_validate_batch(args: dict) -> list[types.TextContent]:
             remediation="Call list_contracts to see available contract names.",
         ))]
 
-    # v2.3.17: route through get_rules_with_context_status so batch validation
-    # also applies context overrides on the in-process path (was silently
-    # ignored — used contract.rules unconditionally — same family as F-A on
-    # validate_record). Surfaces context_warning consistently with
-    # validate_record for callers who supply an undeclared context.
-    context = args.get("context")
-    rules, _ctx_status = _registry.get_rules_with_context_status(contract, context)
-    _context_warning = (
-        f"Context '{context}' is not declared on contract '{contract_name}'. "
-        f"Validation proceeded with base rules (no context overrides applied). "
-        f"If you intended a metadata tag (e.g. 'demo', 'ci', 'test') this is fine; "
-        f"if you intended an override context, declare it on the contract."
-        if _ctx_status == "undeclared" else None
-    )
+    # 3.0.0: `context` is a tag only — the contract's own rules always run.
+    rules = contract.rules
 
     from opendqv.core.contracts import _compute_effective_rule_hash
     result = _validate_batch(records, rules, contract_name, **strict_schema_kwargs(contract, rules))
@@ -1107,8 +1022,6 @@ async def _tool_validate_batch(args: dict) -> list[types.TextContent]:
     result["effective_rule_hash"] = _compute_effective_rule_hash(rules)
     if contract.status == ContractStatus.DRAFT:
         result["draft_notice"] = _DRAFT_NOTICE
-    if _context_warning:
-        result["context_warning"] = _context_warning
     result["governance_tip"] = _pick_governance_tip(
         rules,
         result.get("results", [{}])[0].get("errors", []) if result.get("results") else [],
@@ -1141,7 +1054,6 @@ async def _tool_get_contract(args: dict) -> list[types.TextContent]:
     name = args["name"]
     version = args.get("version", "latest")
     contract_hash = args.get("hash")
-    context = args.get("context")
 
     if _remote_client:
         url = f"/api/v1/contracts/{name}"
@@ -1150,8 +1062,6 @@ async def _tool_get_contract(args: dict) -> list[types.TextContent]:
             params.append(f"hash={contract_hash}")
         elif version and version != "latest":
             params.append(f"version={version}")
-        if context:
-            params.append(f"context={context}")
         if params:
             url += "?" + "&".join(params)
         resp = _remote_client.get(url)
@@ -1178,27 +1088,6 @@ async def _tool_get_contract(args: dict) -> list[types.TextContent]:
                 detail=f"Contract '{name}' not found.",
                 remediation="Call list_contracts to see available contract names.",
             ))]
-
-    if context:
-        if context not in (contract.contexts or {}):
-            return [types.TextContent(type="text", text=_error_envelope(
-                error_code="CONTEXT_NOT_FOUND",
-                kind="not_found",
-                status=404,
-                detail=f"Context '{context}' not defined for contract '{name}'.",
-                remediation="Omit the context parameter, or call get_contract without it to see contexts defined on this contract.",
-            ))]
-        try:
-            scoped_rules = _registry.get_rules_with_context(contract, context)
-        except Exception as exc:
-            return [types.TextContent(type="text", text=_error_envelope(
-                error_code="INTERNAL_ERROR",
-                kind="internal",
-                status=500,
-                detail=str(exc),
-                remediation="Check the OpenDQV server logs; if reproducible, file an issue with the contract name and context.",
-            ))]
-        contract = contract.model_copy(update={"rules": scoped_rules})
 
     rules = [
         {
@@ -1270,7 +1159,6 @@ async def _tool_list_versions(args: dict) -> list[types.TextContent]:
 
 async def _tool_get_contract_jsonschema(args: dict) -> list[types.TextContent]:
     name = args["name"]
-    context = args.get("context")
     # v2.3.23 round-5 P2-2: per-call strict opt-in (overrides
     # OPENDQV_JSON_SCHEMA_STRICT default). True → additionalProperties:false
     strict = args.get("strict")
@@ -1278,8 +1166,6 @@ async def _tool_get_contract_jsonschema(args: dict) -> list[types.TextContent]:
     if _remote_client:
         url = f"/api/v1/contracts/{name}/jsonschema"
         params = []
-        if context:
-            params.append(f"context={context}")
         if strict is not None:
             params.append(f"strict={'true' if strict else 'false'}")
         if params:
@@ -1299,18 +1185,6 @@ async def _tool_get_contract_jsonschema(args: dict) -> list[types.TextContent]:
             detail=f"Contract '{name}' not found.",
             remediation="Call list_contracts to see available contract names.",
         ))]
-    if context:
-        try:
-            scoped_rules = _registry.get_rules_with_context(contract, context)
-        except Exception as exc:
-            return [types.TextContent(type="text", text=_error_envelope(
-                error_code="INTERNAL_ERROR",
-                kind="internal",
-                status=500,
-                detail=str(exc),
-                remediation="Check the OpenDQV server logs; if reproducible, file an issue with the contract name and context.",
-            ))]
-        contract = contract.model_copy(update={"rules": scoped_rules})
     schema = contract_to_jsonschema(contract, strict=strict)
     return [types.TextContent(type="text", text=json.dumps(schema, default=str))]
 
@@ -1687,22 +1561,12 @@ async def _tool_get_quality_metrics(args: dict) -> list[types.TextContent]:
         # (authoritative source); legacy data with deleted rules surfaces
         # severity="unknown" — explicit honesty over silent omission.
         sev_map = _severity_map(cname)
-        # v2.3.23 round-3 review (Sonnet a154314ae2e179025): strip the
-        # synthesised `ctx_<context>_` prefix from rule names so override
-        # rules collapse to their base name on the read surface. Build
-        # the normalizer once per contract; coalesce duplicate names.
-        try:
-            _contract_obj = _registry.get(cname)
-        except Exception:
-            _contract_obj = None
-        from opendqv.monitoring import _build_rule_normalizer
-        _normalize_rule = _build_rule_normalizer(_contract_obj)
         from collections import defaultdict as _dd
         _coalesced: dict = _dd(lambda: {"rule": "", "field": "", "failures": 0, "severity": "unknown"})
         for f in top_fields:
             if f["contract"] != cname:
                 continue
-            rn = _normalize_rule(f["rule"])
+            rn = f["rule"]
             bucket = _coalesced[rn]
             bucket["rule"] = rn
             # field: keep first non-? value; severity: keep first non-unknown.
@@ -1835,18 +1699,6 @@ async def _tool_get_quality_trend(args: dict) -> list[types.TextContent]:
     points = _quality_stats.get_trend(
         contract_name, days=days, context=context, by=by, include_system=include_system,
     )
-    # v2.3.23 round-3 review (Sonnet a154314ae2e179025): strip the
-    # synthesised `ctx_<context>_` prefix from rule names at the emit
-    # boundary so consumers see the base rule name. Mirrors the REST
-    # path's normalize-then-severity sequence so dual surfaces emit
-    # byte-identical names.
-    try:
-        contract_obj = _registry.get(contract_name)
-    except Exception:
-        contract_obj = None
-    if contract_obj is not None:
-        from opendqv.monitoring import normalize_trend_rule_names
-        points = normalize_trend_rule_names(points, contract_obj, by)
     # v2.3.23 round-3 review: tag each ranked rule with severity so a
     # consumer can read "warning failing 100x" vs "error failing 50x"
     # without re-fetching the contract. Mirror the get_quality_metrics

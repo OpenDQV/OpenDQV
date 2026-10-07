@@ -159,7 +159,6 @@ class ContractDetail:
     owner: str
     status: str
     rules: list[RuleInfo]
-    contexts: list[str]
     asset_id: Optional[str] = None
 
 
@@ -192,7 +191,6 @@ class Query:
                 )
                 for r in c.rules
             ],
-            contexts=list(c.contexts.keys()),
             asset_id=c.asset_id,
         )
 
@@ -207,7 +205,6 @@ class Mutation:
         record: JSON,
         contract: str,
         version: str = "latest",
-        context: Optional[str] = None,
         record_id: Optional[str] = None,
     ) -> ValidateResult:
         from opendqv.core.validator import strict_schema_kwargs, validate_record
@@ -229,7 +226,7 @@ class Mutation:
                 version=version,
             )
 
-        rules = _registry.get_rules_with_context(c, context)
+        rules = c.rules
         result = validate_record(record, rules, **strict_schema_kwargs(c, rules))
 
         elapsed_ms = (time.monotonic() - start) * 1000
@@ -250,7 +247,6 @@ class Mutation:
         records: JSON,
         contract: str,
         version: str = "latest",
-        context: Optional[str] = None,
     ) -> BatchValidateResult:
         from opendqv.core.validator import strict_schema_kwargs
         from opendqv.core.validator import validate_batch as vb
@@ -287,7 +283,7 @@ class Mutation:
                 owner="",
             )
 
-        rules = _registry.get_rules_with_context(c, context)
+        rules = c.rules
         result = vb(records, rules, **strict_schema_kwargs(c, rules))
 
         elapsed_ms = (time.monotonic() - start) * 1000

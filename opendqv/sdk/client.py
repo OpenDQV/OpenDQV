@@ -191,7 +191,7 @@ class OpenDQVClient:
         Get full detail of a data contract including its rules.
 
         Returns:
-            dict with keys: name, version, description, owner, status, rules, contexts
+            dict with keys: name, version, description, owner, status, rules
 
         If ``contract_cache_dir`` is set, the result is cached locally. When the
         API is unreachable, the cached version is returned instead (degraded mode).
@@ -251,7 +251,7 @@ class OpenDQVClient:
         Args:
             contract: Contract name to validate against
             version: Contract version (default "latest")
-            context: Optional context override
+            context: Optional context tag (recorded with stats/audit; never changes the rules)
             record_param: Name of the function parameter containing the record data
                          (default "data"). Can also be the first positional arg.
 
@@ -448,7 +448,7 @@ class AsyncOpenDQVClient:
         Get full detail of a data contract including its rules. Async — does not block.
 
         Returns:
-            dict with keys: name, version, description, owner, status, rules, contexts
+            dict with keys: name, version, description, owner, status, rules
 
         If ``contract_cache_dir`` is set, the result is cached locally. When the
         API is unreachable, the cached version is returned instead (degraded mode).

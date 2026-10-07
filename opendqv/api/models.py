@@ -39,7 +39,7 @@ class ValidateRequest(BaseModel):
     contract: str = Field(..., description="Contract name (e.g. 'customer')")
     version: str = Field("latest", description="Contract version or 'latest'")
     hash: Optional[str] = Field(None, description="Pin validation to a specific historical contract version by SHA-256 hash (entry_hash or content_hash from a prior response, or from list_versions). Takes precedence over `version` and `as_of`. Returns 404 if the hash is not in the contract's history.")
-    context: Optional[str] = Field(None, description="Context override (e.g. 'kids_app', 'salesforce')")
+    context: Optional[str] = Field(None, description="Caller-supplied tag recorded with quality stats, the audit event and metrics (e.g. 'demo', 'ci', 'salesforce'). Never changes which rules run (3.0.0: contracts carry no context overrides).")
     record_id: Optional[str] = Field(None, description="Caller's correlation ID for tracking")
     agent_id: Optional[str] = Field(None, description="Caller-asserted identity (AI agent name, service name, or team) — NOT authenticated. Use for self-labelling and session correlation. For trustable attribution, read `caller_principal` from the response — that is server-derived from the authenticated token and cannot be spoofed. Reserved prefix: agent_ids starting with 'OpenDQV_SA_' are reserved for OpenDQV-owned system traffic (smoke probes, demos, MCP self-tests) and are REJECTED at the write boundary with HTTP 422 INVALID_AGENT_ID.")
     dry_run: bool = Field(False, description="If true, validate without recording results in quality metrics. Use for testing and demos.")
@@ -108,14 +108,12 @@ class ValidateResponse(BaseModel):
     effective_rule_hash: Optional[str] = Field(
         None,
         description=(
-            "SHA-256 over the resolved Rule set actually used by the validator "
-            "on this call, after context overrides are applied. The other three "
-            "hashes (entry_hash, content_hash, contract_hash) describe the static "
-            "contract definition and are invariant to context — two calls with "
-            "different contexts produce the same triplet even though they ran "
-            "different rule sets. effective_rule_hash distinguishes those calls "
-            "for audit replay. v2.3.17 F-J fix; named per Q4 because the field "
-            "hashes resolved-effective-rules, not the context string."
+            "SHA-256 over the Rule set actually used by the validator on this "
+            "call. The other three hashes (entry_hash, content_hash, "
+            "contract_hash) describe the stored contract definition; "
+            "effective_rule_hash hashes the rules that ran, for audit replay "
+            "(v2.3.17 F-J). Since 3.0.0 contracts carry no context overrides, "
+            "so the rules that ran are always the contract's own rules."
         ),
     )
     owner_team: Optional[str] = None
@@ -145,16 +143,6 @@ class ValidateResponse(BaseModel):
             "as the regulator-evidence gate, not mode or event_id alone."
         ),
     )
-    context_warning: Optional[str] = Field(
-        None,
-        description=(
-            "Populated only when the request supplied a context that is NOT declared on this contract. "
-            "The engine continues to use base rules (fail-open by design — contexts double as stats-tagging "
-            "metadata, e.g. 'demo', 'ci', 'test'), but this field surfaces the divergence so a caller "
-            "who intended an override context can see the typo. v2.3.17 F-D fix: makes the silent "
-            "fail-open visible without breaking intentional metadata-tag use."
-        ),
-    )
 
 
 # ── Batch validation request/response ────────────────────────────────
@@ -165,7 +153,7 @@ class BatchValidateRequest(BaseModel):
     contract: str = Field(..., description="Contract name")
     version: str = Field("latest", description="Contract version or 'latest'")
     hash: Optional[str] = Field(None, description="Pin batch to a specific historical contract version by SHA-256 hash. Takes precedence over `version` and `as_of`. Returns 404 if the hash is not in the contract's history.")
-    context: Optional[str] = Field(None, description="Context override")
+    context: Optional[str] = Field(None, description="Caller-supplied tag recorded with quality stats, the audit event and metrics (e.g. 'demo', 'ci', 'salesforce'). Never changes which rules run (3.0.0: contracts carry no context overrides).")
     agent_id: Optional[str] = Field(None, description="Caller-asserted identity (AI agent name, service name, or team) — NOT authenticated. Use for self-labelling and session correlation. For trustable attribution, read `caller_principal` from the response — that is server-derived from the authenticated token and cannot be spoofed. Reserved prefix: agent_ids starting with 'OpenDQV_SA_' are reserved for OpenDQV-owned system traffic (smoke probes, demos, MCP self-tests) and are REJECTED at the write boundary with HTTP 422 INVALID_AGENT_ID.")
     dry_run: bool = Field(False, description="If true, validate without recording results in quality metrics. Use for testing and demos.")
     observe_only: bool = Field(False, description="If true, run in observation-only mode: log violations but do not block. Always returns HTTP 200.")
@@ -226,7 +214,7 @@ class BatchValidateResponse(BaseModel):
     content_hash: Optional[str] = Field(None, description="SHA-256 over content fields only — stable across re-recordings of the same contract.")
     effective_rule_hash: Optional[str] = Field(
         None,
-        description="SHA-256 over the resolved Rule set actually used by the validator on this batch, after context overrides. v2.3.17 F-J — see ValidateResponse.effective_rule_hash for full rationale.",
+        description="SHA-256 over the Rule set actually used by the validator on this batch. v2.3.17 F-J — see ValidateResponse.effective_rule_hash for full rationale.",
     )
     validated_at: Optional[str] = Field(None, description="ISO 8601 UTC timestamp of batch validation — use for time-series correlation with quality metrics")
     latency_ms: Optional[float] = Field(None, description="Server-side batch validation latency in milliseconds (total wall-clock time for the batch)")
@@ -306,7 +294,6 @@ class ContractDetail(BaseModel):
     owner: str = Field("", description="Team or individual responsible for this contract")
     status: str = Field("active", description="Lifecycle status: 'active', 'draft', or 'archived'")
     rules: list[RuleInfo] = Field(default_factory=list, description="All validation rules in this contract")
-    contexts: list[str] = Field(default_factory=list, description="Named per-system rule overrides available (e.g. 'salesforce', 'kids_app')")
     asset_id: Optional[str] = Field(None, description="Data catalog asset ID")
     owner_team: Optional[str] = Field(None, description="Owning team name")
     owner_email: Optional[str] = Field(None, description="Owning team contact email")
@@ -414,6 +401,8 @@ class ContractHistoryEntry(BaseModel):
     rejected_at: Optional[str] = None
     rejection_reason: Optional[str] = None
     rules: list = Field(default_factory=list)
+    # The stored history column, echoed so a pre-3.0.0 row stays
+    # re-verifiable (entry_hash covers it). Always {} for rows written by 3.0.0+.
     contexts: dict = Field(default_factory=dict)
 
 
@@ -665,7 +654,7 @@ class AuditEventListItem(BaseModel):
 
 class AuditEventDetail(AuditEventListItem):
     """Single audit event with full detail (CRT172 / K1)."""
-    context: Optional[str] = Field(None, description="Context override active for this call (None = default)")
+    context: Optional[str] = Field(None, description="Caller-supplied context tag for this call (None = untagged). A tag only — since 3.0.0 it never changes which rules run.")
     pass_rate_pct: Optional[float] = Field(None, description="passed / total_records as a percentage (0.0–100.0). v2.3.22 Cluster F: null when total_records == 0.")
     rule_failure_counts: dict = Field(
         default_factory=dict,
@@ -677,8 +666,7 @@ class AuditEventDetail(AuditEventListItem):
     effective_rule_hash: str = Field(
         "",
         description=(
-            "SHA-256 over the rules actually applied to this call (after "
-            "context overrides). Same value the original /validate response "
+            "SHA-256 over the rules actually applied to this call. Same value the original /validate response "
             "emitted. Empty string when the row was recorded before "
             "v2.3.22 Cluster C added persistence."
         ),

@@ -189,12 +189,12 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
 
     def record_version(self, contract, approved_by: Optional[str] = None) -> None:
         """Snapshot the current contract state with hash-chain integrity."""
-        import copy
         import json
         from datetime import datetime, timezone
 
         rules = [r.model_dump(by_alias=True, exclude_none=True) for r in contract.rules]
-        contexts = copy.deepcopy(contract.contexts)
+        # 3.0.0: contexts removed; the hash slot and column stay, as {} / '{}'.
+        contexts: dict = {}
         updated_at = datetime.now(timezone.utc).isoformat()
         rules_json = json.dumps(rules, sort_keys=True)
         contexts_json = json.dumps(contexts, sort_keys=True)

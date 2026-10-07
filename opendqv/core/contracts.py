@@ -27,38 +27,51 @@ from .rule_parser import Rule, Severity, ContractStatus, RULE_TYPES, unknown_key
 CONTRACT_NAME_RE = _re.compile(r"^[A-Za-z0-9_-]{1,100}$")
 
 
-# Keys the canonical ``contract:`` block (and the legacy flat document) may
-# carry — exactly what _parse_contract_format reads. Shared with the linter.
+# Keys a contract document may carry at its top level — exactly what
+# _parse_contract_format reads. Shared with the linter.
 CONTRACT_KEYS: frozenset = frozenset({
-    "name", "version", "description", "owner", "status", "rules", "contexts",
+    "name", "version", "description", "owner", "status", "rules",
     "strict_schema", "allowed_fields", "fields",
     "asset_id", "downstream_consumers", "catalog_visible", "sensitive_fields",
     "validate_in_states", "owner_team", "owner_email", "source", "odcs",
     "proposed_by", "proposed_at", "approved_by", "approved_at",
     "rejected_by", "rejected_at", "rejection_reason",
 })
-# The canonical document has exactly one top-level key. A holder key for YAML
-# anchors counts as unknown — anchors go inline on the first rule that uses them.
-DOCUMENT_KEYS: frozenset = frozenset({"contract"})
+# 3.0.0: two shapes the managed engine refuses, refused here with its wording.
+# Both are checked before the unknown-key check so the author sees the reason,
+# not a generic "unknown key" with a nearest-key hint.
+ENVELOPE_UNSUPPORTED = (
+    "contract_envelope_unsupported: contract YAML uses the legacy top-level 'contract:' wrapper "
+    "— remove the wrapper so name/version/rules are top-level fields."
+)
+CONTEXTS_UNSUPPORTED = (
+    "contract_contexts_unsupported: This contract declares a 'contexts' block, which OpenDQV Core "
+    "does not support. Remove the 'contexts' block, or publish one contract per context "
+    "(e.g. 'salesforce_lead_web_form') so each has its own version history and audit lineage."
+)
+
+
+def check_removed_blocks(raw: dict) -> None:
+    """Refuse the ``contract:`` wrapper and a ``contexts:`` block (3.0.0).
+
+    Applies to every document shape, including the field-keyed onboarding
+    format. A bare ``contexts:`` (YAML null) is tolerated; any value — even
+    ``{}`` or ``[]`` — is a declared block and is refused, as the managed
+    engine does. The wrapper is checked first, as the managed engine does."""
+    if "contract" in raw:
+        raise ValueError(ENVELOPE_UNSUPPORTED)
+    if raw.get("contexts") is not None:
+        raise ValueError(CONTEXTS_UNSUPPORTED)
 
 
 def check_contract_keys(raw: dict) -> None:
-    """Refuse a key the loader does not read, at document level and in the
-    ``contract:`` block (2.9.0). Same class as the unknown-type refusal (#165)."""
-    if "contract" in raw and isinstance(raw["contract"], dict):
-        top = [k for k in raw if k not in DOCUMENT_KEYS]
-        if top:
-            raise ValueError(unknown_keys_message("document", None, top, DOCUMENT_KEYS))
-        block, who = raw["contract"], raw["contract"].get("name")
-    else:
-        block, who = raw, raw.get("name")
-    unknown = [k for k in block if k not in CONTRACT_KEYS]
+    """The shared parse-point check for a contract document: the 3.0.0
+    removed-block refusals first, then any key the loader does not read
+    (2.9.0, same class as the unknown-type refusal #165)."""
+    check_removed_blocks(raw)
+    unknown = [k for k in raw if k not in CONTRACT_KEYS and k != "contexts"]
     if unknown:
-        raise ValueError(unknown_keys_message("contract", who, unknown, CONTRACT_KEYS))
-
-
-class UnknownContextError(ValueError):
-    """Raised when a named context is specified but does not exist in the contract."""
+        raise ValueError(unknown_keys_message("contract", raw.get("name"), unknown, CONTRACT_KEYS))
 
 
 def _read_meta(raw: dict) -> dict:
@@ -330,7 +343,6 @@ class DataContract(BaseModel):
     owner: str = ""
     status: ContractStatus = ContractStatus.ACTIVE
     rules: list[Rule] = []
-    contexts: dict = {}  # context_name -> list of override rule dicts
 
     # CRT180 — strict_schema: reject records carrying fields the contract does
     # not declare (JSON Schema's `additionalProperties: false`, enforced at the
@@ -433,6 +445,15 @@ def _contract_from_snapshot(name: str, snap: dict) -> "DataContract":
     metadata bug the reviewer named: pinned validation reported latest
     hashes, only ``effective_rule_hash`` reflected what actually ran.
     """
+    if snap.get("contexts"):
+        # 3.0.0: an older release recorded a contexts block on this row. The
+        # row and its hashes (computed over the stored column) are untouched;
+        # the rebuilt contract drops the block — overrides no longer exist.
+        logger.warning(
+            "Historical snapshot of contract '%s' (version %s) carries a contexts block; "
+            "OpenDQV Core 3.0.0 does not support contexts — the block is dropped on load",
+            name, snap.get("version"),
+        )
     try:
         rules = [Rule(**r) for r in snap["rules"]]
     except ValueError as exc:
@@ -452,7 +473,6 @@ def _contract_from_snapshot(name: str, snap: dict) -> "DataContract":
         downstream_consumers=snap.get("downstream_consumers") or [],
         status=snap["status"],
         rules=rules,
-        contexts=snap.get("contexts") or {},
         strict_schema=bool(snap.get("strict_schema", False)),
         allowed_fields=list(snap.get("allowed_fields") or []),
     )
@@ -600,7 +620,10 @@ class ContractHistory(ContractHistoryBackend):
             r.model_dump(by_alias=True, exclude_none=True)
             for r in contract.rules
         ]
-        contexts = copy.deepcopy(contract.contexts)
+        # 3.0.0: contexts no longer exist, but the hash payload keeps their
+        # slot (passing {}) and the column stays, written as '{}', so no
+        # content_hash or entry_hash moves (tests/test_v3_golden_hashes.py).
+        contexts: dict = {}
         updated_at = datetime.now(timezone.utc).isoformat()
 
         rules_json = json.dumps(rules, sort_keys=True)
@@ -1014,10 +1037,8 @@ class ContractRegistry:
 
         A file that fails to load is logged and recorded in ``load_failures``
         (``[{"file", "error"}]``) so ``POST /contracts/reload`` can report it;
-        the other contracts load. A ``contexts:`` override is constructed
-        here too (2.8.0), so an override naming an unknown rule type refuses
-        the whole file at load rather than failing every request that names
-        the context."""
+        the other contracts load. A file carrying the ``contract:`` wrapper or
+        a ``contexts:`` block lands there too (3.0.0)."""
         self._contracts = {}
         self._contract_paths = {}
         self.load_failures: list[dict] = []
@@ -1029,7 +1050,6 @@ class ContractRegistry:
             try:
                 contract = self._load_file(path)
                 if contract:
-                    self._check_contexts(contract)
                     self._note_unenforced_blocks(contract, path)
                     if contract.name not in self._contracts:
                         self._contracts[contract.name] = {}
@@ -1051,16 +1071,6 @@ class ContractRegistry:
                 path.name, contract.name, ", ".join(sorted(str(k) for k in contract.odcs)) or "empty",
             )
 
-    def _check_contexts(self, contract: "DataContract") -> None:
-        """Construct every context's merged rule set once at load so an
-        override that the Rule model refuses (unknown type, bad pattern) is a
-        load error naming the context — not a per-request failure."""
-        for ctx in (contract.contexts or {}):
-            try:
-                self.get_rules_with_context(contract, ctx)
-            except ValueError as exc:
-                raise ValueError(f"context '{ctx}': {exc}") from None
-
     def _load_file(self, path: Path) -> Optional[DataContract]:
         """Parse a single contract YAML file."""
         try:
@@ -1079,44 +1089,47 @@ class ContractRegistry:
         if not raw:
             return None
 
-        # Support two formats:
-        # 1. Contract format: has 'contract' top-level key
-        # 2. Legacy format: has 'rules' as a list (like starter-rules.yaml)
-        if "contract" in raw:
-            return self._parse_contract_format(raw)
-        elif "rules" in raw and isinstance(raw["rules"], list):
-            return self._parse_legacy_format(raw, path)
-        elif "rules" in raw and isinstance(raw["rules"], dict):
+        if not isinstance(raw, dict):
+            return None
+        # 3.0.0: the shared parse point. The ``contract:`` wrapper and a
+        # ``contexts:`` block are refused for every shape, before anything else
+        # is read. Two shapes remain: the flat contract document (``rules`` a
+        # list) and the field-keyed onboarding format (``rules`` a mapping).
+        check_removed_blocks(raw)
+        if isinstance(raw.get("rules"), list):
+            return self._parse_contract_format(raw, path)
+        elif isinstance(raw.get("rules"), dict):
             return self._parse_onboarding_format(raw, path)
         return None
 
-    def _parse_contract_format(self, raw: dict) -> DataContract:
-        """Parse the canonical contract format."""
+    def _parse_contract_format(self, raw: dict, path: Path) -> DataContract:
+        """Parse the canonical flat contract document: name/version/rules and
+        every other contract field at the top level (3.0.0). A document with
+        no ``name:`` takes the file stem."""
         check_contract_keys(raw)
-        c = raw["contract"]
-        rules = [Rule(**r) for r in c.get("rules", [])]
+        rules = [Rule(**r) for r in raw.get("rules", [])]
+        name = raw.get("name") or path.stem.replace("-", "_").replace(" ", "_")
         return DataContract(
-            name=c["name"],
-            version=str(c.get("version", "1.0")),
-            description=c.get("description", ""),
-            owner=c.get("owner", ""),
-            status=c.get("status", "active"),
+            name=name,
+            version=str(raw.get("version", "1.0")),
+            description=raw.get("description", ""),
+            owner=raw.get("owner", ""),
+            status=raw.get("status", "active"),
             rules=rules,
-            contexts=c.get("contexts", {}),
-            strict_schema=bool(c.get("strict_schema", False)),
+            strict_schema=bool(raw.get("strict_schema", False)),
             # `fields:` accepted as a deprecated alias (review S3 rename); the linter warns.
-            allowed_fields=list(c.get("allowed_fields") or c.get("fields") or []),
-            asset_id=c.get("asset_id"),
-            downstream_consumers=c.get("downstream_consumers", []),
-            catalog_visible=c.get("catalog_visible", True),
-            sensitive_fields=c.get("sensitive_fields", []),
-            validate_in_states=c.get("validate_in_states", ["active"]),
-            owner_team=c.get("owner_team"),
-            owner_email=c.get("owner_email"),
-            source=c.get("source"),
-            odcs=c.get("odcs") or {},
-            proposed_by=c.get("proposed_by"),
-            proposed_at=c.get("proposed_at"),
+            allowed_fields=list(raw.get("allowed_fields") or raw.get("fields") or []),
+            asset_id=raw.get("asset_id"),
+            downstream_consumers=raw.get("downstream_consumers", []),
+            catalog_visible=raw.get("catalog_visible", True),
+            sensitive_fields=raw.get("sensitive_fields", []),
+            validate_in_states=raw.get("validate_in_states", ["active"]),
+            owner_team=raw.get("owner_team"),
+            owner_email=raw.get("owner_email"),
+            source=raw.get("source"),
+            odcs=raw.get("odcs") or {},
+            proposed_by=raw.get("proposed_by"),
+            proposed_at=raw.get("proposed_at"),
             # v2.3.20 P1.4: also read template-level approved_by / approved_at
             # from the YAML so bundled exemplar contracts can carry their
             # OpenDQV-core-team attestation through to list_versions.
@@ -1125,31 +1138,14 @@ class ContractRegistry:
             # IS honest attestation, not synthetic. Customer forks add
             # THEIR organization's attestation when they go through their
             # own approve workflow.
-            approved_by=c.get("approved_by"),
-            approved_at=c.get("approved_at"),
+            approved_by=raw.get("approved_by"),
+            approved_at=raw.get("approved_at"),
             # CRT177 Tier 2: rejection metadata is now serialised by
             # reject_contract, so it must be read back or it is lost on reload.
             # Keep this set in sync with _PERSISTED_META_FIELDS.
-            rejected_by=c.get("rejected_by"),
-            rejected_at=c.get("rejected_at"),
-            rejection_reason=c.get("rejection_reason"),
-        )
-
-    def _parse_legacy_format(self, raw: dict, path: Path) -> DataContract:
-        """Parse flat rules list format (like starter-rules.yaml)."""
-        check_contract_keys(raw)
-        rules = [Rule(**r) for r in raw["rules"]]
-        name = path.stem.replace("-", "_").replace(" ", "_")
-        return DataContract(
-            name=name,
-            version=str(raw.get("version", "1.0")),
-            description=raw.get("description", ""),
-            rules=rules,
-            contexts=raw.get("contexts", {}),
-            # CRT177 Tier 2: this format has no `contract:` block, so lifecycle
-            # status and provenance are persisted at the top level. Read them
-            # back or a transition is silently lost on reload.
-            **_read_meta(raw),
+            rejected_by=raw.get("rejected_by"),
+            rejected_at=raw.get("rejected_at"),
+            rejection_reason=raw.get("rejection_reason"),
         )
 
     def _parse_onboarding_format(self, raw: dict, path: Path) -> DataContract:
@@ -1222,9 +1218,8 @@ class ContractRegistry:
             description=metadata.get("description", ""),
             owner=metadata.get("author", ""),
             rules=rules,
-            contexts=raw.get("contexts", {}),
             # CRT177 Tier 2: lifecycle status/provenance are persisted at the
-            # top level for this format too (no `contract:` block).
+            # top level for this format.
             **_read_meta(raw),
         )
 
@@ -1313,7 +1308,7 @@ class ContractRegistry:
         # Write the new status back to the YAML file so it survives reload.
         # CRT177 Tier 2: this used an unanchored `^( +status: )\S+` regex that
         # rewrote EVERY indented `status:` line in the file — it would corrupt a
-        # nested `status` key (e.g. inside contexts: or a rule) and the write was
+        # nested `status` key (e.g. inside a rule) and the write was
         # non-atomic. Replaced with structured serialisation through the shared
         # atomic writer.
         self._persist_contract_meta(name, contract)
@@ -1461,7 +1456,7 @@ class ContractRegistry:
         disk — the next reload erased the bump. Now: deep copy, strip the
         approval trail (a still-DRAFT version must not read as approved after
         a reload), write ``{name}_v{new_version}.yaml`` atomically from the
-        base file's raw YAML (lossless: rules, contexts and every other key
+        base file's raw YAML (lossless: rules and every other key
         carry over), and index both maps.
         """
         base = self.get(name, from_version)
@@ -1489,10 +1484,11 @@ class ContractRegistry:
         raw: dict = {}
         if base_path and base_path.exists():
             raw = yaml.safe_load(base_path.read_text(encoding="utf-8")) or {}
-        block = raw["contract"] if isinstance(raw.get("contract"), dict) else raw
+        # The base file already passed the shared parse-point check at load,
+        # so it is a flat document (3.0.0) and carries no contexts block.
+        block = raw
         if not block:
-            block = {"name": name, "rules": [r.model_dump(by_alias=True, exclude_none=True, mode="json") for r in new.rules]}
-            raw = {"contract": block}
+            block = raw = {"name": name, "rules": [r.model_dump(by_alias=True, exclude_none=True, mode="json") for r in new.rules]}
         block["name"] = name
         block["version"] = new_version
         block["status"] = ContractStatus.DRAFT.value
@@ -1546,28 +1542,27 @@ class ContractRegistry:
         return ordered
 
     def _contract_to_yaml(self, contract: DataContract) -> str:
-        """Serialize a DataContract to canonical YAML for disk storage."""
+        """Serialize a DataContract to the canonical flat YAML document (3.0.0:
+        no ``contract:`` wrapper) for disk storage."""
         rules_list = [self._rule_to_yaml_dict(r) for r in contract.rules]
 
         data = {
-            "contract": {
-                "name": contract.name,
-                "version": contract.version,
-                "description": contract.description,
-                "owner": contract.owner,
-                "status": contract.status.value,
-                "source": contract.source,
-                "proposed_by": contract.proposed_by,
-                "proposed_at": contract.proposed_at,
-                "validate_in_states": contract.validate_in_states,
-                "rules": rules_list,
-            }
+            "name": contract.name,
+            "version": contract.version,
+            "description": contract.description,
+            "owner": contract.owner,
+            "status": contract.status.value,
+            "source": contract.source,
+            "proposed_by": contract.proposed_by,
+            "proposed_at": contract.proposed_at,
+            "validate_in_states": contract.validate_in_states,
+            "rules": rules_list,
         }
         # 2.9.0: every attribute the loader reads is written back when set.
         # The approval trail (approved_by/approved_at), rejection trail, owner
-        # contact, catalog id, sensitive fields and contexts used to be dropped
-        # on every fresh-file write (the managed engine found the same gap).
-        block = data["contract"]
+        # contact, catalog id and sensitive fields used to be dropped on every
+        # fresh-file write (the managed engine found the same gap).
+        block = data
         for key in ("approved_by", "approved_at", "rejected_by", "rejected_at", "rejection_reason",
                     "owner_team", "owner_email", "asset_id"):
             value = getattr(contract, key, None)
@@ -1577,16 +1572,14 @@ class ContractRegistry:
             block["sensitive_fields"] = list(contract.sensitive_fields)
         if contract.odcs:
             block["odcs"] = contract.odcs   # carried verbatim, never enforced
-        if contract.contexts:
-            block["contexts"] = contract.contexts
         if contract.downstream_consumers:
-            data["contract"]["downstream_consumers"] = contract.downstream_consumers
+            block["downstream_consumers"] = contract.downstream_consumers
         if not contract.catalog_visible:
-            data["contract"]["catalog_visible"] = False
+            block["catalog_visible"] = False
         if contract.strict_schema:
-            data["contract"]["strict_schema"] = True
+            block["strict_schema"] = True
         if contract.allowed_fields:
-            data["contract"]["allowed_fields"] = list(contract.allowed_fields)
+            block["allowed_fields"] = list(contract.allowed_fields)
         return yaml.dump(data, default_flow_style=False, sort_keys=False, allow_unicode=True)
 
     def contract_as_of(self, name: str, timestamp: str) -> Optional["DataContract"]:
@@ -1756,7 +1749,7 @@ class ContractRegistry:
 
     @classmethod
     def _apply_contract_meta(cls, block: dict, contract: "DataContract") -> None:
-        """Write lifecycle status + provenance into a raw ``contract:`` block."""
+        """Write lifecycle status + provenance into a raw contract document."""
         block["status"] = contract.status.value
         for field in cls._PERSISTED_META_FIELDS:
             value = getattr(contract, field, None)
@@ -1858,122 +1851,21 @@ class ContractRegistry:
                 f"(e.g. !!python/object). Remove them manually and re-save. "
                 f"Detail: {exc}"
             ) from exc
-        if "contract" not in raw:
-            # Legacy (flat `rules:` list) and onboarding (`fields:`) formats have
-            # no `contract:` block. Writing the meta into a block that isn't
-            # there would be a silent no-op that loses the transition, so write
-            # it at the top level — which is where _parse_legacy_format and
-            # _parse_onboarding_format now read it back from. (CRT177 Tier 2)
-            self._apply_contract_meta(raw, contract)
-        if "contract" in raw:
-            if include_rules:
-                # Use mode='json' to ensure enum values are serialised as plain strings,
-                # not as Python-specific YAML tags (e.g. Severity.ERROR → 'error').
-                rules_out = [
-                    r.model_dump(by_alias=True, exclude_none=True, mode='json')
-                    for r in contract.rules
-                ]
-                raw["contract"]["rules"] = rules_out
-                # ACT-047-02: persist the version field (may have been updated by draft patch counter).
-                raw["contract"]["version"] = contract.version
-            self._apply_contract_meta(raw["contract"], contract)
+        # 3.0.0: every document is flat — status and provenance live at the top
+        # level, where both parsers read them back (CRT177 Tier 2). Rules are
+        # rewritten only for the flat contract document; the field-keyed
+        # onboarding format (``rules`` a mapping) keeps its own rule shape.
+        if include_rules and isinstance(raw.get("rules"), list):
+            # Use mode='json' to ensure enum values are serialised as plain strings,
+            # not as Python-specific YAML tags (e.g. Severity.ERROR → 'error').
+            raw["rules"] = [
+                r.model_dump(by_alias=True, exclude_none=True, mode='json')
+                for r in contract.rules
+            ]
+            # ACT-047-02: persist the version field (may have been updated by draft patch counter).
+            raw["version"] = contract.version
+        self._apply_contract_meta(raw, contract)
         tmp = path.with_suffix(".yaml.tmp")
         tmp.write_text(yaml.safe_dump(raw, default_flow_style=False, allow_unicode=True, sort_keys=False), encoding="utf-8")
         tmp.replace(path)
         self._rekey_path(name, contract.version, path)
-
-    def get_rules_with_context(self, contract: DataContract, context: Optional[str] = None) -> list[Rule]:
-        """
-        Get rules from a contract, applying context overrides if specified.
-
-        Context overrides can modify existing rules or add new field constraints.
-
-        When the caller wants to know whether the context was actually declared on
-        the contract (e.g. to surface a transparent warning to API consumers
-        without changing the fail-open behaviour), use
-        ``get_rules_with_context_status`` instead — this method preserves the
-        legacy single-return-value shape for existing callers.
-        """
-        if not context:
-            return contract.rules
-        if context not in contract.contexts:
-            logger.debug(
-                "Context '%s' not defined in contract '%s' — applying base rules (no overrides). "
-                "This is normal for stats-tagging contexts (e.g. 'demo', 'ci', 'test').",
-                context, contract.name,
-            )
-            return contract.rules
-
-        overrides = contract.contexts[context]
-        if not isinstance(overrides, dict):
-            # 2.8.0: a malformed block used to raise AttributeError per request
-            # (HTTP 500); as a ValueError it is refused at load with the context named.
-            raise ValueError(f"context overrides must be a mapping of rule-or-field name to override, got {type(overrides).__name__}")
-        rules = list(contract.rules)
-
-        # Override resolution order (CRT173):
-        #   1. Rule-name match — most specific. Modifies a single named rule
-        #      so its error envelope (field, error_code, suggested_fix) stays
-        #      bound to the original rule's field and type. This is the path
-        #      contracts like proof_of_play.yaml use, where `revenue_ceiling`
-        #      and `dwell_seconds_max` are rule names, not column names.
-        #   2. Field-name match — broad. Modifies every rule on that field,
-        #      e.g. customer.yaml's `kids_app` retargets both age_minimum
-        #      and age_reasonable in one stroke.
-        #   3. Fallback — mint a synthetic constraint. Reserved for genuinely
-        #      new constraints; previously this branch silently swallowed
-        #      mis-keyed overrides and produced phantom rules whose `field`
-        #      was the rule name (poisoning top_failing_fields[]).
-        for key, override in overrides.items():
-            rule_match_idx = next((i for i, r in enumerate(rules) if r.name == key), None)
-            if rule_match_idx is not None:
-                rule_dict = rules[rule_match_idx].model_dump(by_alias=True)
-                rule_dict.update(override)
-                rules[rule_match_idx] = Rule(**rule_dict)
-                continue
-
-            field_match_indices = [i for i, r in enumerate(rules) if r.field == key]
-            if field_match_indices:
-                for i in field_match_indices:
-                    rule_dict = rules[i].model_dump(by_alias=True)
-                    rule_dict.update(override)
-                    rules[i] = Rule(**rule_dict)
-                continue
-
-            override_rule = {
-                "name": f"ctx_{context}_{key}",
-                "field": key,
-                "type": override.get("type", "not_empty"),
-                "error_message": override.get("error_message", f"Context {context}: invalid {key}"),
-                **{k: v for k, v in override.items() if k not in ("type", "error_message")},
-            }
-            rules.append(Rule(**override_rule))
-
-        return rules
-
-    def get_rules_with_context_status(
-        self, contract: DataContract, context: Optional[str] = None,
-    ) -> tuple[list[Rule], str]:
-        """Same as get_rules_with_context, plus a status string.
-
-        Status values:
-          - ``"none"``      — no context was provided
-          - ``"declared"``  — context was provided AND declared on the contract
-          - ``"undeclared"`` — context was provided but NOT declared on the contract
-                              (engine still returns base rules per fail-open
-                              design — see ``get_rules_with_context`` — but the
-                              caller can surface a transparent warning to API
-                              consumers).
-
-        Closes v2.3.17 F-D: contexts double as both override lookups and
-        stats-tagging metadata, so undeclared contexts are not errors. But the
-        engine should not silently accept a typo (`prodd` for `prod`) without
-        making the divergence visible. This method gives REST and MCP routes
-        the signal they need to populate a ``context_warning`` field on the
-        validate response without changing fail-open behaviour.
-        """
-        if not context:
-            return contract.rules, "none"
-        if context not in (contract.contexts or {}):
-            return self.get_rules_with_context(contract, context), "undeclared"
-        return self.get_rules_with_context(contract, context), "declared"

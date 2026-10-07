@@ -1,111 +1,110 @@
-contract:
-  name: salesforce_lead
-  # Template-level attestation: proposed by the OpenDQV Cloud team (the golden
-  # starter library) and approved by the OpenDQV core team, which mirrors it.
-  # A customer forking this contract overwrites these fields with their own
-  # organisational attestation through their approve workflow.
-  owner_email: opendqv@bgmsconsultants.com
-  proposed_by: opendqv-cloud-team
-  proposed_at: "2026-09-03T00:00:00+00:00"
-  approved_by: opendqv-core-team
-  approved_at: "2026-09-03T00:00:00+00:00"
-  version: "0.1"
-  description: |-
-      OpenDQV Cloud starter template (v0.1) — your tenant inherits this baseline. First customer edit creates v1.0 in your audit trail; pin by yaml_hash for replay.
+name: salesforce_lead
+# Template-level attestation: proposed by the OpenDQV Cloud team (the golden
+# starter library) and approved by the OpenDQV core team, which mirrors it.
+# A customer forking this contract overwrites these fields with their own
+# organisational attestation through their approve workflow.
+owner_email: opendqv@bgmsconsultants.com
+proposed_by: opendqv-cloud-team
+proposed_at: "2026-09-03T00:00:00+00:00"
+approved_by: opendqv-core-team
+approved_at: "2026-09-03T00:00:00+00:00"
+version: "0.1"
+description: |-
+    OpenDQV Cloud starter template (v0.1) — your tenant inherits this baseline. First customer edit creates v1.0 in your audit trail; pin by yaml_hash for replay.
 
-      Salesforce Lead — data quality validation for inbound lead records
-  owner: Sunny Sharma
-  status: active
-  asset_id: urn:opendqv:sf_lead
-  rules:
-      - name: first_name_required
-        field: FirstName
-        type: not_empty
-        severity: error
-        error_message: FirstName is required for leads.
-      - name: last_name_required
-        field: LastName
-        type: not_empty
-        severity: error
-        error_message: LastName is required for leads.
-      - name: company_required
-        field: Company
-        type: not_empty
-        severity: error
-        error_message: Company is required — Salesforce won't accept a lead without it.
-      - name: email_required
-        field: Email
-        type: not_empty
-        severity: error
-        error_message: Email is required for lead routing and dedup.
-      - name: email_format
-        field: Email
-        type: regex
-        pattern: ^[A-Za-z0-9_\.\+\-]+@[A-Za-z0-9_\.-]+\.[a-zA-Z]{2,}$
-        severity: error
-        error_message: Email must be a valid format.
-      - name: email_not_personal
-        description: 'Flags personal email addresses (gmail, yahoo, hotmail, outlook, aol, icloud) on a B2B lead. Severity is warning — the record is accepted but flagged for sales review. Written as an anchored pattern with negate: true so it runs identically on engines that match from the start of the value and on engines that search.'
-        field: Email
-        type: regex
-        pattern: '@(gmail|yahoo|hotmail|outlook|aol|icloud)\.com$'
-        negate: true
-        severity: warning
-        error_message: Personal email detected — business email preferred for B2B leads.
-      - name: phone_format
-        field: Phone
-        type: regex
-        pattern: ^[\+]?[0-9 \-\(\)\.]{7,20}$
-        severity: warning
-        error_message: Phone should be 7-20 digits.
-      - name: lead_source_required
-        field: LeadSource
-        type: not_empty
-        severity: error
-        error_message: LeadSource is required for attribution tracking.
-      - name: status_required
-        field: Status
-        type: not_empty
-        severity: error
-        error_message: Status is required (e.g. New, Working, Qualified).
-      - name: title_length
-        field: Title
-        type: max_length
-        max_length: 128
-        severity: warning
-        error_message: Title should be under 128 characters.
-      - name: company_length
-        field: Company
-        type: max_length
-        max_length: 255
-        severity: error
-        error_message: Company must be under 255 characters (Salesforce limit).
-      - name: website_format
-        field: Website
-        type: regex
-        pattern: ^https?://[A-Za-z0-9_\.-]+(\.[a-zA-Z]{2,})(/.*)?$
-        severity: warning
-        error_message: Website should be a valid URL (e.g. https://company.com).
-      - name: annual_revenue_min
-        field: AnnualRevenue
-        type: min
-        min: 0
-        severity: warning
-        error_message: AnnualRevenue should be non-negative.
-      - name: number_of_employees_min
-        field: NumberOfEmployees
-        type: min
-        min: 1
-        severity: warning
-        error_message: NumberOfEmployees should be at least 1.
-      - name: number_of_employees_max
-        field: NumberOfEmployees
-        type: max
-        max: 10000000
-        severity: warning
-        error_message: NumberOfEmployees seems unrealistically high.
-      - name: duplicate_email
-        field: Email
-        type: unique
-        severity: error
-        error_message: "Duplicate Email within this batch — possible duplicate lead. Cross-system uniqueness against the Salesforce master register requires Salesforce duplicate management; OpenDQV validates the input batch only."
+    Salesforce Lead — data quality validation for inbound lead records
+owner: Sunny Sharma
+status: active
+asset_id: urn:opendqv:sf_lead
+rules:
+    - name: first_name_required
+      field: FirstName
+      type: not_empty
+      severity: error
+      error_message: FirstName is required for leads.
+    - name: last_name_required
+      field: LastName
+      type: not_empty
+      severity: error
+      error_message: LastName is required for leads.
+    - name: company_required
+      field: Company
+      type: not_empty
+      severity: error
+      error_message: Company is required — Salesforce won't accept a lead without it.
+    - name: email_required
+      field: Email
+      type: not_empty
+      severity: error
+      error_message: Email is required for lead routing and dedup.
+    - name: email_format
+      field: Email
+      type: regex
+      pattern: ^[A-Za-z0-9_\.\+\-]+@[A-Za-z0-9_\.-]+\.[a-zA-Z]{2,}$
+      severity: error
+      error_message: Email must be a valid format.
+    - name: email_not_personal
+      description: 'Flags personal email addresses (gmail, yahoo, hotmail, outlook, aol, icloud) on a B2B lead. Severity is warning — the record is accepted but flagged for sales review. Written as an anchored pattern with negate: true so it runs identically on engines that match from the start of the value and on engines that search.'
+      field: Email
+      type: regex
+      pattern: '@(gmail|yahoo|hotmail|outlook|aol|icloud)\.com$'
+      negate: true
+      severity: warning
+      error_message: Personal email detected — business email preferred for B2B leads.
+    - name: phone_format
+      field: Phone
+      type: regex
+      pattern: ^[\+]?[0-9 \-\(\)\.]{7,20}$
+      severity: warning
+      error_message: Phone should be 7-20 digits.
+    - name: lead_source_required
+      field: LeadSource
+      type: not_empty
+      severity: error
+      error_message: LeadSource is required for attribution tracking.
+    - name: status_required
+      field: Status
+      type: not_empty
+      severity: error
+      error_message: Status is required (e.g. New, Working, Qualified).
+    - name: title_length
+      field: Title
+      type: max_length
+      max_length: 128
+      severity: warning
+      error_message: Title should be under 128 characters.
+    - name: company_length
+      field: Company
+      type: max_length
+      max_length: 255
+      severity: error
+      error_message: Company must be under 255 characters (Salesforce limit).
+    - name: website_format
+      field: Website
+      type: regex
+      pattern: ^https?://[A-Za-z0-9_\.-]+(\.[a-zA-Z]{2,})(/.*)?$
+      severity: warning
+      error_message: Website should be a valid URL (e.g. https://company.com).
+    - name: annual_revenue_min
+      field: AnnualRevenue
+      type: min
+      min: 0
+      severity: warning
+      error_message: AnnualRevenue should be non-negative.
+    - name: number_of_employees_min
+      field: NumberOfEmployees
+      type: min
+      min: 1
+      severity: warning
+      error_message: NumberOfEmployees should be at least 1.
+    - name: number_of_employees_max
+      field: NumberOfEmployees
+      type: max
+      max: 10000000
+      severity: warning
+      error_message: NumberOfEmployees seems unrealistically high.
+    - name: duplicate_email
+      field: Email
+      type: unique
+      severity: error
+      error_message: "Duplicate Email within this batch — possible duplicate lead. Cross-system uniqueness against the Salesforce master register requires Salesforce duplicate management; OpenDQV validates the input batch only."

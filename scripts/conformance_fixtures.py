@@ -234,7 +234,7 @@ def main(names: list[str]) -> int:
         if contract is None:
             print(f"unknown contract {name}", file=sys.stderr)
             return 1
-        rules = reg.get_rules_with_context(contract, None)
+        rules = contract.rules
         lines = build(contract, rules)
         (outdir / f"{name}.jsonl").write_text(
             "\n".join(json.dumps(line, sort_keys=True) for line in lines) + "\n", encoding="utf-8"

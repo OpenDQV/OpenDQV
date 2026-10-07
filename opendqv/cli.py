@@ -202,8 +202,6 @@ def cmd_show(args):
     print(f"Status:   {contract.status.value}")
     print(f"Owner:    {contract.owner or '(none)'}")
     print(f"Desc:     {contract.description or '(none)'}")
-    if contract.contexts:
-        print(f"Contexts: {', '.join(contract.contexts.keys())}")
     print()
 
     rules = contract.rules
@@ -236,7 +234,7 @@ def cmd_validate(args):
         print(f"Error: Invalid JSON: {e}", file=sys.stderr)
         sys.exit(1)
 
-    rules = registry.get_rules_with_context(contract, args.context)
+    rules = contract.rules
     result = validate_record(record, rules, **strict_schema_kwargs(contract, rules))
 
     status = "PASS" if result["valid"] else "FAIL"
@@ -265,11 +263,9 @@ def cmd_export_gx(args):
         print(f"Error: Contract '{args.contract}' not found.", file=sys.stderr)
         sys.exit(1)
 
-    rules = registry.get_rules_with_context(contract, args.context)
+    rules = contract.rules
     suite = export_gx_suite(contract.name, rules)
     suite["meta"]["contract_version"] = contract.version
-    if args.context:
-        suite["meta"]["context"] = args.context
 
     output = json.dumps(suite, indent=2)
 
@@ -479,7 +475,7 @@ def cmd_export_odcs(args):
         print(f"Error: Contract '{args.contract}' not found.", file=sys.stderr)
         sys.exit(1)
 
-    rules = registry.get_rules_with_context(contract, args.context)
+    rules = contract.rules
     status_val = contract.status.value if hasattr(contract.status, "value") else str(contract.status)
     yaml_str = contract_to_odcs_yaml(
         contract_name=contract.name,
@@ -509,7 +505,7 @@ def cmd_export_dbt(args):
         print(f"Error: Contract '{args.contract}' not found.", file=sys.stderr)
         sys.exit(1)
 
-    rules = registry.get_rules_with_context(contract, getattr(args, "context", None))
+    rules = contract.rules
     yaml_str = contract_to_dbt_yaml(
         contract_name=contract.name,
         rules=rules,
@@ -564,7 +560,7 @@ def cmd_validate_file(args):
 
     observe_only = getattr(args, "observe_only", False)
 
-    rules = registry.get_rules_with_context(contract, args.context)
+    rules = contract.rules
     result = validate_batch(records, rules, contract_name=args.contract, **strict_schema_kwargs(contract, rules))
     summary = result["summary"]
 
@@ -628,7 +624,7 @@ def cmd_fork(args):
 
     Mutates in place via targeted regex so comments and structure are preserved.
     The forked contract gets: name=<dst>, version="1.0", status=draft, and
-    asset_id rewritten to urn:opendqv:<dst>. Everything else (rules, contexts,
+    asset_id rewritten to urn:opendqv:<dst>. Everything else (rules,
     descriptions, regulatory commentary) is copied verbatim for the author to edit.
     """
     import re as _re_fork
@@ -652,30 +648,36 @@ def cmd_fork(args):
 
     content = src_path.read_text(encoding="utf-8")
 
-    # Rewrite the first occurrence of each key under the contract: block.
-    # The contract-level fields sit at indent > 0 at the top of the file; rule
-    # entries have name:/version:/status: too but appear later, so count=1 is
-    # enough to hit the contract-level line reliably.
-    content = _re_fork.sub(
-        r'^(\s+name:\s+).*$',
-        rf'\g<1>{args.dst}',
-        content, count=1, flags=_re_fork.MULTILINE,
-    )
-    content = _re_fork.sub(
-        r'^(\s+version:\s+).*$',
-        r'\g<1>"1.0"',
-        content, count=1, flags=_re_fork.MULTILINE,
-    )
-    content = _re_fork.sub(
-        r'^(\s+status:\s+).*$',
-        r'\g<1>draft',
-        content, count=1, flags=_re_fork.MULTILINE,
-    )
-    content = _re_fork.sub(
-        r'^(\s+asset_id:\s+).*$',
-        rf'\g<1>urn:opendqv:{args.dst}',
-        content, count=1, flags=_re_fork.MULTILINE,
-    )
+    # 3.0.0: the shared parse-point check — a source carrying the legacy
+    # `contract:` wrapper or a `contexts:` block is refused, never copied.
+    import yaml as _yaml_fork
+    from opendqv.core.contracts import check_contract_keys
+    try:
+        src_doc = _yaml_fork.safe_load(content)
+        if not isinstance(src_doc, dict):
+            raise ValueError("source is not a contract document")
+        check_contract_keys(src_doc)
+    except (ValueError, _yaml_fork.YAMLError) as exc:
+        print(f"Error: cannot fork '{args.src}': {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    # Rewrite each contract-level key in place. The document is flat, so the
+    # contract's own keys sit at column 0; rule entries carry name:/status:
+    # too but are indented, so a column-0 anchor never touches them. A key the
+    # source does not carry is appended, so the fork is always a DRAFT at 1.0.
+    for key, value in (
+        ("name", args.dst),
+        ("version", '"1.0"'),
+        ("status", "draft"),
+        ("asset_id", f"urn:opendqv:{args.dst}"),
+    ):
+        content, n = _re_fork.subn(
+            rf'^{key}:[ \t]*.*$',
+            lambda _m, _k=key, _v=value: f"{_k}: {_v}",
+            content, count=1, flags=_re_fork.MULTILINE,
+        )
+        if not n:
+            content = content.rstrip("\n") + f"\n{key}: {value}\n"
 
     dst_path.write_text(content, encoding="utf-8")
 
@@ -743,7 +745,7 @@ def cmd_generate(args):
         print(f"Error: Invalid target '{args.target}'. Must be one of: {', '.join(valid_targets)}", file=sys.stderr)
         sys.exit(1)
 
-    rules = registry.get_rules_with_context(contract, args.context)
+    rules = contract.rules
     code = generate_code(rules, args.target, contract_name=contract.name, contract_version=contract.version)
     print(code)
 
@@ -1036,12 +1038,10 @@ def main():
     p_validate = subparsers.add_parser("validate", help="Validate a JSON record against a contract")
     p_validate.add_argument("contract", help="Contract name")
     p_validate.add_argument("json", help="JSON string of the record to validate")
-    p_validate.add_argument("--context", default=None, help="Context to apply (e.g. 'salesforce', 'kids_app')")
 
     # export-gx
     p_export = subparsers.add_parser("export-gx", help="Export contract as GX expectation suite JSON")
     p_export.add_argument("contract", help="Contract name")
-    p_export.add_argument("--context", default=None, help="Context to apply before export")
     p_export.add_argument("--output", "-o", default=None, help="Write output to file instead of stdout")
 
     # import-gx
@@ -1069,20 +1069,17 @@ def main():
     # export-odcs
     p_export_odcs = subparsers.add_parser("export-odcs", help="Export contract as ODCS v3.1.0 YAML")
     p_export_odcs.add_argument("contract", help="Contract name")
-    p_export_odcs.add_argument("--context", default=None, help="Context to apply before export")
     p_export_odcs.add_argument("--output", "-o", default=None, help="Write output to file instead of stdout")
 
     # export-dbt
     p_export_dbt = subparsers.add_parser("export-dbt", help="Export contract as dbt schema.yml")
     p_export_dbt.add_argument("contract", help="Contract name")
-    p_export_dbt.add_argument("--context", default=None, help="Context to apply before export")
     p_export_dbt.add_argument("--output", "-o", default=None, help="Write to file instead of stdout")
 
     # generate
     p_gen = subparsers.add_parser("generate", help="Generate validation code for a target platform")
     p_gen.add_argument("contract", help="Contract name")
     p_gen.add_argument("target", help="Target platform: salesforce, js, snowflake, spark, bigquery")
-    p_gen.add_argument("--context", default=None, help="Context to apply before generation")
 
     # validate-file
     p_validate_file = subparsers.add_parser(
@@ -1091,7 +1088,6 @@ def main():
     )
     p_validate_file.add_argument("contract", help="Contract name")
     p_validate_file.add_argument("path", help="Path to CSV or Parquet file")
-    p_validate_file.add_argument("--context", default=None, help="Context override to apply")
     p_validate_file.add_argument(
         "--output-failures", default=None, metavar="FILE",
         help="Write failed records to a CSV file (e.g. failed.csv)",

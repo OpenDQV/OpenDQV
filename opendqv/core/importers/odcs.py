@@ -711,7 +711,7 @@ def odcs_to_yaml(contract_data: dict, contract_name: Optional[str] = None) -> tu
     result = import_odcs(contract_data)
     name = contract_name or result["contract"]["name"]
     result["contract"]["name"] = name
-    yaml_str = yaml.dump({"contract": result["contract"]}, default_flow_style=False,
+    yaml_str = yaml.dump(result["contract"], default_flow_style=False,   # 3.0.0: flat
                          sort_keys=False, allow_unicode=True)
     return name, yaml_str
 

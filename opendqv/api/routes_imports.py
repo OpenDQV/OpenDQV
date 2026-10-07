@@ -13,39 +13,38 @@ from opendqv.core.importers.odcs import import_odcs, odcs_to_yaml, contract_to_o
 from opendqv.core.importers.csvw import import_csvw, csvw_to_yaml
 from opendqv.core.importers.otel import import_otel, otel_to_yaml
 from opendqv.core.importers.ndc import import_ndc, ndc_to_yaml
-from opendqv.core.contracts import UnknownContextError
+from opendqv.core.contracts import check_contract_keys
 from opendqv.security.auth import get_current_user, get_current_role
 
 sub_router = APIRouter()
 
 
 def _apply_import_meta(doc: dict, created_by: str = "") -> None:
-    """Stamp import provenance onto the contract block (CRT177 Tier 2).
+    """Check an imported contract document at the shared parse point, then
+    stamp import provenance onto it (CRT177 Tier 2).
 
-    These keys were previously set on the TOP LEVEL of the YAML document
-    (``doc["status"]``), but the loader reads them from the NESTED ``contract:``
-    block (``_parse_contract_format`` → ``c.get("status", "active")``). Every
-    one of them was therefore a silent no-op on disk:
+    3.0.0: the document is flat, so status/source/proposed_by sit at the top
+    level, where the loader reads them. The shared check (``contract:``
+    wrapper, ``contexts:`` block, unknown keys) runs first, so an import the
+    loader would refuse is a 422 here — never a file that lands in
+    ``load_failures`` on the next reload.
 
-    * ``status: draft`` never applied — so the CSV importer (which hardcodes
-      ``status: active``) and the ODCS importer (which takes a caller-controlled
-      ``info.status``, defaulting to active) persisted contracts as **ACTIVE**,
-      live for validation and immutable, with the approval workflow skipped
-      entirely. The other six importers escaped only because they already nest
-      ``status: draft`` themselves.
-    * ``source`` and ``created_by`` never applied on ANY of the eight importers,
-      so import provenance was lost from the audit trail.
-
-    ``created_by`` maps to ``proposed_by``, which is the attribution field the
-    loader and the review workflow actually read.
+    Every import lands DRAFT: the CSV importer hardcodes ``status: active`` and
+    the ODCS importer takes a caller-controlled status, and either would
+    otherwise persist an ACTIVE contract with the approval workflow skipped.
+    ``created_by`` maps to ``proposed_by``, the attribution field the loader
+    and the review workflow actually read.
     """
-    block = doc.get("contract")
-    if not isinstance(block, dict):
-        return
-    block["source"] = "import"
-    block["status"] = "draft"
+    if not isinstance(doc, dict):
+        raise HTTPException(status_code=422, detail="Import produced no contract document.")
+    try:
+        check_contract_keys(doc)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    doc["source"] = "import"
+    doc["status"] = "draft"
     if created_by:
-        block["proposed_by"] = created_by
+        doc["proposed_by"] = created_by
 
 
 @sub_router.post("/import/gx")
@@ -332,6 +331,8 @@ async def import_from_csvw(
             resp["saved_to"] = file_path
             resp["message"] = f"Contract '{contract_name}' saved and loaded"
         return resp
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"CSVW import failed: {e}")
 
@@ -384,6 +385,8 @@ async def import_from_otel(
             resp["saved_to"] = file_path
             resp["message"] = f"Contract '{contract_name}' saved and loaded"
         return resp
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"OTel import failed: {e}")
 
@@ -437,6 +440,8 @@ async def import_from_ndc(
             resp["saved_to"] = file_path
             resp["message"] = f"Contract '{contract_name}' saved and loaded"
         return resp
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"NDC import failed: {e}")
 
@@ -447,7 +452,6 @@ async def export_to_great_expectations(
     request: Request,
     contract_name: str,
     version: str = Query("latest"),
-    context: str = Query(None, description="Optional context to apply before export"),
     user=Depends(get_current_user),
 ):
     """
@@ -458,13 +462,9 @@ async def export_to_great_expectations(
     """
     contract = _d._get_contract_versioned_or_404(contract_name, version)
 
-    try:
-        rules = _d.registry.get_rules_with_context(contract, context)
-    except UnknownContextError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    rules = contract.rules
     suite = export_gx_suite(contract.name, rules)
     suite["meta"]["contract_version"] = contract.version
-    suite["meta"]["context"] = context
     return suite
 
 
@@ -474,7 +474,6 @@ async def export_to_odcs(
     request: Request,
     contract_name: str,
     version: str = Query("latest"),
-    context: str = Query(None, description="Optional context to apply before export"),
     user=Depends(get_current_user),
 ):
     """
@@ -487,10 +486,7 @@ async def export_to_odcs(
     """
     contract = _d._get_contract_versioned_or_404(contract_name, version)
 
-    try:
-        rules = _d.registry.get_rules_with_context(contract, context)
-    except UnknownContextError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    rules = contract.rules
     yaml_str = contract_to_odcs_yaml(
         contract_name=contract.name,
         rules=rules,

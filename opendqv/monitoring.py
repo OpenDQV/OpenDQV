@@ -664,148 +664,10 @@ class ValidationStats:
 stats = ValidationStats()
 
 
-def _normalize_legacy_rule_name(
-    rule_name: str, contract_name: str, registry,
-) -> str:
-    """v2.3.23 P2-11 (Sonnet a3b8052e9904f4ab4): strip `ctx_{context}_`
-    prefix on legacy rule names when the suffix matches a base rule
-    and the context is declared on the contract.
-
-    Two-condition guard prevents false positives on genuinely synthetic
-    branch-3 rules (where the override didn't match any base rule and
-    the engine minted a new rule with the prefixed name).
-
-    Returns the original name unchanged when:
-      - registry is None (programmatic use without contract context)
-      - the name doesn't start with `ctx_`
-      - the suffix doesn't match a base rule on the contract
-      - the named context isn't declared on the contract
-    """
-    if registry is None or not rule_name.startswith("ctx_"):
-        return rule_name
-    rest = rule_name[len("ctx_"):]
-    # ctx_{context}_{rule_name} — context is one underscore-delimited
-    # token; rule_name may contain underscores.
-    if "_" not in rest:
-        return rule_name
-    candidate_context, candidate_rule = rest.split("_", 1)
-    contract = registry.get(contract_name)
-    if contract is None:
-        return rule_name
-    # Both guards: context declared AND base rule with that name exists.
-    if candidate_context not in (contract.contexts or {}):
-        return rule_name
-    if not any(r.name == candidate_rule for r in contract.rules):
-        return rule_name
-    return candidate_rule
-
-
-def _build_rule_normalizer(contract):
-    """Return a (rule_name -> normalized_name) function for a single
-    contract. Built once per request — caller walks any number of rule
-    names with O(1) lookups. v2.3.23 round-3 (Sonnet a154314ae2e179025):
-    extends the per-name `_normalize_legacy_rule_name` discipline to
-    bulk emit paths (trend, stats, MCP) without repeating the registry
-    walk for every rule.
-    """
-    if contract is None or not getattr(contract, "rules", None):
-        return lambda name: name
-    rule_names = {r.name for r in contract.rules}
-    contexts = set(contract.contexts or {})
-
-    def _normalize(name: str) -> str:
-        if not name or not name.startswith("ctx_"):
-            return name
-        rest = name[len("ctx_"):]
-        if "_" not in rest:
-            return name
-        ctx, base = rest.split("_", 1)
-        # Conservative guard: context declared AND base rule exists.
-        # Synthesised branch-3 rules (no base equivalent) stay as-is.
-        if ctx in contexts and base in rule_names:
-            return base
-        return name
-
-    return _normalize
-
-
-def normalize_trend_rule_names(points: list, contract, by: str) -> list:
-    """v2.3.23 round-3 (Sonnet a154314ae2e179025): apply rule-name
-    normalization to a trend points list at the emit boundary, with
-    coalescing.
-
-    Storage stays canonical to execution (override rules record their
-    synthesised `ctx_<context>_<rule>` name — that's what fired). The
-    presentation layer collapses to the base rule name when the override
-    is just a parameter override of the base. Counts must be summed
-    across collisions; otherwise switching the contract from no-context
-    to context-declared mid-window silently drops violations.
-
-    Returns the (possibly new) list. For by=rule the list may be shorter
-    than the input because rows merge under the normalized key.
-    """
-    if not points or contract is None:
-        return points
-    normalize = _build_rule_normalizer(contract)
-    if by == "rule":
-        merged: dict = {}
-        for p in points:
-            k = normalize(p.get("key", "") or "")
-            if k in merged:
-                merged[k]["violation_count"] = (
-                    int(merged[k].get("violation_count", 0))
-                    + int(p.get("violation_count", 0))
-                )
-                # severity: keep first non-unknown.
-                if merged[k].get("severity") in (None, "unknown"):
-                    s = p.get("severity")
-                    if s and s != "unknown":
-                        merged[k]["severity"] = s
-            else:
-                p2 = dict(p)
-                p2["key"] = k
-                merged[k] = p2
-        return sorted(
-            merged.values(),
-            key=lambda x: int(x.get("violation_count", 0)),
-            reverse=True,
-        )
-    # by=date / agent / context: normalize within each point's
-    # top_failing_rules (dict) and top_failing_rules_ranked (list).
-    from collections import defaultdict as _dd
-    for p in points:
-        old_dict = p.get("top_failing_rules")
-        if old_dict:
-            coalesced: dict = _dd(int)
-            for k, v in old_dict.items():
-                coalesced[normalize(k)] += int(v or 0)
-            p["top_failing_rules"] = dict(coalesced)
-        old_ranked = p.get("top_failing_rules_ranked")
-        if old_ranked:
-            counts: dict = _dd(int)
-            severities: dict = {}
-            for entry in old_ranked:
-                rn = normalize(entry.get("rule", "") or "")
-                counts[rn] += int(entry.get("count", 0))
-                if rn not in severities:
-                    severities[rn] = entry.get("severity", "unknown")
-                elif severities[rn] in (None, "unknown"):
-                    s = entry.get("severity")
-                    if s and s != "unknown":
-                        severities[rn] = s
-            ranked = sorted(counts.items(), key=lambda x: x[1], reverse=True)
-            p["top_failing_rules_ranked"] = [
-                {"rule": r, "count": c, "severity": severities.get(r, "unknown")}
-                for r, c in ranked
-            ]
-    return points
-
-
 def hydrate_stats_from_persistent_store(
     stats_instance: "ValidationStats",
     db_path: str,
     window_hours: int = 336,  # 14 days
-    registry=None,
 ) -> dict:
     """Populate in-memory monitoring deques from the SQLite quality_stats table.
 
@@ -913,24 +775,7 @@ def hydrate_stats_from_persistent_store(
             rule_failures_raw = json.loads(rule_failures_json) if rule_failures_json else {}
         except (ValueError, TypeError):
             rule_failures_raw = {}
-        # v2.3.23 P2-11: normalize legacy `ctx_{context}_{rule}` names.
-        # Pre-v2.3.x persisted data carries the synthesised prefix when
-        # the override-matching logic was buggy. Current engine emits
-        # base rule names (e.g. `revenue_ceiling` not
-        # `ctx_billing_revenue_ceiling`). Two-condition guard preserves
-        # genuinely synthetic branch-3 rules.
-        rule_failures = {
-            _normalize_legacy_rule_name(k, contract, registry): v
-            for k, v in rule_failures_raw.items()
-        }
-        # Coalesce in case multiple legacy keys collapsed onto the same
-        # canonical name after normalization.
-        if len(rule_failures) != len(rule_failures_raw):
-            from collections import defaultdict as _dd
-            _coalesced: dict = _dd(int)
-            for k, v in rule_failures_raw.items():
-                _coalesced[_normalize_legacy_rule_name(k, contract, registry)] += int(v or 0)
-            rule_failures = dict(_coalesced)
+        rule_failures = rule_failures_raw
         for rule_name, count in rule_failures.items():
             for i in range(count or 0):
                 stats_instance._error_events.append((ts + i * 0.0001, contract, "?", rule_name, aid))

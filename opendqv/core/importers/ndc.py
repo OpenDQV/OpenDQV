@@ -115,13 +115,11 @@ def ndc_to_yaml(config: dict = None, contract_name: str = "pharma_dispense") -> 
     parsed = import_ndc(config)
     # SEC-006: validate any generated lookup_file paths for path traversal
     _scan_rules_for_lookup_file(parsed["rules"])
-    contract = {
-        "contract": {
-            "name": contract_name,
-            "version": "1.0",
-            "description": "Pharmaceutical dispensing record validation with NDC code checks",
-            "status": "draft",
-            "rules": parsed["rules"],
-        }
+    contract = {   # 3.0.0: flat document, no `contract:` wrapper
+        "name": contract_name,
+        "version": "1.0",
+        "description": "Pharmaceutical dispensing record validation with NDC code checks",
+        "status": "draft",
+        "rules": parsed["rules"],
     }
     return _yaml.dump(contract, default_flow_style=False, sort_keys=False)
