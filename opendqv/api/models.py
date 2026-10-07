@@ -388,6 +388,14 @@ class ContractHistoryEntry(BaseModel):
     """One snapshot in a contract's audit history."""
     version: str
     status: str
+    recorded_status: Optional[str] = Field(
+        None,
+        description=(
+            "The status stored (and hashed into entry_hash) when this row was recorded. "
+            "`status` differs only when a later ACTIVE row of the same version superseded "
+            "this one (reported 'archived'). Use recorded_status to re-verify entry_hash."
+        ),
+    )
     description: Optional[str] = None
     owner: Optional[str] = None
     opendqv_node_id: Optional[str] = None

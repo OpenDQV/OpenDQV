@@ -377,7 +377,8 @@ class PostgresContractHistoryBackend(ContractHistoryBackend):
                 "strict_schema": bool(strict_schema),
                 "allowed_fields": json.loads(allowed_fields_json) if allowed_fields_json else [],
             })
-        return history
+        from opendqv.core.contracts import _supersede_statuses
+        return _supersede_statuses(history)
 
     def diff(self, contract_name: str, version_a: str, version_b: str) -> dict:
         """Compare two named versions. Pure Python over get_history() results."""

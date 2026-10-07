@@ -5,11 +5,11 @@ Sub-patches in this cluster:
 
 - F-C: ``list_versions`` previously returned multiple ``status: active``
   rows for the same (contract_name, version) because the history table
-  is append-only and prior ACTIVE rows were never demoted. Fix: at row
-  insert time, when writing a new ACTIVE row, demote prior ACTIVE rows
-  for the same (name, version) to ARCHIVED. History remains append-only
-  for chain integrity; the *status field* on historical rows is a state
-  attribute and is correctly updated when truth changes.
+  is append-only and prior ACTIVE rows were never demoted. The v2.3.17 fix
+  demoted them in place, but status is hashed, so that broke audit-verify.
+  Since 3.0.1 stored rows are never rewritten: `_supersede_statuses` reports
+  a superseded ACTIVE row as archived on read, with `recorded_status`
+  carrying the hashed value.
 
 - F-G: ``approved_by`` / ``proposed_by`` look perpetually null on
   bundled exemplar contracts because exemplars never trigger the
@@ -69,31 +69,31 @@ rules:
         contract = reg.get("tc")
 
         # Force three back-to-back history writes for the same (name, version)
-        # by mutating description and re-recording. Each call must demote the
-        # previous active row before inserting the new one.
+        # by mutating description and re-recording. 3.0.1: stored rows are never
+        # rewritten (status is hashed — the old in-place demotion broke
+        # audit-verify); the invariant is applied when history is read.
         for i in range(3):
             contract.description = f"version-iteration-{i}"
             reg.history.record_version(contract)
 
-        # Query history directly
+        history = reg.history.get_history("tc")
+        active = [h for h in history if h["status"] == "active" and h["version"] == "1.0"]
+        assert len(active) == 1, \
+            f"history must report exactly one active row per (name, version), got {len(active)}"
+        assert history[-1]["status"] == "active"          # the latest one wins
+
         import sqlite3
         conn = sqlite3.connect(db_path)
         try:
-            rows = conn.execute(
-                "SELECT version, status FROM contract_history "
-                "WHERE contract_name = ?", ("tc",),
-            ).fetchall()
+            stored = [r[0] for r in conn.execute(
+                "SELECT status FROM contract_history WHERE contract_name = ?", ("tc",))]
         finally:
             conn.close()
+        assert set(stored) == {"active"}, f"stored rows must stay as recorded: {stored}"
 
-        active_rows = [r for r in rows if r[1] == "active" and r[0] == "1.0"]
-        assert len(active_rows) <= 1, \
-            f"contract_history must have ≤1 active row per (name, version), got {len(active_rows)}: {rows}"
-
-        # The most recent row IS the active one; older ones are archived
-        archived_rows = [r for r in rows if r[1] == "archived" and r[0] == "1.0"]
-        assert len(archived_rows) >= 2, \
-            f"prior active rows must be demoted to archived, got {len(archived_rows)} archived in {rows}"
+        # The older ones are reported archived; recorded_status keeps the hashed value
+        assert [h["status"] for h in history] == ["archived", "archived", "active"]
+        assert {h["recorded_status"] for h in history} == {"active"}
 
 
 # ── F-G: approved_by populates on live approve path ───────────────────
