@@ -859,13 +859,21 @@ def cmd_audit_verify(args):
 
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
+    _base_cols = (
+        "id, contract_name, version, status, description, owner, "
+        "owner_email, owner_team, asset_id, downstream_consumers, "
+        "rules, contexts, opendqv_node_id, updated_at, prev_hash, entry_hash"
+    )
     try:
-        rows = conn.execute(
-            "SELECT id, contract_name, version, status, description, owner, "
-            "owner_email, owner_team, asset_id, downstream_consumers, "
-            "rules, contexts, opendqv_node_id, updated_at, prev_hash, entry_hash "
-            "FROM contract_history ORDER BY id"
-        ).fetchall()
+        try:
+            # CRT180 (2.5.0) put strict_schema + allowed_fields in the hash
+            # domain; a verifier that omits them fails every strict contract.
+            rows = conn.execute(
+                f"SELECT {_base_cols}, strict_schema, allowed_fields FROM contract_history ORDER BY id"
+            ).fetchall()
+        except sqlite3.OperationalError:
+            # A database last written before 2.5.0 has no such columns.
+            rows = conn.execute(f"SELECT {_base_cols} FROM contract_history ORDER BY id").fetchall()
     except sqlite3.OperationalError as e:
         print(f"Error reading contract_history: {e}", file=sys.stderr)
         conn.close()
@@ -895,6 +903,7 @@ def cmd_audit_verify(args):
     _GENESIS_HASH = "0" * 64
     all_pass = True
     total_entries = 0
+    legacy_demoted = 0
 
     for contract_name in contracts_seen:
         print(f"Contract: {contract_name}")
@@ -905,27 +914,44 @@ def cmd_audit_verify(args):
             _rules = _json.loads(row["rules"]) if row["rules"] else []
             _contexts = _json.loads(row["contexts"]) if row["contexts"] else {}
             _downstream = _json.loads(row["downstream_consumers"]) if row["downstream_consumers"] else []
-            expected_hash = _compute_entry_hash(
-                prev_hash=row["prev_hash"],
-                contract_name=row["contract_name"],
-                version=row["version"],
-                status=row["status"],
-                owner=row["owner"] or "",
-                owner_email=row["owner_email"],
-                owner_team=row["owner_team"],
-                asset_id=row["asset_id"],
-                description=row["description"] or "",
-                downstream_consumers=_downstream,
-                rules=_rules,
-                contexts=_contexts,
-                opendqv_node_id=row["opendqv_node_id"],
-                updated_at=row["updated_at"],
-            )
+            _keys = row.keys()
+            _strict = bool(row["strict_schema"]) if "strict_schema" in _keys else False
+            _fields = _json.loads(row["allowed_fields"]) if "allowed_fields" in _keys and row["allowed_fields"] else []
 
-            hash_valid = expected_hash == row["entry_hash"]
+            def _expected(status):
+                return _compute_entry_hash(
+                    prev_hash=row["prev_hash"],
+                    contract_name=row["contract_name"],
+                    version=row["version"],
+                    status=status,
+                    owner=row["owner"] or "",
+                    owner_email=row["owner_email"],
+                    owner_team=row["owner_team"],
+                    asset_id=row["asset_id"],
+                    description=row["description"] or "",
+                    downstream_consumers=_downstream,
+                    rules=_rules,
+                    contexts=_contexts,
+                    opendqv_node_id=row["opendqv_node_id"],
+                    updated_at=row["updated_at"],
+                    strict_schema=_strict,
+                    allowed_fields=_fields,
+                )
+
+            hash_valid = _expected(row["status"]) == row["entry_hash"]
             chain_valid = row["prev_hash"] == prev_hash
+            # Engines before 3.0.1 demoted a superseded ACTIVE row in place
+            # (status active -> archived), which is the one rewrite they ever
+            # made. Such a row verifies as recorded 'active'; say so rather than
+            # fail the chain, and count it. Any other edit still fails.
+            demoted = (not hash_valid and row["status"] == "archived"
+                       and _expected("active") == row["entry_hash"])
+            if demoted:
+                hash_valid = True
+                legacy_demoted += 1
 
-            hash_mark = "\u2713 hash valid" if hash_valid else "\u2717 hash MISMATCH"
+            hash_mark = ("\u2713 hash valid as recorded 'active' (status demoted in place by an engine before 3.0.1)"
+                         if demoted else "\u2713 hash valid" if hash_valid else "\u2717 hash MISMATCH")
             chain_mark = "\u2713 chain link valid" if chain_valid else "\u2717 chain link BROKEN"
 
             print(f"  Entry #{entry_num} (v{row['version']}, {row['status']})  {hash_mark}, {chain_mark}")
@@ -938,6 +964,9 @@ def cmd_audit_verify(args):
     print("\u2500" * 60)
     integrity = "PASS" if all_pass else "FAIL"
     print(f"All {total_entries} entries verified. Chain integrity: {integrity}")
+    if legacy_demoted:
+        print(f"  {legacy_demoted} entr{'y' if legacy_demoted == 1 else 'ies'} carried a pre-3.0.1 in-place "
+              f"demotion (active -> archived); verified against the recorded 'active'.")
 
     conn2 = sqlite3.connect(db_path)
     conn2.row_factory = sqlite3.Row

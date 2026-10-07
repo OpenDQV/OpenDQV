@@ -485,6 +485,22 @@ def _contract_from_snapshot(name: str, snap: dict) -> "DataContract":
     return contract
 
 
+def _supersede_statuses(history: list[dict]) -> list[dict]:
+    """Apply the v2.3.17 F-C invariant on read: an ACTIVE row followed by a
+    later ACTIVE row of the same version is reported ``archived``. Each entry
+    also carries ``recorded_status`` — the stored, hashed value — so a caller
+    re-verifying ``entry_hash`` has it. ``history`` is in insertion order."""
+    later_active: set = set()
+    for entry in reversed(history):
+        recorded = entry["status"]
+        entry["recorded_status"] = recorded
+        if recorded == ContractStatus.ACTIVE.value:
+            if entry["version"] in later_active:
+                entry["status"] = ContractStatus.ARCHIVED.value
+            later_active.add(entry["version"])
+    return history
+
+
 class ContractHistory(ContractHistoryBackend):
     """Tracks version history for contracts, persisted in SQLite."""
 
@@ -710,22 +726,11 @@ class ContractHistory(ContractHistoryBackend):
                 strict_schema=contract.strict_schema, allowed_fields=contract.allowed_fields,
             )
 
-            # v2.3.17 F-C: at-most-one-active invariant. Before inserting an
-            # ACTIVE row for (contract_name, version), demote any prior ACTIVE
-            # rows for the same (name, version) to ARCHIVED. The history table
-            # is append-only for chain integrity, but the *status field* on
-            # historical rows is a state attribute and SHOULD be updated when
-            # the truth about that row changes (it is no longer the active one).
-            # Without this, list_versions returns multiple status:active rows
-            # for the same version — Persona B's F-C finding. The ContractStatus
-            # state machine permits ACTIVE → ARCHIVED.
-            if contract.status == ContractStatus.ACTIVE:
-                conn.execute(
-                    "UPDATE contract_history SET status = ? "
-                    "WHERE contract_name = ? AND version = ? AND status = ?",
-                    (ContractStatus.ARCHIVED.value, contract.name,
-                     contract.version, ContractStatus.ACTIVE.value),
-                )
+            # v2.3.17 F-C (at most one ACTIVE row per version) is applied when
+            # history is READ (_supersede_statuses), never by updating a stored
+            # row: `status` is inside the hash domain, so the in-place demotion
+            # this replaced broke `opendqv audit-verify` for every superseded
+            # row (3.0.1). History rows are append-only.
 
             # v2.3.20 P1.4: when no explicit approved_by is passed (e.g.
             # YAML-loaded bundled exemplars), fall back to the contract
@@ -868,7 +873,7 @@ class ContractHistory(ContractHistoryBackend):
                 "strict_schema": bool(strict_schema),
                 "allowed_fields": json.loads(declared_fields_json) if declared_fields_json else [],
             })
-        return history
+        return _supersede_statuses(history)
 
     def diff(self, contract_name: str, version_a: str, version_b: str) -> dict:
         """Compare two versions of a contract. Returns added/removed/changed rules."""

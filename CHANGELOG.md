@@ -2,6 +2,39 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [3.0.1] - 2026-10-07
+
+### Audit chain — `opendqv audit-verify` passes on the chains the engine writes
+
+- **The verifier left `strict_schema` / `allowed_fields` out of the hash.**
+  CRT180 (2.5.0) put them in the hash domain, but `audit-verify` never read
+  them, so every strict contract was reported as `hash MISMATCH`. A fresh
+  database of the bundled library failed verification (6 strict contracts).
+  The verifier now reads both columns; a database last written before 2.5.0,
+  which lacks them, is still verified.
+- **History rows are append-only again.** The v2.3.17 F-C invariant (at most
+  one ACTIVE row per version) was enforced by rewriting the older row's
+  `status` to `archived` in place. `status` is hashed, so every same-version
+  re-record broke the chain. Stored rows are no longer rewritten. History
+  readers (both the SQLite and Postgres backends) report a superseded ACTIVE
+  row as `archived` and carry the stored, hashed value as `recorded_status`
+  (also on `GET /contracts/{name}/history`). The Postgres backend never
+  demoted at all, so it now applies the invariant too.
+- **Rows already demoted by an older engine** are verified against the
+  recorded `active`, and reported by name and count. Any other edit to a row
+  (description, any other status change, the strict flag) still fails the
+  chain.
+
+### Contracts — a draft rule edit no longer loses the contract
+
+- **A rule change on a draft bumps its version, but the registry kept the
+  contract under the old version.** `get(name, new_version)` returned nothing
+  and the old version still resolved to the edited contract (since 2.x). The
+  registry is now re-keyed with the new version when the draft's YAML is
+  re-written (#196).
+
+---
+
 ## [3.0.0] - 2026-10-07
 
 ### BREAKING — `contexts:` and the `contract:` wrapper are refused (aligned with the managed engine)
