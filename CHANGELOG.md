@@ -86,7 +86,14 @@ contexts block still verify (`opendqv audit-verify` hashes the stored column)
 and still load: the rebuilt contract drops the block and a warning is
 logged. On the first boot of 3.0.0 over a database whose latest row for a
 contract carries a non-empty contexts block, that contract records one new
-history row (its contexts now read `{}`) — expected, and correct.
+history row (its contexts now read `{}`) — expected, and correct. Because
+that row has the same version, the prior ACTIVE row is demoted to
+`archived` in place, and `status` is inside the hash domain, so
+`opendqv audit-verify` then reports `hash MISMATCH` on that older row. This
+is the existing same-version demotion behaviour (2.10.5's own verifier
+reports it after any same-version edit of an ACTIVE contract), not a hash
+moved by 3.0.0; it does not affect the bundled library, none of which ever
+carried contexts.
 
 ---
 
