@@ -1,28 +1,23 @@
-# BFSI Customer Data Quality Contract
+# BFSI Customer Data Quality Contract — internal review variant
 #
-# Regulatory context:
-#   - BCBS 239: Requires accurate, complete, and timely risk data aggregation.
-#     Demographic plausibility is a baseline data integrity control.
-#   - FCA Consumer Duty (PS22/9): Firms must understand and verify customer
-#     information to deliver appropriate outcomes and prevent harm.
-#   - AML lookback / CDD refresh: Anti-Money Laundering regulations (MLR 2017,
-#     JMLSG guidance) require periodic re-verification of customer identity.
-#     Placeholder or sentinel dates of birth (e.g. 1900-01-01) are a known
-#     indicator of incomplete CDD records and must be flagged before submission
-#     to risk or compliance systems.
+# A copy of bfsi_customer.yaml for data-quality monitoring and AML lookback
+# triage dashboards. Date of birth, NI number and postcode failures raise
+# warnings only so analysts can investigate without blocking upstream
+# processes; the account number, name, email and phone rules stay errors.
 #
-# Field coverage: account_number, full_name, email, phone, date_of_birth,
-#                 postcode, ni_number
+# 3.0.0 migration: this file replaces the `internal_review` entry of the 2.x
+# `contexts:` block in bfsi_customer.yaml (OpenDQV 3.0.0 refuses `contexts:`;
+# see docs/contexts.md). The overrides were keyed by field, so every rule on
+# date_of_birth, ni_number and postcode is a warning here; the review messages
+# are on the three plausibility/format rules they were written for. Callers
+# select it by contract name ("contract": "bfsi_customer_internal_review").
 #
-# Variants (3.0.0 — one contract per use, replacing the 2.x `contexts:` block):
-#   bfsi_customer_retail_kyc.yaml      — Production KYC pipeline; all failures
-#                                         block onboarding.
-#   bfsi_customer_internal_review.yaml — Data-quality monitoring; DOB, NI number
-#                                         and postcode failures raise warnings only.
+# See bfsi_customer.yaml for the regulatory context and field coverage.
 
-name: bfsi_customer
+name: bfsi_customer_internal_review
 version: "1.0"
 description: >
+  Internal review variant of bfsi_customer — date of birth, NI number and postcode failures are warnings.
   BFSI-specific customer data quality rules for UK regulated financial services.
   Enforces demographic plausibility controls required under BCBS 239 (risk data
   aggregation), FCA Consumer Duty (PS22/9), and AML / CDD lookback programmes.
@@ -66,7 +61,7 @@ rules:
     description: Date of birth must not be empty
     type: not_empty
     field: date_of_birth
-    severity: error
+    severity: warning
     error_message: "Date of birth is required"
 
   - name: dob_format
@@ -74,7 +69,7 @@ rules:
     type: date_format
     field: date_of_birth
     format: "YYYY-MM-DD"
-    severity: error
+    severity: warning
     error_message: "Date of birth must be in YYYY-MM-DD format"
 
   - name: dob_min_age
@@ -83,7 +78,7 @@ rules:
     field: date_of_birth
     format: "YYYY-MM-DD"
     min_age: 0
-    severity: error
+    severity: warning
     error_message: "Date of birth cannot be a future date"
 
   - name: dob_max_age
@@ -92,7 +87,7 @@ rules:
     field: date_of_birth
     format: "YYYY-MM-DD"
     max_age: 120
-    severity: error
+    severity: warning
     error_message: "Date of birth implies an age exceeding 120 years — likely a data error"
 
   - name: dob_plausible_year
@@ -112,8 +107,8 @@ rules:
     # etc.) do not match, causing the rule to fail — flagging the record.
     # Upper bound is the full 21st century; dob_max_age handles age enforcement.
     pattern: "^(19[0-9][5-9]|19[1-9][0-9]|20[0-9][0-9])-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
-    severity: error
-    error_message: "Date of birth is outside the plausible range (1905-2099) or is a known sentinel/placeholder value — CDD remediation required"
+    severity: warning
+    error_message: "DOB may be a sentinel/placeholder value — flag for CDD review"
 
   - name: valid_uk_postcode
     description: Postcode must not be empty and must match the UK postcode format
@@ -123,8 +118,8 @@ rules:
     # AANN NAA, ANA NAA, AANA NAA (space optional, case-insensitive stored
     # as uppercase after normalisation).
     pattern: "^[A-Z]{1,2}[0-9][0-9A-Z]?\\s?[0-9][A-Z]{2}$"
-    severity: error
-    error_message: "Invalid UK postcode format (e.g. SW1A 1AA)"
+    severity: warning
+    error_message: "Postcode format issue detected — review recommended"
 
   - name: valid_ni_number
     description: National Insurance number must match the HMRC-defined format
@@ -135,5 +130,5 @@ rules:
     # This pattern enforces the structural rule; a stricter prefix exclusion
     # can be layered on via a custom rule in bfsi_customer_retail_kyc.yaml.
     pattern: "^[A-CEGHJ-PR-TW-Z]{1}[A-CEGHJ-NPR-TW-Z]{1}[0-9]{6}[A-D]{1}$"
-    severity: error
-    error_message: "Invalid UK National Insurance number format (e.g. AB123456C)"
+    severity: warning
+    error_message: "NI number format issue detected — review recommended"

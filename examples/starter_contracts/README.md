@@ -35,9 +35,10 @@ registry and passes `opendqv lint` with zero errors.
 | `universal.yaml` | `universal` | Universal starter — 16 rules exercising 9 of the 24 rule types (allowed_values, compare, max_length, min, not_empty, range, regex, required_if, unique), with comments on when to use each | General |
 | `universal_benchmark.yaml` | `universal_benchmark` | 14 rules exercising 8 of the 24 rule types (compare, lookup, max_length, not_empty, range, regex, required_if, unique). The canonical performance benchmark (Core-only; not in the Cloud library) | General |
 
-The flat-format files (everything except `universal_benchmark.yaml`) are served
-under the filename stem — the `name:` inside them is not read by the loader, so
-rename the file if you want a different contract name.
+Every file's `name:` matches its filename stem, so each is served under the stem.
+The loader reads `name:` (falling back to the stem only when it is absent), so to
+serve a template under a different contract name change both the filename and
+`name:` — `opendqv lint` reports `FILENAME_NAME_MISMATCH` when they differ.
 
 ## Reference data
 

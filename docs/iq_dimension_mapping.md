@@ -54,7 +54,7 @@ Wang & Strong identify 15 IQ dimensions in 4 categories. Below is the mapping to
 
 | Wang & Strong Dimension | OpenDQV Coverage |
 |---|---|
-| **Relevancy** | `context` overrides — rules active per use-case |
+| **Relevancy** | One contract per use case (e.g. `salesforce_lead_web_form` alongside `salesforce_lead`) — rules active per use-case |
 | **Value-added** | ROI calculator (`docs/roi_calculator.md`) |
 | **Timeliness** | `compare` with `compare_to: today/now`; `date_diff` |
 | **Completeness** | `not_empty`, `required_if` |

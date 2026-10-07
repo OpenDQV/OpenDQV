@@ -39,9 +39,9 @@
 #   Accurate tenure data is essential for mortgage lender decisions.
 #
 # HOW TO USE:
-#   1. Load this contract: POST /api/v1/contracts (name: "property_listing")
-#   2. Validate a record:  POST /api/v1/validate/property_listing
-#   3. Batch validate:     POST /api/v1/validate/property_listing/batch
+#   1. Load this contract: POST /api/v1/contracts (name: "real_estate")
+#   2. Validate a record:  POST /api/v1/validate/real_estate
+#   3. Batch validate:     POST /api/v1/validate/real_estate/batch
 #   4. Sample records:     examples/starter_contracts/sample_records/real_estate.json
 #
 # ADAPTING FOR YOUR SYSTEM:
@@ -53,7 +53,7 @@
 #   - Adjust year_built min for your market (default: 1000 covers medieval
 #     listed buildings in the UK)
 
-name: property_listing
+name: real_estate
 version: "1.0.0"
 description: "Property listing and transaction record validation — identifiers, pricing, physical attributes, EPC, tenure, SDLT, RICS/Land Registry/EPBD compliance"
 asset_id: "urn:opendqv:example:real_estate:property_listing"

@@ -11,7 +11,7 @@ What tends to happen next in real organisations:
 - The script works until the author leaves, the requirements change, or compliance asks for an audit trail
 - Every new source system (Salesforce, SAP, Kafka, Postgres) needs a new prompt — new edge cases, new bugs, new drift
 - No central governance: rules live in scattered notebooks, functions, or one-off classes
-- No maker-checker workflow, no Prometheus rejection metrics, no context overrides (production vs sandbox), no importers from your existing GX or Soda suite
+- No maker-checker workflow, no Prometheus rejection metrics, no importers from your existing GX or Soda suite
 - When a regulator asks "prove this rule was applied and approved before it went live" — there is no answer
 
 OpenDQV turns that one-off script into a **governed, versioned contract** that lives in one YAML file, generates code for any target (Apex, JavaScript, Postgres trigger, Snowflake UDF, or API call), and enforces the same rules everywhere — with immediate 422 feedback at write time.

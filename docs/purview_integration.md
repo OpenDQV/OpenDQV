@@ -13,15 +13,14 @@ Microsoft Purview is the dominant governance catalog in Azure-native and regulat
 Purview identifies assets using a fully qualified name (FQN) in the format `{data_source_type}://{qualified_path}`. Use this as `asset_id` in your OpenDQV contracts:
 
 ```yaml
-contract:
-  name: customer
-  version: "1.0"
-  # Snowflake table scanned by Purview
-  asset_id: "mssql://acme-sql-server.database.windows.net/AnalyticsDB/dbo/Customers"
-  # Azure Data Lake path
-  # asset_id: "https://acmestorage.dfs.core.windows.net/analytics/customers/"
-  # Azure SQL
-  # asset_id: "mssql://acme.database.windows.net/analytics/public/customers"
+name: customer
+version: "1.0"
+# Snowflake table scanned by Purview
+asset_id: "mssql://acme-sql-server.database.windows.net/AnalyticsDB/dbo/Customers"
+# Azure Data Lake path
+# asset_id: "https://acmestorage.dfs.core.windows.net/analytics/customers/"
+# Azure SQL
+# asset_id: "mssql://acme.database.windows.net/analytics/public/customers"
 ```
 
 The FQN format matches what Purview's built-in scanners assign to assets, so `asset_id` links directly to the existing Purview asset without creating a new one.

@@ -119,7 +119,7 @@ Every connector **must** emit a structured trace log entry for each record it va
 | Field          | Type   | Description |
 |----------------|--------|-------------|
 | `record_id`    | string | Caller's correlation ID |
-| `context`      | string | Context override used |
+| `context`      | string | Context tag supplied on the request (a tag only; never changes which rules run) |
 | `error_count`  | int    | Number of blocking errors |
 | `warning_count`| int    | Number of warnings |
 | `latency_ms`   | float  | Round-trip latency |

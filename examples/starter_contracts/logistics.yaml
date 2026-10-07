@@ -27,13 +27,13 @@
 #     individual SSCC/GLN — add those rules if your TMS surfaces them.
 #
 # HOW TO USE:
-#   1. Load: POST /api/v1/contracts (name: "shipment_event")
+#   1. Load: POST /api/v1/contracts (name: "logistics")
 #   2. Validate:
-#      curl -X POST http://localhost:8000/api/v1/validate/shipment_event \
+#      curl -X POST http://localhost:8000/api/v1/validate/logistics \
 #           -d '{"shipment_id":"SHP-ABCD123456","carrier_code":"DHL",...}'
 #   3. Sample records: examples/starter_contracts/sample_records/logistics.json
 
-name: shipment_event
+name: logistics
 version: "1.0.0"
 description: "Shipment tracking event validation — carrier, routing, customs, hazmat, Incoterms 2020"
 asset_id: "urn:opendqv:example:logistics:shipment_event"

@@ -24,7 +24,7 @@ docker compose up -d
 | Section | Purpose |
 |---------|---------|
 | **Contracts** | Browse contracts, view rules, manage lifecycle (draft → review → active → archived) |
-| **Validate** | Test single records or batches interactively with any contract + context |
+| **Validate** | Test single records or batches interactively with any contract (optional context tag) |
 | **Monitoring** | Live validation pass/fail rates, top failing fields, recent activity |
 | **Audit Trail** | Contract version history, hash-chain integrity, governance approvals |
 | **Catalogs & AI** | External catalog deep-links (Marmot, DataHub, Atlan) + MCP agent prompts |
@@ -57,7 +57,7 @@ at `/metrics` — see [docs/observability.md](observability.md).
 Interactive record testing:
 
 1. Select a contract from the dropdown
-2. Select a context (optional)
+2. Enter a context tag (optional) — recorded with quality stats and the audit event; never changes which rules run
 3. Paste a JSON record or fill in fields
 4. Click **Validate** — results show per-field errors and warnings inline
 

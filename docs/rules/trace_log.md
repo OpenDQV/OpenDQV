@@ -34,7 +34,7 @@ Each validated record produces exactly one JSON line. The schema is:
 |---|---|---|
 | `ts` | string (ISO-8601 UTC) | Timestamp of the validation call |
 | `contract` | string | Name of the data contract used |
-| `context` | string | Context applied (`"default"` if none) |
+| `context` | string | Context tag from the validate request (`"default"` if none); a tag only, never changes which rules run |
 | `record_index` | integer | Position of the record in the batch (0 for single-record calls) |
 | `valid` | boolean | `true` if no errors were raised |
 | `error_count` | integer | Number of ERROR-severity rule failures |

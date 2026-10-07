@@ -40,9 +40,9 @@ Conformance therefore has to be engineered:
 |---|---|---|---|
 | Rule type `not_empty_string` | absent — a contract using it loaded and the rule silently passed (unknown type) | shipped | **closed** — added in 1/4 |
 | Contract flag `strict_schema` + `allowed_fields` | absent — the key was dropped on parse and undeclared fields passed | shipped | **closed** — added in 2/4 |
-| `contexts:` block | implemented; since 2.7.0 no bundled contract declares one (worked example in `examples/contexts/`) | not implemented — refused at load time with an explicit error (D39) | **ruled** — D1 below, round 4 |
+| `contexts:` block | implemented; since 2.7.0 no bundled contract declares one (worked example in `examples/contexts/`) | not implemented — refused at load time with an explicit error (D39) | **ruled** — D1 below, round 4; **closed in 3.0.0** — Core refuses the block too (see below) |
 | Rule key `optional` | not in the Rule model (ignored) | implemented (opts a field out of implicit-required semantics) | **open** — decision D2 |
-| Envelope | bundled files use the `contract:` wrapper; loader accepts wrapped and flat | flat only; wrapper rejected | **open** — decision D3 |
+| Envelope | bundled files use the `contract:` wrapper; loader accepts wrapped and flat | flat only; wrapper rejected | **closed in 3.0.0** — Core refuses the wrapper too (see below) |
 | Starter library, 40 shared contracts | 23 identical; 11 rules only here; 22 only there; 24 same-name rules with different config | | **partly closed** — 3/4 applied the mechanical classes; the rest is D4 |
 | Batch vs single path | `validate_batch` skips a rule when no record in the batch carries the field; `validate_record` rejects each record (`not_empty`) | single path only | **open** — known issue K1, pinned by a strict xfail in `tests/test_conformance_fixtures.py` |
 | Metadata | attestation fields (`proposed_by/at`, `approved_by/at`, `owner_email`) on bundled files; versions 1.0/1.1 | none of those; version 0.1 on bundled samples by design | by design, not a conformance matter |
@@ -81,6 +81,9 @@ declares none. The worked example the docs walk through ships as
 `examples/contexts/*.yaml`; the docs, MCP tool descriptions and UI default
 no longer name contexts the bundled contracts do not declare, because an
 undeclared context falls back to the base rules silently (CRT173).*
+*Superseded 2026-10-07 (3.0.0): (b) for the format — Core refuses the
+`contexts:` block as the managed engine does. See "3.0.0 — `contexts:` and the
+`contract:` wrapper refused" below.*
 
 **D2 — `optional`.** The managed engine treats an error-severity single-field
 rule as implying the field is present (an absent field fails) and `optional:
@@ -95,6 +98,9 @@ the flat one. Options: (a) migrate the bundled files to the flat envelope in
 a minor release and keep accepting the wrapper for user files; (b) the
 managed engine accepts the wrapper. Recommendation: (a) — the flat form is
 what the format documents.
+*Superseded 2026-10-07 (3.0.0): the bundled files are flat and Core refuses
+the wrapper for every file, as the managed engine does. See "3.0.0 —
+`contexts:` and the `contract:` wrapper refused" below.*
 
 **D4 — same-name rules with different config (judgement calls, not applied).**
 
@@ -514,6 +520,34 @@ library (319 rows over the same five contracts) and the managed engine
 reproduces it row for row, messages included; the 30 frozen minimal-clean
 records (29 seeded here + `universal_benchmark`, which it does not seed) are
 all accepted by the managed engine. Two engines, one library, zero residue.
+
+## 3.0.0 — `contexts:` and the `contract:` wrapper refused (2026-10-07)
+
+Core 3.0.0 aligns with the managed engine on the two shapes it refuses by
+refusing them too — a breaking release, not a deprecation period. Both are
+checked at the shared parse point (`check_removed_blocks` in
+`opendqv/core/contracts.py`), so loading, `/import/*`, `opendqv fork` and
+`opendqv lint` refuse the same file with the same words and the managed
+engine's error codes:
+
+- **`contract:` wrapper** — `contract_envelope_unsupported` (lint code
+  `CONTRACT_ENVELOPE_UNSUPPORTED`). Checked first, as the managed engine does.
+  Closes D3: every bundled contract and example is a flat document.
+- **`contexts:` block** — `contract_contexts_unsupported` (lint code
+  `CONTRACT_CONTEXTS_UNSUPPORTED`). Any value, even `{}`, is a declared block
+  and is refused; a bare null `contexts:` is tolerated. Supersedes D1: a
+  variant is published as its own contract (`salesforce_lead_web_form`), with
+  its own version history and audit lineage. `examples/contexts/` is deleted.
+
+Every context-override surface is gone (the `?context=` query parameters, the
+CLI `--context` flag, the GraphQL `contexts` field and `context` mutation
+argument, the MCP `context` argument on `get_contract` /
+`get_contract_jsonschema`, `context_warning`). `context` on validate and
+validate batch remains, as a tag recorded with quality stats, the audit event
+and metrics; it never changes which rules run. No hash moved: `content_hash`,
+`entry_hash`, `contract_hash`, `effective_rule_hash` and the manifest's
+`rules_sha256` are the same for the bundled library before and after.
+Migration: [`contexts.md`](contexts.md).
 
 ## Known issues
 

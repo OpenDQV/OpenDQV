@@ -1,28 +1,21 @@
-# BFSI Customer Data Quality Contract
+# BFSI Customer Data Quality Contract — retail KYC variant
 #
-# Regulatory context:
-#   - BCBS 239: Requires accurate, complete, and timely risk data aggregation.
-#     Demographic plausibility is a baseline data integrity control.
-#   - FCA Consumer Duty (PS22/9): Firms must understand and verify customer
-#     information to deliver appropriate outcomes and prevent harm.
-#   - AML lookback / CDD refresh: Anti-Money Laundering regulations (MLR 2017,
-#     JMLSG guidance) require periodic re-verification of customer identity.
-#     Placeholder or sentinel dates of birth (e.g. 1900-01-01) are a known
-#     indicator of incomplete CDD records and must be flagged before submission
-#     to risk or compliance systems.
+# A copy of bfsi_customer.yaml for the live KYC onboarding pipeline. All
+# plausibility failures block customer onboarding (severity: error).
 #
-# Field coverage: account_number, full_name, email, phone, date_of_birth,
-#                 postcode, ni_number
+# 3.0.0 migration: this file replaces the `retail_kyc` entry of the 2.x
+# `contexts:` block in bfsi_customer.yaml (OpenDQV 3.0.0 refuses `contexts:`;
+# see docs/contexts.md). The overrides are folded into the rules they were
+# written for: dob_plausible_year, valid_ni_number and valid_uk_postcode carry
+# the KYC error messages. Callers select it by contract name
+# ("contract": "bfsi_customer_retail_kyc"), not by context.
 #
-# Variants (3.0.0 — one contract per use, replacing the 2.x `contexts:` block):
-#   bfsi_customer_retail_kyc.yaml      — Production KYC pipeline; all failures
-#                                         block onboarding.
-#   bfsi_customer_internal_review.yaml — Data-quality monitoring; DOB, NI number
-#                                         and postcode failures raise warnings only.
+# See bfsi_customer.yaml for the regulatory context and field coverage.
 
-name: bfsi_customer
+name: bfsi_customer_retail_kyc
 version: "1.0"
 description: >
+  Retail KYC onboarding variant of bfsi_customer — all failures block onboarding.
   BFSI-specific customer data quality rules for UK regulated financial services.
   Enforces demographic plausibility controls required under BCBS 239 (risk data
   aggregation), FCA Consumer Duty (PS22/9), and AML / CDD lookback programmes.
@@ -113,7 +106,7 @@ rules:
     # Upper bound is the full 21st century; dob_max_age handles age enforcement.
     pattern: "^(19[0-9][5-9]|19[1-9][0-9]|20[0-9][0-9])-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
     severity: error
-    error_message: "Date of birth is outside the plausible range (1905-2099) or is a known sentinel/placeholder value — CDD remediation required"
+    error_message: "DOB fails plausibility check for retail KYC onboarding — record blocked pending CDD remediation"
 
   - name: valid_uk_postcode
     description: Postcode must not be empty and must match the UK postcode format
@@ -124,7 +117,9 @@ rules:
     # as uppercase after normalisation).
     pattern: "^[A-Z]{1,2}[0-9][0-9A-Z]?\\s?[0-9][A-Z]{2}$"
     severity: error
-    error_message: "Invalid UK postcode format (e.g. SW1A 1AA)"
+    # A regex rule does not fire on an absent or blank value; add a not_empty
+    # rule on this field if onboarding must also require it.
+    error_message: "Valid UK postcode is required for retail KYC onboarding"
 
   - name: valid_ni_number
     description: National Insurance number must match the HMRC-defined format
@@ -133,7 +128,9 @@ rules:
     # HMRC format: two letters, six digits, one letter (A-D).
     # Prefixes D, F, I, Q, U, V and second-letter O are disallowed by HMRC.
     # This pattern enforces the structural rule; a stricter prefix exclusion
-    # can be layered on via a custom rule in bfsi_customer_retail_kyc.yaml.
+    # can be layered on via a custom rule in this file.
     pattern: "^[A-CEGHJ-PR-TW-Z]{1}[A-CEGHJ-NPR-TW-Z]{1}[0-9]{6}[A-D]{1}$"
     severity: error
-    error_message: "Invalid UK National Insurance number format (e.g. AB123456C)"
+    # A regex rule does not fire on an absent or blank value; add a not_empty
+    # rule on this field if onboarding must also require it.
+    error_message: "NI number is required and must be valid for retail KYC onboarding"

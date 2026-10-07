@@ -64,25 +64,24 @@ For full details on the importer see [`importers.md`](importers.md).
 ### Example output
 
 ```yaml
-contract:
-  name: customer
-  asset_id: "gx::customer_suite"
-  rules:
-    - name: email_not_null
-      type: not_empty
-      field: email
-      severity: error
-    - name: email_format
-      type: regex
-      field: email
-      pattern: "^[^@]+@[^@]+\\.[^@]+$"
-      severity: error
-    - name: age_range
-      type: range
-      field: age
-      min: 0
-      max: 120
-      severity: error
+name: customer
+asset_id: "gx::customer_suite"
+rules:
+  - name: email_not_null
+    type: not_empty
+    field: email
+    severity: error
+  - name: email_format
+    type: regex
+    field: email
+    pattern: "^[^@]+@[^@]+\\.[^@]+$"
+    severity: error
+  - name: age_range
+    type: range
+    field: age
+    min: 0
+    max: 120
+    severity: error
 ```
 
 ---
@@ -148,22 +147,21 @@ contracts/customer.yaml
 **Step 1:** Author rules once in OpenDQV YAML:
 
 ```yaml
-contract:
-  name: customer
-  version: "1.0"
-  asset_id: "urn:opendqv:acme:customer:1.0"
-  rules:
-    - name: email_valid
-      field: email
-      type: regex
-      pattern: "^[^@]+@[^@]+\\.[^@]+$"
-      severity: error
-    - name: age_range
-      field: age
-      type: range
-      min: 0
-      max: 120
-      severity: error
+name: customer
+version: "1.0"
+asset_id: "urn:opendqv:acme:customer:1.0"
+rules:
+  - name: email_valid
+    field: email
+    type: regex
+    pattern: "^[^@]+@[^@]+\\.[^@]+$"
+    severity: error
+  - name: age_range
+    field: age
+    type: range
+    min: 0
+    max: 120
+    severity: error
 ```
 
 **Step 2:** Enforce at write time via OpenDQV:

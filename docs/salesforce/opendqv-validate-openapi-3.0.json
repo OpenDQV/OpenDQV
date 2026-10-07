@@ -49,7 +49,7 @@
           "contract": {"type": "string", "description": "Contract name"},
           "record": {"type": "object", "additionalProperties": true, "description": "The record to validate, keyed by the contract's field names"},
           "record_id": {"type": "string", "nullable": true, "description": "Caller's correlation id — send the Salesforce record Id; it is echoed on the response"},
-          "context": {"type": "string", "nullable": true, "description": "Optional context override declared in the contract"},
+          "context": {"type": "string", "nullable": true, "description": "Caller-supplied tag recorded with quality stats, the audit event and metrics (e.g. 'demo', 'ci', 'salesforce'). Never changes which rules run (3.0.0: contracts carry no context overrides)."},
           "version": {"type": "string", "default": "latest", "description": "Contract version, or 'latest'"},
           "observe_only": {"type": "boolean", "default": false, "description": "Observation-only mode: the verdict is recorded but never blocks; the response's mode is observation_only"},
           "dry_run": {"type": "boolean", "default": false, "description": "Validate without recording the result"},

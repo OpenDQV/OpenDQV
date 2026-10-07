@@ -12,22 +12,21 @@ This enables HR, healthcare, pharma, and financial services contracts to validat
 ## Syntax
 
 ```yaml
-contract:
-  name: hr_employee_records
-  version: "1.0"
-  sensitive_fields:
-    - salary
-    - national_id
-    - date_of_birth
-    - ethnicity
-  rules:
-    - name: salary_range
-      type: range
-      field: salary
-      min: 0
-      max: 10000000
-      error_message: "Salary is outside the permitted range"
-      severity: error
+name: hr_employee_records
+version: "1.0"
+sensitive_fields:
+  - salary
+  - national_id
+  - date_of_birth
+  - ethnicity
+rules:
+  - name: salary_range
+    type: range
+    field: salary
+    min: 0
+    max: 10000000
+    error_message: "Salary is outside the permitted range"
+    severity: error
 ```
 
 ## What is suppressed
@@ -81,80 +80,77 @@ For data retention obligations that apply to trace logs generated during governa
 ### Healthcare — patient record
 
 ```yaml
-contract:
-  name: patient_admission
-  version: "1.0"
-  sensitive_fields:
-    - nhs_number
-    - date_of_birth
-    - postcode
-    - diagnosis_code
-  rules:
-    - name: nhs_number_format
-      type: regex
-      field: nhs_number
-      pattern: "^\\d{10}$"
-      error_message: "NHS number must be exactly 10 digits"
-      severity: error
+name: patient_admission
+version: "1.0"
+sensitive_fields:
+  - nhs_number
+  - date_of_birth
+  - postcode
+  - diagnosis_code
+rules:
+  - name: nhs_number_format
+    type: regex
+    field: nhs_number
+    pattern: "^\\d{10}$"
+    error_message: "NHS number must be exactly 10 digits"
+    severity: error
 
-    - name: nhs_number_checksum
-      type: checksum
-      field: nhs_number
-      checksum_algorithm: nhs_mod11
-      error_message: "NHS number check digit is invalid"
-      severity: error
+  - name: nhs_number_checksum
+    type: checksum
+    field: nhs_number
+    checksum_algorithm: nhs_mod11
+    error_message: "NHS number check digit is invalid"
+    severity: error
 ```
 
 ### HR — employee record
 
 ```yaml
-contract:
-  name: employee_record
-  version: "1.0"
-  sensitive_fields:
-    - salary
-    - national_insurance_number
-    - date_of_birth
-    - ethnicity
-    - disability_status
-    - bank_account_number
-    - bank_sort_code
-  rules:
-    - name: salary_range
-      type: range
-      field: salary
-      min: 0
-      max: 10000000
-      error_message: "Salary is outside the permitted range"
-      severity: error
+name: employee_record
+version: "1.0"
+sensitive_fields:
+  - salary
+  - national_insurance_number
+  - date_of_birth
+  - ethnicity
+  - disability_status
+  - bank_account_number
+  - bank_sort_code
+rules:
+  - name: salary_range
+    type: range
+    field: salary
+    min: 0
+    max: 10000000
+    error_message: "Salary is outside the permitted range"
+    severity: error
 
-    - name: ni_number_format
-      type: regex
-      field: national_insurance_number
-      pattern: "^[A-CEGHJ-PR-TW-Z]{2}\\d{6}[ABCD]$"
-      error_message: "National Insurance number format is invalid"
-      severity: error
+  - name: ni_number_format
+    type: regex
+    field: national_insurance_number
+    pattern: "^[A-CEGHJ-PR-TW-Z]{2}\\d{6}[ABCD]$"
+    error_message: "National Insurance number format is invalid"
+    severity: error
 ```
 
 ### Financial Services — KYC record
 
 ```yaml
-contract:
-  name: kyc_application
-  version: "1.0"
-  sensitive_fields:
-    - date_of_birth
-    - passport_number
-    - national_id
-    - tax_identification_number
-    - cpf_number
-  rules:
-    - name: cpf_checksum
-      type: checksum
-      field: cpf_number
-      checksum_algorithm: cpf_mod11
-      error_message: "CPF check digits are invalid"
-      severity: error
+name: kyc_application
+version: "1.0"
+sensitive_fields:
+  - date_of_birth
+  - passport_number
+  - national_id
+  - tax_identification_number
+  - cpf_number
+rules:
+  - name: cpf_checksum
+    type: checksum
+    field: cpf_number
+    checksum_algorithm: cpf_mod11
+    error_message: "CPF check digits are invalid"
+    severity: error
 ```
 
 ## What OpenDQV Retains

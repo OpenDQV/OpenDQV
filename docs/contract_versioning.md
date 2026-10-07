@@ -19,7 +19,7 @@ new version as a **separate contract object with its own file**, `{name}_v{versi
 in DRAFT status with the approval trail cleared. The version it was copied from is not
 modified and keeps serving validation until the new version is approved. The request is
 rejected with `400` if that version — or a file for it — already exists, and the version
-string must match `[A-Za-z0-9][A-Za-z0-9._-]{0,49}`. The copy is lossless: rules, `contexts:`,
+string must match `[A-Za-z0-9][A-Za-z0-9._-]{0,49}`. The copy is lossless: rules,
 `strict_schema` / `allowed_fields` and every other key carry over.
 
 Rule mutations are only accepted while the new version is DRAFT. Once it is submitted for

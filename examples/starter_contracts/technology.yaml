@@ -43,8 +43,8 @@
 #   automatic executive escalation.
 #
 # HOW TO USE:
-#   1. Load this contract: POST /api/v1/contracts (name: "tech_incident")
-#   2. Validate a record: POST /api/v1/validate/tech_incident
+#   1. Load this contract: POST /api/v1/contracts (name: "technology")
+#   2. Validate a record: POST /api/v1/validate/technology
 #   3. See sample records: examples/starter_contracts/sample_records/technology.json
 #
 # ADAPTING FOR YOUR SYSTEM:
@@ -54,7 +54,7 @@
 #   - Adjust customers_affected_count max to your total user base
 #   - For on-premise deployments: replace AWS region codes with datacenter IDs
 
-name: tech_incident
+name: technology
 version: "1.0.0"
 description: "Technology incident record validation — ITIL 4 severity, GDPR breach notification, SOC 2 availability, SLA compliance"
 asset_id: "urn:opendqv:example:technology:tech_incident"

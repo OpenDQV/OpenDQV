@@ -372,17 +372,16 @@ urn:li:dataset:(urn:li:dataPlatform:{platform},{database}.{schema}.{table},{env}
 ### Contract YAML snippet
 
 ```yaml
-contract:
-  name: customer
-  asset_id: "urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.public.customers,PROD)"
-  version: "1.0"
-  owner: "data-governance"
-  owner_team: "governance"
-  owner_email: "governance@example.com"
-  rules:
-    - name: customer_id_not_null
-      type: not_empty
-      field: customer_id
+name: customer
+asset_id: "urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.public.customers,PROD)"
+version: "1.0"
+owner: "data-governance"
+owner_team: "governance"
+owner_email: "governance@example.com"
+rules:
+  - name: customer_id_not_null
+    type: not_empty
+    field: customer_id
 ```
 
 When `asset_id` is a valid DataHub URN, Approach 1 uses it directly rather than constructing a synthetic `opendqv` platform URN — this creates a link to an existing DataHub entity rather than a new one.

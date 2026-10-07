@@ -35,29 +35,28 @@ OpenDQV v<engine-version> listening on http://localhost:8000
 
 ```yaml
 # customer.yaml
-contract:
-  name: customer
-  version: "1.0"
-  description: بيانات العميل الأساسية
-  owner: فريق-البيانات@شركة.com
-  rules:
-    - name: email_format
-      type: regex
-      field: email
-      pattern: "^[^@]+@[^@]+\\.[^@]+$"
-      error_message: "صيغة البريد الإلكتروني غير صحيحة"
+name: customer
+version: "1.0"
+description: بيانات العميل الأساسية
+owner: فريق-البيانات@شركة.com
+rules:
+  - name: email_format
+    type: regex
+    field: email
+    pattern: "^[^@]+@[^@]+\\.[^@]+$"
+    error_message: "صيغة البريد الإلكتروني غير صحيحة"
 
-    - name: age_range
-      type: range
-      field: age
-      min: 18
-      max: 120
-      error_message: "يجب أن يكون العمر بين 18 و120"
+  - name: age_range
+    type: range
+    field: age
+    min: 18
+    max: 120
+    error_message: "يجب أن يكون العمر بين 18 و120"
 
-    - name: name_not_empty
-      type: not_empty
-      field: name
-      error_message: "الاسم مطلوب"
+  - name: name_not_empty
+    type: not_empty
+    field: name
+    error_message: "الاسم مطلوب"
 ```
 
 ---
@@ -135,13 +134,12 @@ else:
 | record | سجل | صف بيانات يُراد التحقق منه |
 | severity: error | خطورة: خطأ | فشل يوقف قبول السجل |
 | severity: warning | خطورة: تحذير | مشكلة جودة لا توقف القبول |
-| context | سياق | مجموعة قواعد بديلة لاستخدام محدد |
 
 ---
 
 ## الخطوات التالية
 
-- [تأليف العقود المتقدمة](contract_authoring.md) — السياقات، الحقول الحساسة، دورة الحياة
+- [تأليف العقود المتقدمة](contract_authoring.md) — الحقول الحساسة، دورة الحياة
 - [مرجع API](api_reference.md) — جميع نقاط النهاية
 - [SDK بايثون](../../sdk/) — الدليل الكامل للمطورين
 - [حالات الاستخدام](../case_studies.md) — أمثلة من الصناعة

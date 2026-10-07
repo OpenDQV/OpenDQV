@@ -125,30 +125,29 @@ For tool reference, write guardrails, remote/enterprise mode, and the Marmot com
 **1. Write a contract** — drop a YAML file in your contracts directory (run `opendqv init --all` to copy every bundled contract, or `opendqv init` for a single starter):
 
 ```yaml
-contract:
-  name: order
-  version: "1.0"
-  owner: "Data Governance"
-  status: active
-  rules:
-    - name: valid_email
-      type: regex
-      field: email
-      pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
-      severity: error
-      error_message: "Invalid email format"
-    - name: amount_positive
-      type: min
-      field: amount
-      min: 0.01
-      severity: error
-      error_message: "Order amount must be positive"
-    - name: status_valid
-      type: allowed_values
-      field: status
-      allowed_values: [pending, confirmed, shipped, cancelled]
-      severity: error
-      error_message: "Invalid order status"
+name: order
+version: "1.0"
+owner: "Data Governance"
+status: active
+rules:
+  - name: valid_email
+    type: regex
+    field: email
+    pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+    severity: error
+    error_message: "Invalid email format"
+  - name: amount_positive
+    type: min
+    field: amount
+    min: 0.01
+    severity: error
+    error_message: "Order amount must be positive"
+  - name: status_valid
+    type: allowed_values
+    field: status
+    allowed_values: [pending, confirmed, shipped, cancelled]
+    severity: error
+    error_message: "Invalid order status"
 ```
 
 **2. Reload contracts:**

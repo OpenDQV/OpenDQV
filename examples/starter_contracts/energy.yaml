@@ -26,12 +26,12 @@
 #   Comment out the one that does not apply to your market.
 #
 # HOW TO USE:
-#   1. Load: POST /api/v1/contracts (name: "meter_reading")
-#   2. Validate: POST /api/v1/validate/meter_reading
+#   1. Load: POST /api/v1/contracts (name: "energy")
+#   2. Validate: POST /api/v1/validate/energy
 #   3. Batch (JSON): POST /api/v1/validate/batch with array
 #   4. Sample records: examples/starter_contracts/sample_records/energy.json
 
-name: meter_reading
+name: energy
 version: "1.0.0"
 description: "Smart meter reading validation — MPRN/MPAN format, read type, consumption plausibility, settlement period"
 asset_id: "urn:opendqv:example:energy:meter_reading"
@@ -191,5 +191,5 @@ rules:
   # ── QUALITY TRACKING ─────────────────────────────────────────────────────────
   # Use the OpenDQV quality trend API to track your ratio of estimated vs
   # actual reads over time. This is your CRU/Ofgem monthly reporting metric:
-  #   GET /api/v1/quality-trend/meter_reading
+  #   GET /api/v1/quality-trend/energy
   # Filter by rule: "read_type lookup" to see read type distribution over time.

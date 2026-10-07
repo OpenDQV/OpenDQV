@@ -1,308 +1,85 @@
-# Contexts
+# Contexts — removed in 3.0.0
 
-> Last reviewed: 2026-09-03
+> Last reviewed: 2026-10-07
 
-> **Since 2.7.0 the bundled starter library declares no `contexts:` blocks** — the
-> library is mirrored from the golden OpenDQV Cloud library, and the managed
-> engine refuses the block. Contexts remain a Core feature. The worked example
-> this page walks through ships as `examples/contexts/customer.yaml` (with
-> `financial_services_customer`, `proof_of_play`, `salesforce_contact` and
-> `salesforce_lead` alongside): copy it into your contracts directory to follow
-> along, or add a `contexts:` block to your own contract. A context name the
-> contract does not declare falls back to the base rules — check
-> `effective_rule_hash` if you expected an override to apply.
-
-Contexts are named sets of rule overrides that apply on top of a base contract. A single YAML contract can serve multiple source systems, tenants, or regulatory regimes — each with their own rule adjustments — without duplicating the contract.
+OpenDQV 2.x let a contract declare a `contexts:` block: named sets of rule
+overrides (for example `kids_app`, `salesforce_prod`) that a validate call
+selected with `context=`. **3.0.0 removes the feature.** In the same release
+the `contract:` wrapper around a contract document is removed: a contract is a
+flat YAML document.
 
 ---
 
-## What contexts are
+## Why
 
-Every data contract defines a base set of rules for a business entity (e.g. `customer`). Contexts let you declare named variants that override specific field rules for that same entity.
-
-Common uses:
-
-- **Multi-tenant SaaS** — one contract, per-tenant rule variants
-- **Regional compliance** — same entity, different age or consent rules for EU vs US vs under-13 applications
-- **Source system quirks** — a Salesforce feed that can legitimately have a null phone field, while the base contract requires it
-
-When a validation request specifies a context, the engine applies the base contract rules first, then replaces rules for any fields named in the context. Fields not mentioned in the context keep their base contract rules unchanged.
+- **One contract per context gives each variant its own version history and
+  audit lineage.** A context override changed which rules ran without changing
+  the contract's version, and a context name that the contract did not declare
+  quietly fell back to the base rules. A separate contract
+  (`salesforce_lead_web_form`) has its own versions, its own approval
+  workflow, its own hashes and its own row in every audit event.
+- **The managed engine refuses the block too.** Core now refuses it at the
+  same point with the same error code, so a contract means the same thing on
+  both engines (see [`contract_conformance.md`](contract_conformance.md)).
 
 ---
 
-## Merge semantics
+## What is refused
 
-A context override **replaces all rules for the named field**. It does not merge with or modify individual base rules — it replaces the entire field ruleset for that field with what is defined in the context block.
+A contract that declares a `contexts:` block (any value, even `{}`) is refused
+at load. The file shows up in `load_failures`, `POST /import/*` returns 422,
+`opendqv fork` refuses it and `opendqv lint` reports code
+`CONTRACT_CONTEXTS_UNSUPPORTED` with this message:
 
-Fields not mentioned in the context are untouched and run with their base contract rules.
-
-**Example — base contract has two rules for `age`:**
-
-```yaml
-# Base contract rules for "age"
-- name: age_minimum
-  type: min
-  field: age
-  min: 0
-  severity: error
-
-- name: age_reasonable
-  type: max
-  field: age
-  max: 150
-  severity: warning
+```
+contract_contexts_unsupported: This contract declares a 'contexts' block, which OpenDQV Core does not support. Remove the 'contexts' block, or publish one contract per context (e.g. 'salesforce_lead_web_form') so each has its own version history and audit lineage.
 ```
 
-**After applying the `kids_app` context:**
+A bare `contexts:` with no value (YAML null) is tolerated.
 
-```yaml
-# Effective rules for "age" under kids_app context
-- type: range
-  field: age
-  min: 5
-  max: 17
-  severity: error
-  error_message: Age must be 5-17 for kids app
+A contract wrapped in a top-level `contract:` key is refused the same way
+(lint code `CONTRACT_ENVELOPE_UNSUPPORTED`):
+
+```
+contract_envelope_unsupported: contract YAML uses the legacy top-level 'contract:' wrapper — remove the wrapper so name/version/rules are top-level fields.
 ```
 
-Both base `age` rules (`age_minimum` and `age_reasonable`) are replaced by the single `range` rule from the context. All other fields (`email`, `name`, `id`, etc.) run their base contract rules unchanged.
+Removed surfaces: `?context=` on `GET /api/v1/contracts/{name}`,
+`GET /api/v1/contracts/{name}/jsonschema`, `POST /api/v1/generate`,
+`GET /api/v1/export/gx/{name}`, `GET /api/v1/export/odcs/{name}` and
+`POST /api/v1/validate/batch/file`; the `contexts` field on the contract
+response; `context_warning` on validate responses; the GraphQL
+`contract { contexts }` field and the `context` argument on the `validate` /
+`validateBatch` mutations; the `context` argument on the MCP `get_contract`
+and `get_contract_jsonschema` tools; the CLI `--context` flag on `validate`,
+`validate-file`, `export-gx`, `export-odcs`, `export-dbt` and `generate`; and
+`LocalValidator(...).validate(context=)`.
+
+Hashes (`content_hash`, `entry_hash`, `contract_hash`, `effective_rule_hash`,
+the manifest's `rules_sha256`) are unchanged for contracts that never declared
+contexts.
 
 ---
 
-## YAML syntax
+## `context` on validate is still accepted — as a tag
 
-Contexts are defined in a `contexts:` block at the end of the contract, after the `rules:` list. Each key under `contexts:` is a context name; each key under that is a field name whose rules are overridden.
-
-The following is the exact `contexts:` block from `examples/contexts/customer.yaml`:
-
-```yaml
-  contexts:
-    kids_app:
-      age:
-        type: range
-        min: 5
-        max: 17
-        severity: error
-        error_message: Age must be 5-17 for kids app
-    financial:
-      age:
-        type: min
-        min: 18
-        severity: error
-        error_message: Must be 18+ for financial products
-      balance:
-        type: min
-        min: 0
-        severity: error
-        error_message: Balance must be non-negative for financial accounts
-```
-
-**Reading this:**
-
-- `kids_app` overrides the `age` field with a `range` rule requiring age 5–17.
-- `financial` overrides `age` with a `min` rule requiring 18+, and also overrides `balance` to make the warning-severity base rule into a hard `error`.
-- All other fields in the `customer` contract (`email`, `name`, `id`, `phone`, etc.) run their base rules under both contexts.
-
----
-
-## How to pass context
-
-### REST API
-
-Include `"context"` in the validation request body:
+`context` on `POST /api/v1/validate` and `POST /api/v1/validate/batch` (and on
+the MCP `validate_record` / `validate_batch` tools and the SDK client's
+`validate(context=...)`) stays. It is a caller-supplied tag recorded with
+quality stats, the audit event and metrics. **It never changes which rules
+run.**
 
 ```bash
-curl -s -X POST http://localhost:8000/api/v1/validate \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "contract": "customer",
-    "context": "kids_app",
-    "record": {"name": "Alex", "age": 10, "email": "alex@example.com"}
-  }'
-```
-
-### Sync SDK
-
-```python
-from opendqv.sdk.client import OpenDQVClient
-
-client = OpenDQVClient(base_url="http://localhost:8000", token="...")
-result = client.validate(record, contract="customer", context="kids_app")
-```
-
-### Async SDK
-
-```python
-from opendqv.sdk.async_client import AsyncOpenDQVClient
-
-async with AsyncOpenDQVClient(base_url="http://localhost:8000", token="...") as client:
-    result = await client.validate(record, contract="customer", context="kids_app")
-```
-
-### CLI
-
-```bash
-python -m opendqv.cli validate customer '{"age": 10}' --context kids_app
-```
-
-### Code generation
-
-Pass `--context` to scope the generated code to context-specific field rules:
-
-```bash
-python -m opendqv.cli generate customer salesforce --context financial
-```
-
----
-
-## Multi-tenant SaaS pattern
-
-A single `customer` contract with per-tenant contexts avoids contract proliferation. The tenant's context is looked up from a mapping and passed to the validator at request time.
-
-**Contract with three contexts:**
-
-```yaml
-contract:
-  name: customer
-  version: "1.0"
-  rules:
-    - name: valid_email
-      type: regex
-      field: email
-      severity: error
-    - name: age_minimum
-      type: min
-      field: age
-      min: 0
-      severity: error
-    # ... other base rules ...
-  contexts:
-    eu_gdpr:
-      age:
-        type: min
-        min: 16
-        severity: error
-        error_message: EU GDPR requires age 16+ for consent
-    us_standard:
-      age:
-        type: min
-        min: 13
-        severity: error
-        error_message: US COPPA requires age 13+ without parental consent
-    kids_app:
-      age:
-        type: range
-        min: 5
-        max: 17
-        severity: error
-        error_message: Age must be 5-17 for kids app
-```
-
-**FastAPI routing by tenant:**
-
-```python
-from fastapi import FastAPI
-from opendqv.sdk.async_client import AsyncOpenDQVClient
-
-app = FastAPI()
-client = AsyncOpenDQVClient(base_url="http://localhost:8000", token="...")
-
-tenant_context_map = {
-    "eu-tenant-1": "eu_gdpr",
-    "eu-tenant-2": "eu_gdpr",
-    "us-tenant-1": "us_standard",
-    "kids-app":    "kids_app",
-}
-
-@app.post("/ingest/{tenant_id}")
-async def ingest(tenant_id: str, data: dict):
-    context = tenant_context_map.get(tenant_id, "default")
-    result = await client.validate(data, contract="customer", context=context)
-    if not result.valid:
-        return {"status": "rejected", "errors": result.errors}
-    return {"status": "accepted"}
-```
-
-Tenants not in the map fall back to `"default"`, which — since no context named `default` exists in the contract — runs the base contract rules. This is a safe fallback.
-
----
-
-## Regional compliance pattern
-
-The same `customer` contract can enforce different age and consent thresholds by region without duplicating contract definitions:
-
-| Context | Age rule | Use case |
-|---|---|---|
-| `eu_gdpr` | min 16 | EU digital services requiring GDPR consent |
-| `us_standard` | min 13 | US services under COPPA |
-| `kids_app` | range 5–17 | Children's app with upper age cap |
-| `financial` | min 18 | Financial products requiring adult status |
-| *(no context)* | min 0, max 150 | Base contract — non-negative, plausible range only |
-
-A record with `age: 15` would pass the base contract and `kids_app`, but fail `financial` and `eu_gdpr`.
-
----
-
-## When to use contexts vs. a new contract version
-
-| Scenario | Recommendation |
-|---|---|
-| Different rules for the **same data entity** across source systems or tenants | Use a context |
-| Relaxing or tightening a specific field rule for a known population segment | Use a context |
-| The contract itself is **evolving** — rule additions, breaking changes, renamed fields | Use a new contract version |
-| A **fundamentally different entity** (e.g. `order` vs `customer`) | Use a new contract |
-| Governance requires a separate audit trail for a distinct business unit | Use a new contract |
-
-Contexts are horizontal slices across a stable entity definition. Contract versions are the vertical history of how that entity definition evolved over time. A new contract is the right choice when the entity itself is distinct enough that sharing a rule set would be misleading.
-
----
-
-## Naming conventions
-
-Use `snake_case` for context names. Recommended examples:
-
-```
-kids_app
-financial
-eu_gdpr
-us_standard
-salesforce_prod
-salesforce_sandbox
-internal_review
-```
-
-Avoid spaces, hyphens, and special characters. Context names are stored as-is in YAML keys and passed directly in API requests and CLI flags.
-
----
-
-## Context names are case-sensitive
-
-Context names are freeform strings matched exactly against the contract's `contexts:` block.
-
-If the context name is not defined in the contract, the engine applies the base contract rules
-with no overrides and does not return an error. This allows `context` to double as a stats tag
-for purposes that don't need rule changes — for example, tagging records as `"demo"`, `"ci"`,
-or `"staging"` so they can be queried or cleaned up by context later.
-
-```bash
-# This runs the "financial" context rules
-python -m opendqv.cli validate customer '{"age": 25}' --context financial
-
-# "Financial" is not defined — base rules apply, no error
-python -m opendqv.cli validate customer '{"age": 25}' --context Financial
-```
-
-```bash
-# Tagging demo records — no "demo" context block needed in the contract
 curl -s -X POST http://localhost:8000/api/v1/validate \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"contract": "customer", "context": "demo", "record": {"name": "Alice", "age": 30, "email": "alice@example.com"}}'
-# → validates normally; quality_stats row recorded with context="demo"
+# → validates against customer's own rules; the quality_stats row and audit event carry context="demo"
 ```
 
-**Cleaning up tagged records:**
+Tagged traffic can be filtered or grouped
+(`GET /api/v1/contracts/{name}/quality-trend?context=demo`, or `by=context`)
+and removed after a demo:
 
 ```bash
 # Delete all quality_stats rows with context="demo" (admin role required)
@@ -313,7 +90,121 @@ curl -s -X DELETE "http://localhost:8000/api/v1/quality/stats?context=demo" \
 
 ---
 
+## Migrating a contract that declared contexts
+
+For each context, copy the contract as `<contract>_<context>`, set `name:` to
+the new name, and fold that context's overrides into its rules. Then remove
+the `contexts:` block from the original. Callers that sent
+`"context": "web_form"` now send `"contract": "salesforce_lead_web_form"`
+(they can keep sending `context` as a tag if they want it in stats).
+
+In 2.x an override keyed by a rule name changed that one rule; an override
+keyed by a field name changed every rule on that field; any other key added a
+new rule. Fold each override into the rule (or rules) it was written for.
+
+**Before (2.x) — `salesforce_lead.yaml`:**
+
+```yaml
+name: salesforce_lead
+version: "1.0"
+owner: Sales Operations
+status: active
+rules:
+  - name: email_required
+    field: Email
+    type: not_empty
+    severity: error
+    error_message: Email is required for lead routing and dedup.
+  - name: email_not_personal
+    field: Email
+    type: regex
+    pattern: '@(gmail|yahoo|hotmail|outlook|aol|icloud)\.com$'
+    negate: true
+    severity: warning
+    error_message: Personal email detected — business email preferred for B2B leads.
+  - name: lead_source_required
+    field: LeadSource
+    type: not_empty
+    severity: error
+    error_message: LeadSource is required for attribution tracking.
+contexts:
+  web_form:
+    email_not_personal:
+      severity: error
+      error_message: Web form leads must use a business email address.
+```
+
+**After (3.0.0) — two flat files.** `salesforce_lead.yaml` is the same file
+without the `contexts:` block. `salesforce_lead_web_form.yaml`:
+
+```yaml
+name: salesforce_lead_web_form
+version: "1.0"
+owner: Sales Operations
+status: active
+rules:
+  - name: email_required
+    field: Email
+    type: not_empty
+    severity: error
+    error_message: Email is required for lead routing and dedup.
+  - name: email_not_personal
+    field: Email
+    type: regex
+    pattern: '@(gmail|yahoo|hotmail|outlook|aol|icloud)\.com$'
+    negate: true
+    severity: error                     # folded from contexts.web_form
+    error_message: Web form leads must use a business email address.
+  - name: lead_source_required
+    field: LeadSource
+    type: not_empty
+    severity: error
+    error_message: LeadSource is required for attribution tracking.
+```
+
+## Removing the `contract:` wrapper
+
+Delete the `contract:` line and dedent everything under it by one level.
+
+**Before (2.x):**
+
+```yaml
+contract:
+  name: order
+  version: "1.0"
+  owner: Data Governance
+  status: active
+  rules:
+    - name: amount_positive
+      type: min
+      field: amount
+      min: 0.01
+      severity: error
+```
+
+**After (3.0.0):**
+
+```yaml
+name: order
+version: "1.0"
+owner: Data Governance
+status: active
+rules:
+  - name: amount_positive
+    type: min
+    field: amount
+    min: 0.01
+    severity: error
+```
+
+Run `opendqv lint <contract>` on each migrated contract (the CLI looks it up
+in your contracts directory by name) before reloading; a file that still
+carries either shape is reported with the codes above.
+
+---
+
 ## See also
 
-- [docs/naming_conventions.md](naming_conventions.md) — naming conventions for contracts, rules, and fields
-- [examples/contexts/customer.yaml](../examples/contexts/customer.yaml) — the reference contract with live `contexts:` examples
+- [`contract_versioning.md`](contract_versioning.md) — versions, `opendqv fork`, and pinning by hash
+- [`naming_conventions.md`](naming_conventions.md) — naming conventions for contracts, rules, and fields
+- [`contract_conformance.md`](contract_conformance.md) — the Core ↔ managed-engine decisions record

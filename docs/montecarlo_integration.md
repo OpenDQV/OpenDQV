@@ -164,16 +164,15 @@ The `asset_id` field on an OpenDQV contract can be set to match the Monte Carlo 
 ### Setting the bridge
 
 ```yaml
-contract:
-  name: customer
-  version: "1.0"
-  # asset_id matches the table identifier in Monte Carlo
-  asset_id: "snowflake://acme-prod/analytics/public/customers"
-  rules:
-    - name: email_valid
-      type: regex
-      field: email
-      pattern: "^[^@]+@[^@]+\\.[^@]+$"
+name: customer
+version: "1.0"
+# asset_id matches the table identifier in Monte Carlo
+asset_id: "snowflake://acme-prod/analytics/public/customers"
+rules:
+  - name: email_valid
+    type: regex
+    field: email
+    pattern: "^[^@]+@[^@]+\\.[^@]+$"
 ```
 
 ### Querying write-time history when MC fires an alert

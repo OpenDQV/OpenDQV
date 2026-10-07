@@ -15,7 +15,7 @@ Data contracts are the source of truth for data quality expectations. AI agents 
 OpenDQV's MCP server gives agents:
 
 - **Contract discovery** — list all contracts and their status (DRAFT / REVIEW / ACTIVE)
-- **Contract detail** — retrieve the full rule set for any contract, optionally for a specific context
+- **Contract detail** — retrieve the full rule set for any contract
 - **Validation** — validate a data record against a named contract and receive a structured pass/fail result with field-level error detail
 - **Write access (opt-in)** — agents can propose new contracts or add rules, subject to write guardrails (see below)
 
@@ -116,11 +116,11 @@ Once connected, the agent will see these tools:
 | Tool | What it does |
 |------|--------------|
 | `list_contracts` | List all contracts with name, version, status, rule count. Default includes active, draft and review; `include_all=true` adds archived. Only `active` contracts can be used for production validation. |
-| `get_contract` | Get full contract detail including all rules. Each rule includes constraint fields: `allowed_values`, `pattern`, `min_value`, `max_value`, `min_length`, `max_length` (null when not applicable for that rule type). Accepts `version`, `context` and `hash`. |
+| `get_contract` | Get full contract detail including all rules. Each rule includes constraint fields: `allowed_values`, `pattern`, `min_value`, `max_value`, `min_length`, `max_length` (null when not applicable for that rule type). Accepts `version` and `hash`. |
 | `list_versions` | Version history for a contract — metadata only, no rule bodies. Returns `version`, `status`, `entry_hash`, `content_hash`, `created_at`, `owner`. Use it to drive a version picker, audit a lineage, or pin a `content_hash` for `validate_record`. |
-| `get_contract_jsonschema` | Emit a JSON Schema (draft 2020-12) document for a contract, for producer-side structural validation or typed code generation. Cross-field rules are not expressible in JSON Schema and are listed separately. Accepts `context` and `strict`. |
+| `get_contract_jsonschema` | Emit a JSON Schema (draft 2020-12) document for a contract, for producer-side structural validation or typed code generation. Cross-field rules are not expressible in JSON Schema and are listed separately. Accepts `strict`. |
 | `compare_contracts` | Diff two historical snapshots of the same contract. Call `list_versions` first, then pass any two `entry_hash` values as `hash_a` / `hash_b`. |
-| `validate_record` | Validate a single JSON record against a named contract. Supports `agent_id` (attribution), `dry_run` (skip metrics), `context`, `record_id` (caller correlation ID echoed back and recorded in the audit trail) and `hash` (a `content_hash` from `list_versions` — pins validation to that historical version; 404 if no match). Errors carry `field`, `rule`, `message`, `severity`, `error_code`, and `counterpart_missing: true` when a cross-field rule failed because its counterpart field was absent or blank. The envelope carries `effective_rule_hash` and `governance_tip`. |
+| `validate_record` | Validate a single JSON record against a named contract. Supports `agent_id` (attribution), `dry_run` (skip metrics), `context` (a tag for stats, the audit event and metrics — never changes which rules run), `record_id` (caller correlation ID echoed back and recorded in the audit trail) and `hash` (a `content_hash` from `list_versions` — pins validation to that historical version; 404 if no match). Errors carry `field`, `rule`, `message`, `severity`, `error_code`, and `counterpart_missing: true` when a cross-field rule failed because its counterpart field was absent or blank. The envelope carries `effective_rule_hash` and `governance_tip`. |
 | `validate_batch` | Validate up to 10,000 records in one call; returns per-row results and a summary. Same `agent_id`, `dry_run`, `context`, `hash` params as `validate_record`. Fixed setup cost (~70ms) — for batches under ~70 records, individual `validate_record` calls are cheaper. |
 | `explain_error` | Plain-English explanation of a rule failure: `rule_type`, `explanation`, `valid_examples`, `invalid_examples`, `constraint`, and `curated_message` (the contract author's `error_message`, when set). |
 

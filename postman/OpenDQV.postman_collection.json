@@ -191,7 +191,7 @@
           }
         },
         {
-          "name": "Validate with context (extra metadata)",
+          "name": "Validate with a context tag",
           "request": {
             "method": "POST",
             "url": {
@@ -202,9 +202,9 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"contract\": \"customer\",\n  \"record\": {\n    \"email\": \"bob@example.com\",\n    \"name\": \"Bob Jones\",\n    \"age\": 29\n  },\n  \"context\": {\n    \"source_system\": \"salesforce\",\n    \"pipeline_run_id\": \"run-abc-123\",\n    \"env\": \"staging\"\n  }\n}"
+              "raw": "{\n  \"contract\": \"customer\",\n  \"record\": {\n    \"email\": \"bob@example.com\",\n    \"name\": \"Bob Jones\",\n    \"age\": 29\n  },\n  \"context\": \"salesforce\",\n  \"record_id\": \"run-abc-123\"\n}"
             },
-            "description": "The `context` object is passed through to the audit trail and webhook payloads. Use it to correlate validation events with your pipeline run IDs."
+            "description": "`context` is a caller-supplied string tag recorded with quality stats, the audit event, metrics and webhook payloads. It never changes which rules run (3.0.0: contracts carry no context overrides). Use `record_id` to correlate a validation event with your pipeline run."
           }
         },
         {

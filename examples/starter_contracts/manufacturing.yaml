@@ -22,13 +22,13 @@
 # See: docs/core/deployment.md (minimal/edge pattern)
 #
 # HOW TO USE:
-#   1. Load: POST /api/v1/contracts (name: "sensor_reading")
+#   1. Load: POST /api/v1/contracts (name: "manufacturing")
 #   2. Validate from your SCADA/MES integration:
-#      curl -X POST http://localhost:8000/api/v1/validate/sensor_reading \
+#      curl -X POST http://localhost:8000/api/v1/validate/manufacturing \
 #           -d '{"asset_id":"PUMP-00142","sensor_type":"PRESSURE",...}'
 #   3. Sample records: examples/starter_contracts/sample_records/manufacturing.json
 
-name: sensor_reading
+name: manufacturing
 version: "1.0.0"
 description: "Industrial sensor reading validation — physical plausibility, quality flags, asset identification"
 asset_id: "urn:opendqv:example:manufacturing:sensor_reading"

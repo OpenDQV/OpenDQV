@@ -47,9 +47,9 @@
 #   GDPR Article 7 liability for unsolicited marketing communications.
 #
 # HOW TO USE:
-#   1. Load this contract: POST /api/v1/contracts (name: "travel_booking")
-#   2. Validate a record:  POST /api/v1/validate/travel_booking
-#   3. Batch validate:     POST /api/v1/validate/travel_booking/batch
+#   1. Load this contract: POST /api/v1/contracts (name: "travel")
+#   2. Validate a record:  POST /api/v1/validate/travel
+#   3. Batch validate:     POST /api/v1/validate/travel/batch
 #   4. Sample records:     examples/starter_contracts/sample_records/travel.json
 #
 # ADAPTING FOR YOUR SYSTEM:
@@ -60,7 +60,7 @@
 #   - Adjust passenger_count max for your use case (default: 500 covers
 #     full charter aircraft; reduce to 9 for leisure OTAs)
 
-name: travel_booking
+name: travel
 version: "1.0.0"
 description: "Travel booking record validation — PNR, IATA codes, pricing, passenger details, booking status, GDPR consent, PCI DSS compliance"
 asset_id: "urn:opendqv:example:travel:travel_booking"

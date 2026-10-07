@@ -33,11 +33,11 @@
 #   South Africa ID: ^[0-9]{13}$
 #
 # HOW TO USE:
-#   1. Load: POST /api/v1/contracts (name: "citizen_service_record")
-#   2. Validate: POST /api/v1/validate/citizen_service_record
+#   1. Load: POST /api/v1/contracts (name: "public_sector")
+#   2. Validate: POST /api/v1/validate/public_sector
 #   3. Sample records: examples/starter_contracts/sample_records/public_sector.json
 
-name: citizen_service_record
+name: public_sector
 version: "1.0.0"
 description: "Citizen service record validation — identity, eligibility, case management"
 asset_id: "urn:opendqv:example:public_sector:citizen_service_record"

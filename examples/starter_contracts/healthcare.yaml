@@ -14,8 +14,8 @@
 # healthcare is a patient safety issue, not just a technical one.
 #
 # HOW TO USE:
-#   1. Load this contract: POST /api/v1/contracts (name: "patient_record")
-#   2. Validate a record: POST /api/v1/validate/patient_record
+#   1. Load this contract: POST /api/v1/contracts (name: "healthcare")
+#   2. Validate a record: POST /api/v1/validate/healthcare
 #   3. See sample records: examples/starter_contracts/sample_records/healthcare.json
 #
 # ADAPTING FOR YOUR SYSTEM:
@@ -23,7 +23,7 @@
 #   - Replace ward_code lookup with your facility's ward codes
 #   - Replace icd10_primary lookup_file with your local code list
 
-name: patient_record
+name: healthcare
 version: "1.0.0"
 description: "Patient record validation — format, clinical codes, physiological plausibility"
 asset_id: "urn:opendqv:example:healthcare:patient_record"

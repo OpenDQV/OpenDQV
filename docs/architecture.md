@@ -64,7 +64,6 @@ OpenDQV/
 │
 ├── examples/
 │   ├── starter_contracts/     # Minimal starter templates
-│   ├── contexts/              # Worked `contexts:` example (customer.yaml)
 │   └── <domain>/              # Sample records + starter contract by domain
 │
 ├── tests/                     # pytest suite (see CLAUDE.md for the current count)

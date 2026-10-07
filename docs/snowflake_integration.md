@@ -26,11 +26,10 @@ OpenDQV validates records before they reach Snowflake. Once a record lands in a 
 Use the fully-qualified Snowflake object path as `asset_id`:
 
 ```yaml
-contract:
-  name: customer
-  version: "1.0"
-  asset_id: "snowflake://acme-prod.eu-west-1/ANALYTICS/PUBLIC/CUSTOMERS"
-  #          snowflake://{account}/{database}/{schema}/{table}
+name: customer
+version: "1.0"
+asset_id: "snowflake://acme-prod.eu-west-1/ANALYTICS/PUBLIC/CUSTOMERS"
+#          snowflake://{account}/{database}/{schema}/{table}
 ```
 
 This format is also recognised by DataHub's Snowflake connector and Atlan's Snowflake connection, so the same `asset_id` links the OpenDQV contract to catalog lineage nodes in all three tools.

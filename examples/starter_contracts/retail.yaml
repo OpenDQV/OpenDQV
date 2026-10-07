@@ -33,13 +33,13 @@
 #   compliance with GPSR and the UK Product Safety and Metrology Bill.
 #
 # HOW TO USE:
-#   1. Load: POST /api/v1/contracts (name: "product_catalogue")
+#   1. Load: POST /api/v1/contracts (name: "retail")
 #   2. Validate:
-#      curl -X POST http://localhost:8000/api/v1/validate/product_catalogue \
+#      curl -X POST http://localhost:8000/api/v1/validate/retail \
 #           -d '{"sku":"ELEC-SNY-XM5-BLK","product_name":"Sony WH-XM5",...}'
 #   3. Sample records: examples/starter_contracts/sample_records/retail.json
 
-name: product_catalogue
+name: retail
 version: "1.0.0"
 description: "Retail product catalogue validation — SKU format, GTIN, pricing, inventory, regulatory compliance"
 asset_id: "urn:opendqv:example:retail:product_catalogue"

@@ -28,12 +28,12 @@
 #
 # HOW TO USE:
 #   1. Ensure this contract is in ACTIVE status with an approved_by entry.
-#   2. Load: POST /api/v1/contracts (name: "clinical_trial_observation")
-#   3. Validate: POST /api/v1/validate/clinical_trial_observation
+#   2. Load: POST /api/v1/contracts (name: "pharma")
+#   3. Validate: POST /api/v1/validate/pharma
 #   4. Store the validation response alongside the source data for audit.
 #   5. Sample records: examples/starter_contracts/sample_records/pharma.json
 
-name: clinical_trial_observation
+name: pharma
 version: "1.0.0"
 description: "Clinical trial observation validation — CDISC SDTM-aligned, GCP-compliant"
 asset_id: "urn:opendqv:example:pharma:clinical_trial_observation"

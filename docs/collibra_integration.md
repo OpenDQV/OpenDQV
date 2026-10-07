@@ -13,16 +13,15 @@ Collibra is the dominant enterprise data governance catalog. OpenDQV contracts s
 Collibra assets are identified by a qualified name in the format `{community}/{domain}/{asset_name}`. Use this as the `asset_id` in your OpenDQV contracts:
 
 ```yaml
-contract:
-  name: customer
-  version: "1.0"
-  asset_id: "Data Governance/Customer Domain/Customer Master"
-  rules:
-    - name: email_valid
-      type: regex
-      field: email
-      pattern: "^[^@]+@[^@]+\\.[^@]+$"
-      severity: error
+name: customer
+version: "1.0"
+asset_id: "Data Governance/Customer Domain/Customer Master"
+rules:
+  - name: email_valid
+    type: regex
+    field: email
+    pattern: "^[^@]+@[^@]+\\.[^@]+$"
+    severity: error
 ```
 
 See [`index.md`](index.md) for the full cross-catalog `asset_id` URN table.

@@ -114,8 +114,8 @@ python -c "import yaml; yaml.safe_load(open('contracts/mycontract.yaml'))"
 **Symptom:** A record fails validation on a field where the value appears to meet the rule.
 
 **Diagnosis steps:**
-1. Check which rule is firing: `opendqv validate <contract> '<json>' --context <ctx>` and read the error detail.
-2. Check if a context override is changing the rule: a contract may declare stricter rules for named contexts in its `contexts:` block (the bundled starters declare none; see `examples/contexts/` for a worked example). A context name the contract does not declare falls back to the base rules.
+1. Check which rule is firing: `opendqv validate <contract> '<json>'` and read the error detail.
+2. Check you are validating against the contract you think: a stricter variant is its own contract (e.g. `salesforce_contact_prod`), selected by name. The `context` field on a validate request is only a tag for stats, the audit event and metrics — it never changes which rules run.
 3. Check for whitespace: `not_empty` passes but `regex` rules often fail on leading/trailing spaces.
 
 ---

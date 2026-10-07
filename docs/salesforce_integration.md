@@ -22,48 +22,50 @@ before the record is created, and an after-save audit that validates every recor
 
 ### 1. Use the built-in salesforce_contact contract
 
-OpenDQV ships `opendqv/contracts/salesforce_contact.yaml` (v0.1, 19 production-grade validation rules) out of the box — no setup required. The bundled contract carries no `contexts:` block; the worked context example below is `examples/contexts/salesforce_contact.yaml`, which you can copy over the bundled file (or into your own contracts directory) to enable `salesforce_prod` / `salesforce_sandbox`. To write your own:
+OpenDQV ships `opendqv/contracts/salesforce_contact.yaml` (v0.1, 19 production-grade validation rules) out of the box — no setup required. To write your own:
 
 ```yaml
-contract:
-  name: salesforce_contact
-  version: "1.0"
-  description: "Salesforce Contact quality validation"
-  owner: "Data Governance Team"
-  status: active
+name: salesforce_contact
+version: "1.0"
+description: "Salesforce Contact quality validation"
+owner: "Data Governance Team"
+status: active
 
-  rules:
-    - name: first_name_required
-      field: FirstName
-      type: not_empty
-      severity: error
-      error_message: "FirstName is required."
+rules:
+  - name: first_name_required
+    field: FirstName
+    type: not_empty
+    severity: error
+    error_message: "FirstName is required."
 
-    - name: email_format
-      field: Email
-      type: regex
-      pattern: "^[\\w\\.\\+\\-]+@[\\w\\.-]+\\.[a-zA-Z]{2,}$"
-      severity: error
-      error_message: "Email must be a valid format."
+  - name: email_format
+    field: Email
+    type: regex
+    pattern: "^[\\w\\.\\+\\-]+@[\\w\\.-]+\\.[a-zA-Z]{2,}$"
+    severity: error
+    error_message: "Email must be a valid format."
 
-    - name: birthdate_format
-      field: Birthdate
-      type: date_format
-      severity: error
-      error_message: "Birthdate must be YYYY-MM-DD."
+  - name: birthdate_format
+    field: Birthdate
+    type: date_format
+    severity: error
+    error_message: "Birthdate must be YYYY-MM-DD."
+```
 
-  contexts:
-    salesforce_prod:
-      Birthdate:
-        min_age: 18
-        max_age: 150
-        error_message: "Contact must be 18+ in production."
+Need stricter rules in production — say, contacts must be 18+? Publish a separate contract
+for that use rather than a context override (3.0.0 removed `contexts:`; see
+[contexts.md](contexts.md)). `salesforce_contact_prod.yaml` is the file above with
+`name: salesforce_contact_prod` and the birthdate rule tightened, and it gets its own version
+history and audit lineage:
 
-    salesforce_sandbox:
-      Email:
-        type: regex
-        pattern: "^.*@(example\\.com|test\\.com)$"
-        error_message: "Sandbox contacts must use test email domains."
+```yaml
+  - name: birthdate_format
+    field: Birthdate
+    type: date_format
+    min_age: 18
+    max_age: 150
+    severity: error
+    error_message: "Contact must be 18+ in production."
 ```
 
 ### 2. Reload contracts
@@ -75,15 +77,12 @@ curl -X POST http://localhost:8000/api/v1/contracts/reload
 ### 3. Validate a record
 
 ```bash
-# Production context — enforces 18+ age (requires the examples/contexts contract;
-# against the bundled contract the context is undeclared and the response
-# carries a context_warning and applies base rules only)
+# Production contract — enforces 18+ age
 curl -X POST http://localhost:8000/api/v1/validate \
   -H "Content-Type: application/json" \
   -d '{
     "record": {"FirstName": "Sarah", "Email": "sarah@acme.com", "Birthdate": "2015-03-15"},
-    "contract": "salesforce_contact",
-    "context": "salesforce_prod"
+    "contract": "salesforce_contact_prod"
   }'
 ```
 
@@ -92,16 +91,12 @@ Response (blocked — contact is under 18; abridged, the envelope also carries `
 {
   "valid": false,
   "errors": [
-    {"field": "LastName", "rule": "last_name_required", "message": "LastName is required.", "severity": "error",
-     "error_code": "OPENDQV_NOT_EMPTY_LAST_NAME_REQUIRED", "suggested_fix": "Provide a non-empty value.", "counterpart_missing": null},
     {"field": "Birthdate", "rule": "birthdate_format", "message": "Contact must be 18+ in production.", "severity": "error",
-     "error_code": "OPENDQV_DATE_FORMAT_BIRTHDATE_FORMAT", "suggested_fix": "Use ISO 8601 format: YYYY-MM-DD (e.g. 2026-03-24)", "counterpart_missing": null},
-    {"field": "AccountId", "rule": "account_id_not_empty", "message": "AccountId is required in production — no orphan contacts allowed.", "severity": "error",
-     "error_code": "OPENDQV_NOT_EMPTY_ACCOUNT_ID_NOT_EMPTY", "suggested_fix": "Provide a non-empty value.", "counterpart_missing": null}
+     "error_code": "OPENDQV_DATE_FORMAT_BIRTHDATE_FORMAT", "suggested_fix": "Use ISO 8601 format: YYYY-MM-DD (e.g. 2026-03-24)", "counterpart_missing": null}
   ],
-  "warnings": [{"field": "MailingStreet", "rule": "mailing_street_required", "message": "MailingStreet is recommended for contacts.", "severity": "warning", "error_code": "OPENDQV_NOT_EMPTY_MAILING_STREET_REQUIRED", "suggested_fix": "Provide a non-empty value.", "counterpart_missing": null}],
-  "contract": "salesforce_contact",
-  "version": "0.1",
+  "warnings": [],
+  "contract": "salesforce_contact_prod",
+  "version": "1.0",
   "engine_version": "<engine-version>"
 }
 ```
@@ -155,9 +150,6 @@ The trade-off: it's a **snapshot**. If the contract changes, the deployed class 
 ```bash
 # From CLI
 opendqv generate <contract-name> salesforce
-
-# With context filter (e.g. only salesforce-tagged rules)
-opendqv generate <contract-name> salesforce --context salesforce
 
 # Via API
 GET /contracts/<contract-name>/generate?target=salesforce
