@@ -2,6 +2,38 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [3.0.2] - 2026-10-08
+
+### Dates ignore the white space around them (aligned with the managed engine)
+
+A rule that reads a value as a number, date or checksum ignores the white
+space around it; a rule that judges the text as written (`regex`,
+`allowed_values`, `forbidden_values`, `lookup`, `conditional_value`, the
+length rules, and a string `compare`) still sees the padding. Numbers already
+worked this way; dates now do on every path. A space *inside* a date is still
+not a date, and a `regex` still refuses a trailing newline (2.10.4). An author
+who needs a date's exact shape adds a `regex`, as the DORA contract does.
+
+- **`date_format`, single-record path.** `" 2026-01-10 "` failed here and
+  passed in batch (DuckDB's `TRY_STRPTIME` already tolerated the padding).
+  Both paths now pass it, with or without a declared `format`, including the
+  `min_age`/`max_age` add-on.
+- **`compare` on dates without a declared layout** (single and batch). A
+  padded date was compared as text, so `" 2026-01-11\n" gt "2026-01-10"` and
+  `" 2026-01-10" eq "2026-01-10"` both failed. Both operands are now read as
+  dates when both are dates; otherwise the text comparison is unchanged.
+- **`compare` with `same_date`** (single and batch). A padded operand was not
+  recognised as a date and the rule silently skipped, so a padded T+0
+  mismatch passed. It is now read as a date and judged (confirmed on the
+  managed engine).
+- `date_diff`, `age_match` and `compare` with a declared layout already trimmed.
+- Eleven rows added to `frozen/engine_semantics.jsonl`: the managed engine's
+  rows 51–58, one pinning that a non-date `compare eq` still sees padding, and
+  two for `same_date`. The managed engine replays the file identically
+  (verdicts and exact codes); the `same_date` cases were confirmed on it live.
+
+---
+
 ## [3.0.1] - 2026-10-07
 
 ### Audit chain — `opendqv audit-verify` passes on the chains the engine writes
