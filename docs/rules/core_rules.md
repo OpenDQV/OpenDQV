@@ -316,15 +316,22 @@ Field must be a parseable date or datetime string.
 |----------|---------------|------|---------|
 | `format` | `rule.format` | str  | custom strptime format (optional) |
 
-**Behaviour:** tries to parse the value against these formats, in order:
-1. `rule.format` (if provided)
-2. `%Y-%m-%d`
-3. `%Y-%m-%dT%H:%M:%S`
-4. `%d/%m/%Y`
-5. `%m/%d/%Y`
+**Behaviour:** white space around the value is ignored; a space inside it is not.
 
-Passes on the first successful parse. Fails if none match. Absent/blank values
-pass (D6) — add `not_empty` for presence.
+- **`format` declared:** the value must parse with exactly that layout
+  (`YYYY-MM-DD`-style or strptime `%` codes) — no other shape, no ISO fallback.
+  `%f` reads 1–6 digits after the format's own mark and must be present. Every
+  rule that reads the field as a date (`compare`, `date_diff`, `age_match`,
+  `min_age`/`max_age`) uses the same layout; a conditional `date_format`
+  declares no field layout.
+- **No `format`:** the value must be an ISO 8601 date or datetime — the same
+  reader every date-reading rule uses (3.0.3): `YYYY-MM-DD`, optionally followed
+  by `Thh:mm:ss`, an optional fraction (`.123`), and an optional `Z` or
+  `±hh:mm`. Nothing looser: no space separator, no `20260110`, no unpadded
+  `2026-1-10`, no week dates, no `T08:00`, no `+0100`, no lowercase `t`/`z`.
+  Locale-ambiguous dates (`DD/MM/YYYY`) need a declared `format`.
+
+Absent/blank values pass (D6) — add `not_empty` for presence.
 
 `min_age` / `max_age` may be added to a `date_format` rule (or any rule) as an
 add-on check on the age implied by the parsed date; they are keys, not rule

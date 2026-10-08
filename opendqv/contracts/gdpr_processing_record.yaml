@@ -86,7 +86,7 @@ rules:
         field: lawful_basis
         value: consent
       severity: error
-      error_message: consent_timestamp must be a valid date (YYYY-MM-DD)
+      error_message: consent_timestamp must be an ISO 8601 date or datetime (e.g. 2026-01-10 or 2026-01-10T08:00:00Z)
     - name: withdrawal_mechanism_required_if_consent
       field: withdrawal_mechanism
       type: required_if
