@@ -972,7 +972,9 @@ def _human_to_strptime(fmt: str) -> str:
 def _check_date_format(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if _is_field_absent(value):
         return None
-    str_val = str(value)
+    # 3.0.2: a date ignores the white space around it (the batch path's
+    # TRY_STRPTIME always did); a space inside the value is still not a date.
+    str_val = str(value).strip()
     # Honour the contract's declared format strictly. When no format is
     # declared, default to ISO 8601 (date or datetime) — never accept
     # locale-ambiguous formats like DD/MM/YYYY or MM/DD/YYYY by default.
@@ -1044,8 +1046,8 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
         return None if op_fn(a, b) else rule.error_message
 
     if rule.compare_op == "same_date":
-        a_str = str(value)[:10]
-        b_str = str(other)[:10]
+        a_str = str(value).strip()[:10]
+        b_str = str(other).strip()[:10]
         # Sanity: only proceed if both look like YYYY-MM-DD shape, else
         # the rule isn't applicable and we return None (the dedicated
         # format rule on the field is responsible for shape).
@@ -1059,8 +1061,10 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
         a, b = float(value), float(other)
     except (TypeError, ValueError):
         try:
-            a = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-            b = datetime.fromisoformat(str(other).replace("Z", "+00:00"))
+            # 3.0.2: read as dates, padding ignored; if either is not a date
+            # the string comparison below judges the text as written.
+            a = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+            b = datetime.fromisoformat(str(other).strip().replace("Z", "+00:00"))
             if isinstance(a, datetime) and a.tzinfo is None:
                 a = a.replace(tzinfo=timezone.utc)
             if isinstance(b, datetime) and b.tzinfo is None:
@@ -2306,8 +2310,8 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                     failing.add(idx)
                     failing_counterpart_missing.add(idx)   # D10 (#145: marked)
                     continue
-                a_str = str(a_raw)[:10]
-                b_str = str(b_raw)[:10]
+                a_str = str(a_raw).strip()[:10]
+                b_str = str(b_raw).strip()[:10]
                 # Both sides must look like YYYY-MM-DD; otherwise the
                 # date-format rule on the field is responsible for
                 # shape — same_date isn't applicable.
@@ -2338,8 +2342,8 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                         a, b = float(a_raw), float(b_raw)
                     except (TypeError, ValueError):
                         try:
-                            a = datetime.fromisoformat(str(a_raw).replace("Z", "+00:00"))
-                            b = datetime.fromisoformat(str(b_raw).replace("Z", "+00:00"))
+                            a = datetime.fromisoformat(str(a_raw).strip().replace("Z", "+00:00"))
+                            b = datetime.fromisoformat(str(b_raw).strip().replace("Z", "+00:00"))
                             # Normalise: treat naive datetimes as UTC before comparison
                             if isinstance(a, datetime) and a.tzinfo is None:
                                 a = a.replace(tzinfo=timezone.utc)
