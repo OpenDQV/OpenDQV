@@ -1,7 +1,8 @@
 """
 3.0.2: a rule that reads a value as a date ignores the white space around it;
 a rule that judges the text as written sees the padding. The cross-engine rows
-live in frozen/engine_semantics.jsonl; this file pins the Core-only edges.
+live in frozen/engine_semantics.jsonl (same_date included, confirmed on the
+managed engine); this file pins the Core-only edges.
 """
 from opendqv.core.rule_parser import Rule
 from opendqv.core.validator import validate_batch, validate_record
@@ -15,23 +16,6 @@ def _both(record, rules):
 
 def _codes(out):
     return sorted(e["error_code"] for e in out["errors"])
-
-
-def _same_date():
-    return [Rule(name="t_plus_0", type="compare", field="trade", compare_to="exec",
-                 compare_op="same_date", error_message="trade date must equal execution date")]
-
-
-def test_same_date_reads_padded_dates_and_fails_a_mismatch():
-    # Before 3.0.2 the [:10] slice of " 2026-01-11" was not a date, so the
-    # rule skipped and a T+0 violation passed.
-    for out in _both({"trade": " 2026-01-11", "exec": "2026-01-10\n"}, _same_date()):
-        assert _codes(out) == ["OPENDQV_COMPARE_T_PLUS_0"]
-
-
-def test_same_date_reads_padded_dates_and_passes_a_match():
-    for out in _both({"trade": " 2026-01-10T09:00:00Z\n", "exec": "2026-01-10"}, _same_date()):
-        assert out["valid"] is True
 
 
 def test_date_format_with_declared_layout_ignores_padding():
