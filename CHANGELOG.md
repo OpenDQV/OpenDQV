@@ -2,7 +2,7 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [3.0.2] - Unreleased
+## [3.0.2] - 2026-10-08
 
 ### Dates ignore the white space around them (aligned with the managed engine)
 
