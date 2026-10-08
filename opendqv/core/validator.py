@@ -112,13 +112,14 @@ _COMPARE_OPS = {
 
 
 # 3.0.3: the one ISO reader (managed-engine parity). With no declared layout a
-# date is YYYY-MM-DD, optionally Thh:mm:ss, a fraction, and Z or ±hh:mm — on
+# date is YYYY-MM-DD, optionally Thh:mm:ss, a fraction of any length after
+# either ISO 8601 decimal sign (. or ,), and Z or ±hh:mm — on
 # every rule that reads a date. fromisoformat alone also reads a space
 # separator, 20260110, week dates, T08:00 and +0100, so the shape is gated
 # first; the bounded time fields keep T24:00:00 and +24:00 out on every path.
 _ISO_DATE_RE = re.compile(
     r"[0-9]{4}-[0-9]{2}-[0-9]{2}"
-    r"(?:T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\.[0-9]+)?"
+    r"(?:T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:[.,][0-9]+)?"
     r"(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])?)?"
 )
 

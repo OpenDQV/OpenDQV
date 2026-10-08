@@ -3,8 +3,7 @@
 reads exactly the ISO surface — YYYY-MM-DD, optionally Thh:mm:ss, a fraction,
 and Z or ±hh:mm. The cross-engine rows live in frozen/engine_semantics.jsonl;
 this file pins the readers those rows do not reach (compare, date_diff, the
-age rules), the bounds, and the surface choices not yet confirmed on the
-managed engine (fraction length, comma separator).
+age rules) and the bounds.
 """
 import pytest
 
@@ -42,16 +41,20 @@ def test_reader_refuses_everything_else(value):
         _read_iso(value)
 
 
-# Surface choices to confirm on the managed engine: any fraction length
-# (fromisoformat and Go's RFC 3339 parser both truncate past nanoseconds),
-# and the dot only — DuckDB refuses a comma, and the note's examples use a dot.
-def test_reader_accepts_a_long_fraction():
+# Confirmed on the managed engine (shared rows 90–91): any fraction length,
+# after either ISO 8601 decimal sign. Precision is truncated, not refused.
+def test_reader_truncates_a_long_fraction():
     assert _read_iso("2026-01-10T08:00:00.123456789Z").microsecond == 123456
 
 
-def test_reader_refuses_a_comma_fraction():
-    with pytest.raises(ValueError):
-        _read_iso("2026-01-10T08:00:00,5Z")
+def test_reader_reads_a_comma_fraction():
+    assert _read_iso("2026-01-10T08:00:00,123Z").microsecond == 123000
+
+
+def test_reader_refuses_a_bare_decimal_sign():
+    for v in ("2026-01-10T08:00:00,Z", "2026-01-10T08:00:00.,5"):
+        with pytest.raises(ValueError):
+            _read_iso(v)
 
 
 def _cmp(op="gt"):

@@ -326,7 +326,7 @@ Field must be a parseable date or datetime string.
   declares no field layout.
 - **No `format`:** the value must be an ISO 8601 date or datetime — the same
   reader every date-reading rule uses (3.0.3): `YYYY-MM-DD`, optionally followed
-  by `Thh:mm:ss`, an optional fraction (`.123`), and an optional `Z` or
+  by `Thh:mm:ss`, an optional fraction of any length (`.123` or `,123`), and an optional `Z` or
   `±hh:mm`. Nothing looser: no space separator, no `20260110`, no unpadded
   `2026-1-10`, no week dates, no `T08:00`, no `+0100`, no lowercase `t`/`z`.
   Locale-ambiguous dates (`DD/MM/YYYY`) need a declared `format`.

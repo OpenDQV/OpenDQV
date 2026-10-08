@@ -9,8 +9,9 @@ All notable changes to OpenDQV are documented here.
 With no `format` declared, every rule that reads a date — `date_format`,
 `compare`, `date_diff`, `age_match` and the `min_age`/`max_age` add-on, on the
 single and batch paths — now reads exactly one surface: an ISO 8601 date
-`YYYY-MM-DD`, optionally followed by `Thh:mm:ss`, an optional fraction, and an
-optional `Z` or `±hh:mm`. This is what the docs and the `_parse_date` docstring
+`YYYY-MM-DD`, optionally followed by `Thh:mm:ss`, an optional fraction of any
+length after either ISO 8601 decimal sign (`.` or `,`), and an optional `Z` or
+`±hh:mm`. This is what the docs and the `_parse_date` docstring
 already claimed; the code did not do it.
 
 - **`date_format` now accepts** `…Z`, `…+01:00` and fractional seconds with no
@@ -44,8 +45,8 @@ already claimed; the code did not do it.
   `entry_hash` and `rules_sha256` move as a result. The 3.0.0 golden-hash pin
   (`tests/test_v3_golden_hashes.py`) names them with the reason and asserts
   that nothing else moved since 2.10.5.
-- 31 rows added to `frozen/engine_semantics.jsonl`, mirroring the managed
-  engine's rows 59–89.
+- 33 rows added to `frozen/engine_semantics.jsonl`, mirroring the managed
+  engine's rows 59–91. The managed engine replays the file identically.
 - `docs/rules/core_rules.md` § date_format was rewritten: it still listed
   `DD/MM/YYYY` and `MM/DD/YYYY` fallbacks that were removed in CRT173.
 
