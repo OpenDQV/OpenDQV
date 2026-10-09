@@ -189,7 +189,7 @@ _UNSAFE_FIELD_CHARS = re.compile(r'["\\\x00;\x01-\x08\x0b-\x1f\x7f]')
 # and Rule() refuses anything else at construction (2.8.0). A typo in `type:`
 # used to load as a disabled rule that passed everything — the silent-pass
 # class closed for `condition:` keys in 2.6.0. Honour or refuse, never drop.
-# NOTE: `min_age` / `max_age` are add-on KEYS on a `date_format` rule, not types.
+# NOTE: `min_age` / `max_age` are add-on KEYS on a `date_format` rule (or any rule), not types.
 RULE_TYPES = frozenset({
     "not_empty", "not_empty_string", "regex", "min", "max", "range",
     "min_length", "max_length", "date_format", "unique", "compare",

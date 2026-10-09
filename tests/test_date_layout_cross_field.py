@@ -307,15 +307,16 @@ rules:
     assert not [i for i in res.issues if i.code == "DATE_LAYOUT_CONFLICT"]
 
 
-def test_age_add_on_skips_an_unreadable_dob_on_both_paths():
-    # /code-review: the single path failed an unparseable dob on min_age while the
-    # batch SQL skipped it; the format rule is the catcher for shape on both paths now.
+def test_age_add_on_fails_an_unreadable_dob_on_both_paths():
+    # 3.0.4 (ruling 2026-10-09, absence skips; unreadable fails): two rules were
+    # asked to read the dob, two report — the add-on under its carrier's code.
+    # 2.8.0-3.0.3 skipped it on both paths.
     rules = parse_rules('''
 rules:
   - {name: dob_fmt, type: date_format, field: dob, format: "%d/%m/%Y", error_message: fmt}
   - {name: dob_age, type: not_empty, field: dob, min_age: 18, error_message: under 18}
 ''')
-    _both(rules, {"dob": "1990-01-01"}, ["dob_fmt"])
+    _both(rules, {"dob": "1990-01-01"}, ["dob_age", "dob_fmt"])
     _both(rules, {"dob": "01/01/1990"}, [])
 
 
