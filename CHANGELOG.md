@@ -2,7 +2,7 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [3.0.4] - Unreleased
+## [3.0.4] - 2026-10-09
 
 ### The age add-on: absence skips, unreadable fails (aligned with the managed engine)
 
