@@ -2,7 +2,7 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [3.0.3] - Unreleased
+## [3.0.3] - 2026-10-09
 
 ### One date reader (aligned with the managed engine)
 
