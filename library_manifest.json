@@ -76,7 +76,7 @@
       "file": "eu_gdpr_processing_record.yaml",
       "name": "eu_gdpr_processing_record",
       "rule_count": 31,
-      "rules_sha256": "1b722e0c86bdd7877e686435eb658b7a08ddb013c8a6ab2b89657c16ddd2fe90",
+      "rules_sha256": "61cd84a7273297d898080f5a5026c7a4b2c40579b7e4a36b9514215f48fc22b0",
       "strict_schema": false,
       "version": "0.1"
     },
@@ -116,7 +116,7 @@
       "file": "gdpr_processing_record.yaml",
       "name": "gdpr_processing_record",
       "rule_count": 29,
-      "rules_sha256": "036f000ca1f08b9f806973213a7332ee6249c638b923f9dd91150de3c9d08680",
+      "rules_sha256": "8ca3b457236de6b8a3e434f15c5cdb6a53de306116740b82994e59db5537eddf",
       "strict_schema": false,
       "version": "0.1"
     },
@@ -300,7 +300,7 @@
       "file": "technology_event.yaml",
       "name": "technology_event",
       "rule_count": 14,
-      "rules_sha256": "075e3c0ad8a5fae1663e0360f5691adc42ea9f440088730e49ab6482929264a1",
+      "rules_sha256": "14c7a4283a396d3aeb17705fb9ff3ab3a6f28dbf3b3d418f1aa347dec4a32fe5",
       "strict_schema": false,
       "version": "0.1"
     },
@@ -329,7 +329,7 @@
       "version": "0.1"
     }
   ],
-  "library_sha256": "ea9d97ddca083e765145528a21f7d68b7eb9ce72a326502043fa49d76730e558",
+  "library_sha256": "861d514b7c8b99024cd2af75b2b1118629fd7a27a9c21c6598ec7e4acbf85eae",
   "library_version": "2026.09.29.3",
   "manifest_version": 1,
   "source": {

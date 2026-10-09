@@ -111,6 +111,35 @@ _COMPARE_OPS = {
 }
 
 
+# 3.0.3: the one ISO reader (managed-engine parity). With no declared layout a
+# date is YYYY-MM-DD, optionally Thh:mm:ss, a fraction of any length after
+# either ISO 8601 decimal sign (. or ,), and Z or ±hh:mm — on
+# every rule that reads a date. fromisoformat alone also reads a space
+# separator, 20260110, week dates, T08:00 and +0100, so the shape is gated
+# first; the bounded time fields keep T24:00:00 and +24:00 out on every path.
+_ISO_DATE_RE = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}"
+    r"(?:T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:[.,][0-9]+)?"
+    r"(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])?)?"
+)
+
+
+def _read_iso(v) -> datetime:
+    """Read ``v`` as an ISO 8601 date or datetime (the surface above, white
+    space around it ignored); a day that does not exist is refused by
+    fromisoformat. UTC when the value carries no zone. Raises ValueError."""
+    s = str(v).strip()
+    if not _ISO_DATE_RE.fullmatch(s):
+        raise ValueError(f"Cannot parse date: {v!r}")
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError(f"Cannot parse date: {v!r}") from None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 def _parse_date(v, fmt: Optional[str] = None):
     """Parse a date or datetime into a timezone-aware datetime (UTC assumed
     when the value carries no zone; a bare date is midnight UTC).
@@ -128,11 +157,9 @@ def _parse_date(v, fmt: Optional[str] = None):
     fire here while it fired on the managed engine, and a timestamp with a
     zone offset (``+01:00``) or fractional seconds could not be parsed at
     all. Accepted shapes now match the managed engine's: date; datetime
-    without zone; ``Z``; ``±hh:mm``; fractional seconds with either. Because
-    this is ``datetime.fromisoformat`` (3.11+), a space-separated datetime
-    (``2026-01-10 08:00:00``) and a basic-format date (``20260110``) parse
-    too — a superset of the managed engine's layouts, harmless for parity
-    since a bundled contract's ``regex`` format rule decides the shape first.
+    without zone; ``Z``; ``±hh:mm``; fractional seconds with either. 3.0.3:
+    exactly those — :func:`_read_iso` gates ``fromisoformat``, which alone
+    also read a space-separated datetime and ``20260110``.
     """
     s = str(v).strip()
     if fmt:
@@ -143,13 +170,7 @@ def _parse_date(v, fmt: Optional[str] = None):
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
-    try:
-        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
-    except ValueError:
-        raise ValueError(f"Cannot parse date: {v!r}") from None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt
+    return _read_iso(v)
 
 
 # ── Declared date layouts (2.8.0) ───────────────────────────────────────
@@ -982,17 +1003,17 @@ def _check_date_format(value, rule: Rule, record: Optional[dict] = None) -> Opti
     # "26/04/2026" against rules whose error_message claimed "YYYY-MM-DD",
     # which is the worst kind of false-pass — the rule lied about what it
     # enforces.
-    if rule.format:
-        formats_to_try = [_human_to_strptime(rule.format)]
-    else:
-        formats_to_try = ["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S"]
-    for fmt in formats_to_try:
-        try:
-            datetime.strptime(str_val, fmt)
-            return None
-        except ValueError:
-            continue
-    return rule.error_message
+    # 3.0.3: with no format declared, the one ISO reader every date-reading
+    # rule uses (it was two strptime layouts: no Z, no offset, no fraction,
+    # and an unpadded 2026-1-10 got through).
+    try:
+        if rule.format:
+            datetime.strptime(str_val, _human_to_strptime(rule.format))
+        else:
+            _read_iso(str_val)
+    except ValueError:
+        return rule.error_message
+    return None
 
 
 def _check_unique(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
@@ -1063,12 +1084,8 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
         try:
             # 3.0.2: read as dates, padding ignored; if either is not a date
             # the string comparison below judges the text as written.
-            a = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
-            b = datetime.fromisoformat(str(other).strip().replace("Z", "+00:00"))
-            if isinstance(a, datetime) and a.tzinfo is None:
-                a = a.replace(tzinfo=timezone.utc)
-            if isinstance(b, datetime) and b.tzinfo is None:
-                b = b.replace(tzinfo=timezone.utc)
+            a = _read_iso(value)
+            b = _read_iso(other)
         except (ValueError, AttributeError):
             if getattr(rule, 'algorithm', None) == 'semver':
                 try:
@@ -1367,8 +1384,9 @@ def _check_age_match(value, rule: Rule, record: Optional[dict] = None) -> Option
         return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: absent/blank counterpart → the rule fails (both engines)
     try:
         declared = int(float(value))
-        # 2.8.0: the dob field's declared layout; ISO date when undeclared.
-        dob = _parse_date(dob_val, _layouts_for(rule)[1] or "%Y-%m-%d")
+        # 2.8.0: the dob field's declared layout; 3.0.3: the ISO reader when
+        # undeclared (was the bare %Y-%m-%d, so a Z date of birth failed).
+        dob = _parse_date(dob_val, _layouts_for(rule)[1])
         today = datetime.now(timezone.utc)
         computed = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
         tol = rule.age_tolerance if rule.age_tolerance is not None else 0
@@ -1746,10 +1764,11 @@ def _load_http_lookup_set(url: str, lookup_field: str, cache_ttl: int, auth_head
 def _age_layout(rule: Rule) -> str:
     """Layout for the min_age/max_age add-on: the rule's own ``format`` (a
     ``date_format`` rule), else the field's declared layout (the add-on on any
-    other rule type), else the ISO date (2.8.0)."""
+    other rule type), else None: the ISO reader (2.8.0; 3.0.3 — was the bare
+    ``%Y-%m-%d``, so a ``Z`` date of birth was silently skipped)."""
     if rule.format:
         return _human_to_strptime(rule.format)
-    return _layouts_for(rule)[0] or "%Y-%m-%d"
+    return _layouts_for(rule)[0]
 
 
 def _check_age(value, rule: Rule) -> Optional[str]:
@@ -2203,37 +2222,38 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
         # declared format strictly; default to ISO 8601 (date or datetime)
         # when no format is declared. Do NOT use TRY_CAST AS DATE — it
         # accepts locale-ambiguous formats like DD/MM/YYYY.
-        params: dict = {}
-        if rule.format:
-            # CRT178 #9: the format string used to be f-strung into the query;
-            # a quote in a caller-supplied `format` was SQL injection into an
-            # engine with filesystem reach. Bind it instead.
-            params["fmt"] = _human_to_strptime(rule.format)
-            fmt_clause = f"TRY_STRPTIME(CAST(\"{field}\" AS VARCHAR), $fmt) IS NULL"
-        else:
-            fmt_clause = (
-                f"TRY_STRPTIME(CAST(\"{field}\" AS VARCHAR), '%Y-%m-%d') IS NULL "
-                f"AND TRY_STRPTIME(CAST(\"{field}\" AS VARCHAR), '%Y-%m-%dT%H:%M:%S') IS NULL"
-            )
-        query = f"""
-            SELECT __idx__ FROM data
-            WHERE "{field}" IS NOT NULL
-              AND TRIM(CAST("{field}" AS VARCHAR)) != ''
-              AND ({fmt_clause})
-        """
-        try:
-            for r in con.execute(query, params).fetchall():
-                failing.add(r[0])
-        except duckdb.Error:
-            # A strptime directive Python accepts but DuckDB does not (e.g.
-            # %e): evaluate per record with the single-path handler so the
-            # two paths cannot diverge (2.8.0, Sonnet red-team).
-            logger.info("date_format: DuckDB rejected layout %r for rule '%s'; evaluating per record",
-                        params.get("fmt"), rule.name)
+        def _per_record() -> None:
             for idx in range(len(df)):
                 raw = records[idx].get(field) if records is not None else df[field].iloc[idx]
                 if not _batch_absent(raw) and _check_date_format(raw, rule):
                     failing.add(idx)
+
+        if not rule.format:
+            # 3.0.3: no DuckDB cast reads exactly the ISO surface (TIMESTAMPTZ
+            # takes a space separator, +0100, 2026-1-10, T24:00:00), so the
+            # undeclared case uses the single path's reader per record.
+            _per_record()
+        else:
+            # CRT178 #9: the format string used to be f-strung into the query;
+            # a quote in a caller-supplied `format` was SQL injection into an
+            # engine with filesystem reach. Bind it instead.
+            params = {"fmt": _human_to_strptime(rule.format)}
+            query = f"""
+                SELECT __idx__ FROM data
+                WHERE "{field}" IS NOT NULL
+                  AND TRIM(CAST("{field}" AS VARCHAR)) != ''
+                  AND TRY_STRPTIME(CAST("{field}" AS VARCHAR), $fmt) IS NULL
+            """
+            try:
+                for r in con.execute(query, params).fetchall():
+                    failing.add(r[0])
+            except duckdb.Error:
+                # A strptime directive Python accepts but DuckDB does not (e.g.
+                # %e): evaluate per record with the single-path handler so the
+                # two paths cannot diverge (2.8.0, Sonnet red-team).
+                logger.info("date_format: DuckDB rejected layout %r for rule '%s'; evaluating per record",
+                            params["fmt"], rule.name)
+                _per_record()
 
     elif rule.type == "unique":
         if rule.group_by:
@@ -2342,13 +2362,8 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                         a, b = float(a_raw), float(b_raw)
                     except (TypeError, ValueError):
                         try:
-                            a = datetime.fromisoformat(str(a_raw).strip().replace("Z", "+00:00"))
-                            b = datetime.fromisoformat(str(b_raw).strip().replace("Z", "+00:00"))
-                            # Normalise: treat naive datetimes as UTC before comparison
-                            if isinstance(a, datetime) and a.tzinfo is None:
-                                a = a.replace(tzinfo=timezone.utc)
-                            if isinstance(b, datetime) and b.tzinfo is None:
-                                b = b.replace(tzinfo=timezone.utc)
+                            a = _read_iso(a_raw)
+                            b = _read_iso(b_raw)
                         except (ValueError, AttributeError):
                             a, b = str(a_raw), str(b_raw)
                     if not op_fn(a, b):
@@ -2598,14 +2613,21 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
     # as a date. Only present + parseable rows are evaluated against the age bounds.
     if rule.min_age is not None or rule.max_age is not None:
         # 2.8.0: parse with the declared layout (bound parameter, SEC-004/#9),
-        # exactly as the single path's _age_layout; ISO date when undeclared.
+        # exactly as the single path's _age_layout. 3.0.3: undeclared → the
+        # ISO reader, per record (TRY_CAST AS DATE took a space separator and
+        # 2026-1-10, and read the date out of T24:00:00 or a bare 2026-01-10Z).
         age_fmt = _age_layout(rule)
-        if age_fmt == "%Y-%m-%d":
-            date_expr = f'TRY_CAST("{field}" AS DATE)'
-            age_params: dict = {}
-        else:
-            date_expr = f'CAST(TRY_STRPTIME(CAST("{field}" AS VARCHAR), $agefmt) AS DATE)'
-            age_params = {"agefmt": age_fmt}
+
+        def _age_per_record() -> None:
+            for idx in range(len(df)):
+                raw = records[idx].get(field) if records is not None else df[field].iloc[idx]
+                if _batch_absent(raw):
+                    continue
+                if _check_age(raw, rule):
+                    failing.add(idx)
+
+        date_expr = f'CAST(TRY_STRPTIME(CAST("{field}" AS VARCHAR), $agefmt) AS DATE)'
+        age_params: dict = {"agefmt": age_fmt}
         age_conditions = []
         age_expr = ("DATE_DIFF('year', __d__, CURRENT_DATE) "
                     "- CASE WHEN (MONTH(CURRENT_DATE), DAY(CURRENT_DATE)) < (MONTH(__d__), DAY(__d__)) THEN 1 ELSE 0 END")
@@ -2613,7 +2635,9 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
             age_conditions.append(f'{age_expr} < {rule.min_age}')
         if rule.max_age is not None:
             age_conditions.append(f'{age_expr} > {rule.max_age}')
-        if age_conditions:
+        if age_fmt is None:
+            _age_per_record()
+        elif age_conditions:
             # the layout is parsed once per row in the subquery (was up to 7×)
             age_query = (
                 f'SELECT __idx__ FROM (SELECT __idx__, {date_expr} AS __d__ FROM data '
@@ -2629,11 +2653,6 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                 # path's _check_age so the two paths cannot diverge.
                 logger.info("age check: DuckDB rejected layout %r for rule '%s'; evaluating per record",
                             age_fmt, rule.name)
-                for idx in range(len(df)):
-                    raw = records[idx].get(field) if records is not None else df[field].iloc[idx]
-                    if _batch_absent(raw):
-                        continue
-                    if _check_age(raw, rule):
-                        failing.add(idx)
+                _age_per_record()
 
     return failing

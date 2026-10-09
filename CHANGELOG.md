@@ -2,6 +2,56 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [3.0.3] - 2026-10-09
+
+### One date reader (aligned with the managed engine)
+
+With no `format` declared, every rule that reads a date — `date_format`,
+`compare`, `date_diff`, `age_match` and the `min_age`/`max_age` add-on, on the
+single and batch paths — now reads exactly one surface: an ISO 8601 date
+`YYYY-MM-DD`, optionally followed by `Thh:mm:ss`, an optional fraction of any
+length after either ISO 8601 decimal sign (`.` or `,`), and an optional `Z` or
+`±hh:mm`. This is what the docs and the `_parse_date` docstring
+already claimed; the code did not do it.
+
+- **`date_format` now accepts** `…Z`, `…+01:00` and fractional seconds with no
+  `format` declared. It used to accept only `YYYY-MM-DD` and a naive
+  `YYYY-MM-DDThh:mm:ss`, while `date_diff` and `compare` on the same contract
+  read all of them.
+- **Tightened — now refused where it used to be read as a date:**
+  - an unpadded `2026-1-10` by `date_format` (`strptime` let it through);
+  - a space-separated datetime (`2026-01-10 08:00:00`), a basic-format
+    `20260110`, a week date, `T08:00` without seconds, and a colon-less
+    `+0100` offset, by `compare` and `date_diff` (`fromisoformat` alone read
+    them). A `compare` whose operands are not both dates compares them as text,
+    as before; a `date_diff` fails on an unreadable operand, as before.
+  - `T24:00:00`, second `60` and a `+24:00` offset, on every path.
+  - None of the bundled contracts' corpus records carries these shapes: replay
+    against v3.0.2 shows 0 flips.
+- **Age rules with no declared layout** read the ISO surface too. A `Z` date of
+  birth used to fail `age_match` and be skipped by `min_age`/`max_age` on the
+  single path, while the batch path's `TRY_CAST AS DATE` judged it.
+- **Batch:** with no `format`, `date_format` and the age add-on are evaluated
+  per record with the single path's reader. No DuckDB cast reads exactly this
+  surface: `TIMESTAMPTZ` accepts a space separator, `+0100`, `2026-1-10` and
+  `T24:00:00`.
+- A declared `format` is unchanged: the only shape, with no ISO fallback.
+- **Library:** the three format-less timestamp rules now say "must be an ISO
+  8601 date or datetime (e.g. 2026-01-10 or 2026-01-10T08:00:00Z)":
+  `consent_timestamp` in `gdpr_processing_record` and
+  `eu_gdpr_processing_record`, and `event_timestamp` in `technology_event`.
+  Only `error_message` changed; `library_sha256` is `861d514b…`, matching the
+  managed engine's export. These three contracts' `content_hash`,
+  `entry_hash` and `rules_sha256` move as a result. The 3.0.0 golden-hash pin
+  (`tests/test_v3_golden_hashes.py`) names them with the reason and asserts
+  that nothing else moved since 2.10.5.
+- 33 rows added to `frozen/engine_semantics.jsonl`, mirroring the managed
+  engine's rows 59–91. The managed engine replays the file identically.
+- `docs/rules/core_rules.md` § date_format was rewritten: it still listed
+  `DD/MM/YYYY` and `MM/DD/YYYY` fallbacks that were removed in CRT173.
+
+---
+
 ## [3.0.2] - 2026-10-08
 
 ### Dates ignore the white space around them (aligned with the managed engine)
