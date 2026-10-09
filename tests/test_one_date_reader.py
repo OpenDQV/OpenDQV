@@ -96,11 +96,13 @@ def test_max_age_judges_a_z_date_of_birth_on_both_paths():
         assert _codes(out) == ["OPENDQV_DATE_FORMAT_DOB"]
 
 
-def test_min_age_skips_a_space_separated_date_of_birth_on_both_paths():
-    # Unreadable as a date: date_format is the catcher, the add-on skips (2.8.0).
+def test_min_age_fails_a_space_separated_date_of_birth_on_both_paths():
+    # Unreadable as a date: the add-on fails under its carrier's code (3.0.4;
+    # 2.8.0-3.0.3 skipped it).
     rules = [Rule(name="dob", type="not_empty", field="dob", min_age=18, error_message="bad")]
     for out in _both({"dob": "2024-01-10 00:00:00"}, rules):
-        assert out["valid"] is True
+        assert out["valid"] is False
+        assert _codes(out) == ["OPENDQV_NOT_EMPTY_DOB"]
 
 
 def test_batch_date_format_matches_single_on_a_mixed_batch():

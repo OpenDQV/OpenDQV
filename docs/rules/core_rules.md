@@ -335,7 +335,12 @@ Absent/blank values pass (D6) — add `not_empty` for presence.
 
 `min_age` / `max_age` may be added to a `date_format` rule (or any rule) as an
 add-on check on the age implied by the parsed date; they are keys, not rule
-types.
+types. They read the value with the carrying rule's own `format`, else the
+field's declared layout, else the ISO surface above. **Absence skips;
+unreadable fails** (3.0.4): an absent or blank value is skipped, while a
+present value they cannot read as a date fails under the carrying rule's code
+and message — even beside a `date_format` rule that also reports it. On a
+conditional rule the add-on applies only where the rule's condition is met.
 
 **Custom format example:**
 

@@ -58,7 +58,7 @@ _UNIQUE_SCOPE_HINT_WORDS = frozenset({
 
 # 2.8.0: derived from the model's closed set (issue #163) — the linter and the
 # engine can no longer disagree about what a rule type is. `min_age`/`max_age`
-# are add-on keys on `date_format`, not types.
+# are add-on keys on a `date_format` rule (or any rule), not types.
 _KNOWN_RULE_TYPES = RULE_TYPES
 
 # Rule types for which an empty string counts as "absent" (validator._is_field_absent):
@@ -418,7 +418,7 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
 
         # Unknown rule type
         if rule_type not in _KNOWN_RULE_TYPES:
-            hint = (f" ('{rule_type}' is a key on a `date_format` rule, not a rule type)"
+            hint = (f" ('{rule_type}' is a key on a `date_format` rule (or any rule), not a rule type)"
                     if rule_type in ("min_age", "max_age") else "")
             err("UNKNOWN_RULE_TYPE",
                 f"Unknown rule type '{rule_type}'{hint}. Known types: {sorted(_KNOWN_RULE_TYPES)}")

@@ -395,7 +395,8 @@ def validate_record(
             value = record.get(rule.field)
             try:
                 failure = _check_rule(value, rule, record)
-                if not failure and rule.cached_has_age_constraint:
+                if (not failure and rule.cached_has_age_constraint
+                        and (not rule.cached_has_condition or _check_condition(rule, record))):
                     failure = _check_age(value, rule)
             except Exception:
                 # Fail closed. An unexpected error inside a checker must never
@@ -1775,11 +1776,12 @@ def _check_age(value, rule: Rule) -> Optional[str]:
     """Check min_age/max_age constraints. Runs after the type check passes.
 
     CRT170/J3: skip when field is absent — the not_empty/required_if rules
-    are the catcher for absence. 2.8.0: skip when the value cannot be read
-    as a date, as the batch SQL always did (``date_expr IS NOT NULL``) — the
-    field's format rule is the catcher for shape; the add-on judges age only
-    when it can read one. The single path used to fail here, so the two
-    paths disagreed on every unparseable dob."""
+    are the catcher for absence. 3.0.4 (ruling 2026-10-09, absence skips;
+    unreadable fails): a present value the add-on cannot read as a date
+    fails under the carrying rule's code, on any carrying rule — as every
+    other date reader already does. This reverses 2.8.0, which skipped it
+    to match the batch SQL's ``__d__ IS NOT NULL``. The caller scopes the
+    add-on by the rule's condition."""
     if rule.min_age is None and rule.max_age is None:
         return None
     if _is_field_absent(value):
@@ -1793,7 +1795,7 @@ def _check_age(value, rule: Rule) -> Optional[str]:
         if rule.max_age is not None and age > rule.max_age:
             return rule.error_message
     except (ValueError, TypeError):
-        return None  # unreadable as a date: the format rule's job, not the add-on's
+        return rule.error_message  # present but unreadable: it was asked to read a date
     return None
 
 
@@ -2609,8 +2611,8 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
                 failing.add(idx)
 
     # Age checks — apply to any rule with min_age/max_age (typically date fields).
-    # CRT170/J3: skip when field is absent (not_empty is the catcher) or unparseable
-    # as a date. Only present + parseable rows are evaluated against the age bounds.
+    # CRT170/J3: skip when field is absent (not_empty is the catcher). 3.0.4: a
+    # present value unreadable as a date fails, as on the single path.
     if rule.min_age is not None or rule.max_age is not None:
         # 2.8.0: parse with the declared layout (bound parameter, SEC-004/#9),
         # exactly as the single path's _age_layout. 3.0.3: undeclared → the
@@ -2642,7 +2644,7 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
             age_query = (
                 f'SELECT __idx__ FROM (SELECT __idx__, {date_expr} AS __d__ FROM data '
                 f'WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != \'\') '
-                f"WHERE __d__ IS NOT NULL AND ({' OR '.join(age_conditions)})"
+                f"WHERE __d__ IS NULL OR ({' OR '.join(age_conditions)})"
             )
             try:
                 for r in con.execute(age_query, age_params).fetchall():

@@ -2,6 +2,48 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [3.0.4] - 2026-10-09
+
+### The age add-on: absence skips, unreadable fails (aligned with the managed engine)
+
+A value that is there but cannot be read fails every rule and add-on asked to
+read it; only a presence rule reports absence. `min_age` / `max_age` now
+follow this on any carrying rule, on both paths. This reverses the 2.8.0
+change that made the add-on **skip** a value it could not read as a date. That
+change copied the batch SQL's `__d__ IS NOT NULL` for single/batch parity; it
+was never a product decision. Every other date reader (`date_diff`, a
+layout-declared `compare`, `age_match`, `min`/`max`/`range`) already failed on
+an unreadable value.
+
+- **Now fails:** a present value the add-on cannot read, under the carrying
+  rule's code and message. The add-on reads with the rule's own `format`, else
+  the field's declared layout, else the ISO surface (3.0.3). Example: a
+  `not_empty` dob with `min_age: 18` and `"not a date"`, the number
+  `19900101`, or `2024-01-10 00:00:00`. Beside a `date_format` rule that also
+  cannot read it, both report (as `date_diff` beside a `date_format` already
+  did).
+- **Unchanged:** an absent or blank value is skipped (D6). A `date_format`
+  carrier still fails first under its own check, so its add-on adds nothing
+  new. Neither bundled contract with an age add-on is affected: both carry it
+  on a `date_format` rule that declares its format.
+- **Fixed — a conditional carrier's add-on honours the condition on the single
+  path.** It ran whenever the rule itself returned no failure, and "condition
+  not met" also returns none. So an inapplicable `date_format` rule's
+  `min_age` still judged the value: an under-age dob failed on the single path
+  and passed on batch. Batch already scoped it.
+- **Batch:** the age SQL now selects `__d__ IS NULL OR (…)` (present rows only,
+  as before). The per-record paths call the single path's `_check_age`.
+- 8 rows added to `frozen/engine_semantics.jsonl`, mirroring the managed
+  engine's rows 92–99 (66 rows). On v3.0.3, rows 92, 93, 94 and 96 fail on both
+  paths and row 98 on the single path; without the condition fix, rows 98–99
+  and the 3.0.3 `min_age` rows (managed 49–50) fail on the single path.
+- Docs: `min_age` / `max_age` are keys on a `date_format` rule **or any rule**
+  (`README.md`, `CLAUDE.md`, the `RULE_TYPES` note and the unknown-type hint in
+  `Rule()` and the linter said `date_format` only);
+  `docs/rules/core_rules.md` states the ruling.
+
+---
+
 ## [3.0.3] - 2026-10-09
 
 ### One date reader (aligned with the managed engine)
