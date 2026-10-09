@@ -38,7 +38,8 @@ an unreadable value.
   paths and row 98 on the single path; without the condition fix, rows 98–99
   and the 3.0.3 `min_age` rows (managed 49–50) fail on the single path.
 - Docs: `min_age` / `max_age` are keys on a `date_format` rule **or any rule**
-  (`README.md` and the `RULE_TYPES` note said `date_format` only);
+  (`README.md`, `CLAUDE.md`, the `RULE_TYPES` note and the unknown-type hint in
+  `Rule()` and the linter said `date_format` only);
   `docs/rules/core_rules.md` states the ruling.
 
 ---

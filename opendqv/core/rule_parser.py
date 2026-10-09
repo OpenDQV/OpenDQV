@@ -395,7 +395,7 @@ class Rule(BaseModel):
         if self.type not in RULE_TYPES:
             hint = ""
             if self.type in ("min_age", "max_age"):
-                hint = f" ('{self.type}' is a key on a `date_format` rule, not a rule type)"
+                hint = f" ('{self.type}' is a key on a `date_format` rule (or any rule), not a rule type)"
             raise ValueError(
                 f"Rule '{self.name}': unknown rule type '{self.type}'{hint}. "
                 f"Known types: {', '.join(sorted(RULE_TYPES))}."

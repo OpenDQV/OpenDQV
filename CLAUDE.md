@@ -110,7 +110,7 @@ python -m opendqv.cli validate customer '{"name":"Alice","age":30}'
 - Import endpoints (`opendqv/api/routes_imports.py`) MUST use `str(config.CONTRACTS_DIR)` — never hardcode `os.path.dirname(__file__)`
 
 ### Rule conditions
-- `RULE_TYPES` in `core/rule_parser.py` is the closed set of rule types; `Rule()` refuses anything else at construction, `_RULE_HANDLERS` must equal it (asserted at import), the linter reads it. `min_age`/`max_age` are keys on `date_format`, not types (v2.8.0).
+- `RULE_TYPES` in `core/rule_parser.py` is the closed set of rule types; `Rule()` refuses anything else at construction, `_RULE_HANDLERS` must equal it (asserted at import), the linter reads it. `min_age`/`max_age` are keys on a `date_format` rule (or any rule), not types (v2.8.0); a present value they cannot read fails (3.0.4).
 - `condition:` vocabulary is closed: `field`, `value`, `not_value`, `present` (bool). Unknown keys are a load error (v2.6.0).
 - D10: a cross-field rule fails when its counterpart is absent/blank on both paths; the error entry carries `counterpart_missing: true`. Use `condition: {field: <counterpart>, present: true}` for "compare only when both present".
 - `tests/fixtures/conformance/frozen/minimal_clean.jsonl` is frozen by hand, never regenerated; `scripts/replay_previous_corpus.py` fails the suite when a record the previous release accepted is now rejected.
