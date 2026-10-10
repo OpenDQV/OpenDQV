@@ -36,8 +36,9 @@ This is useful for enforcing business rules such as:
 ## Behaviour
 
 - The rule fails if the target `field` is present and non-empty AND the condition `field` equals the condition `value`.
-- "Absent" means the field is `null`, an empty string `""`, or not present in the record at all.
+- "Absent" means the field is `null`, a blank (empty or white-space-only) string, an empty `[]` or `{}`, or not present in the record at all.
 - If the condition is not met (the controlling field does not equal the specified value), the rule passes regardless of whether the target field is present.
+- The trigger is matched as text as written, through the one text rendering (3.0.5, both engines): `value: "true"` matches the JSON boolean `true`, `12` matches `12.0`; a missing or `null` controlling field, or a list or object, never matches; no trimming. `equals:` instead of `value:`, a map without `value`, and `value: null` are refused when a contract is submitted.
 
 ## Use cases by industry
 

@@ -205,14 +205,14 @@ The `customer` contract ships pre-seeded if you want to skip step 1. The [quicks
 | `min` / `max` / `range` | Numeric bounds |
 | `min_length` / `max_length` | String length |
 | `min_age` / `max_age` | Keys on a `date_format` rule (or any rule), not rule types: age derived from the date within bounds; a present value that cannot be read as a date fails |
-| `date_format` | Parseable date/datetime. Falls back through common formats if no explicit format is set |
+| `date_format` | ISO 8601 date/datetime, or exactly the declared fixed-width `format` (`%d/%m/%Y`, `DD/MM/YYYY`) |
 | `allowed_values` | Value must be in a fixed list |
 | `forbidden_values` | Value must not be in a fixed list — placeholder junk (`N/A`, `test@test.com`) |
 | `lookup` | Value must appear in a local file or HTTP endpoint (with TTL cache) |
-| `compare` | Cross-field: `field` op `compare_to` — supports `gt`, `lt`, `gte`, `lte`, `eq`, `neq`, and `today`/`now` sentinels |
+| `compare` | Cross-field: `field` op `compare_to` — supports `gt`, `lt`, `gte`, `lte`, `eq`, `neq`, `same_date`, and `today`/`now` sentinels |
 | `required_if` / `forbidden_if` | Conditional: required or forbidden when another field equals a value |
 | `conditional_value` | Field must hold a given value when another field holds a given value |
-| `checksum` | Check-digit integrity: IBAN, GTIN/GS1, NHS, ISIN, LEI, VIN, CPF, ISRC |
+| `checksum` | Check-digit integrity: IBAN, GTIN/GS1, NHS, ISIN, LEI, VIN, CPF, Luhn, FIGI, Verhoeff (ISRC: structural check) |
 | `unique` | No duplicates within a batch (batch mode only) |
 | `cross_field_range` | Value must be between two other fields in the same record |
 | `field_sum` | Sum of named fields must equal a target (within optional tolerance) |
@@ -304,7 +304,7 @@ OpenDQV is in Beta as of 2.0.0. The following stability commitments apply to the
 
 - **Presence is explicit.** A format rule (`regex`, `min`, `max_length`, `date_format`, …)
   never implies that a field must exist — add `not_empty` / `not_empty_string` when it must.
-  Every non-presence rule treats a missing, `null`, or blank value as absent and passes.
+  Every non-presence rule treats a missing, `null`, or blank value (or an empty `[]` / `{}`) as absent and passes.
   A cross-field rule (`compare`, `field_sum`, `ratio_check`, `date_diff`, …) whose
   counterpart is absent or blank **fails**, and the error entry carries
   `counterpart_missing: true`. See [`docs/contract_conformance.md`](docs/contract_conformance.md).

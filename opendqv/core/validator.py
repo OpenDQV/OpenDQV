@@ -111,6 +111,17 @@ _COMPARE_OPS = {
 }
 
 
+# 3.0.5: white space is Unicode White_Space. Python's str.strip()/isspace()
+# also take U+001C-U+001F (information separators), which are not white space
+# on either engine — "\u001c" is a present value. Used wherever absence or
+# padding is decided.
+_WS_CHARS = "".join(c for c in map(chr, range(0x3001)) if c.isspace() and c not in "\x1c\x1d\x1e\x1f")
+
+
+def _ws_strip(s: str) -> str:
+    return s.strip(_WS_CHARS)
+
+
 # 3.0.3: the one ISO reader (managed-engine parity). With no declared layout a
 # date is YYYY-MM-DD, optionally Thh:mm:ss, a fraction of any length after
 # either ISO 8601 decimal sign (. or ,), and Z or ±hh:mm — on
@@ -128,7 +139,7 @@ def _read_iso(v) -> datetime:
     """Read ``v`` as an ISO 8601 date or datetime (the surface above, white
     space around it ignored); a day that does not exist is refused by
     fromisoformat. UTC when the value carries no zone. Raises ValueError."""
-    s = str(v).strip()
+    s = _ws_strip(str(v))
     if not _ISO_DATE_RE.fullmatch(s):
         raise ValueError(f"Cannot parse date: {v!r}")
     try:
@@ -138,6 +149,86 @@ def _read_iso(v) -> datetime:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+# 3.0.5 (both engines): a declared format reads exactly one shape. Every
+# directive is fixed width — %Y four digits; %y %m %d %H %M %S two; %f one to
+# six after the format's own "." or "," — and every other character of the
+# format is itself, exactly once (one space is one space, a tab is not a
+# space, case counts). The value (white space around it ignored) must match
+# that shape in full; the calendar is then checked (no 31 February, years
+# 0001-9999). strptime alone reads 1/02/2026 for %d/%m/%Y, treats a space as
+# any run of white space, and raises a regex error on a repeated directive.
+_LAYOUT_DIRECTIVES = {
+    "Y": ("[0-9]{4}", "year"), "y": ("[0-9]{2}", "year2"), "m": ("[0-9]{2}", "month"),
+    "d": ("[0-9]{2}", "day"), "H": ("[0-9]{2}", "hour"), "M": ("[0-9]{2}", "minute"),
+    "S": ("[0-9]{2}", "second"), "f": ("[0-9]{1,6}", "micro"),
+}
+# Two Go layouts a managed-engine dashboard once wrote into contracts. Refused
+# when a contract is submitted; stored content reads them as aliases.
+_GO_DATE_LAYOUT = "2006-01-02"
+_GO_RFC3339_LAYOUT = "2006-01-02T15:04:05Z07:00"
+_RFC3339_RE = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]"
+    r"(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])"
+)
+
+
+@lru_cache(maxsize=512)
+def _layout_gate(fmt: str):
+    """(compiled shape, directive keys) for a strptime-style layout, or None
+    when the layout uses something outside the supported set (an unknown
+    directive, %f not after "." or ",", white space around it) — refused when
+    a contract is submitted; stored content keeps its old strptime reading."""
+    if fmt != _ws_strip(fmt):
+        return None
+    parts: list[str] = []
+    keys: list[str] = []
+    i = 0
+    while i < len(fmt):
+        c = fmt[i]
+        if c != "%":
+            parts.append(re.escape(c))
+            i += 1
+            continue
+        d = fmt[i + 1] if i + 1 < len(fmt) else ""
+        if d == "%":
+            parts.append("%")
+        elif d in _LAYOUT_DIRECTIVES and (d != "f" or (i > 0 and fmt[i - 1] in ".,")):
+            pat, key = _LAYOUT_DIRECTIVES[d]
+            parts.append(f"({pat})")
+            keys.append(key)
+        else:
+            return None
+        i += 2
+    return re.compile("".join(parts)), tuple(keys)
+
+
+def _read_layout(s: str, fmt: str) -> datetime:
+    """Read ``s`` (already trimmed) in the declared layout ``fmt`` (strptime
+    spelling, from _human_to_strptime). Naive; raises ValueError."""
+    if fmt == _GO_RFC3339_LAYOUT:
+        if not _RFC3339_RE.fullmatch(s):
+            raise ValueError("not an RFC 3339 timestamp")
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    gate = _layout_gate(fmt)
+    if gate is None:
+        return datetime.strptime(s, fmt)   # stored content: the old reading
+    shape, keys = gate
+    m = shape.fullmatch(s)
+    if not m:
+        raise ValueError("not in the declared layout")
+    got = dict(zip(keys, m.groups()))   # a repeated directive: the last occurrence
+    if "year" in got:
+        year = int(got["year"])
+    elif "year2" in got:
+        yy = int(got["year2"])
+        year = 1900 + yy if yy >= 69 else 2000 + yy   # strptime's %y pivot
+    else:
+        year = 1900   # a layout without a year (strptime's default)
+    return datetime(year, int(got.get("month", 1)), int(got.get("day", 1)),
+                    int(got.get("hour", 0)), int(got.get("minute", 0)), int(got.get("second", 0)),
+                    int(got["micro"].ljust(6, "0")) if "micro" in got else 0)
 
 
 def _parse_date(v, fmt: Optional[str] = None):
@@ -161,10 +252,10 @@ def _parse_date(v, fmt: Optional[str] = None):
     exactly those — :func:`_read_iso` gates ``fromisoformat``, which alone
     also read a space-separated datetime and ``20260110``.
     """
-    s = str(v).strip()
+    s = _ws_strip(str(v))
     if fmt:
         try:
-            dt = datetime.strptime(s, fmt)
+            dt = _read_layout(s, fmt)
         except ValueError:
             raise ValueError(f"Cannot parse date {v!r} with declared layout {fmt!r}") from None
         if dt.tzinfo is None:
@@ -412,7 +503,7 @@ def validate_record(
                 errors.append(FieldError(
                     field=rule.field,
                     rule=rule.name,
-                    message="Rule could not be evaluated; record rejected (fail-closed).",
+                    message=_RULE_ERROR_MESSAGE,
                     severity=Severity.ERROR.value,
                     error_code="OPENDQV_RULE_ERROR",
                 ).to_dict())
@@ -492,12 +583,36 @@ def _check_condition(rule: Rule, record: Optional[dict]) -> bool:
     if "present" in rule.condition:
         if (not _is_field_absent(raw)) != bool(rule.condition["present"]):
             return False
-    actual = str(raw if raw is not None else "")
     if "value" in rule.condition:
-        return actual == str(rule.condition["value"])
+        return _text_matches(raw, rule.condition["value"])
     if "not_value" in rule.condition:
-        return actual != str(rule.condition["not_value"])
+        return not _text_matches(raw, rule.condition["not_value"])
     return True
+
+
+def _text_matches(raw, want) -> bool:
+    """Does a record value match a condition / trigger value? 3.0.5 (both
+    engines): text as written, through the one rendering — a missing or null
+    field, or a list or object (empty or not), matches no value; "" matches
+    ``""`` only; no trimming (``present:`` alone reads absence). A null
+    ``want`` is refused when a contract is submitted; stored content keeps its
+    old reading (the text "None", a missing field reading as "")."""
+    if want is None:
+        return str(raw if raw is not None else "") == "None"
+    if raw is None or isinstance(raw, (list, dict)):
+        return False
+    return _render_value(raw) == _render_value(want)
+
+
+def _trigger_matches(trigger: dict, record: Optional[dict]) -> bool:
+    """required_if / forbidden_if trigger map. A map without ``value`` is
+    refused when a contract is submitted (3.0.5); stored content keeps its old
+    reading, where a missing ``value`` was "" and a missing field read as ""."""
+    raw = (record or {}).get(trigger.get("field"))
+    if trigger.get("value") is None:
+        # the pre-3.0.5 reading, kept for stored content only
+        return str((record or {}).get(trigger.get("field"), "")) == str(trigger.get("value", ""))
+    return _text_matches(raw, trigger["value"])
 
 
 def _is_ascii_digits(s: str) -> bool:
@@ -512,9 +627,80 @@ def _is_ascii_digits(s: str) -> bool:
     return s.isascii() and s.isdigit()
 
 
+# The supported checksum algorithms (3.0.5: the managed engine's eleven).
+CHECKSUM_ALGORITHMS = (
+    "mod10_gs1", "iban_mod97", "isin_luhn", "lei_mod97", "vin_mod11", "isrc_luhn",
+    "cpf_mod11", "nhs_mod11", "luhn", "figi_luhn", "verhoeff",
+)
+_VERHOEFF_D = (
+    (0, 1, 2, 3, 4, 5, 6, 7, 8, 9), (1, 2, 3, 4, 0, 6, 7, 8, 9, 5), (2, 3, 4, 0, 1, 7, 8, 9, 5, 6),
+    (3, 4, 0, 1, 2, 8, 9, 5, 6, 7), (4, 0, 1, 2, 3, 9, 5, 6, 7, 8), (5, 9, 8, 7, 6, 0, 4, 3, 2, 1),
+    (6, 5, 9, 8, 7, 1, 0, 4, 3, 2), (7, 6, 5, 9, 8, 2, 1, 0, 4, 3), (8, 7, 6, 5, 9, 3, 2, 1, 0, 4),
+    (9, 8, 7, 6, 5, 4, 3, 2, 1, 0),
+)
+_VERHOEFF_P = (
+    (0, 1, 2, 3, 4, 5, 6, 7, 8, 9), (1, 5, 7, 6, 2, 8, 3, 0, 9, 4), (5, 8, 0, 3, 7, 9, 6, 1, 4, 2),
+    (8, 9, 1, 6, 0, 4, 3, 5, 2, 7), (9, 4, 5, 3, 1, 2, 6, 8, 7, 0), (4, 2, 8, 6, 5, 7, 3, 9, 0, 1),
+    (2, 7, 9, 3, 8, 0, 6, 4, 1, 5), (7, 0, 4, 6, 9, 1, 3, 2, 5, 8),
+)
+
+
+def _luhn_sum(digits: str) -> int:
+    total = 0
+    for i, d in enumerate(reversed(digits)):
+        n = int(d)
+        if i % 2 == 1:
+            n *= 2
+            if n > 9:
+                n -= 9
+        total += n
+    return total
+
+
 def _validate_checksum(value: str, algorithm: str) -> bool:
     """Validate identifier check digits. Returns True if checksum is valid."""
-    s = str(value).strip().upper()
+    if algorithm not in CHECKSUM_ALGORITHMS:
+        # v2.3.25 (Pilot 2026-04-29): an unknown algorithm fails closed —
+        # a typo'd key used to pass every record with only a log warning.
+        logger.warning(
+            "Unknown checksum algorithm '%s' — rule fails closed. "
+            "Check the contract YAML for typos in checksum_algorithm "
+            "(supported: %s).",
+            algorithm, ", ".join(CHECKSUM_ALGORITHMS),
+        )
+        return False
+    s = _ws_strip(str(value)).upper()
+    if len(s) < 2:
+        return False   # 3.0.5: no check digit to check (e.g. "0")
+
+    if algorithm == "luhn":
+        # ISO/IEC 7812 Luhn mod-10 over the whole digit string (payment cards etc.)
+        if not _is_ascii_digits(s):
+            return False
+        return _luhn_sum(s) % 10 == 0
+
+    if algorithm == "verhoeff":
+        # Verhoeff dihedral-group check (e.g. Aadhaar); the last digit is the check
+        if not _is_ascii_digits(s):
+            return False
+        c = 0
+        for i, ch in enumerate(reversed(s)):
+            c = _VERHOEFF_D[c][_VERHOEFF_P[i % 8][int(ch)]]
+        return c == 0
+
+    if algorithm == "figi_luhn":
+        # OpenFIGI: 12 characters, letters valued A=10..Z=35; every second of
+        # the first 11 values doubled, the digits of each summed; check digit
+        # is (10 - sum % 10) % 10.
+        if len(s) != 12 or not s.isascii() or not s.isalnum() or not s[-1].isdigit():
+            return False
+        total = 0
+        for i, ch in enumerate(s[:-1]):
+            v = int(ch) if ch.isdigit() else ord(ch) - ord("A") + 10
+            if i % 2 == 1:
+                v *= 2
+            total += sum(int(d) for d in str(v))
+        return (10 - total % 10) % 10 == int(s[-1])
 
     if algorithm == "mod10_gs1":
         # GS1 Mod-10 — used for GTIN-8, GTIN-12, GTIN-13, GTIN-14, GLN, SSCC
@@ -652,7 +838,7 @@ def _validate_checksum(value: str, algorithm: str) -> bool:
         for i, ch in enumerate(s):
             if i == 8:
                 continue  # skip check digit position
-            if ch.isdigit():
+            if ch in "0123456789":   # 3.0.5: ASCII only — '²'.isdigit() is True and int() raised
                 val = int(ch)
             elif ch in TRANSLITERATION:
                 val = TRANSLITERATION[ch]
@@ -670,30 +856,22 @@ def _validate_checksum(value: str, algorithm: str) -> bool:
         isrc_clean = s.replace("-", "")
         return bool(_re.match(r'^[A-Z]{2}[A-Z0-9]{3}\d{7}$', isrc_clean))
 
-    else:
-        # v2.3.25 (Pilot 2026-04-29): tighten the unknown-algorithm
-        # fallback from pass-through to fail-closed. Pre-fix: a typo'd
-        # YAML key (e.g. `ibn_mod97` for `iban_mod97`) silently passed
-        # every record with a warning in the log. The warning could be
-        # missed; the records flowed downstream as if validated. Now
-        # the rule fails records under an unknown algorithm so the
-        # error surfaces at the place a regulated firm actually
-        # watches — the validation response, not the engine log.
-        # Log the warning AND return False.
-        logger.warning(
-            "Unknown checksum algorithm '%s' — rule fails closed. "
-            "Check the contract YAML for typos in checksum_algorithm "
-            "(supported: mod10_gs1, iban_mod97, isin_luhn, lei_mod97, "
-            "vin_mod11, isrc_luhn, cpf_mod11, nhs_mod11).",
-            algorithm,
-        )
-        return False
+    return False   # unreachable: every name in CHECKSUM_ALGORITHMS has a branch above
+
+
+_SEMVER_RE = re.compile(r"v?([0-9]+)\.([0-9]+)\.([0-9]+)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?")
 
 
 def _semver_tuple(v):
-    """Parse a semantic version string into a comparable tuple."""
-    parts = str(v).lstrip('v').split('.')
-    return tuple(int(x) for x in parts[:3])
+    """The numeric (major, minor, patch) triple of a semantic version (3.0.5):
+    ``1.2.3-rc1`` and ``1.2.3+build`` read as (1, 2, 3); pre-release ordering
+    is not applied. Raises ValueError for anything that is not a version."""
+    if isinstance(v, (bool, list, dict)) or v is None:
+        raise ValueError("not a version")
+    m = _SEMVER_RE.fullmatch(_ws_strip(str(v)))
+    if not m:
+        raise ValueError("not a version")
+    return tuple(int(x) for x in m.groups())
 
 
 # ── Single-record rule handlers ─────────────────────────────────────────
@@ -712,17 +890,24 @@ def _semver_tuple(v):
 # this structural rather than per-handler). Shared with the linter.
 _PRESENCE_RULE_TYPES = frozenset({"not_empty", "not_empty_string", "required_if"})
 # Rules that must still see an absent value: presence rules, conditional_value
-# ("must equal X" — absent is a violation on both engines) and unique (a
-# set-based rule evaluated on the batch frame, never on one value).
-_ABSENT_EXEMPT_RULE_TYPES = _PRESENCE_RULE_TYPES | frozenset({"conditional_value", "unique"})
+# ("must equal X" — absent is a violation on both engines), unique (a
+# set-based rule evaluated on the batch frame, never on one value), and
+# (3.0.5, both engines) field_sum / ratio_check, whose own `field` is
+# attribution only and never read — they judge their operands whenever the
+# rule applies, and an absent operand fails (D10).
+_ABSENT_EXEMPT_RULE_TYPES = _PRESENCE_RULE_TYPES | frozenset({"conditional_value", "unique", "field_sum", "ratio_check"})
 
 
 def _is_field_absent(value) -> bool:
-    """Field has no meaningful value to characterize for format-class rules."""
+    """Absent: None/missing, a blank or white-space-only string, or (3.0.5,
+    both engines) an empty array or object. No rule but a presence rule runs
+    on an absent value."""
     if value is None:
         return True
-    if isinstance(value, str) and value.strip() == "":
-        return True
+    if isinstance(value, str):
+        return _ws_strip(value) == ""
+    if isinstance(value, (list, dict)):
+        return not value
     return False
 
 
@@ -733,9 +918,9 @@ def _batch_absent(val) -> bool:
     values (D6) — the conformance generator refuses to emit a corpus when
     they do.
     """
-    if val is None or (isinstance(val, float) and pd.isna(val)):
+    if isinstance(val, float) and pd.isna(val):
         return True
-    return isinstance(val, str) and val.strip() == ""
+    return _is_field_absent(val)
 
 
 def _check_not_empty(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
@@ -747,13 +932,13 @@ def _check_not_empty(value, rule: Rule, record: Optional[dict] = None) -> Option
 def _check_not_empty_string(value, rule: Rule, record: dict | None = None) -> str | None:
     """Presence + JSON-string type guard (CRT180 contract-format conformance).
 
-    Unlike not_empty, a non-string value is never coerced: 0, false, [] and
-    {} are rejected — under this rule's own error code, with a typed
-    message — rather than silently stringified into "0" / "False" / "[]"
-    and passed. Absent, null and
-    whitespace-only values fail with the rule's own message.
+    Unlike not_empty, a non-string value is never coerced: 0, false and a
+    non-empty list or object are rejected — under this rule's own error
+    code, with a typed message — rather than silently stringified and
+    passed. Absent, null, whitespace-only and (3.0.5) empty []/{} values
+    are absence and fail with the rule's own message.
     """
-    if value is None:
+    if _is_field_absent(value):
         return rule.error_message
     if not isinstance(value, str):
         # Reported under the rule's own error code (not OPENDQV_TYPE_MISMATCH):
@@ -761,7 +946,7 @@ def _check_not_empty_string(value, rule: Rule, record: dict | None = None) -> st
         # to the rule — matches the managed engine, which shipped this type
         # first (cross-engine fixture run, CRT180).
         return _not_empty_string_type_message(rule.field, value)
-    if value.strip() == "":
+    if _ws_strip(value) == "":
         return rule.error_message
     return None
 
@@ -798,7 +983,9 @@ def _check_regex(value, rule: Rule, record: Optional[dict] = None) -> Optional[s
         return rule.error_message  # misconfigured — fail visible rather than silently pass
     if _is_field_absent(value):
         return None
-    str_val = str(value) if value is not None else ""
+    if isinstance(value, (list, dict)):
+        return _collection_message(rule, value)
+    str_val = _render_value(value)   # 3.0.5: the one text rendering
     pattern = _BUILTIN_PATTERNS.get(rule.pattern, rule.pattern)
     compiled = rule.compiled_pattern or compile_rule_pattern(pattern)
     matched = _safe_match(compiled, str_val)
@@ -832,6 +1019,10 @@ _TYPE_MISMATCH_PREFIX = "__OPENDQV_TYPE_MISMATCH__::"
 # comparison failure. Same code, same severity, same message; one extra
 # structured key (`counterpart_missing: true`) on the entry, both paths.
 _COUNTERPART_MISSING_PREFIX = "__OPENDQV_COUNTERPART_MISSING__::"
+# A checker that raised: the record is rejected under OPENDQV_RULE_ERROR with
+# this generic message on both paths (CWE-209: never the exception detail).
+_RULE_ERROR_PREFIX = "__OPENDQV_RULE_ERROR__::"
+_RULE_ERROR_MESSAGE = "Rule could not be evaluated; record rejected (fail-closed)."
 
 
 def _type_mismatch_msg(rule: Rule, value) -> str:
@@ -847,11 +1038,51 @@ def _type_mismatch_msg(rule: Rule, value) -> str:
             f"{rule.type} rule on field '{rule.field}' expected a finite "
             f"numeric value, got {got}"
         )
+    if isinstance(value, int) and not isinstance(value, bool):
+        # only reached for an integer beyond float64 (3.0.5, B9)
+        return (
+            f"{_TYPE_MISMATCH_PREFIX}"
+            f"{rule.type} rule on field '{rule.field}' expected a numeric "
+            f"value within the floating-point range, got a number beyond it"
+        )
     return (
         f"{_TYPE_MISMATCH_PREFIX}"
         f"{rule.type} rule on field '{rule.field}' expected numeric "
         f"value, got {_json_type_name(value)}"
     )
+
+
+def _num(value) -> float:
+    """The one number reader (3.0.5, both engines). A JSON boolean is not a
+    number (``float(True)`` is 1.0), nor is a list or object; an integer
+    beyond float64 is no number (``float()`` raises OverflowError); NaN and
+    infinity are not finite. A string parses with ``float()``, which ignores
+    the white space around it. Raises ValueError for anything else."""
+    if value is None or isinstance(value, (bool, list, dict)):
+        raise ValueError("not a number")
+    try:
+        f = float(value)
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError("not a number") from None
+    if not math.isfinite(f):
+        raise ValueError("not a finite number")
+    return f
+
+
+def _unreadable_number(value) -> bool:
+    """A number the engine cannot read (3.0.5): a JSON number or numeric
+    string that is NaN, infinite, or beyond float64. Never compared as text."""
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        return False
+    try:
+        float(value)
+    except (ValueError, OverflowError):
+        return isinstance(value, int)   # an int beyond float64 raises OverflowError
+    try:
+        _num(value)
+    except ValueError:
+        return True
+    return False
 
 
 def _is_numeric_value(value) -> bool:
@@ -866,64 +1097,52 @@ def _is_numeric_value(value) -> bool:
 def _check_min(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if _is_field_absent(value):
         return None
-    if not _is_numeric_value(value):
-        # Strings that happen to parse as numeric ("28.50") still go
-        # through float() — preserves CSV-pipeline ergonomics. Only
-        # genuinely non-numeric types (dict, list, non-parseable str)
-        # surface as type mismatch.
-        try:
-            float(value)
-        except (TypeError, ValueError):
-            return _type_mismatch_msg(rule, value)
+    # Strings that parse as numbers ("28.50") are read (CSV-pipeline
+    # ergonomics); a boolean, list, object, NaN/inf or an integer beyond
+    # float64 is a type mismatch (3.0.5: was read as 1 / raised).
     try:
-        v = float(value)
-        if not math.isfinite(v):
-            return _type_mismatch_msg(rule, value)
-        if v < rule.min_value:
-            return rule.error_message
-    except (TypeError, ValueError):
+        v = _num(value)
+    except ValueError:
         return _type_mismatch_msg(rule, value)
+    if v < rule.min_value:
+        return rule.error_message
     return None
 
 
 def _check_max(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if _is_field_absent(value):
         return None
-    if not _is_numeric_value(value):
-        try:
-            float(value)
-        except (TypeError, ValueError):
-            return _type_mismatch_msg(rule, value)
     try:
-        v = float(value)
-        if not math.isfinite(v):
-            return _type_mismatch_msg(rule, value)
-        if v > rule.max_value:
-            return rule.error_message
-    except (TypeError, ValueError):
+        v = _num(value)
+    except ValueError:
         return _type_mismatch_msg(rule, value)
+    if v > rule.max_value:
+        return rule.error_message
     return None
 
 
 def _check_range(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if _is_field_absent(value):
         return None
-    if not _is_numeric_value(value):
-        try:
-            float(value)
-        except (TypeError, ValueError):
-            return _type_mismatch_msg(rule, value)
     try:
-        v = float(value)
-        if not math.isfinite(v):
-            return _type_mismatch_msg(rule, value)
-        if rule.min_value is not None and v < rule.min_value:
-            return rule.error_message
-        if rule.max_value is not None and v > rule.max_value:
-            return rule.error_message
-    except (TypeError, ValueError):
+        v = _num(value)
+    except ValueError:
         return _type_mismatch_msg(rule, value)
+    if rule.min_value is not None and v < rule.min_value:
+        return rule.error_message
+    if rule.max_value is not None and v > rule.max_value:
+        return rule.error_message
     return None
+
+
+def _collection_message(rule: Rule, value) -> str:
+    """A non-empty list or object is not text (3.0.5, both engines): a rule
+    that compares a single value fails it under its own code, naming the JSON
+    type. Collections are never rendered — ``str()`` of a list leaks it."""
+    return (
+        f'{rule.type} rule on field "{rule.field}" compares a single value, '
+        f"got {_json_type_name(value)} — send a string, number or boolean"
+    )
 
 
 def _length_type_message(field: str, value) -> str:
@@ -950,15 +1169,18 @@ def _check_max_length(value, rule: Rule, record: Optional[dict] = None) -> Optio
     if not isinstance(value, str):
         return _length_type_message(rule.field, value)  # D9: refuse, never coerce
     str_val = str(value)
-    if len(str_val) > (rule.max_length or 99999):
+    if rule.max_length is not None and len(str_val) > rule.max_length:   # 3.0.5: 0 means zero
         return rule.error_message
     return None
 
 
 def _human_to_strptime(fmt: str) -> str:
     # Accept either Java/human-readable patterns (YYYY-MM-DD) or strftime
-    # codes (%Y-%m-%d). MM is month before any HH; minute after.
-    if "%" in fmt:
+    # codes (%Y-%m-%d). MM is month before any HH; minute after. 3.0.5: the
+    # two legacy Go layouts read as aliases (stored content only).
+    if fmt == _GO_DATE_LAYOUT:
+        return "%Y-%m-%d"
+    if fmt == _GO_RFC3339_LAYOUT or "%" in fmt:
         return fmt
     out = []
     i = 0
@@ -996,7 +1218,7 @@ def _check_date_format(value, rule: Rule, record: Optional[dict] = None) -> Opti
         return None
     # 3.0.2: a date ignores the white space around it (the batch path's
     # TRY_STRPTIME always did); a space inside the value is still not a date.
-    str_val = str(value).strip()
+    str_val = _ws_strip(str(value))
     # Honour the contract's declared format strictly. When no format is
     # declared, default to ISO 8601 (date or datetime) — never accept
     # locale-ambiguous formats like DD/MM/YYYY or MM/DD/YYYY by default.
@@ -1009,7 +1231,7 @@ def _check_date_format(value, rule: Rule, record: Optional[dict] = None) -> Opti
     # and an unpadded 2026-1-10 got through).
     try:
         if rule.format:
-            datetime.strptime(str_val, _human_to_strptime(rule.format))
+            _read_layout(str_val, _human_to_strptime(rule.format))
         else:
             _read_iso(str_val)
     except ValueError:
@@ -1022,33 +1244,62 @@ def _check_unique(value, rule: Rule, record: Optional[dict] = None) -> Optional[
     return None
 
 
+@lru_cache(maxsize=256)
+def _warn_unknown_compare_op(rule_name: str, op) -> None:
+    logger.warning("compare rule '%s' has unknown compare_op '%s'", rule_name, op)
+
+
 def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if not rule.compare_to or not rule.compare_op:
         logger.warning("compare rule '%s' missing compare_to or compare_op", rule.name)
         return None
     if _is_field_absent(value):
         return None
-    if rule.compare_to in ("today", "now"):
-        if rule.compare_to == "today":
-            other = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        else:
-            other = datetime.now(timezone.utc).isoformat()
-    else:
-        other = (record or {}).get(rule.compare_to)
-        if _is_field_absent(other):
-            return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: a missing/blank counterpart IS a comparison failure (both engines)
-
-    # v2.3.20 Cluster C (P1.2): same_date compare_op extracts the
-    # YYYY-MM-DD portion from each side before comparing. Catches the
-    # MiFIR Article 26 / RTS 22 invariant that trade_date must equal the
-    # date portion of execution_timestamp — a check the v2.3.17 Q14 rule
-    # claimed to enforce but actually only validated as a regex on
-    # trade_date alone. Reviewer's exact repro: trade_date=2024-01-15
-    # with execution_timestamp=2026-04-25T... PASSED a "matches" rule.
-    # Slice [:10] works for "YYYY-MM-DD" and "YYYY-MM-DDTHH:MM:SS..." —
-    # both yield the same date portion. Bare-string compare without a
-    # datetime parse keeps the implementation honest and small.
+    op = rule.compare_op
+    op_fn = _COMPARE_OPS.get(op)
     la, lb = _layouts_for(rule)
+
+    # 3.0.5: `today` compares calendar dates (both sides truncated to
+    # y/m/d, so a timestamp stamped today is not "after today"); `now` is the
+    # instant. The value must read as a date: unreadable fails.
+    if rule.compare_to in ("today", "now"):
+        if op_fn is None and op != "same_date":
+            _warn_unknown_compare_op(rule.name, op)
+            return None
+        try:
+            a = _parse_date(value, la)
+        except ValueError:
+            return rule.error_message
+        now = datetime.now(timezone.utc)
+        if rule.compare_to == "today" or op == "same_date":
+            a, b = a.date(), now.date()
+        else:
+            b = now
+        if op == "same_date":
+            return None if a == b else rule.error_message
+        return None if op_fn(a, b) else rule.error_message
+
+    other = (record or {}).get(rule.compare_to)
+    if _is_field_absent(other):
+        return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: a missing/blank counterpart IS a comparison failure (both engines)
+    if op_fn is None and op != "same_date":
+        # Refused when a contract is submitted (3.0.5); stored content keeps
+        # its old reading — the rule does not judge.
+        _warn_unknown_compare_op(rule.name, op)
+        return None
+
+    # same_date (v2.3.20, MiFIR RTS 22 T+0): both operands are dates, each
+    # read with its declared layout or the ISO reader; their calendar dates
+    # (as written, in each value's own offset) must be equal. 3.0.5: an
+    # operand that cannot be read as a date fails — it is not "not applicable".
+    if op == "same_date":
+        try:
+            a = _parse_date(value, la)
+            b = _parse_date(other, lb)
+        except ValueError:
+            return rule.error_message
+        return None if a.date() == b.date() else rule.error_message
+
     if la or lb:
         # 2.8.0: a declared date layout on either operand — both sides are
         # dates. Parse each with its own layout (an undeclared operand keeps
@@ -1059,67 +1310,51 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
             b = _parse_date(other, lb)
         except ValueError:
             return rule.error_message
-        if rule.compare_op == "same_date":
-            return None if a.date() == b.date() else rule.error_message
-        op_fn = _COMPARE_OPS.get(rule.compare_op)
-        if op_fn is None:
-            logger.warning("compare rule '%s' has unknown compare_op '%s'", rule.name, rule.compare_op)
-            return None
         return None if op_fn(a, b) else rule.error_message
 
-    if rule.compare_op == "same_date":
-        a_str = str(value).strip()[:10]
-        b_str = str(other).strip()[:10]
-        # Sanity: only proceed if both look like YYYY-MM-DD shape, else
-        # the rule isn't applicable and we return None (the dedicated
-        # format rule on the field is responsible for shape).
-        import re as _re
-        date_re = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
-        if not (date_re.match(a_str) and date_re.match(b_str)):
-            return None
-        return None if a_str == b_str else rule.error_message
-
-    try:
-        a, b = float(value), float(other)
-    except (TypeError, ValueError):
+    # 3.0.5: `algorithm: semver` compares the numeric major.minor.patch
+    # triple (pre-release and build parts ignored); a value that is not a
+    # version fails.
+    if getattr(rule, "algorithm", None) == "semver":
         try:
-            # 3.0.2: read as dates, padding ignored; if either is not a date
-            # the string comparison below judges the text as written.
-            a = _read_iso(value)
-            b = _read_iso(other)
-        except (ValueError, AttributeError):
-            if getattr(rule, 'algorithm', None) == 'semver':
-                try:
-                    a = _semver_tuple(value)
-                    b = _semver_tuple(other)
-                except (ValueError, TypeError):
-                    a, b = str(value), str(other)
-            else:
-                a, b = str(value), str(other)
-    op_fn = _COMPARE_OPS.get(rule.compare_op)
-    if op_fn is None:
-        logger.warning("compare rule '%s' has unknown compare_op '%s'", rule.name, rule.compare_op)
-        return None
-    if not op_fn(a, b):
+            a, b = _semver_tuple(value), _semver_tuple(other)
+        except ValueError:
+            return rule.error_message
+        return None if op_fn(a, b) else rule.error_message
+
+    # Two numbers compare as numbers, two ISO dates as instants; anything
+    # else compares as text — the one rendering (3.0.5), and a list or an
+    # object is not text. A JSON boolean is not a number (sweep §4: compare
+    # on true fails the rule; it never reads as 1 or as the text "true").
+    if isinstance(value, bool) or isinstance(other, bool):
         return rule.error_message
-    return None
+    if _unreadable_number(value) or _unreadable_number(other):
+        return rule.error_message   # NaN, infinity, an integer beyond float64: never compared as text
+    try:
+        a, b = _num(value), _num(other)
+    except ValueError:
+        try:
+            a, b = _read_iso(value), _read_iso(other)
+        except ValueError:
+            for v in (value, other):
+                if isinstance(v, (list, dict)):
+                    return _collection_message(rule, v)
+            a, b = _render_value(value), _render_value(other)
+    return None if op_fn(a, b) else rule.error_message
 
 
 def _check_required_if(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if not rule.required_if:
         return None
-    trigger_field = rule.required_if.get("field")
-    trigger_value = str(rule.required_if.get("value", ""))
-    actual = str((record or {}).get(trigger_field, ""))
-    if actual == trigger_value:
-        if value is None or (isinstance(value, str) and value.strip() == ""):
-            return rule.error_message
+    if _trigger_matches(rule.required_if, record) and _is_field_absent(value):
+        return rule.error_message
     return None
 
 
 def _render_value(v) -> str:
-    """Text a record value is compared as, for allowed_values / forbidden_values
-    (D12, 2.9.0). An integral float renders without the trailing ".0" so a JSON
+    """Text a record value is compared as — 3.0.5: on EVERY text surface
+    (regex, allowed/forbidden_values, lookup, must_equal, conditions, trigger
+    maps, compare's text fallback); D12, 2.9.0. An integral float renders without the trailing ".0" so a JSON
     ``99999.0`` matches a listed ``"99999"`` — the managed engine's shortest
     float rendering. A boolean renders as its JSON spelling, lowercase
     ``true``/``false`` (2.9.1, D12 addendum: Python's ``str(True)`` is ``True``;
@@ -1137,6 +1372,8 @@ def _check_allowed_values(value, rule: Rule, record: Optional[dict] = None) -> O
         return None
     if _is_field_absent(value):
         return None  # D6: blank is absent — presence rules are the single catcher
+    if isinstance(value, (list, dict)):
+        return _collection_message(rule, value)
     allowed = [_render_value(v) for v in rule.allowed_values]
     if _render_value(value) not in allowed:
         return rule.error_message
@@ -1152,10 +1389,43 @@ def _check_forbidden_values(value, rule: Rule, record: Optional[dict] = None) ->
         return None
     if _is_field_absent(value):
         return None  # D6
+    if isinstance(value, (list, dict)):
+        return _collection_message(rule, value)
     forbidden = [_render_value(v) for v in rule.forbidden_values]
     if _render_value(value) in forbidden:
         return rule.error_message
     return None
+
+
+# 3.0.5: during validate_batch, each lookup's reference set — or its load
+# failure — is fetched once for the whole batch. The per-record batch would
+# otherwise retry a failed load (lru_cache does not cache exceptions) once per
+# record: N timeouts against a blackholed host, N hits on a failing server.
+_lookup_memo_var: ContextVar[Optional[dict]] = ContextVar("opendqv_lookup_memo", default=None)
+
+
+def _lookup_values(rule: Rule) -> frozenset:
+    key = (rule.lookup_file, rule.lookup_field or "", rule.cache_ttl, rule.lookup_auth_header)
+    memo = _lookup_memo_var.get()
+    if memo is not None and key in memo:
+        got = memo[key]
+        if isinstance(got, BaseException):
+            raise got
+        return got
+    try:
+        if rule.lookup_file.startswith("http://") or rule.lookup_file.startswith("https://"):
+            ttl = rule.cache_ttl if rule.cache_ttl is not None else _HTTP_LOOKUP_DEFAULT_TTL
+            got = _load_http_lookup_set(rule.lookup_file, rule.lookup_field or "", ttl, auth_header=rule.lookup_auth_header)
+        else:
+            got = _load_lookup_set(rule.lookup_file, rule.lookup_field or "")
+    except (FileNotFoundError, KeyError, OSError, RuntimeError, ValueError) as exc:
+        logger.error("%s rule '%s' could not load '%s': %s", rule.type, rule.name, rule.lookup_file, exc)
+        if memo is not None:
+            memo[key] = exc
+        raise
+    if memo is not None:
+        memo[key] = got
+    return got
 
 
 def _check_lookup(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
@@ -1165,19 +1435,17 @@ def _check_lookup(value, rule: Rule, record: Optional[dict] = None) -> Optional[
     if _is_field_absent(value):
         return None  # D6: blank is absent — presence rules are the single catcher
     try:
-        if rule.lookup_file.startswith("http://") or rule.lookup_file.startswith("https://"):
-            ttl = rule.cache_ttl if rule.cache_ttl is not None else _HTTP_LOOKUP_DEFAULT_TTL
-            valid_values = _load_http_lookup_set(rule.lookup_file, rule.lookup_field or "", ttl, auth_header=rule.lookup_auth_header)
-        else:
-            valid_values = _load_lookup_set(rule.lookup_file, rule.lookup_field or "")
-    except (FileNotFoundError, KeyError, OSError, RuntimeError, ValueError) as exc:
-        logger.error("lookup rule '%s' could not load '%s': %s", rule.name, rule.lookup_file, exc)
-        return rule.error_message
+        valid_values = _lookup_values(rule)
+    except (FileNotFoundError, KeyError, OSError, RuntimeError, ValueError):
+        return rule.error_message   # fails closed (logged once per batch by _lookup_values)
     if rule.all_of and isinstance(value, list):
+        # all_of reads a list: every item must be in the reference set
         for item in value:
-            if str(item) not in valid_values:
+            if isinstance(item, (list, dict)) or _render_value(item) not in valid_values:
                 return rule.error_message
-    elif str(value) not in valid_values:
+    elif isinstance(value, (list, dict)):
+        return _collection_message(rule, value)
+    elif _render_value(value) not in valid_values:
         return rule.error_message
     return None
 
@@ -1207,18 +1475,18 @@ def _check_cross_field_range(value, rule: Rule, record: Optional[dict] = None) -
         return None
     rec = record or {}
     try:
-        v = float(value)
+        v = _num(value)
         if rule.cross_min_field:
             low = rec.get(rule.cross_min_field)
             if _is_field_absent(low):
                 return _COUNTERPART_MISSING_PREFIX + rule.error_message   # D10 (#145)
-            if v < float(low):
+            if v < _num(low):
                 return rule.error_message
         if rule.cross_max_field:
             high = rec.get(rule.cross_max_field)
             if _is_field_absent(high):
                 return _COUNTERPART_MISSING_PREFIX + rule.error_message   # D10 (#145)
-            if v > float(high):
+            if v > _num(high):
                 return rule.error_message
     except (TypeError, ValueError):
         return rule.error_message
@@ -1233,7 +1501,7 @@ def _check_field_sum(value, rule: Rule, record: Optional[dict] = None) -> Option
     try:
         if any(_is_field_absent(rec.get(f)) for f in rule.sum_fields):
             return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: absent/blank counterpart → the rule fails
-        total = sum(float(rec.get(f)) for f in rule.sum_fields)
+        total = sum(_num(rec.get(f)) for f in rule.sum_fields)
         tolerance = rule.sum_tolerance if rule.sum_tolerance is not None else 0.0
         if abs(total - rule.sum_equals) > tolerance:
             return rule.error_message
@@ -1245,19 +1513,20 @@ def _check_field_sum(value, rule: Rule, record: Optional[dict] = None) -> Option
 def _check_forbidden_if(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if not rule.forbidden_if:
         return None
-    trigger_field = rule.forbidden_if.get("field")
-    trigger_value = str(rule.forbidden_if.get("value", ""))
-    actual = str((record or {}).get(trigger_field, ""))
-    if actual == trigger_value:
-        if value is not None and not (isinstance(value, str) and value.strip() == ""):
-            return rule.error_message
+    if _trigger_matches(rule.forbidden_if, record) and not _is_field_absent(value):
+        return rule.error_message
     return None
 
 
 def _check_conditional_value(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if rule.must_equal is None:
         return None
-    if value is None or str(value) != str(rule.must_equal):
+    # Fires on an absent own field (must_equal cannot be met by nothing).
+    if _is_field_absent(value):
+        return rule.error_message
+    if isinstance(value, (list, dict)):
+        return _collection_message(rule, value)
+    if _render_value(value) != _render_value(rule.must_equal):
         return rule.error_message
     return None
 
@@ -1305,8 +1574,8 @@ def _check_ratio_check(value, rule: Rule, record: Optional[dict] = None) -> Opti
         den_raw = rec.get(rule.ratio_denominator)
         if _is_field_absent(num_raw) or _is_field_absent(den_raw):
             return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: absent/blank counterpart → the rule fails
-        num = float(num_raw)
-        den = float(den_raw)
+        num = _num(num_raw)
+        den = _num(den_raw)
         if den == 0:
             return rule.error_message
         ratio = num / den
@@ -1326,15 +1595,12 @@ def _check_conditional_lookup(value, rule: Rule, record: Optional[dict] = None) 
     if _is_field_absent(value):
         return None
     try:
-        if rule.lookup_file.startswith("http://") or rule.lookup_file.startswith("https://"):
-            ttl = rule.cache_ttl if rule.cache_ttl is not None else _HTTP_LOOKUP_DEFAULT_TTL
-            valid_values = _load_http_lookup_set(rule.lookup_file, rule.lookup_field or "", ttl, auth_header=rule.lookup_auth_header)
-        else:
-            valid_values = _load_lookup_set(rule.lookup_file, rule.lookup_field or "")
-    except (FileNotFoundError, KeyError, OSError, RuntimeError, ValueError) as exc:
-        logger.error("conditional_lookup rule '%s' could not load '%s': %s", rule.name, rule.lookup_file, exc)
-        return rule.error_message
-    if str(value) not in valid_values:
+        valid_values = _lookup_values(rule)
+    except (FileNotFoundError, KeyError, OSError, RuntimeError, ValueError):
+        return rule.error_message   # fails closed (logged once per batch by _lookup_values)
+    if isinstance(value, (list, dict)):
+        return _collection_message(rule, value)
+    if _render_value(value) not in valid_values:
         return rule.error_message
     return None
 
@@ -1344,7 +1610,7 @@ def _check_geospatial_bounds(value, rule: Rule, record: Optional[dict] = None) -
         return None
     rec = record or {}
     try:
-        lat = float(value)
+        lat = _num(value)
 
         if rule.geo_min_lat is not None and lat < rule.geo_min_lat:
             return rule.error_message
@@ -1355,7 +1621,7 @@ def _check_geospatial_bounds(value, rule: Rule, record: Optional[dict] = None) -
             lon_val = rec.get(rule.geo_lon_field)
             if _is_field_absent(lon_val):
                 return _COUNTERPART_MISSING_PREFIX + rule.error_message   # D10 (#145)
-            lon = float(lon_val)
+            lon = _num(lon_val)
             if rule.geo_min_lon is not None and lon < rule.geo_min_lon:
                 return rule.error_message
             if rule.geo_max_lon is not None and lon > rule.geo_max_lon:
@@ -1366,7 +1632,7 @@ def _check_geospatial_bounds(value, rule: Rule, record: Optional[dict] = None) -
         if rule.geo_lon_field:
             lon_val = rec.get(rule.geo_lon_field)
             if lon_val is not None:
-                lon = float(lon_val)
+                lon = _num(lon_val)
                 if not (-180 <= lon <= 180):
                     return rule.error_message
     except (TypeError, ValueError):
@@ -1384,7 +1650,7 @@ def _check_age_match(value, rule: Rule, record: Optional[dict] = None) -> Option
     if _is_field_absent(dob_val):
         return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: absent/blank counterpart → the rule fails (both engines)
     try:
-        declared = int(float(value))
+        declared = int(_num(value))
         # 2.8.0: the dob field's declared layout; 3.0.3: the ISO reader when
         # undeclared (was the bare %Y-%m-%d, so a Z date of birth failed).
         dob = _parse_date(dob_val, _layouts_for(rule)[1])
@@ -1829,7 +2095,12 @@ def validate_batch(
         }
 
     total = len(records)
-    df = pd.DataFrame(records)
+    try:
+        df = pd.DataFrame(records)
+    except OverflowError:
+        # An integer beyond int64/float64 (3.0.5, B9): only `unique` reads the
+        # frame, so keep every cell as the Python object it is.
+        df = pd.DataFrame(records, dtype=object)
     # CRT180 review B6 (K1): a rule whose field no record carries used to be
     # skipped entirely — a batch that omitted a required field validated
     # clean while each record single-validated was rejected. Materialise the
@@ -1861,6 +2132,7 @@ def validate_batch(
                     row_results[i]["errors"].append(extra)
 
         _layout_token = _date_layouts_var.set(resolve_date_layouts(rules))
+        _lookup_token = _lookup_memo_var.set({})
         try:
             for rule in rules:
                 # (round-2 S7) every declared field is materialised above, so a
@@ -1883,31 +2155,11 @@ def validate_batch(
                     failing_indices = set(range(total))
 
                 # Apply condition filter: exclude rows where the condition is not met.
+                # 3.0.5: the single path's own test on the raw record — the frame
+                # compare (astype(str)) read True as "True", a missing field as
+                # "None"/"nan", and a list as its Python repr.
                 if rule.condition and failing_indices:
-                    cond_field = rule.condition.get("field", "")
-                    if "present" in rule.condition:
-                        # #144: presence judged from the raw record (D6 absence reading),
-                        # exactly as _check_condition does on the single path.
-                        want = bool(rule.condition["present"])
-                        eligible = {
-                            i for i in range(total)
-                            if (not _is_field_absent((records[i] if records is not None else {}).get(cond_field))) == want
-                        }
-                        failing_indices = failing_indices & eligible
-                    if cond_field in df.columns:
-                        cond_series = df[cond_field].astype(str)
-                        if "value" in rule.condition:
-                            # Keep only rows where condition field == value
-                            eligible = set(df.index[cond_series == str(rule.condition["value"])])
-                            failing_indices = failing_indices & eligible
-                        elif "not_value" in rule.condition:
-                            # Exclude rows where condition field == not_value
-                            excluded = set(df.index[cond_series == str(rule.condition["not_value"])])
-                            failing_indices = failing_indices - excluded
-                    elif "value" in rule.condition:
-                        # condition field absent from every record: actual == "" on the
-                        # single path, so `value: X` never matches → nothing fails.
-                        failing_indices = set()
+                    failing_indices = {i for i in failing_indices if _check_condition(rule, records[i])}
 
                 entry_template = {
                     "field": rule.field,
@@ -1938,18 +2190,22 @@ def validate_batch(
                             "severity": rule.severity.value,
                             "error_code": "OPENDQV_TYPE_MISMATCH",
                         }
+                    elif failing_messages.get(idx) == _RULE_ERROR_PREFIX:
+                        row_entry = {**entry_template, "message": _RULE_ERROR_MESSAGE,
+                                     "error_code": "OPENDQV_RULE_ERROR", "severity": Severity.ERROR.value}
                     elif idx in failing_messages:
                         row_entry = {**entry_template, "message": failing_messages[idx]}
                     else:
                         row_entry = entry_template
                     if idx in failing_counterpart_missing:
                         row_entry = {**row_entry, "counterpart_missing": True}   # #145
-                    if rule.severity == Severity.ERROR:
+                    if rule.severity == Severity.ERROR or row_entry["error_code"] == "OPENDQV_RULE_ERROR":
                         row_results[idx]["errors"].append(row_entry)
                     else:
                         row_results[idx]["warnings"].append(row_entry)
         finally:
             _date_layouts_var.reset(_layout_token)
+            _lookup_memo_var.reset(_lookup_token)
     finally:
         con.close()
 
@@ -2007,12 +2263,9 @@ def validate_batch(
 
 # Rule types with a native DuckDB/pandas branch in _batch_check_rule_inner.
 # Anything else goes through the per-record fallback (single-path handler).
-_BATCH_BRANCH_TYPES = frozenset({
-    "allowed_values", "checksum", "compare", "conditional_value", "cross_field_range", "date_diff",
-    "date_format", "field_sum", "forbidden_if", "forbidden_values", "geospatial_bounds", "lookup", "max_length", "max",
-    "min_length", "min", "not_empty_string", "not_empty", "range", "ratio_check", "regex",
-    "required_if", "unique",
-})
+# 3.0.5: only `unique` (set-based, judged on the whole column) — see
+# _batch_check_rule_inner.
+_BATCH_BRANCH_TYPES = frozenset({"unique"})
 
 
 def _batch_check_rule(con, df: pd.DataFrame, rule: Rule, failing_type_mismatches: dict | None = None, records: list[dict] | None = None, failing_messages: dict | None = None, synthesised: set | None = None, failing_counterpart_missing: set | None = None) -> set[int]:
@@ -2076,188 +2329,28 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
         # for compare when a declared date layout is in play — 2.8.0).
         for idx in range(len(df)):
             rec = records[idx] if records is not None else {c: df[c].iloc[idx] for c in df.columns if c != "__idx__"}
-            msg = _check_rule(rec.get(field), rule, rec)
+            try:
+                msg = _check_rule(rec.get(field), rule, rec)
+            except Exception:
+                # Fail closed for this record only, exactly as validate_record.
+                logger.exception("validate_batch: checker raised on rule=%s field=%s record=%d — failing closed",
+                                 rule.name, rule.field, idx)
+                failing.add(idx)
+                failing_messages[idx] = _RULE_ERROR_PREFIX
+                continue
             if msg:
                 failing.add(idx)
+                if msg.startswith(_TYPE_MISMATCH_PREFIX):
+                    failing_type_mismatches[idx] = msg
+                    continue
                 if msg.startswith(_COUNTERPART_MISSING_PREFIX):   # #145
                     failing_counterpart_missing.add(idx)
                     msg = msg[len(_COUNTERPART_MISSING_PREFIX):]
                 if msg != rule.error_message:
                     failing_messages[idx] = msg
 
-    if rule.type not in _BATCH_BRANCH_TYPES:
-        # Round-2 pattern-closer: a rule type with no native batch branch is
-        # evaluated per record with the single-path handler, so single/batch
-        # parity holds by construction for every present and future type.
-        # (age_match and conditional_lookup had no branch and passed silently.)
-        _evaluate_per_record()
-        # no early return: the min_age/max_age add-on at the tail applies to
-        # every rule type, exactly as validate_record applies _check_age after
-        # the type check.
-
-    def _orig_val(idx):
-        # Numeric branches read the raw record value so a missing key
-        # (absent → skip) stays distinct from an explicit NaN/inf
-        # (non-finite → reject). Defensive fallback to the DataFrame cell
-        # if records was not supplied (records is always passed today).
-        if records is not None:
-            return records[idx].get(field)
-        return df[field].iloc[idx]
-
-    if rule.type == "regex" and rule.pattern:
-        # DuckDB doesn't support \w, \s, \d shorthand classes — fall back to Python.
-        # Log at DEBUG so operators can identify which contracts use the slower path.
-        logger.debug(
-            "regex_python_fallback field=%s pattern=%r batch_size=%d rule=%s",
-            field, rule.pattern, len(df), rule.name,
-        )
-        # Same alias expansion and the same compile path as the single-record
-        # handler (2.10.4): the fallback used to skip _BUILTIN_PATTERNS and
-        # compile the raw string.
-        compiled = rule.compiled_pattern or compile_rule_pattern(_BUILTIN_PATTERNS.get(rule.pattern, rule.pattern))
-        for idx, val in enumerate(df[field]):
-            # CRT170/J3: skip absent fields (not_empty is the catcher).
-            if _batch_absent(val):  # D6: absent or blank
-                continue
-            str_val = str(val)
-            if str_val.strip() == "":
-                continue
-            matched = _safe_match(compiled, str_val)
-            if rule.negate:
-                if matched:
-                    failing.add(idx)
-            else:
-                if not matched:
-                    failing.add(idx)
-
-    elif rule.type == "min" and rule.min_value is not None:
-        # v2.3.23 outside-review #3 (Sonnet aec401d0381905d97):
-        # Python iteration so the type-mismatch sentinel from
-        # _check_min flows to validate_batch's caller. The previous
-        # DuckDB CAST-AS-DOUBLE either raised on the first non-numeric
-        # row (failing the whole batch) or silently coerced — either
-        # way, customers couldn't distinguish type mismatch from value
-        # violation. Per-row check is slower (~10x) but correct;
-        # v2.4 may reintroduce a hybrid TRY_CAST + per-row fallback.
-        for idx in range(len(df)):
-            failure = _check_min(_orig_val(idx), rule)
-            if failure is not None:
-                failing.add(idx)
-                if failure.startswith(_TYPE_MISMATCH_PREFIX):
-                    failing_type_mismatches[idx] = failure
-
-    elif rule.type == "max" and rule.max_value is not None:
-        for idx in range(len(df)):
-            failure = _check_max(_orig_val(idx), rule)
-            if failure is not None:
-                failing.add(idx)
-                if failure.startswith(_TYPE_MISMATCH_PREFIX):
-                    failing_type_mismatches[idx] = failure
-
-    elif rule.type == "range" and rule.min_value is not None and rule.max_value is not None:
-        for idx in range(len(df)):
-            failure = _check_range(_orig_val(idx), rule)
-            if failure is not None:
-                failing.add(idx)
-                if failure.startswith(_TYPE_MISMATCH_PREFIX):
-                    failing_type_mismatches[idx] = failure
-
-    elif rule.type == "not_empty":
-        # Read the raw record value and use the single path's absence test:
-        # SQL TRIM strips spaces only, so a tab/newline-only value passed the
-        # batch check while the single path rejected it (round-2 B2 matrix).
-        for idx in range(len(df)):
-            if _batch_absent(_orig_val(idx)):
-                failing.add(idx)
-
-    elif rule.type == "not_empty_string":
-        # CRT180: presence + string-type guard. Read the raw record value —
-        # pandas collapses types inside object columns. Non-string values fail
-        # under the rule's own code (single-record parity).
-        for idx in range(len(df)):
-            val = _orig_val(idx)
-            if _batch_absent(val):  # D6: absent or blank
-                failing.add(idx)
-            elif not isinstance(val, str):
-                failing.add(idx)
-                # rule's own code, typed message — identical to the single path (review B5)
-                failing_messages[idx] = _not_empty_string_type_message(field, val)
-            elif val.strip() == "":
-                failing.add(idx)
-
-    elif rule.type == "min_length" and rule.min_length is not None:
-        # D9: a non-string value is refused under the rule's own code with a
-        # typed message (never coerced to its decimal rendering) — same on
-        # the single path. Strings go through the SQL length check.
-        typed = set()
-        for idx in range(len(df)):
-            raw = _orig_val(idx)
-            if raw is not None and not _batch_absent(raw) and not isinstance(raw, str):
-                typed.add(idx)
-                if failing_messages is not None:
-                    failing_messages[idx] = _length_type_message(field, raw)
-        failing.update(typed)
-        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != '' AND LENGTH(CAST("{field}" AS VARCHAR)) < {rule.min_length}"""
-        for r in con.execute(query).fetchall():
-            if r[0] not in typed:
-                failing.add(r[0])
-
-    elif rule.type == "max_length" and rule.max_length is not None:
-        # D9: a non-string value is refused under the rule's own code with a
-        # typed message (never coerced to its decimal rendering) — same on
-        # the single path. Strings go through the SQL length check.
-        typed = set()
-        for idx in range(len(df)):
-            raw = _orig_val(idx)
-            if raw is not None and not _batch_absent(raw) and not isinstance(raw, str):
-                typed.add(idx)
-                if failing_messages is not None:
-                    failing_messages[idx] = _length_type_message(field, raw)
-        failing.update(typed)
-        query = f"""SELECT __idx__ FROM data WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != '' AND LENGTH(CAST("{field}" AS VARCHAR)) > {rule.max_length}"""
-        for r in con.execute(query).fetchall():
-            if r[0] not in typed:
-                failing.add(r[0])
-
-    elif rule.type == "date_format":
-        # Parity with the single-record path: honour the contract's
-        # declared format strictly; default to ISO 8601 (date or datetime)
-        # when no format is declared. Do NOT use TRY_CAST AS DATE — it
-        # accepts locale-ambiguous formats like DD/MM/YYYY.
-        def _per_record() -> None:
-            for idx in range(len(df)):
-                raw = records[idx].get(field) if records is not None else df[field].iloc[idx]
-                if not _batch_absent(raw) and _check_date_format(raw, rule):
-                    failing.add(idx)
-
-        if not rule.format:
-            # 3.0.3: no DuckDB cast reads exactly the ISO surface (TIMESTAMPTZ
-            # takes a space separator, +0100, 2026-1-10, T24:00:00), so the
-            # undeclared case uses the single path's reader per record.
-            _per_record()
-        else:
-            # CRT178 #9: the format string used to be f-strung into the query;
-            # a quote in a caller-supplied `format` was SQL injection into an
-            # engine with filesystem reach. Bind it instead.
-            params = {"fmt": _human_to_strptime(rule.format)}
-            query = f"""
-                SELECT __idx__ FROM data
-                WHERE "{field}" IS NOT NULL
-                  AND TRIM(CAST("{field}" AS VARCHAR)) != ''
-                  AND TRY_STRPTIME(CAST("{field}" AS VARCHAR), $fmt) IS NULL
-            """
-            try:
-                for r in con.execute(query, params).fetchall():
-                    failing.add(r[0])
-            except duckdb.Error:
-                # A strptime directive Python accepts but DuckDB does not (e.g.
-                # %e): evaluate per record with the single-path handler so the
-                # two paths cannot diverge (2.8.0, Sonnet red-team).
-                logger.info("date_format: DuckDB rejected layout %r for rule '%s'; evaluating per record",
-                            params["fmt"], rule.name)
-                _per_record()
-
-    elif rule.type == "unique":
+    if rule.type == "unique":
+        # Set-based: judged on the whole column in DuckDB, never one value.
         if rule.group_by:
             # Unique within groups — duplicates within same group_by values
             # A synthesised (never sent) group_by column is not a valid group key —
@@ -2293,368 +2386,33 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
             for r in con.execute(dup_query).fetchall():
                 failing.add(r[0])
 
-    elif rule.type == "compare" and rule.compare_to and rule.compare_op and (
-            any(_layouts_for(rule))):
-        # 2.8.0: a declared date layout on either operand — share the
-        # single-path parse (layout per operand, no numeric/string fallback).
-        if rule.compare_to not in ("today", "now") and rule.compare_to not in df.columns:
-            logger.warning("compare rule '%s' references missing field '%s'", rule.name, rule.compare_to)
-        else:
-            _evaluate_per_record()
+    else:
+        # 3.0.5 (conformance sweep): every other rule type is evaluated per
+        # record with the single-path handler on the RAW record. The native
+        # branches read DataFrame cells, which pandas coerces (an integer
+        # column with a None gap becomes float: 12 reads 12.0; booleans and
+        # lists lose their JSON type), and re-implemented each handler — the
+        # source of every single/batch split the sweeps found. Parity now
+        # holds by construction.
+        _evaluate_per_record()
 
-    elif rule.type == "compare" and rule.compare_to and rule.compare_op:
-        # Cross-field comparison — fall back to Python to handle numeric/date/string types.
-        is_temporal_sentinel = rule.compare_to in ("today", "now")
-        if not is_temporal_sentinel and rule.compare_to not in df.columns:
-            logger.warning("compare rule '%s' references missing field '%s'", rule.name, rule.compare_to)
-        elif rule.compare_op == "same_date":
-            # v2.3.22 post-release B1: mirror single-record same_date branch
-            # (line 555) into the batch path. v2.3.20 added same_date for
-            # the T+0 invariant on trade_date_matches_execution_date but
-            # only patched the single-record path; the batch path silently
-            # skipped because `same_date` is not in `_COMPARE_OPS`. Result:
-            # any batch path through MiFIR reporting let T+0 violations
-            # through. Persona B inside-view 2026-04-28 reproduced.
-            import re as _re
-            _date_re = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
-            for idx in range(len(df)):
-                a_raw = df[field].iloc[idx]
-                if is_temporal_sentinel:
-                    if rule.compare_to == "today":
-                        b_raw = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-                    else:
-                        b_raw = datetime.now(timezone.utc).isoformat()
-                else:
-                    b_raw = df[rule.compare_to].iloc[idx]
-                if a_raw is None or (isinstance(a_raw, float) and pd.isna(a_raw)):
-                    continue
-                if not is_temporal_sentinel and _batch_absent(b_raw):
-                    failing.add(idx)
-                    failing_counterpart_missing.add(idx)   # D10 (#145: marked)
-                    continue
-                a_str = str(a_raw).strip()[:10]
-                b_str = str(b_raw).strip()[:10]
-                # Both sides must look like YYYY-MM-DD; otherwise the
-                # date-format rule on the field is responsible for
-                # shape — same_date isn't applicable.
-                if not (_date_re.match(a_str) and _date_re.match(b_str)):
-                    continue
-                if a_str != b_str:
-                    failing.add(idx)
-        else:
-            op_fn = _COMPARE_OPS.get(rule.compare_op)
-            if op_fn:
-                for idx in range(len(df)):
-                    a_raw = df[field].iloc[idx]
-                    if is_temporal_sentinel:
-                        if rule.compare_to == "today":
-                            b_raw = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-                        else:
-                            b_raw = datetime.now(timezone.utc).isoformat()
-                    else:
-                        b_raw = df[rule.compare_to].iloc[idx]
-                    if a_raw is None or (isinstance(a_raw, float) and pd.isna(a_raw)):
-                        # CRT170/J3: absent field — skip (not_empty is the catcher).
-                        continue
-                    if not is_temporal_sentinel and _batch_absent(b_raw):
-                        failing.add(idx)
-                        failing_counterpart_missing.add(idx)   # D10 (#145: marked)
-                        continue
-                    try:
-                        a, b = float(a_raw), float(b_raw)
-                    except (TypeError, ValueError):
-                        try:
-                            a = _read_iso(a_raw)
-                            b = _read_iso(b_raw)
-                        except (ValueError, AttributeError):
-                            a, b = str(a_raw), str(b_raw)
-                    if not op_fn(a, b):
-                        failing.add(idx)
-
-    elif rule.type == "required_if" and rule.required_if:
-        trigger_field = rule.required_if.get("field", "")
-        trigger_value = str(rule.required_if.get("value", ""))
-        if trigger_field not in df.columns:
-            logger.warning("required_if rule '%s' references missing trigger field '%s'",
-                           rule.name, trigger_field)
-        else:
-            # Single-path parity: the trigger is compared as a string and the
-            # target's absence uses _batch_absent (blank/whitespace = missing),
-            # not a SQL empty-string compare (round-2 B2 matrix).
-            for idx in range(len(df)):
-                trig = df[trigger_field].iloc[idx]
-                if trig is None or (isinstance(trig, float) and pd.isna(trig)):
-                    continue
-                if str(trig) == trigger_value and _batch_absent(_orig_val(idx)):
-                    failing.add(idx)
-            for r in ():
-                failing.add(r[0])
-
-    elif rule.type == "allowed_values" and rule.allowed_values:
-        allowed = {_render_value(v) for v in rule.allowed_values}
-        for idx in range(len(df)):
-            val = _orig_val(idx) if records is not None else df[field].iloc[idx]
-            if not _batch_absent(val):  # D6: blank is absent
-                if _render_value(val) not in allowed:
-                    failing.add(idx)
-
-    elif rule.type == "forbidden_values" and rule.forbidden_values:
-        forbidden = {_render_value(v) for v in rule.forbidden_values}
-        for idx in range(len(df)):
-            val = _orig_val(idx) if records is not None else df[field].iloc[idx]
-            if not _batch_absent(val):  # D6: blank is absent
-                if _render_value(val) in forbidden:
-                    failing.add(idx)
-
-    elif rule.type == "lookup" and rule.lookup_file:
-        try:
-            if rule.lookup_file.startswith("http://") or rule.lookup_file.startswith("https://"):
-                ttl = rule.cache_ttl if rule.cache_ttl is not None else _HTTP_LOOKUP_DEFAULT_TTL
-                valid_values = _load_http_lookup_set(rule.lookup_file, rule.lookup_field or "", ttl, auth_header=rule.lookup_auth_header)
-            else:
-                valid_values = _load_lookup_set(rule.lookup_file, rule.lookup_field or "")
-            for idx in range(len(df)):
-                val = df[field].iloc[idx]
-                if _batch_absent(val):
-                    # CRT170/J3 + D6: absent or blank field — skip (not_empty is the catcher).
-                    continue
-                elif rule.all_of and isinstance(val, list):
-                    if any(str(item) not in valid_values for item in val):
-                        failing.add(idx)
-                elif str(val) not in valid_values:
-                    failing.add(idx)
-        except LookupAuthPolicyError as exc:
-            # SEC-011: a policy violation is not a transient infra error — fail
-            # CLOSED (unlike the infra handler below). Every record subject to
-            # this rule fails, mirroring the single-record path's error_message.
-            logger.error("lookup rule '%s' blocked by SEC-011 policy: %s", rule.name, exc)
-            for idx in range(len(df)):
-                val = df[field].iloc[idx]
-                if _batch_absent(val):  # D6: absent or blank
-                    continue
-                failing.add(idx)
-        except (FileNotFoundError, KeyError, OSError, RuntimeError) as exc:
-            logger.warning("lookup rule '%s' skipped (infrastructure error, not failing batch): %s", rule.name, exc)
-
-    elif rule.type == "checksum" and rule.checksum_algorithm:
-        for idx in range(len(df)):
-            raw = _orig_val(idx)
-            if _batch_absent(raw):  # D6: absent or blank
-                continue
-            if not isinstance(raw, str):
-                # D9 family: a non-string identifier is refused with a typed
-                # message under the rule's own code (single-path parity).
-                failing.add(idx)
-                if failing_messages is not None:
-                    failing_messages[idx] = _checksum_type_message(field, raw)
-                continue
-            if not _validate_checksum(raw, rule.checksum_algorithm):
-                failing.add(idx)
-
-    elif rule.type == "cross_field_range":
-        for idx in range(len(df)):
-            val = df[field].iloc[idx]
-            if _batch_absent(val):  # D6: absent or blank
-                # CRT170/J3: absent field — skip.
-                continue
-            try:
-                v = float(val)
-                fail = False
-                for bound_field, cmp in ((rule.cross_min_field, lambda b: v < float(b)),
-                                         (rule.cross_max_field, lambda b: v > float(b))):
-                    if fail or not bound_field:
-                        continue
-                    bound = df[bound_field].iloc[idx] if bound_field in df.columns else None
-                    if _batch_absent(bound):
-                        failing.add(idx)
-                        failing_counterpart_missing.add(idx)   # D10 (#145)
-                        fail = True
-                    elif cmp(bound):
-                        fail = True
-                if fail:
-                    failing.add(idx)
-            except (TypeError, ValueError):
-                failing.add(idx)
-
-    elif rule.type == "field_sum" and rule.sum_fields and rule.sum_equals is not None:
-        tolerance = rule.sum_tolerance if rule.sum_tolerance is not None else 0.0
-        for idx in range(len(df)):
-            # D10 (#145): an absent/blank operand is a counterpart-missing
-            # failure, as on the single path — never silently zeroed (a record
-            # whose remaining operands happened to sum correctly passed here).
-            operands = [(df[f].iloc[idx] if f in df.columns else None) for f in rule.sum_fields]
-            if any(_batch_absent(v) for v in operands):
-                failing.add(idx)
-                failing_counterpart_missing.add(idx)
-                continue
-            try:
-                total = sum(float(v) for v in operands)
-                if abs(total - rule.sum_equals) > tolerance:
-                    failing.add(idx)
-            except (TypeError, ValueError):
-                failing.add(idx)
-
-    elif rule.type == "forbidden_if" and rule.forbidden_if:
-        trigger_field = rule.forbidden_if.get("field", "")
-        trigger_value = str(rule.forbidden_if.get("value", ""))
-        if trigger_field in df.columns:
-            query = (
-                f'SELECT __idx__ FROM data '
-                f'WHERE CAST("{trigger_field}" AS VARCHAR) = $trigger_val '
-                f'AND "{field}" IS NOT NULL '
-                f'AND TRIM(CAST("{field}" AS VARCHAR)) != \'\''
-            )
-            for r in con.execute(query, {"trigger_val": trigger_value}).fetchall():
-                failing.add(r[0])
-
-    elif rule.type == "conditional_value" and rule.must_equal is not None:
-        # Condition filtering is applied after this function returns
-        query = (
-            f'SELECT __idx__ FROM data '
-            f'WHERE "{field}" IS NULL OR CAST("{field}" AS VARCHAR) != $must_equal_val'
-        )
-        for r in con.execute(query, {"must_equal_val": str(rule.must_equal)}).fetchall():
-            failing.add(r[0])
-
-    elif rule.type == "date_diff" and rule.date_diff_field:
-        unit = rule.date_diff_unit or "days"
-        if rule.date_diff_field not in df.columns:
-            logger.warning("date_diff rule '%s' references missing field '%s'", rule.name, rule.date_diff_field)
-        else:
-            for idx in range(len(df)):
-                val = df[field].iloc[idx]
-                other_val = df[rule.date_diff_field].iloc[idx]
-                if _batch_absent(val):
-                    # CRT170/J3 + D6: target field absent or blank — skip (not_empty is the catcher).
-                    continue
-                if _batch_absent(other_val):
-                    # D10: missing/blank counterpart → fail, as the single path (both engines).
-                    failing.add(idx)
-                    failing_counterpart_missing.add(idx)   # #145
-                    continue
-                try:
-                    la, lb = _layouts_for(rule)
-                    d1 = _parse_date(val, la)
-                    d2 = _parse_date(other_val, lb)
-                    delta = _delta_days(d1, d2)  # signed, fractional — identical to the single path
-                    diff = delta / 365.25 if unit == "years" else delta
-                    fail = False
-                    if rule.min_value is not None and diff < rule.min_value:
-                        fail = True
-                    if rule.max_value is not None and diff > rule.max_value:
-                        fail = True
-                    if fail:
-                        failing.add(idx)
-                except (TypeError, ValueError):
-                    failing.add(idx)
-
-    elif rule.type == "ratio_check" and rule.ratio_numerator and rule.ratio_denominator:
-        if rule.ratio_numerator not in df.columns or rule.ratio_denominator not in df.columns:
-            logger.warning("ratio_check rule '%s' references missing fields", rule.name)
-        else:
-            for idx in range(len(df)):
-                try:
-                    num = df[rule.ratio_numerator].iloc[idx]
-                    den = df[rule.ratio_denominator].iloc[idx]
-                    if _batch_absent(num) or _batch_absent(den):
-                        failing.add(idx)
-                        failing_counterpart_missing.add(idx)   # D10 (#145)
-                        continue
-                    if float(den) == 0:
-                        failing.add(idx)
-                        continue
-                    ratio = float(num) / float(den)
-                    fail = False
-                    if rule.min_value is not None and ratio < rule.min_value:
-                        fail = True
-                    if rule.max_value is not None and ratio > rule.max_value:
-                        fail = True
-                    if fail:
-                        failing.add(idx)
-                except (TypeError, ValueError, ZeroDivisionError):
-                    failing.add(idx)
-
-    elif rule.type == "geospatial_bounds":
-        for idx in range(len(df)):
-            val = df[field].iloc[idx]
-            if _batch_absent(val):  # D6: absent or blank
-                # CRT170/J3: absent field — skip (not_empty is the catcher).
-                continue
-            try:
-                lat = float(val)
-                fail = False
-
-                if not (-90 <= lat <= 90):
-                    fail = True
-                elif rule.geo_min_lat is not None and lat < rule.geo_min_lat:
-                    fail = True
-                elif rule.geo_max_lat is not None and lat > rule.geo_max_lat:
-                    fail = True
-
-                if not fail and rule.geo_lon_field:
-                    lon_val = df[rule.geo_lon_field].iloc[idx] if rule.geo_lon_field in df.columns else None
-                    if _batch_absent(lon_val):
-                        fail = True
-                        failing_counterpart_missing.add(idx)   # D10 (#145)
-                    else:
-                        lon = float(lon_val)
-                        if not (-180 <= lon <= 180):
-                            fail = True
-                        elif rule.geo_min_lon is not None and lon < rule.geo_min_lon:
-                            fail = True
-                        elif rule.geo_max_lon is not None and lon > rule.geo_max_lon:
-                            fail = True
-
-                if fail:
-                    failing.add(idx)
-            except (TypeError, ValueError):
-                failing.add(idx)
-
-    # Age checks — apply to any rule with min_age/max_age (typically date fields).
-    # CRT170/J3: skip when field is absent (not_empty is the catcher). 3.0.4: a
-    # present value unreadable as a date fails, as on the single path.
+    # The min_age/max_age add-on applies to every rule type, as on the single
+    # path (_check_age after the rule's own check). 3.0.5: per record — a
+    # declared layout is read through the fixed-width gate, which DuckDB's
+    # TRY_STRPTIME cannot express (#203: it read '90' as the year 0090).
     if rule.min_age is not None or rule.max_age is not None:
-        # 2.8.0: parse with the declared layout (bound parameter, SEC-004/#9),
-        # exactly as the single path's _age_layout. 3.0.3: undeclared → the
-        # ISO reader, per record (TRY_CAST AS DATE took a space separator and
-        # 2026-1-10, and read the date out of T24:00:00 or a bare 2026-01-10Z).
-        age_fmt = _age_layout(rule)
-
-        def _age_per_record() -> None:
-            for idx in range(len(df)):
-                raw = records[idx].get(field) if records is not None else df[field].iloc[idx]
-                if _batch_absent(raw):
-                    continue
+        for idx in range(len(df)):
+            raw = records[idx].get(field) if records is not None else df[field].iloc[idx]
+            absent = _is_field_absent(raw) if records is not None else _batch_absent(raw)
+            if absent or idx in failing:
+                continue  # the rule's own failure is reported, as on the single path
+            try:
                 if _check_age(raw, rule):
                     failing.add(idx)
-
-        date_expr = f'CAST(TRY_STRPTIME(CAST("{field}" AS VARCHAR), $agefmt) AS DATE)'
-        age_params: dict = {"agefmt": age_fmt}
-        age_conditions = []
-        age_expr = ("DATE_DIFF('year', __d__, CURRENT_DATE) "
-                    "- CASE WHEN (MONTH(CURRENT_DATE), DAY(CURRENT_DATE)) < (MONTH(__d__), DAY(__d__)) THEN 1 ELSE 0 END")
-        if rule.min_age is not None:
-            age_conditions.append(f'{age_expr} < {rule.min_age}')
-        if rule.max_age is not None:
-            age_conditions.append(f'{age_expr} > {rule.max_age}')
-        if age_fmt is None:
-            _age_per_record()
-        elif age_conditions:
-            # the layout is parsed once per row in the subquery (was up to 7×)
-            age_query = (
-                f'SELECT __idx__ FROM (SELECT __idx__, {date_expr} AS __d__ FROM data '
-                f'WHERE "{field}" IS NOT NULL AND TRIM(CAST("{field}" AS VARCHAR)) != \'\') '
-                f"WHERE __d__ IS NULL OR ({' OR '.join(age_conditions)})"
-            )
-            try:
-                for r in con.execute(age_query, age_params).fetchall():
-                    failing.add(r[0])
-            except duckdb.Error:
-                # A strptime directive Python accepts but DuckDB does not
-                # (e.g. %e): evaluate the add-on per record with the single
-                # path's _check_age so the two paths cannot diverge.
-                logger.info("age check: DuckDB rejected layout %r for rule '%s'; evaluating per record",
-                            age_fmt, rule.name)
-                _age_per_record()
+            except Exception:
+                logger.exception("validate_batch: age check raised on rule=%s record=%d — failing closed",
+                                 rule.name, idx)
+                failing.add(idx)
+                failing_messages[idx] = _RULE_ERROR_PREFIX
 
     return failing

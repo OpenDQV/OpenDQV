@@ -60,7 +60,7 @@ opendqv --version
 | `generate` | `<contract> <target>` | — | Generate push-down validation code for `salesforce`, `js`, or `snowflake` |
 | `validate-file` | `<contract> <path>` | `--output-failures`, `--observe-only` | Validate a CSV or Parquet file against a contract (no API server required) |
 | `fork` | `<src> <dst>` | `--force` | Copy a contract to a new name as a clean DRAFT v1.0 (preserves comments) |
-| `lint` | `<contract>` | `--format` | Lint a contract YAML for logical errors before deployment |
+| `lint` | `<contract>` | `--format` | Lint a contract YAML for logical errors before deployment (shapes refused on submission are `CONTRACT_RULE_INVALID` errors) |
 | `onboard` | — | — | Launch the interactive setup wizard; first validation in ~90 seconds |
 | `submit-review` | `<contract>` | `--version` (required), `--proposed-by` | Transition a DRAFT contract to REVIEW status |
 | `approve` | `<contract>` | `--version` (required), `--approved-by` | Transition a REVIEW contract to ACTIVE status |

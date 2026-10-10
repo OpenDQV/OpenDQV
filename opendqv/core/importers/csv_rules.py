@@ -74,21 +74,26 @@ def _handle_range(field: str, value: str) -> dict:
     parts = [p.strip() for p in value.split(",")]
     min_val = _to_number(parts[0]) if len(parts) > 0 else None
     max_val = _to_number(parts[1]) if len(parts) > 1 else None
-    desc_parts = []
-    if min_val is not None:
-        desc_parts.append(str(min_val))
-    if max_val is not None:
-        desc_parts.append(str(max_val))
-    range_desc = " and ".join(desc_parts) if desc_parts else "valid range"
-    rule: dict[str, Any] = {
-        "type": "range",
-        "field": field,
-        "error_message": f"{field} must be between {range_desc}",
-    }
-    if min_val is not None:
-        rule["min_value"] = min_val
-    if max_val is not None:
-        rule["max_value"] = max_val
+    # 3.0.5: one bound is a min or max rule — a range needs both (the
+    # managed engine refuses a one-sided range at create).
+    if min_val is not None and max_val is not None:
+        rule: dict[str, Any] = {
+            "type": "range",
+            "field": field,
+            "error_message": f"{field} must be between {min_val} and {max_val}",
+            "min_value": min_val,
+            "max_value": max_val,
+        }
+    elif min_val is not None:
+        rule = {"type": "min", "field": field, "min_value": min_val,
+                "error_message": f"{field} must be at least {min_val}"}
+    elif max_val is not None:
+        rule = {"type": "max", "field": field, "max_value": max_val,
+                "error_message": f"{field} must be at most {max_val}"}
+    else:
+        # no bound at all: keep the rule visible (it is refused on submission,
+        # naming the problem) rather than dropping the row silently
+        rule = {"type": "range", "field": field, "error_message": f"{field} must be in range"}
     return rule
 
 

@@ -6,7 +6,7 @@ Validates that the ratio of two numeric fields falls within an allowed range.
 
 | Field | Required | Description |
 |---|---|---|
-| `field` | Yes | Primary field (used for error reporting and row identification). |
+| `field` | Yes | Attribution only: the field the error is reported against. Never read; need not be an operand. |
 | `ratio_numerator` | Yes | Field name for the numerator. |
 | `ratio_denominator` | Yes | Field name for the denominator. |
 | `min_value` | No | Minimum allowed ratio (inclusive). |
@@ -58,6 +58,6 @@ The computed ratio is then checked against `min_value` and/or `max_value`. At le
 
 - If `ratio_denominator` is zero or null the record fails validation (division by zero is treated as a rule failure, not an error).
 - If either field is null the record fails validation.
-- Both fields must be numeric. Non-numeric values cause the record to fail.
+- Both fields must be numeric. Non-numeric values cause the record to fail; a JSON boolean is not a number (`true` is not 1).
 - For single-sided checks, omit the bound you do not need.
-- `field` does not have to be the same as `ratio_numerator`; it is used solely to identify the failing record in the validation report.
+- `field` does not have to be the same as `ratio_numerator`; it is used solely to identify the failing record in the validation report. It is never read, so its absence does **not** skip the rule (3.0.5, both engines — an exception to the D6 own-field skip): the ratio is judged whenever the rule applies, and an absent numerator or denominator fails (D10, `counterpart_missing: true`).

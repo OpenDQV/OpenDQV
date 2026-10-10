@@ -41,7 +41,7 @@ def test_mcp_draft_keeps_every_parameter(tmp_path):
         {"name": "cmp", "type": "compare", "field": "end", "compare_to": "start", "compare_op": "gte",
          "condition": {"field": "kind", "value": "range"}, "optional": True, "error_message": "end>=start"},
         {"name": "lk", "type": "lookup", "field": "cc", "lookup_file": "ref/iso_country.txt", "severity": "warning"},
-        {"name": "chk", "type": "checksum", "field": "nhs", "checksum_algorithm": "nhs"},
+        {"name": "chk", "type": "checksum", "field": "nhs", "checksum_algorithm": "nhs_mod11"},
         {"name": "rif", "type": "required_if", "field": "ref", "required_if": {"field": "t", "value": "x"}},
         {"name": "neg", "type": "regex", "field": "e", "pattern": "@gmail\\.com$", "negate": True},
         {"name": "rng", "type": "range", "field": "n", "min": 1, "max": 9},
@@ -52,7 +52,7 @@ def test_mcp_draft_keeps_every_parameter(tmp_path):
     assert by_name["cmp"]["compare_to"] == "start" and by_name["cmp"]["condition"]["value"] == "range"
     assert by_name["cmp"]["optional"] is True
     assert by_name["lk"]["lookup_file"] == "ref/iso_country.txt"
-    assert by_name["chk"]["checksum_algorithm"] == "nhs"
+    assert by_name["chk"]["checksum_algorithm"] == "nhs_mod11"
     assert by_name["rif"]["required_if"] == {"field": "t", "value": "x"}
     assert by_name["neg"]["negate"] is True
     assert by_name["rng"]["min"] == 1 and by_name["rng"]["max"] == 9   # YAML aliases, not min_value

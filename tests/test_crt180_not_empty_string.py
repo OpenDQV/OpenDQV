@@ -33,12 +33,20 @@ class TestSingleRecord:
     def test_non_string_values_fail_under_the_rule_code_not_coerced(self):
         # Same code as the managed engine: the type guard is this rule's own
         # assertion (a cross-engine fixture run caught the earlier TYPE_MISMATCH choice).
-        for val in (0, 1, 1.5, False, True, [], ["x"], {}, {"k": "v"}):
+        for val in (0, 1, 1.5, False, True, ["x"], {"k": "v"}):
             res = validate_record({"email": val}, [_rule()])
             assert res["valid"] is False, val
             err = res["errors"][0]
             assert err["error_code"].startswith("OPENDQV_NOT_EMPTY_STRING_"), val
             assert "must be a JSON string" in err["message"]
+
+    def test_empty_array_and_object_are_absence(self):
+        # 3.0.5 (both engines): [] and {} are absent, like null — the rule's
+        # own absence message, not the typed one.
+        for val in ([], {}):
+            res = validate_record({"email": val}, [_rule()])
+            assert res["valid"] is False, val
+            assert res["errors"][0]["message"] == "Email is required"
 
     def test_not_empty_still_coerces_for_contrast(self):
         res = validate_record({"email": 0}, [_rule(type="not_empty", name="e")])

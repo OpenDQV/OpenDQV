@@ -53,7 +53,7 @@ opendqv import-gx path/to/expectation_suite.json
 | `expect_column_values_to_not_be_null` | `not_empty` | Direct mapping |
 | `expect_column_values_to_be_unique` | `unique` | Batch mode only |
 | `expect_column_values_to_match_regex` | `regex` | Pattern mapped directly |
-| `expect_column_values_to_be_between` | `range` | `min_value` / `max_value` |
+| `expect_column_values_to_be_between` | `range` | `min_value` / `max_value`; with only one bound → `min` / `max` (a `range` needs both) |
 | `expect_column_value_lengths_to_be_between` | `min_length` / `max_length` | Split into two rules |
 | `expect_column_values_to_be_in_set` | `regex` | Values converted to `^(a\|b\|c)$` pattern |
 | `expect_table_row_count_to_be_between` | *not supported* | Dataset-level; no per-record equivalent |

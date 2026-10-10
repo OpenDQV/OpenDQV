@@ -139,7 +139,7 @@ Write tools:
 
 | Tool | What it does |
 |------|--------------|
-| `create_contract_draft` | *(in-process server only — the standalone REST-bridge proxy does not expose it; a good first issue)* Propose a new DRAFT contract. The name must match the contract-name charset (letters, digits, hyphens, underscores; 1–100 chars) **and** start with `MCP_`; `created_by` (or `OPENDQV_AGENT_IDENTITY`) is required; review required before activation. |
+| `create_contract_draft` | *(in-process server only — the standalone REST-bridge proxy does not expose it; a good first issue)* Propose a new DRAFT contract. The name must match the contract-name charset (letters, digits, hyphens, underscores; 1–100 chars) **and** start with `MCP_`; `created_by` (or `OPENDQV_AGENT_IDENTITY`) is required; review required before activation. A rule in a shape the engine refuses on submission (unknown `compare_op`, `negate` off `regex`, an unsupported date `format`, … — see [core_rules.md](rules/core_rules.md#presence-is-explicit-250)) is refused with `contract_rule_invalid`. |
 
 ## Write guardrails
 

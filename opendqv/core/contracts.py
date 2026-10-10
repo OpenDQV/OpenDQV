@@ -1127,6 +1127,13 @@ class ContractRegistry:
         check_contract_keys(raw)
         rules = [Rule(**r) for r in raw.get("rules", [])]
         name = raw.get("name") or path.stem.replace("-", "_").replace(" ", "_")
+        # 3.0.5: shapes refused when a contract is submitted still load from
+        # storage (a refusal here would delist the contract at boot) and keep
+        # their old reading — say so loudly.
+        from .submission import contract_submission_problems
+        for problem in contract_submission_problems(raw):
+            logger.warning("contract '%s' (%s): %s — loaded with its old reading; "
+                           "this shape is refused when a contract is submitted", name, path.name, problem)
         return DataContract(
             name=name,
             version=str(raw.get("version", "1.0")),
@@ -1422,8 +1429,12 @@ class ContractRegistry:
                 f"delete the existing draft first."
             )
 
+        from .submission import rule_submission_problems
         rules = []
         for i, r in enumerate(rules_data):
+            problems = rule_submission_problems(r)
+            if problems:
+                raise ValueError(f"Invalid rule at index {i}: contract_rule_invalid: " + "; ".join(problems))
             try:
                 rules.append(Rule(**r))
             except Exception as exc:
@@ -1691,7 +1702,9 @@ class ContractRegistry:
         if not contract:
             raise ValueError(f"Contract '{name}' not found")
         self._assert_rules_mutable(contract)
-        # Validate rule
+        # Validate rule (3.0.5: the submission checks first)
+        from .submission import refuse_if_problems
+        refuse_if_problems(rule_dict, rule=True)
         rule = Rule(**rule_dict)
         if any(r.name == rule.name for r in contract.rules):
             raise ValueError(f"Rule '{rule.name}' already exists in contract '{name}'")
@@ -1716,6 +1729,8 @@ class ContractRegistry:
         if idx is None:
             raise ValueError(f"Rule '{rule_name}' not found in contract '{name}'")
         old_rule = contract.rules[idx]
+        from .submission import refuse_if_problems
+        refuse_if_problems(rule_dict, rule=True)
         new_rule = Rule(**rule_dict)
         # Detect breaking change
         _breaking_fields = ("type", "pattern", "min_value", "max_value")

@@ -38,6 +38,7 @@ from typing import Optional
 import yaml
 
 from opendqv.core.rule_parser import RULE_KEYS, RULE_TYPES, nearest_key
+from opendqv.core.submission import rule_submission_problems
 from opendqv.core.validator import (
     _human_to_strptime,
     _PRESENCE_RULE_TYPES,  # single source of truth (round-2 B2)
@@ -424,6 +425,12 @@ def lint_contract_yaml(yaml_str: str, contract_name: str = "") -> LintResult:
                 f"Unknown rule type '{rule_type}'{hint}. Known types: {sorted(_KNOWN_RULE_TYPES)}")
             # Don't run further checks — they'd all be noise
             continue
+
+        # 3.0.5: the shapes refused when a contract is submitted (one source:
+        # core/submission.py). Stored content still loads, with a warning.
+        for problem in rule_submission_problems(raw):
+            err("CONTRACT_RULE_INVALID", f"{problem} (refused when a contract is submitted; "
+                                         f"a stored contract still loads with its old reading)")
 
         # ── Range / bound checks ──────────────────────────────────────────────
         min_val = raw.get("min") if raw.get("min") is not None else raw.get("min_value")

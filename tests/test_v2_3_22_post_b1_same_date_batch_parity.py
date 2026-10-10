@@ -156,11 +156,10 @@ class TestSameDateBatchParity:
         result = validate_batch(records, rules)
         assert result["summary"]["failed"] == 0, result
 
-    def test_batch_same_date_skips_when_either_side_malformed(self):
-        """Single-record impl returns None (rule not applicable) when
-        either side fails the YYYY-MM-DD shape check. Batch must
-        match — don't flag the record (a separate format rule is
-        responsible for shape)."""
+    def test_batch_same_date_fails_when_either_side_malformed(self):
+        """3.0.5 (sweep A3, both engines): an operand same_date cannot read
+        as a date FAILS the rule ("unreadable fails") — it is not "not
+        applicable". Batch matches the single path."""
         from opendqv.core.rule_parser import Rule, Severity
         from opendqv.core.validator import validate_batch
 
@@ -174,9 +173,9 @@ class TestSameDateBatchParity:
             {"trade_date": "2026-04-27", "execution_timestamp": "also-garbage"},
         ]
         result = validate_batch(records, rules)
-        # Neither record fails the same_date rule — shape mismatch is
-        # the date_format rule's concern, not this rule's.
-        assert result["summary"]["failed"] == 0, result
+        assert result["summary"]["failed"] == 2, result
+        from opendqv.core.validator import validate_record
+        assert [validate_record(r, rules)["valid"] for r in records] == [False, False]
 
 
 class TestSingleVsBatchSameDateParity:

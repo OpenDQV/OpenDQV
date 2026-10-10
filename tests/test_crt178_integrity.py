@@ -110,13 +110,14 @@ class TestFormatSqlInjection:
         out = self._run("%Y-%m-%d")
         assert [r["valid"] for r in out["results"]] == [True, False, False]
 
-    def test_query_text_binds_fmt(self):
-        """Guard against someone re-inlining the format into the query string."""
+    def test_format_never_reaches_sql(self):
+        """3.0.5: a declared format is read per record through the fixed-width
+        gate; no SQL text carries it (the strongest form of the CRT178 #9 fix)."""
         import inspect
         from opendqv.core import validator
         src = inspect.getsource(validator._batch_check_rule_inner)
-        assert "$fmt" in src
-        assert "'{strptime_fmt}'" not in src
+        assert "STRPTIME(" not in src and "$fmt" not in src
+        assert "rule.format" not in src
 
     @pytest.mark.parametrize("kwargs", [
         {"type": "required_if", "required_if": {"field": 'x" OR 1=1--', "value": "y"}},

@@ -14,7 +14,7 @@ The `field_sum` rule validates that the sum of a named list of fields equals a t
 | `sum_fields` | Yes | — | List of field names to sum |
 | `sum_equals` | Yes | — | The target value the sum must equal |
 | `sum_tolerance` | No | `0.0` | Maximum allowed deviation from `sum_equals` (absolute, not relative) |
-| `field` | Yes | — | The "anchor" field — any one of the fields in `sum_fields`. Used to attribute the error to a specific field in the response. |
+| `field` | Yes | — | Attribution only: the field the error is reported against. It is never read, and need not be one of the `sum_fields` (a label such as `total` is fine). |
 
 ## Syntax
 
@@ -31,11 +31,12 @@ The `field_sum` rule validates that the sum of a named list of fields equals a t
 
 ## Behaviour
 
-- All fields listed in `sum_fields` are converted to floats and summed.
+- All fields listed in `sum_fields` are read as numbers and summed. A numeric string (`"40"`) is read; a JSON boolean is **not** a number (`true` is not 1), so a boolean operand — or any other non-number — fails the rule.
 - The rule passes if `|sum - sum_equals| <= sum_tolerance`.
 - If `sum_tolerance` is omitted or 0.0, the sum must equal `sum_equals` exactly. In practice, always set a small tolerance (e.g. `0.01`) to handle floating-point rounding.
-- If any field in `sum_fields` is absent or blank the rule fails (D10) and the error entry carries `counterpart_missing: true`. An absent anchor `field` is skipped (D6).
-- Errors are attributed to the `field` specified in the rule (the anchor field).
+- If any field in `sum_fields` is absent or blank the rule fails (D10) and the error entry carries `counterpart_missing: true`.
+- The rule's own `field` is attribution only and is never read (3.0.5, both engines): its absence does **not** skip the rule — the operands are judged whenever the rule applies (an exception to the D6 own-field skip). If `field` is also one of the `sum_fields` and is absent, that is an operand failure, never a skip or a zero.
+- Errors are attributed to the `field` specified in the rule.
 
 ## Use cases by industry
 

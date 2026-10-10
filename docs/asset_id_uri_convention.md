@@ -77,7 +77,7 @@ rules:
     field: settlement_id
     error_message: Settlement ID is required
   - name: amount_positive
-    type: range
+    type: min
     field: amount
     min: 0.01
     error_message: Settlement amount must be positive
@@ -133,7 +133,7 @@ rules:
     error_message: Transaction ID must be a valid UUID
 
   - name: amount_positive
-    type: range
+    type: min
     field: amount
     min: 0.01
     error_message: Amount must be positive
@@ -197,7 +197,7 @@ rules:
     error_message: MPAN must be 13 digits
 
   - name: reading_positive
-    type: range
+    type: min
     field: kwh_reading
     min: 0
     error_message: kWh reading cannot be negative

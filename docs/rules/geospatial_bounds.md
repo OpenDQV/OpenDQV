@@ -112,6 +112,6 @@ issues relevant to residency compliance.
 
 ## Batch Mode
 
-The rule is fully supported in `validate_batch()` (DuckDB-powered batch validation).
-Each row is checked independently; invalid latitude or longitude type conversions
+The rule is fully supported in `validate_batch()`, which evaluates it per record with
+the same handler as `validate_record()` (one verdict on both paths). Each row is checked independently; invalid latitude or longitude type conversions
 (non-numeric values) are treated as failures.

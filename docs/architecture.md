@@ -21,7 +21,7 @@ OpenDQV/
 │   │   └── deps.py                # Shared router state, limiter, auth/validation helpers
 │   │
 │   ├── core/
-│   │   ├── validator.py           # Validation engine — single-record + DuckDB batch
+│   │   ├── validator.py           # Validation engine — single-record + batch (one handler per rule type)
 │   │   ├── rule_parser.py         # Rule Pydantic model, YAML parsing, compiled patterns
 │   │   ├── contracts.py           # Contract registry, YAML load/save, versioning, history
 │   │   ├── code_generator.py      # Push-down code generation (Apex/JS/Snowflake/SQL)
@@ -104,11 +104,15 @@ atomically on every mutation. The in-memory registry is rebuilt from disk on rel
 All settings come from environment variables via `config.py`. No runtime config files,
 no config DB. `.env` is the deployment artifact.
 
-**4. DuckDB for batch**
+**4. One handler per rule type, on both paths**
 
-Single-record validation runs the Python rule engine. Batch validation (> ~100 records)
-uses DuckDB — contracts are compiled to SQL and executed as a single query. This gives
-batch validation 10-100× better throughput than iterating the Python engine.
+Single-record and batch validation run the same Python rule handlers. Since 3.0.5,
+`validate_batch` evaluates every rule type except `unique` per record with the
+single-path handler on the raw record, so the two paths give one verdict by
+construction. Only `unique` — a set-based rule judged across the whole batch — runs
+on the batch frame (DuckDB for global uniqueness, Python grouping for `group_by`).
+Batch still saves the per-request overhead (one HTTP call and one contract
+resolution for many records).
 
 **5. Layer 1 only**
 
