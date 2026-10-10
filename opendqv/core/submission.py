@@ -97,7 +97,7 @@ def rule_submission_problems(raw: dict) -> list[str]:
     rtype = raw.get("type")
     out: list[str] = []
     op = raw.get("compare_op")
-    if op is not None and op not in COMPARE_OPS:
+    if op is not None and (not isinstance(op, str) or op not in COMPARE_OPS):
         out.append(f'compare_op "{op}" is not one of gt lt gte lte eq neq same_date (or > < >= <= = !=)')
     out += _condition_problems(raw.get("condition"), "condition")
     if raw.get("negate") is True and rtype != "regex":

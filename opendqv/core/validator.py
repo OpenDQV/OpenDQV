@@ -1069,6 +1069,22 @@ def _num(value) -> float:
     return f
 
 
+def _unreadable_number(value) -> bool:
+    """A number the engine cannot read (3.0.5): a JSON number or numeric
+    string that is NaN, infinite, or beyond float64. Never compared as text."""
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        return False
+    try:
+        float(value)
+    except (ValueError, OverflowError):
+        return isinstance(value, int)   # an int beyond float64 raises OverflowError
+    try:
+        _num(value)
+    except ValueError:
+        return True
+    return False
+
+
 def _is_numeric_value(value) -> bool:
     """True if value is int/float (and not bool, which subclasses int).
 
@@ -1228,6 +1244,11 @@ def _check_unique(value, rule: Rule, record: Optional[dict] = None) -> Optional[
     return None
 
 
+@lru_cache(maxsize=256)
+def _warn_unknown_compare_op(rule_name: str, op) -> None:
+    logger.warning("compare rule '%s' has unknown compare_op '%s'", rule_name, op)
+
+
 def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if not rule.compare_to or not rule.compare_op:
         logger.warning("compare rule '%s' missing compare_to or compare_op", rule.name)
@@ -1236,17 +1257,15 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
         return None
     op = rule.compare_op
     op_fn = _COMPARE_OPS.get(op)
-    if op_fn is None and op != "same_date":
-        # Refused when a contract is submitted (3.0.5); stored content keeps
-        # its old reading — the rule does not judge.
-        logger.warning("compare rule '%s' has unknown compare_op '%s'", rule.name, op)
-        return None
     la, lb = _layouts_for(rule)
 
     # 3.0.5: `today` compares calendar dates (both sides truncated to
     # y/m/d, so a timestamp stamped today is not "after today"); `now` is the
     # instant. The value must read as a date: unreadable fails.
     if rule.compare_to in ("today", "now"):
+        if op_fn is None and op != "same_date":
+            _warn_unknown_compare_op(rule.name, op)
+            return None
         try:
             a = _parse_date(value, la)
         except ValueError:
@@ -1263,6 +1282,11 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
     other = (record or {}).get(rule.compare_to)
     if _is_field_absent(other):
         return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: a missing/blank counterpart IS a comparison failure (both engines)
+    if op_fn is None and op != "same_date":
+        # Refused when a contract is submitted (3.0.5); stored content keeps
+        # its old reading — the rule does not judge.
+        _warn_unknown_compare_op(rule.name, op)
+        return None
 
     # same_date (v2.3.20, MiFIR RTS 22 T+0): both operands are dates, each
     # read with its declared layout or the ISO reader; their calendar dates
@@ -1304,6 +1328,8 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
     # on true fails the rule; it never reads as 1 or as the text "true").
     if isinstance(value, bool) or isinstance(other, bool):
         return rule.error_message
+    if _unreadable_number(value) or _unreadable_number(other):
+        return rule.error_message   # NaN, infinity, an integer beyond float64: never compared as text
     try:
         a, b = _num(value), _num(other)
     except ValueError:
@@ -1371,6 +1397,37 @@ def _check_forbidden_values(value, rule: Rule, record: Optional[dict] = None) ->
     return None
 
 
+# 3.0.5: during validate_batch, each lookup's reference set — or its load
+# failure — is fetched once for the whole batch. The per-record batch would
+# otherwise retry a failed load (lru_cache does not cache exceptions) once per
+# record: N timeouts against a blackholed host, N hits on a failing server.
+_lookup_memo_var: ContextVar[Optional[dict]] = ContextVar("opendqv_lookup_memo", default=None)
+
+
+def _lookup_values(rule: Rule) -> frozenset:
+    key = (rule.lookup_file, rule.lookup_field or "", rule.cache_ttl, rule.lookup_auth_header)
+    memo = _lookup_memo_var.get()
+    if memo is not None and key in memo:
+        got = memo[key]
+        if isinstance(got, BaseException):
+            raise got
+        return got
+    try:
+        if rule.lookup_file.startswith("http://") or rule.lookup_file.startswith("https://"):
+            ttl = rule.cache_ttl if rule.cache_ttl is not None else _HTTP_LOOKUP_DEFAULT_TTL
+            got = _load_http_lookup_set(rule.lookup_file, rule.lookup_field or "", ttl, auth_header=rule.lookup_auth_header)
+        else:
+            got = _load_lookup_set(rule.lookup_file, rule.lookup_field or "")
+    except (FileNotFoundError, KeyError, OSError, RuntimeError, ValueError) as exc:
+        logger.error("%s rule '%s' could not load '%s': %s", rule.type, rule.name, rule.lookup_file, exc)
+        if memo is not None:
+            memo[key] = exc
+        raise
+    if memo is not None:
+        memo[key] = got
+    return got
+
+
 def _check_lookup(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if not rule.lookup_file:
         logger.warning("lookup rule '%s' missing lookup_file", rule.name)
@@ -1378,14 +1435,9 @@ def _check_lookup(value, rule: Rule, record: Optional[dict] = None) -> Optional[
     if _is_field_absent(value):
         return None  # D6: blank is absent — presence rules are the single catcher
     try:
-        if rule.lookup_file.startswith("http://") or rule.lookup_file.startswith("https://"):
-            ttl = rule.cache_ttl if rule.cache_ttl is not None else _HTTP_LOOKUP_DEFAULT_TTL
-            valid_values = _load_http_lookup_set(rule.lookup_file, rule.lookup_field or "", ttl, auth_header=rule.lookup_auth_header)
-        else:
-            valid_values = _load_lookup_set(rule.lookup_file, rule.lookup_field or "")
-    except (FileNotFoundError, KeyError, OSError, RuntimeError, ValueError) as exc:
-        logger.error("lookup rule '%s' could not load '%s': %s", rule.name, rule.lookup_file, exc)
-        return rule.error_message
+        valid_values = _lookup_values(rule)
+    except (FileNotFoundError, KeyError, OSError, RuntimeError, ValueError):
+        return rule.error_message   # fails closed (logged once per batch by _lookup_values)
     if rule.all_of and isinstance(value, list):
         # all_of reads a list: every item must be in the reference set
         for item in value:
@@ -1543,14 +1595,9 @@ def _check_conditional_lookup(value, rule: Rule, record: Optional[dict] = None) 
     if _is_field_absent(value):
         return None
     try:
-        if rule.lookup_file.startswith("http://") or rule.lookup_file.startswith("https://"):
-            ttl = rule.cache_ttl if rule.cache_ttl is not None else _HTTP_LOOKUP_DEFAULT_TTL
-            valid_values = _load_http_lookup_set(rule.lookup_file, rule.lookup_field or "", ttl, auth_header=rule.lookup_auth_header)
-        else:
-            valid_values = _load_lookup_set(rule.lookup_file, rule.lookup_field or "")
-    except (FileNotFoundError, KeyError, OSError, RuntimeError, ValueError) as exc:
-        logger.error("conditional_lookup rule '%s' could not load '%s': %s", rule.name, rule.lookup_file, exc)
-        return rule.error_message
+        valid_values = _lookup_values(rule)
+    except (FileNotFoundError, KeyError, OSError, RuntimeError, ValueError):
+        return rule.error_message   # fails closed (logged once per batch by _lookup_values)
     if isinstance(value, (list, dict)):
         return _collection_message(rule, value)
     if _render_value(value) not in valid_values:
@@ -2085,6 +2132,7 @@ def validate_batch(
                     row_results[i]["errors"].append(extra)
 
         _layout_token = _date_layouts_var.set(resolve_date_layouts(rules))
+        _lookup_token = _lookup_memo_var.set({})
         try:
             for rule in rules:
                 # (round-2 S7) every declared field is materialised above, so a
@@ -2157,6 +2205,7 @@ def validate_batch(
                         row_results[idx]["warnings"].append(row_entry)
         finally:
             _date_layouts_var.reset(_layout_token)
+            _lookup_memo_var.reset(_lookup_token)
     finally:
         con.close()
 
@@ -2354,7 +2403,8 @@ def _batch_check_rule_inner(con, df: pd.DataFrame, rule: Rule, failing_type_mism
     if rule.min_age is not None or rule.max_age is not None:
         for idx in range(len(df)):
             raw = records[idx].get(field) if records is not None else df[field].iloc[idx]
-            if _batch_absent(raw) or idx in failing:
+            absent = _is_field_absent(raw) if records is not None else _batch_absent(raw)
+            if absent or idx in failing:
                 continue  # the rule's own failure is reported, as on the single path
             try:
                 if _check_age(raw, rule):

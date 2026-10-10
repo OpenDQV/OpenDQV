@@ -244,3 +244,49 @@ def test_compare_with_a_boolean_operand_fails(a, b):
     rule = Rule(name="c", type="compare", field="a", compare_to="b", compare_op="gte", error_message="bad")
     for out in _both({"a": a, "b": b}, [rule]):
         assert _codes(out) == ["OPENDQV_COMPARE_C"]
+
+
+# ── blind-review findings (3.0.5 pre-merge) ─────────────────────────────
+
+def test_a_failed_lookup_load_is_tried_once_per_batch(monkeypatch):
+    from opendqv.core import validator
+    calls = []
+
+    def failing(file_path, lookup_field):
+        calls.append(file_path)
+        raise FileNotFoundError(file_path)
+
+    monkeypatch.setattr(validator, "_load_lookup_set", failing)
+    rule = Rule(name="lk", type="lookup", field="f", lookup_file="ref/x.csv", error_message="bad")
+    res = validate_batch([{"f": "a"}] * 500, [rule], "t")
+    assert res["summary"]["failed"] == 500   # fails closed on every record
+    assert len(calls) == 1                   # but loads once
+    validate_batch([{"f": "a"}] * 3, [rule], "t")
+    assert len(calls) == 2                   # the memo lives for one batch only
+
+
+@pytest.mark.parametrize("a,b", [(float("nan"), 5), (5, 10 ** 400), ("nan", "5"), ("5", "1e400")])
+def test_compare_never_reads_an_unreadable_number_as_text(a, b):
+    rule = Rule(name="c", type="compare", field="a", compare_to="b", compare_op="gt", error_message="bad")
+    for out in _both({"a": a, "b": b}, [rule]):
+        assert out["valid"] is False
+
+
+def test_submission_check_survives_a_non_string_compare_op():
+    from opendqv.core.submission import rule_submission_problems
+    assert rule_submission_problems({"name": "r", "type": "compare", "field": "f", "compare_to": "g",
+                                     "compare_op": ["gt"]})
+
+
+def test_age_add_on_on_nan_agrees_on_both_paths():
+    rule = Rule(name="r", type="regex", field="f", pattern=".*", min_age=18, error_message="bad")
+    single, batch = _both({"f": float("nan")}, [rule])
+    assert single["valid"] is batch["valid"] is False
+
+
+def test_stored_unknown_compare_op_keeps_the_counterpart_check():
+    rule = Rule(name="c", type="compare", field="f", compare_to="g", compare_op="after", error_message="bad")
+    for out in _both({"f": 5}, [rule]):
+        assert out["valid"] is False          # counterpart missing (D10), as on 3.0.4's single path
+    for out in _both({"f": 5, "g": 1}, [rule]):
+        assert out["valid"] is True           # the unknown operator does not judge
