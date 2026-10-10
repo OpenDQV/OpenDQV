@@ -111,6 +111,17 @@ _COMPARE_OPS = {
 }
 
 
+# 3.0.5: white space is Unicode White_Space. Python's str.strip()/isspace()
+# also take U+001C-U+001F (information separators), which are not white space
+# on either engine — "\u001c" is a present value. Used wherever absence or
+# padding is decided.
+_WS_CHARS = "".join(c for c in map(chr, range(0x3001)) if c.isspace() and c not in "\x1c\x1d\x1e\x1f")
+
+
+def _ws_strip(s: str) -> str:
+    return s.strip(_WS_CHARS)
+
+
 # 3.0.3: the one ISO reader (managed-engine parity). With no declared layout a
 # date is YYYY-MM-DD, optionally Thh:mm:ss, a fraction of any length after
 # either ISO 8601 decimal sign (. or ,), and Z or ±hh:mm — on
@@ -128,7 +139,7 @@ def _read_iso(v) -> datetime:
     """Read ``v`` as an ISO 8601 date or datetime (the surface above, white
     space around it ignored); a day that does not exist is refused by
     fromisoformat. UTC when the value carries no zone. Raises ValueError."""
-    s = str(v).strip()
+    s = _ws_strip(str(v))
     if not _ISO_DATE_RE.fullmatch(s):
         raise ValueError(f"Cannot parse date: {v!r}")
     try:
@@ -138,6 +149,86 @@ def _read_iso(v) -> datetime:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+# 3.0.5 (both engines): a declared format reads exactly one shape. Every
+# directive is fixed width — %Y four digits; %y %m %d %H %M %S two; %f one to
+# six after the format's own "." or "," — and every other character of the
+# format is itself, exactly once (one space is one space, a tab is not a
+# space, case counts). The value (white space around it ignored) must match
+# that shape in full; the calendar is then checked (no 31 February, years
+# 0001-9999). strptime alone reads 1/02/2026 for %d/%m/%Y, treats a space as
+# any run of white space, and raises a regex error on a repeated directive.
+_LAYOUT_DIRECTIVES = {
+    "Y": ("[0-9]{4}", "year"), "y": ("[0-9]{2}", "year2"), "m": ("[0-9]{2}", "month"),
+    "d": ("[0-9]{2}", "day"), "H": ("[0-9]{2}", "hour"), "M": ("[0-9]{2}", "minute"),
+    "S": ("[0-9]{2}", "second"), "f": ("[0-9]{1,6}", "micro"),
+}
+# Two Go layouts a managed-engine dashboard once wrote into contracts. Refused
+# when a contract is submitted; stored content reads them as aliases.
+_GO_DATE_LAYOUT = "2006-01-02"
+_GO_RFC3339_LAYOUT = "2006-01-02T15:04:05Z07:00"
+_RFC3339_RE = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]"
+    r"(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])"
+)
+
+
+@lru_cache(maxsize=512)
+def _layout_gate(fmt: str):
+    """(compiled shape, directive keys) for a strptime-style layout, or None
+    when the layout uses something outside the supported set (an unknown
+    directive, %f not after "." or ",", white space around it) — refused when
+    a contract is submitted; stored content keeps its old strptime reading."""
+    if fmt != _ws_strip(fmt):
+        return None
+    parts: list[str] = []
+    keys: list[str] = []
+    i = 0
+    while i < len(fmt):
+        c = fmt[i]
+        if c != "%":
+            parts.append(re.escape(c))
+            i += 1
+            continue
+        d = fmt[i + 1] if i + 1 < len(fmt) else ""
+        if d == "%":
+            parts.append("%")
+        elif d in _LAYOUT_DIRECTIVES and (d != "f" or (i > 0 and fmt[i - 1] in ".,")):
+            pat, key = _LAYOUT_DIRECTIVES[d]
+            parts.append(f"({pat})")
+            keys.append(key)
+        else:
+            return None
+        i += 2
+    return re.compile("".join(parts)), tuple(keys)
+
+
+def _read_layout(s: str, fmt: str) -> datetime:
+    """Read ``s`` (already trimmed) in the declared layout ``fmt`` (strptime
+    spelling, from _human_to_strptime). Naive; raises ValueError."""
+    if fmt == _GO_RFC3339_LAYOUT:
+        if not _RFC3339_RE.fullmatch(s):
+            raise ValueError("not an RFC 3339 timestamp")
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    gate = _layout_gate(fmt)
+    if gate is None:
+        return datetime.strptime(s, fmt)   # stored content: the old reading
+    shape, keys = gate
+    m = shape.fullmatch(s)
+    if not m:
+        raise ValueError("not in the declared layout")
+    got = dict(zip(keys, m.groups()))   # a repeated directive: the last occurrence
+    if "year" in got:
+        year = int(got["year"])
+    elif "year2" in got:
+        yy = int(got["year2"])
+        year = 1900 + yy if yy >= 69 else 2000 + yy   # strptime's %y pivot
+    else:
+        year = 1900   # a layout without a year (strptime's default)
+    return datetime(year, int(got.get("month", 1)), int(got.get("day", 1)),
+                    int(got.get("hour", 0)), int(got.get("minute", 0)), int(got.get("second", 0)),
+                    int(got["micro"].ljust(6, "0")) if "micro" in got else 0)
 
 
 def _parse_date(v, fmt: Optional[str] = None):
@@ -161,10 +252,10 @@ def _parse_date(v, fmt: Optional[str] = None):
     exactly those — :func:`_read_iso` gates ``fromisoformat``, which alone
     also read a space-separated datetime and ``20260110``.
     """
-    s = str(v).strip()
+    s = _ws_strip(str(v))
     if fmt:
         try:
-            dt = datetime.strptime(s, fmt)
+            dt = _read_layout(s, fmt)
         except ValueError:
             raise ValueError(f"Cannot parse date {v!r} with declared layout {fmt!r}") from None
         if dt.tzinfo is None:
@@ -492,12 +583,36 @@ def _check_condition(rule: Rule, record: Optional[dict]) -> bool:
     if "present" in rule.condition:
         if (not _is_field_absent(raw)) != bool(rule.condition["present"]):
             return False
-    actual = str(raw if raw is not None else "")
     if "value" in rule.condition:
-        return actual == str(rule.condition["value"])
+        return _text_matches(raw, rule.condition["value"])
     if "not_value" in rule.condition:
-        return actual != str(rule.condition["not_value"])
+        return not _text_matches(raw, rule.condition["not_value"])
     return True
+
+
+def _text_matches(raw, want) -> bool:
+    """Does a record value match a condition / trigger value? 3.0.5 (both
+    engines): text as written, through the one rendering — a missing or null
+    field, or a list or object (empty or not), matches no value; "" matches
+    ``""`` only; no trimming (``present:`` alone reads absence). A null
+    ``want`` is refused when a contract is submitted; stored content keeps its
+    old reading (the text "None", a missing field reading as "")."""
+    if want is None:
+        return str(raw if raw is not None else "") == "None"
+    if raw is None or isinstance(raw, (list, dict)):
+        return False
+    return _render_value(raw) == _render_value(want)
+
+
+def _trigger_matches(trigger: dict, record: Optional[dict]) -> bool:
+    """required_if / forbidden_if trigger map. A map without ``value`` is
+    refused when a contract is submitted (3.0.5); stored content keeps its old
+    reading, where a missing ``value`` was "" and a missing field read as ""."""
+    raw = (record or {}).get(trigger.get("field"))
+    if trigger.get("value") is None:
+        # the pre-3.0.5 reading, kept for stored content only
+        return str((record or {}).get(trigger.get("field"), "")) == str(trigger.get("value", ""))
+    return _text_matches(raw, trigger["value"])
 
 
 def _is_ascii_digits(s: str) -> bool:
@@ -512,9 +627,80 @@ def _is_ascii_digits(s: str) -> bool:
     return s.isascii() and s.isdigit()
 
 
+# The supported checksum algorithms (3.0.5: the managed engine's eleven).
+CHECKSUM_ALGORITHMS = (
+    "mod10_gs1", "iban_mod97", "isin_luhn", "lei_mod97", "vin_mod11", "isrc_luhn",
+    "cpf_mod11", "nhs_mod11", "luhn", "figi_luhn", "verhoeff",
+)
+_VERHOEFF_D = (
+    (0, 1, 2, 3, 4, 5, 6, 7, 8, 9), (1, 2, 3, 4, 0, 6, 7, 8, 9, 5), (2, 3, 4, 0, 1, 7, 8, 9, 5, 6),
+    (3, 4, 0, 1, 2, 8, 9, 5, 6, 7), (4, 0, 1, 2, 3, 9, 5, 6, 7, 8), (5, 9, 8, 7, 6, 0, 4, 3, 2, 1),
+    (6, 5, 9, 8, 7, 1, 0, 4, 3, 2), (7, 6, 5, 9, 8, 2, 1, 0, 4, 3), (8, 7, 6, 5, 9, 3, 2, 1, 0, 4),
+    (9, 8, 7, 6, 5, 4, 3, 2, 1, 0),
+)
+_VERHOEFF_P = (
+    (0, 1, 2, 3, 4, 5, 6, 7, 8, 9), (1, 5, 7, 6, 2, 8, 3, 0, 9, 4), (5, 8, 0, 3, 7, 9, 6, 1, 4, 2),
+    (8, 9, 1, 6, 0, 4, 3, 5, 2, 7), (9, 4, 5, 3, 1, 2, 6, 8, 7, 0), (4, 2, 8, 6, 5, 7, 3, 9, 0, 1),
+    (2, 7, 9, 3, 8, 0, 6, 4, 1, 5), (7, 0, 4, 6, 9, 1, 3, 2, 5, 8),
+)
+
+
+def _luhn_sum(digits: str) -> int:
+    total = 0
+    for i, d in enumerate(reversed(digits)):
+        n = int(d)
+        if i % 2 == 1:
+            n *= 2
+            if n > 9:
+                n -= 9
+        total += n
+    return total
+
+
 def _validate_checksum(value: str, algorithm: str) -> bool:
     """Validate identifier check digits. Returns True if checksum is valid."""
-    s = str(value).strip().upper()
+    if algorithm not in CHECKSUM_ALGORITHMS:
+        # v2.3.25 (Pilot 2026-04-29): an unknown algorithm fails closed —
+        # a typo'd key used to pass every record with only a log warning.
+        logger.warning(
+            "Unknown checksum algorithm '%s' — rule fails closed. "
+            "Check the contract YAML for typos in checksum_algorithm "
+            "(supported: %s).",
+            algorithm, ", ".join(CHECKSUM_ALGORITHMS),
+        )
+        return False
+    s = _ws_strip(str(value)).upper()
+    if len(s) < 2:
+        return False   # 3.0.5: no check digit to check (e.g. "0")
+
+    if algorithm == "luhn":
+        # ISO/IEC 7812 Luhn mod-10 over the whole digit string (payment cards etc.)
+        if not _is_ascii_digits(s):
+            return False
+        return _luhn_sum(s) % 10 == 0
+
+    if algorithm == "verhoeff":
+        # Verhoeff dihedral-group check (e.g. Aadhaar); the last digit is the check
+        if not _is_ascii_digits(s):
+            return False
+        c = 0
+        for i, ch in enumerate(reversed(s)):
+            c = _VERHOEFF_D[c][_VERHOEFF_P[i % 8][int(ch)]]
+        return c == 0
+
+    if algorithm == "figi_luhn":
+        # OpenFIGI: 12 characters, letters valued A=10..Z=35; every second of
+        # the first 11 values doubled, the digits of each summed; check digit
+        # is (10 - sum % 10) % 10.
+        if len(s) != 12 or not s.isascii() or not s.isalnum() or not s[-1].isdigit():
+            return False
+        total = 0
+        for i, ch in enumerate(s[:-1]):
+            v = int(ch) if ch.isdigit() else ord(ch) - ord("A") + 10
+            if i % 2 == 1:
+                v *= 2
+            total += sum(int(d) for d in str(v))
+        return (10 - total % 10) % 10 == int(s[-1])
 
     if algorithm == "mod10_gs1":
         # GS1 Mod-10 — used for GTIN-8, GTIN-12, GTIN-13, GTIN-14, GLN, SSCC
@@ -652,7 +838,7 @@ def _validate_checksum(value: str, algorithm: str) -> bool:
         for i, ch in enumerate(s):
             if i == 8:
                 continue  # skip check digit position
-            if ch.isdigit():
+            if ch in "0123456789":   # 3.0.5: ASCII only — '²'.isdigit() is True and int() raised
                 val = int(ch)
             elif ch in TRANSLITERATION:
                 val = TRANSLITERATION[ch]
@@ -670,30 +856,22 @@ def _validate_checksum(value: str, algorithm: str) -> bool:
         isrc_clean = s.replace("-", "")
         return bool(_re.match(r'^[A-Z]{2}[A-Z0-9]{3}\d{7}$', isrc_clean))
 
-    else:
-        # v2.3.25 (Pilot 2026-04-29): tighten the unknown-algorithm
-        # fallback from pass-through to fail-closed. Pre-fix: a typo'd
-        # YAML key (e.g. `ibn_mod97` for `iban_mod97`) silently passed
-        # every record with a warning in the log. The warning could be
-        # missed; the records flowed downstream as if validated. Now
-        # the rule fails records under an unknown algorithm so the
-        # error surfaces at the place a regulated firm actually
-        # watches — the validation response, not the engine log.
-        # Log the warning AND return False.
-        logger.warning(
-            "Unknown checksum algorithm '%s' — rule fails closed. "
-            "Check the contract YAML for typos in checksum_algorithm "
-            "(supported: mod10_gs1, iban_mod97, isin_luhn, lei_mod97, "
-            "vin_mod11, isrc_luhn, cpf_mod11, nhs_mod11).",
-            algorithm,
-        )
-        return False
+    return False   # unreachable: every name in CHECKSUM_ALGORITHMS has a branch above
+
+
+_SEMVER_RE = re.compile(r"v?([0-9]+)\.([0-9]+)\.([0-9]+)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?")
 
 
 def _semver_tuple(v):
-    """Parse a semantic version string into a comparable tuple."""
-    parts = str(v).lstrip('v').split('.')
-    return tuple(int(x) for x in parts[:3])
+    """The numeric (major, minor, patch) triple of a semantic version (3.0.5):
+    ``1.2.3-rc1`` and ``1.2.3+build`` read as (1, 2, 3); pre-release ordering
+    is not applied. Raises ValueError for anything that is not a version."""
+    if isinstance(v, (bool, list, dict)) or v is None:
+        raise ValueError("not a version")
+    m = _SEMVER_RE.fullmatch(_ws_strip(str(v)))
+    if not m:
+        raise ValueError("not a version")
+    return tuple(int(x) for x in m.groups())
 
 
 # ── Single-record rule handlers ─────────────────────────────────────────
@@ -712,17 +890,24 @@ def _semver_tuple(v):
 # this structural rather than per-handler). Shared with the linter.
 _PRESENCE_RULE_TYPES = frozenset({"not_empty", "not_empty_string", "required_if"})
 # Rules that must still see an absent value: presence rules, conditional_value
-# ("must equal X" — absent is a violation on both engines) and unique (a
-# set-based rule evaluated on the batch frame, never on one value).
-_ABSENT_EXEMPT_RULE_TYPES = _PRESENCE_RULE_TYPES | frozenset({"conditional_value", "unique"})
+# ("must equal X" — absent is a violation on both engines), unique (a
+# set-based rule evaluated on the batch frame, never on one value), and
+# (3.0.5, both engines) field_sum / ratio_check, whose own `field` is
+# attribution only and never read — they judge their operands whenever the
+# rule applies, and an absent operand fails (D10).
+_ABSENT_EXEMPT_RULE_TYPES = _PRESENCE_RULE_TYPES | frozenset({"conditional_value", "unique", "field_sum", "ratio_check"})
 
 
 def _is_field_absent(value) -> bool:
-    """Field has no meaningful value to characterize for format-class rules."""
+    """Absent: None/missing, a blank or white-space-only string, or (3.0.5,
+    both engines) an empty array or object. No rule but a presence rule runs
+    on an absent value."""
     if value is None:
         return True
-    if isinstance(value, str) and value.strip() == "":
-        return True
+    if isinstance(value, str):
+        return _ws_strip(value) == ""
+    if isinstance(value, (list, dict)):
+        return not value
     return False
 
 
@@ -733,9 +918,9 @@ def _batch_absent(val) -> bool:
     values (D6) — the conformance generator refuses to emit a corpus when
     they do.
     """
-    if val is None or (isinstance(val, float) and pd.isna(val)):
+    if isinstance(val, float) and pd.isna(val):
         return True
-    return isinstance(val, str) and val.strip() == ""
+    return _is_field_absent(val)
 
 
 def _check_not_empty(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
@@ -747,13 +932,13 @@ def _check_not_empty(value, rule: Rule, record: Optional[dict] = None) -> Option
 def _check_not_empty_string(value, rule: Rule, record: dict | None = None) -> str | None:
     """Presence + JSON-string type guard (CRT180 contract-format conformance).
 
-    Unlike not_empty, a non-string value is never coerced: 0, false, [] and
-    {} are rejected — under this rule's own error code, with a typed
-    message — rather than silently stringified into "0" / "False" / "[]"
-    and passed. Absent, null and
-    whitespace-only values fail with the rule's own message.
+    Unlike not_empty, a non-string value is never coerced: 0, false and a
+    non-empty list or object are rejected — under this rule's own error
+    code, with a typed message — rather than silently stringified and
+    passed. Absent, null, whitespace-only and (3.0.5) empty []/{} values
+    are absence and fail with the rule's own message.
     """
-    if value is None:
+    if _is_field_absent(value):
         return rule.error_message
     if not isinstance(value, str):
         # Reported under the rule's own error code (not OPENDQV_TYPE_MISMATCH):
@@ -761,7 +946,7 @@ def _check_not_empty_string(value, rule: Rule, record: dict | None = None) -> st
         # to the rule — matches the managed engine, which shipped this type
         # first (cross-engine fixture run, CRT180).
         return _not_empty_string_type_message(rule.field, value)
-    if value.strip() == "":
+    if _ws_strip(value) == "":
         return rule.error_message
     return None
 
@@ -798,7 +983,9 @@ def _check_regex(value, rule: Rule, record: Optional[dict] = None) -> Optional[s
         return rule.error_message  # misconfigured — fail visible rather than silently pass
     if _is_field_absent(value):
         return None
-    str_val = str(value) if value is not None else ""
+    if isinstance(value, (list, dict)):
+        return _collection_message(rule, value)
+    str_val = _render_value(value)   # 3.0.5: the one text rendering
     pattern = _BUILTIN_PATTERNS.get(rule.pattern, rule.pattern)
     compiled = rule.compiled_pattern or compile_rule_pattern(pattern)
     matched = _safe_match(compiled, str_val)
@@ -851,11 +1038,35 @@ def _type_mismatch_msg(rule: Rule, value) -> str:
             f"{rule.type} rule on field '{rule.field}' expected a finite "
             f"numeric value, got {got}"
         )
+    if isinstance(value, int) and not isinstance(value, bool):
+        # only reached for an integer beyond float64 (3.0.5, B9)
+        return (
+            f"{_TYPE_MISMATCH_PREFIX}"
+            f"{rule.type} rule on field '{rule.field}' expected a numeric "
+            f"value within the floating-point range, got a number beyond it"
+        )
     return (
         f"{_TYPE_MISMATCH_PREFIX}"
         f"{rule.type} rule on field '{rule.field}' expected numeric "
         f"value, got {_json_type_name(value)}"
     )
+
+
+def _num(value) -> float:
+    """The one number reader (3.0.5, both engines). A JSON boolean is not a
+    number (``float(True)`` is 1.0), nor is a list or object; an integer
+    beyond float64 is no number (``float()`` raises OverflowError); NaN and
+    infinity are not finite. A string parses with ``float()``, which ignores
+    the white space around it. Raises ValueError for anything else."""
+    if value is None or isinstance(value, (bool, list, dict)):
+        raise ValueError("not a number")
+    try:
+        f = float(value)
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError("not a number") from None
+    if not math.isfinite(f):
+        raise ValueError("not a finite number")
+    return f
 
 
 def _is_numeric_value(value) -> bool:
@@ -870,64 +1081,52 @@ def _is_numeric_value(value) -> bool:
 def _check_min(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if _is_field_absent(value):
         return None
-    if not _is_numeric_value(value):
-        # Strings that happen to parse as numeric ("28.50") still go
-        # through float() — preserves CSV-pipeline ergonomics. Only
-        # genuinely non-numeric types (dict, list, non-parseable str)
-        # surface as type mismatch.
-        try:
-            float(value)
-        except (TypeError, ValueError):
-            return _type_mismatch_msg(rule, value)
+    # Strings that parse as numbers ("28.50") are read (CSV-pipeline
+    # ergonomics); a boolean, list, object, NaN/inf or an integer beyond
+    # float64 is a type mismatch (3.0.5: was read as 1 / raised).
     try:
-        v = float(value)
-        if not math.isfinite(v):
-            return _type_mismatch_msg(rule, value)
-        if v < rule.min_value:
-            return rule.error_message
-    except (TypeError, ValueError):
+        v = _num(value)
+    except ValueError:
         return _type_mismatch_msg(rule, value)
+    if v < rule.min_value:
+        return rule.error_message
     return None
 
 
 def _check_max(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if _is_field_absent(value):
         return None
-    if not _is_numeric_value(value):
-        try:
-            float(value)
-        except (TypeError, ValueError):
-            return _type_mismatch_msg(rule, value)
     try:
-        v = float(value)
-        if not math.isfinite(v):
-            return _type_mismatch_msg(rule, value)
-        if v > rule.max_value:
-            return rule.error_message
-    except (TypeError, ValueError):
+        v = _num(value)
+    except ValueError:
         return _type_mismatch_msg(rule, value)
+    if v > rule.max_value:
+        return rule.error_message
     return None
 
 
 def _check_range(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if _is_field_absent(value):
         return None
-    if not _is_numeric_value(value):
-        try:
-            float(value)
-        except (TypeError, ValueError):
-            return _type_mismatch_msg(rule, value)
     try:
-        v = float(value)
-        if not math.isfinite(v):
-            return _type_mismatch_msg(rule, value)
-        if rule.min_value is not None and v < rule.min_value:
-            return rule.error_message
-        if rule.max_value is not None and v > rule.max_value:
-            return rule.error_message
-    except (TypeError, ValueError):
+        v = _num(value)
+    except ValueError:
         return _type_mismatch_msg(rule, value)
+    if rule.min_value is not None and v < rule.min_value:
+        return rule.error_message
+    if rule.max_value is not None and v > rule.max_value:
+        return rule.error_message
     return None
+
+
+def _collection_message(rule: Rule, value) -> str:
+    """A non-empty list or object is not text (3.0.5, both engines): a rule
+    that compares a single value fails it under its own code, naming the JSON
+    type. Collections are never rendered — ``str()`` of a list leaks it."""
+    return (
+        f'{rule.type} rule on field "{rule.field}" compares a single value, '
+        f"got {_json_type_name(value)} — send a string, number or boolean"
+    )
 
 
 def _length_type_message(field: str, value) -> str:
@@ -954,15 +1153,18 @@ def _check_max_length(value, rule: Rule, record: Optional[dict] = None) -> Optio
     if not isinstance(value, str):
         return _length_type_message(rule.field, value)  # D9: refuse, never coerce
     str_val = str(value)
-    if len(str_val) > (rule.max_length or 99999):
+    if rule.max_length is not None and len(str_val) > rule.max_length:   # 3.0.5: 0 means zero
         return rule.error_message
     return None
 
 
 def _human_to_strptime(fmt: str) -> str:
     # Accept either Java/human-readable patterns (YYYY-MM-DD) or strftime
-    # codes (%Y-%m-%d). MM is month before any HH; minute after.
-    if "%" in fmt:
+    # codes (%Y-%m-%d). MM is month before any HH; minute after. 3.0.5: the
+    # two legacy Go layouts read as aliases (stored content only).
+    if fmt == _GO_DATE_LAYOUT:
+        return "%Y-%m-%d"
+    if fmt == _GO_RFC3339_LAYOUT or "%" in fmt:
         return fmt
     out = []
     i = 0
@@ -1000,7 +1202,7 @@ def _check_date_format(value, rule: Rule, record: Optional[dict] = None) -> Opti
         return None
     # 3.0.2: a date ignores the white space around it (the batch path's
     # TRY_STRPTIME always did); a space inside the value is still not a date.
-    str_val = str(value).strip()
+    str_val = _ws_strip(str(value))
     # Honour the contract's declared format strictly. When no format is
     # declared, default to ISO 8601 (date or datetime) — never accept
     # locale-ambiguous formats like DD/MM/YYYY or MM/DD/YYYY by default.
@@ -1013,7 +1215,7 @@ def _check_date_format(value, rule: Rule, record: Optional[dict] = None) -> Opti
     # and an unpadded 2026-1-10 got through).
     try:
         if rule.format:
-            datetime.strptime(str_val, _human_to_strptime(rule.format))
+            _read_layout(str_val, _human_to_strptime(rule.format))
         else:
             _read_iso(str_val)
     except ValueError:
@@ -1032,27 +1234,48 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
         return None
     if _is_field_absent(value):
         return None
-    if rule.compare_to in ("today", "now"):
-        if rule.compare_to == "today":
-            other = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        else:
-            other = datetime.now(timezone.utc).isoformat()
-    else:
-        other = (record or {}).get(rule.compare_to)
-        if _is_field_absent(other):
-            return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: a missing/blank counterpart IS a comparison failure (both engines)
-
-    # v2.3.20 Cluster C (P1.2): same_date compare_op extracts the
-    # YYYY-MM-DD portion from each side before comparing. Catches the
-    # MiFIR Article 26 / RTS 22 invariant that trade_date must equal the
-    # date portion of execution_timestamp — a check the v2.3.17 Q14 rule
-    # claimed to enforce but actually only validated as a regex on
-    # trade_date alone. Reviewer's exact repro: trade_date=2024-01-15
-    # with execution_timestamp=2026-04-25T... PASSED a "matches" rule.
-    # Slice [:10] works for "YYYY-MM-DD" and "YYYY-MM-DDTHH:MM:SS..." —
-    # both yield the same date portion. Bare-string compare without a
-    # datetime parse keeps the implementation honest and small.
+    op = rule.compare_op
+    op_fn = _COMPARE_OPS.get(op)
+    if op_fn is None and op != "same_date":
+        # Refused when a contract is submitted (3.0.5); stored content keeps
+        # its old reading — the rule does not judge.
+        logger.warning("compare rule '%s' has unknown compare_op '%s'", rule.name, op)
+        return None
     la, lb = _layouts_for(rule)
+
+    # 3.0.5: `today` compares calendar dates (both sides truncated to
+    # y/m/d, so a timestamp stamped today is not "after today"); `now` is the
+    # instant. The value must read as a date: unreadable fails.
+    if rule.compare_to in ("today", "now"):
+        try:
+            a = _parse_date(value, la)
+        except ValueError:
+            return rule.error_message
+        now = datetime.now(timezone.utc)
+        if rule.compare_to == "today" or op == "same_date":
+            a, b = a.date(), now.date()
+        else:
+            b = now
+        if op == "same_date":
+            return None if a == b else rule.error_message
+        return None if op_fn(a, b) else rule.error_message
+
+    other = (record or {}).get(rule.compare_to)
+    if _is_field_absent(other):
+        return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: a missing/blank counterpart IS a comparison failure (both engines)
+
+    # same_date (v2.3.20, MiFIR RTS 22 T+0): both operands are dates, each
+    # read with its declared layout or the ISO reader; their calendar dates
+    # (as written, in each value's own offset) must be equal. 3.0.5: an
+    # operand that cannot be read as a date fails — it is not "not applicable".
+    if op == "same_date":
+        try:
+            a = _parse_date(value, la)
+            b = _parse_date(other, lb)
+        except ValueError:
+            return rule.error_message
+        return None if a.date() == b.date() else rule.error_message
+
     if la or lb:
         # 2.8.0: a declared date layout on either operand — both sides are
         # dates. Parse each with its own layout (an undeclared operand keeps
@@ -1063,67 +1286,46 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
             b = _parse_date(other, lb)
         except ValueError:
             return rule.error_message
-        if rule.compare_op == "same_date":
-            return None if a.date() == b.date() else rule.error_message
-        op_fn = _COMPARE_OPS.get(rule.compare_op)
-        if op_fn is None:
-            logger.warning("compare rule '%s' has unknown compare_op '%s'", rule.name, rule.compare_op)
-            return None
         return None if op_fn(a, b) else rule.error_message
 
-    if rule.compare_op == "same_date":
-        a_str = str(value).strip()[:10]
-        b_str = str(other).strip()[:10]
-        # Sanity: only proceed if both look like YYYY-MM-DD shape, else
-        # the rule isn't applicable and we return None (the dedicated
-        # format rule on the field is responsible for shape).
-        import re as _re
-        date_re = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
-        if not (date_re.match(a_str) and date_re.match(b_str)):
-            return None
-        return None if a_str == b_str else rule.error_message
-
-    try:
-        a, b = float(value), float(other)
-    except (TypeError, ValueError):
+    # 3.0.5: `algorithm: semver` compares the numeric major.minor.patch
+    # triple (pre-release and build parts ignored); a value that is not a
+    # version fails.
+    if getattr(rule, "algorithm", None) == "semver":
         try:
-            # 3.0.2: read as dates, padding ignored; if either is not a date
-            # the string comparison below judges the text as written.
-            a = _read_iso(value)
-            b = _read_iso(other)
-        except (ValueError, AttributeError):
-            if getattr(rule, 'algorithm', None) == 'semver':
-                try:
-                    a = _semver_tuple(value)
-                    b = _semver_tuple(other)
-                except (ValueError, TypeError):
-                    a, b = str(value), str(other)
-            else:
-                a, b = str(value), str(other)
-    op_fn = _COMPARE_OPS.get(rule.compare_op)
-    if op_fn is None:
-        logger.warning("compare rule '%s' has unknown compare_op '%s'", rule.name, rule.compare_op)
-        return None
-    if not op_fn(a, b):
-        return rule.error_message
-    return None
+            a, b = _semver_tuple(value), _semver_tuple(other)
+        except ValueError:
+            return rule.error_message
+        return None if op_fn(a, b) else rule.error_message
+
+    # Two numbers compare as numbers, two ISO dates as instants; anything
+    # else compares as text — the one rendering (3.0.5), and a list or an
+    # object is not text.
+    try:
+        a, b = _num(value), _num(other)
+    except ValueError:
+        try:
+            a, b = _read_iso(value), _read_iso(other)
+        except ValueError:
+            for v in (value, other):
+                if isinstance(v, (list, dict)):
+                    return _collection_message(rule, v)
+            a, b = _render_value(value), _render_value(other)
+    return None if op_fn(a, b) else rule.error_message
 
 
 def _check_required_if(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if not rule.required_if:
         return None
-    trigger_field = rule.required_if.get("field")
-    trigger_value = str(rule.required_if.get("value", ""))
-    actual = str((record or {}).get(trigger_field, ""))
-    if actual == trigger_value:
-        if value is None or (isinstance(value, str) and value.strip() == ""):
-            return rule.error_message
+    if _trigger_matches(rule.required_if, record) and _is_field_absent(value):
+        return rule.error_message
     return None
 
 
 def _render_value(v) -> str:
-    """Text a record value is compared as, for allowed_values / forbidden_values
-    (D12, 2.9.0). An integral float renders without the trailing ".0" so a JSON
+    """Text a record value is compared as — 3.0.5: on EVERY text surface
+    (regex, allowed/forbidden_values, lookup, must_equal, conditions, trigger
+    maps, compare's text fallback); D12, 2.9.0. An integral float renders without the trailing ".0" so a JSON
     ``99999.0`` matches a listed ``"99999"`` — the managed engine's shortest
     float rendering. A boolean renders as its JSON spelling, lowercase
     ``true``/``false`` (2.9.1, D12 addendum: Python's ``str(True)`` is ``True``;
@@ -1141,6 +1343,8 @@ def _check_allowed_values(value, rule: Rule, record: Optional[dict] = None) -> O
         return None
     if _is_field_absent(value):
         return None  # D6: blank is absent — presence rules are the single catcher
+    if isinstance(value, (list, dict)):
+        return _collection_message(rule, value)
     allowed = [_render_value(v) for v in rule.allowed_values]
     if _render_value(value) not in allowed:
         return rule.error_message
@@ -1156,6 +1360,8 @@ def _check_forbidden_values(value, rule: Rule, record: Optional[dict] = None) ->
         return None
     if _is_field_absent(value):
         return None  # D6
+    if isinstance(value, (list, dict)):
+        return _collection_message(rule, value)
     forbidden = [_render_value(v) for v in rule.forbidden_values]
     if _render_value(value) in forbidden:
         return rule.error_message
@@ -1178,10 +1384,13 @@ def _check_lookup(value, rule: Rule, record: Optional[dict] = None) -> Optional[
         logger.error("lookup rule '%s' could not load '%s': %s", rule.name, rule.lookup_file, exc)
         return rule.error_message
     if rule.all_of and isinstance(value, list):
+        # all_of reads a list: every item must be in the reference set
         for item in value:
-            if str(item) not in valid_values:
+            if isinstance(item, (list, dict)) or _render_value(item) not in valid_values:
                 return rule.error_message
-    elif str(value) not in valid_values:
+    elif isinstance(value, (list, dict)):
+        return _collection_message(rule, value)
+    elif _render_value(value) not in valid_values:
         return rule.error_message
     return None
 
@@ -1211,18 +1420,18 @@ def _check_cross_field_range(value, rule: Rule, record: Optional[dict] = None) -
         return None
     rec = record or {}
     try:
-        v = float(value)
+        v = _num(value)
         if rule.cross_min_field:
             low = rec.get(rule.cross_min_field)
             if _is_field_absent(low):
                 return _COUNTERPART_MISSING_PREFIX + rule.error_message   # D10 (#145)
-            if v < float(low):
+            if v < _num(low):
                 return rule.error_message
         if rule.cross_max_field:
             high = rec.get(rule.cross_max_field)
             if _is_field_absent(high):
                 return _COUNTERPART_MISSING_PREFIX + rule.error_message   # D10 (#145)
-            if v > float(high):
+            if v > _num(high):
                 return rule.error_message
     except (TypeError, ValueError):
         return rule.error_message
@@ -1237,7 +1446,7 @@ def _check_field_sum(value, rule: Rule, record: Optional[dict] = None) -> Option
     try:
         if any(_is_field_absent(rec.get(f)) for f in rule.sum_fields):
             return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: absent/blank counterpart → the rule fails
-        total = sum(float(rec.get(f)) for f in rule.sum_fields)
+        total = sum(_num(rec.get(f)) for f in rule.sum_fields)
         tolerance = rule.sum_tolerance if rule.sum_tolerance is not None else 0.0
         if abs(total - rule.sum_equals) > tolerance:
             return rule.error_message
@@ -1249,19 +1458,20 @@ def _check_field_sum(value, rule: Rule, record: Optional[dict] = None) -> Option
 def _check_forbidden_if(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if not rule.forbidden_if:
         return None
-    trigger_field = rule.forbidden_if.get("field")
-    trigger_value = str(rule.forbidden_if.get("value", ""))
-    actual = str((record or {}).get(trigger_field, ""))
-    if actual == trigger_value:
-        if value is not None and not (isinstance(value, str) and value.strip() == ""):
-            return rule.error_message
+    if _trigger_matches(rule.forbidden_if, record) and not _is_field_absent(value):
+        return rule.error_message
     return None
 
 
 def _check_conditional_value(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if rule.must_equal is None:
         return None
-    if value is None or str(value) != str(rule.must_equal):
+    # Fires on an absent own field (must_equal cannot be met by nothing).
+    if _is_field_absent(value):
+        return rule.error_message
+    if isinstance(value, (list, dict)):
+        return _collection_message(rule, value)
+    if _render_value(value) != _render_value(rule.must_equal):
         return rule.error_message
     return None
 
@@ -1309,8 +1519,8 @@ def _check_ratio_check(value, rule: Rule, record: Optional[dict] = None) -> Opti
         den_raw = rec.get(rule.ratio_denominator)
         if _is_field_absent(num_raw) or _is_field_absent(den_raw):
             return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: absent/blank counterpart → the rule fails
-        num = float(num_raw)
-        den = float(den_raw)
+        num = _num(num_raw)
+        den = _num(den_raw)
         if den == 0:
             return rule.error_message
         ratio = num / den
@@ -1338,7 +1548,9 @@ def _check_conditional_lookup(value, rule: Rule, record: Optional[dict] = None) 
     except (FileNotFoundError, KeyError, OSError, RuntimeError, ValueError) as exc:
         logger.error("conditional_lookup rule '%s' could not load '%s': %s", rule.name, rule.lookup_file, exc)
         return rule.error_message
-    if str(value) not in valid_values:
+    if isinstance(value, (list, dict)):
+        return _collection_message(rule, value)
+    if _render_value(value) not in valid_values:
         return rule.error_message
     return None
 
@@ -1348,7 +1560,7 @@ def _check_geospatial_bounds(value, rule: Rule, record: Optional[dict] = None) -
         return None
     rec = record or {}
     try:
-        lat = float(value)
+        lat = _num(value)
 
         if rule.geo_min_lat is not None and lat < rule.geo_min_lat:
             return rule.error_message
@@ -1359,7 +1571,7 @@ def _check_geospatial_bounds(value, rule: Rule, record: Optional[dict] = None) -
             lon_val = rec.get(rule.geo_lon_field)
             if _is_field_absent(lon_val):
                 return _COUNTERPART_MISSING_PREFIX + rule.error_message   # D10 (#145)
-            lon = float(lon_val)
+            lon = _num(lon_val)
             if rule.geo_min_lon is not None and lon < rule.geo_min_lon:
                 return rule.error_message
             if rule.geo_max_lon is not None and lon > rule.geo_max_lon:
@@ -1370,7 +1582,7 @@ def _check_geospatial_bounds(value, rule: Rule, record: Optional[dict] = None) -
         if rule.geo_lon_field:
             lon_val = rec.get(rule.geo_lon_field)
             if lon_val is not None:
-                lon = float(lon_val)
+                lon = _num(lon_val)
                 if not (-180 <= lon <= 180):
                     return rule.error_message
     except (TypeError, ValueError):
@@ -1388,7 +1600,7 @@ def _check_age_match(value, rule: Rule, record: Optional[dict] = None) -> Option
     if _is_field_absent(dob_val):
         return _COUNTERPART_MISSING_PREFIX + rule.error_message  # D10: absent/blank counterpart → the rule fails (both engines)
     try:
-        declared = int(float(value))
+        declared = int(_num(value))
         # 2.8.0: the dob field's declared layout; 3.0.3: the ISO reader when
         # undeclared (was the bare %Y-%m-%d, so a Z date of birth failed).
         dob = _parse_date(dob_val, _layouts_for(rule)[1])
@@ -1833,7 +2045,12 @@ def validate_batch(
         }
 
     total = len(records)
-    df = pd.DataFrame(records)
+    try:
+        df = pd.DataFrame(records)
+    except OverflowError:
+        # An integer beyond int64/float64 (3.0.5, B9): only `unique` reads the
+        # frame, so keep every cell as the Python object it is.
+        df = pd.DataFrame(records, dtype=object)
     # CRT180 review B6 (K1): a rule whose field no record carries used to be
     # skipped entirely — a batch that omitted a required field validated
     # clean while each record single-validated was rejected. Materialise the
