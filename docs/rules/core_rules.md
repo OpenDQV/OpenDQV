@@ -275,7 +275,10 @@ Numeric field must be >= a minimum value.
 read; a value that is not a number (the one number reader, above) — a
 non-numeric string, `１２`, a JSON boolean, a list or object, NaN/infinity, an
 integer beyond float64 — gives
-`OPENDQV_TYPE_MISMATCH`. Absent/blank values pass (D6) — add `not_empty` for presence.
+`OPENDQV_TYPE_MISMATCH`. A JSON number the engine cannot read (`1e400`, which
+the JSON parser makes infinity, or an integer beyond float64) says `expected a
+number it can read, got a number beyond the readable range`; a NaN says `got
+NaN` (3.0.8). Absent/blank values pass (D6) — add `not_empty` for presence.
 
 ---
 
@@ -662,7 +665,9 @@ with one logs a warning and does not judge.
 **`same_date`:** both operands are read as dates (declared layout or ISO 8601)
 and their calendar dates, as written in each value's own offset, must be
 equal. An operand that cannot be read as a date **fails** the rule (3.0.5) — it
-is not "not applicable".
+is not "not applicable". A list or object in the rule's own field gets the
+typed "compares a single value" message; one in the counterpart, the rule's
+own message (3.0.8).
 
 **Type coercion order:**
 0. If either field carries a `date_format` rule with a `format:` (2.8.0), both
@@ -696,7 +701,8 @@ is not "not applicable".
    character order). `eq` / `neq` compare the text.
 
 **Sentinels (3.0.5):** the value must read as a date (declared layout or ISO
-8601); a value that cannot be read fails the rule.
+8601); a value that cannot be read fails the rule. A list or object gets the
+typed "compares a single value" message (3.0.8), as under every operator.
 - `today` -- compares **calendar dates**: the value's date (as written, in its
   own offset) against the current UTC date, both truncated to year/month/day.
   A timestamp stamped today is not "after today", and `lte today` passes it.
