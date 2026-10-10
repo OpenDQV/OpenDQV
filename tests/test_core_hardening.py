@@ -205,42 +205,21 @@ class TestCompiledRegexCaching:
 # Regex Python fallback log line — S2.2
 # ---------------------------------------------------------------------------
 
-class TestRegexFallbackLogging:
-    def test_regex_fallback_logs_debug(self, caplog):
-        import logging
-        from opendqv.core.validator import validate_batch
+class TestRegexBatchParity:
+    """3.0.5: the batch path evaluates regex per record with the single-path
+    handler (the Python 'fallback' and its DEBUG log are gone — there is no
+    other path), so the verdicts agree by construction."""
 
-        rule = Rule(
-            name="email",
-            type="regex",
-            field="email",
-            pattern=r"^\w+@\w+\.\w+$",  # \w triggers Python fallback
-        )
-        records = [{"email": "alice@example.com"}, {"email": "bad"}]
-
-        with caplog.at_level(logging.DEBUG, logger="opendqv.core.validator"):
-            validate_batch(records, [rule])
-
-        assert any("regex_python_fallback" in msg for msg in caplog.messages)
-
-    def test_regex_fallback_log_includes_field_name(self, caplog):
-        import logging
-        from opendqv.core.validator import validate_batch
-
-        rule = Rule(
-            name="phone_check",
-            type="regex",
-            field="phone",
-            pattern=r"^\+\d{10,15}$",  # no \w/\s/\d — but let's confirm the path
-        )
-        records = [{"phone": "+12345678901"}]
-
-        with caplog.at_level(logging.DEBUG, logger="opendqv.core.validator"):
-            validate_batch(records, [rule])
-
-        # The regex path always logs at DEBUG regardless of \w etc.
-        assert any("phone" in msg or "regex_python_fallback" in msg
-                   for msg in caplog.messages)
+    @pytest.mark.parametrize("pattern,values", [
+        (r"^\w+@\w+\.\w+$", ["alice@example.com", "bad", 12, None, ""]),
+        (r"^\+\d{10,15}$", ["+12345678901", "+1", "  "]),
+    ])
+    def test_batch_regex_matches_single(self, pattern, values):
+        from opendqv.core.validator import validate_batch, validate_record
+        rule = Rule(name="r", type="regex", field="f", pattern=pattern)
+        records = [{"f": v} for v in values]
+        batch = [r["valid"] for r in validate_batch(records, [rule])["results"]]
+        assert batch == [validate_record(r, [rule])["valid"] for r in records]
 
 
 # ---------------------------------------------------------------------------

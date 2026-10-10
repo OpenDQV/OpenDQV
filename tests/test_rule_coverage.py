@@ -1231,8 +1231,10 @@ class TestBatchValidationEdgeCases:
         result = validate_batch(records, [rule], contract_name="test")
         assert isinstance(result["summary"]["total"], int)
 
-    def test_batch_lookup_null_value_fails(self):
-        """batch lookup with null value → failing (line 1211)."""
+    def test_batch_lookup_null_value_is_absent_on_both_paths(self):
+        """A null value is absent (D6): the lookup does not run, on either path.
+        Before 3.0.5 the batch path failed the record (the rule raised on the
+        out-of-tree file and the whole rule failed) while the single path passed it."""
         from opendqv.core.validator import validate_batch
         import tempfile
         import os
@@ -1242,22 +1244,24 @@ class TestBatchValidationEdgeCases:
             lookup_path = f.name
         try:
             rule = _rule(type="lookup", lookup_file=lookup_path)
-            records = [{"value": None}]  # null value → fails
+            records = [{"value": None}]
             result = validate_batch(records, [rule], contract_name="test")
-            assert result["summary"]["failed"] == 1
+            assert result["summary"]["failed"] == 0
+            from opendqv.core.validator import validate_record
+            assert validate_record(records[0], [rule], "test")["valid"] is True
         finally:
             os.unlink(lookup_path)
 
-    def test_batch_lookup_missing_file_skipped(self):
-        """batch lookup with missing file → exception caught, batch not failed (lines 1217-1218)."""
+    def test_batch_lookup_missing_file_fails_closed(self):
+        """3.0.5 (sweep B5): a lookup whose file cannot be read fails closed on
+        both paths. The batch path used to skip it as an 'infrastructure error'."""
         from opendqv.core.validator import validate_batch, _load_lookup_set
         # Use a relative path so it passes path-traversal check but doesn't exist on disk
         rule = _rule(type="lookup", lookup_file="ref/nonexistent_xyz_9999.csv")
         _load_lookup_set.cache_clear()
         records = [{"value": "something"}]
         result = validate_batch(records, [rule], contract_name="test")
-        # FileNotFoundError caught as warning, record not failed
-        assert result["summary"]["failed"] == 0
+        assert result["summary"]["failed"] == 1
 
     def test_batch_cross_field_range_non_numeric(self):
         """batch cross_field_range with non-numeric value → except branch (lines 1246-1247)."""

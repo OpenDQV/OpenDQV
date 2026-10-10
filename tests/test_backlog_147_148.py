@@ -46,9 +46,13 @@ class TestBatchBranchTypes:
         handlers = set(_RULE_HANDLERS)
         assert set(_BATCH_BRANCH_TYPES) <= handlers
         fallback = handlers - set(_BATCH_BRANCH_TYPES)
-        assert fallback == {"age_match", "conditional_lookup"}, sorted(fallback)
+        # 3.0.5: every type but the set-based `unique` is evaluated per record
+        # with the single-path handler (the native branches were the source of
+        # every single/batch split the conformance sweeps found).
+        assert set(_BATCH_BRANCH_TYPES) == {"unique"}
+        assert fallback == handlers - {"unique"}, sorted(fallback)
 
-    @pytest.mark.parametrize("rtype", sorted(set(_RULE_HANDLERS) - set(_BATCH_BRANCH_TYPES)))
+    @pytest.mark.parametrize("rtype", ["age_match", "conditional_lookup"])
     def test_fallback_type_agrees_with_single_path(self, rtype):
         """A fallback type is evaluated per record with the single-path handler."""
         rule = {"age_match": Rule(name="am", type="age_match", field="age", dob_field="dob"),
