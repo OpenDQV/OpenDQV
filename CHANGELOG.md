@@ -63,7 +63,8 @@ a `None`, string or blank sibling.
     lacked the field.
 - **Numbers and text (§4).**
   - A JSON boolean is not a number on any numeric rule (`OPENDQV_TYPE_MISMATCH`,
-    or the rule fails). It used to read as 1.
+    or the rule fails). It used to read as 1. A `compare` with a boolean on
+    either side fails, whatever the operator.
   - An integer beyond float64 is a type mismatch on both paths. It used to
     raise `OPENDQV_RULE_ERROR` on the single path and `OverflowError` on
     batch.
