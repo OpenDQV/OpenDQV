@@ -2,7 +2,7 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [3.0.5] - Unreleased
+## [3.0.5] - 2026-10-10
 
 ### The conformance sweep (aligned with the managed engine)
 
@@ -69,7 +69,8 @@ a `None`, string or blank sibling.
     raise `OPENDQV_RULE_ERROR` on the single path and `OverflowError` on
     batch.
   - NaN and infinity fail every numeric cross-field rule. A NaN operand
-    used to pass `field_sum`.
+    used to pass `field_sum`. `compare` never reads NaN, infinity or an
+    integer beyond float64 as text: the rule fails.
   - One text rendering on every text surface: `true`/`false`, `12.0` → `12`,
     integers keep every digit.
   - White space is Unicode White_Space: U+001C-U+001F are not white space,
@@ -96,7 +97,8 @@ a `None`, string or blank sibling.
 - **`max_length: 0` means zero** (§7). The single path used to read it as no
   limit.
 - **A lookup whose file cannot be read fails closed** on both paths. Batch
-  used to skip it.
+  used to skip it. In a batch, a lookup's reference set (or its load failure)
+  is fetched once per batch, not once per record.
 
 ### Refused when a contract is submitted (§2); stored contracts still load
 
