@@ -218,7 +218,34 @@ def _read_layout(s: str, fmt: str) -> datetime:
     m = shape.fullmatch(s)
     if not m:
         raise ValueError("not in the declared layout")
-    got = dict(zip(keys, m.groups()))   # a repeated directive: the last occurrence
+    pairs = list(zip(keys, m.groups()))
+    fields = [_YEAR_KEYS.get(k, k) for k in keys]   # %Y and %y both read the year
+    got = _layout_fields(pairs)   # a field read twice: the last occurrence decides
+    result = _layout_datetime(got)
+    if len(set(fields)) != len(fields):
+        # refused when a contract is submitted (3.0.6); stored content: every
+        # occurrence must also be a valid value (raises ValueError if not)
+        for i in range(len(pairs)):
+            _layout_datetime(_layout_fields(pairs[:i] + pairs[i + 1:] + [pairs[i]]))
+    return result
+
+
+_YEAR_KEYS = {"year": "year", "year2": "year"}
+
+
+def _layout_fields(pairs) -> dict:
+    """{directive key: text}, later pairs winning; a later %Y / %y replaces an
+    earlier %y / %Y (one field, the year)."""
+    got: dict = {}
+    for key, text in pairs:
+        if key in _YEAR_KEYS:
+            got.pop("year", None)
+            got.pop("year2", None)
+        got[key] = text
+    return got
+
+
+def _layout_datetime(got: dict) -> datetime:
     if "year" in got:
         year = int(got["year"])
     elif "year2" in got:
@@ -859,19 +886,38 @@ def _validate_checksum(value: str, algorithm: str) -> bool:
     return False   # unreachable: every name in CHECKSUM_ALGORITHMS has a branch above
 
 
-_SEMVER_RE = re.compile(r"v?([0-9]+)\.([0-9]+)\.([0-9]+)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?")
+# semver.org's suggested regular expression (SemVer 2.0.0 FAQ) after an
+# optional lower-case v, every \d spelled [0-9] so only ASCII digits read
+# (3.0.6, both engines; builtin:semver in rule_parser is the same grammar).
+SEMVER_PATTERN = (
+    r"v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+    r"(?:-((?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?"
+    r"(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?"
+)
+_SEMVER_RE = re.compile(SEMVER_PATTERN)
 
 
 def _semver_tuple(v):
-    """The numeric (major, minor, patch) triple of a semantic version (3.0.5):
-    ``1.2.3-rc1`` and ``1.2.3+build`` read as (1, 2, 3); pre-release ordering
-    is not applied. Raises ValueError for anything that is not a version."""
-    if isinstance(v, (bool, list, dict)) or v is None:
+    """The SemVer 2.0.0 precedence key of a version (3.0.6, §11): major,
+    minor and patch numerically at any size; a pre-release below its release;
+    pre-release identifiers left to right, digit-only ones numerically and
+    below alphanumeric ones (ASCII order), a longer set higher when the rest
+    are equal; build metadata ignored. White space around the value is
+    removed. Raises ValueError for anything that is not a version — a number,
+    a boolean, a list, an object or None included."""
+    if not isinstance(v, str):
         raise ValueError("not a version")
-    m = _SEMVER_RE.fullmatch(_ws_strip(str(v)))
+    m = _SEMVER_RE.fullmatch(_ws_strip(v))
     if not m:
         raise ValueError("not a version")
-    return tuple(int(x) for x in m.groups())
+    major, minor, patch, pre, _build = m.groups()
+    # a numeric part has no leading zero, so (length, digits) orders it as a
+    # number at any size — int() refuses more than 4300 digits
+    core = tuple((len(p), p) for p in (major, minor, patch))
+    if pre is None:
+        return (*core, 1, ())
+    ids = tuple((0, len(i), i) if i.isdigit() else (1, 0, i) for i in pre.split("."))
+    return (*core, 0, ids)
 
 
 # ── Single-record rule handlers ─────────────────────────────────────────
@@ -1052,14 +1098,30 @@ def _type_mismatch_msg(rule: Rule, value) -> str:
     )
 
 
+# 3.0.6 (both engines): text is a number only when, after the white space
+# around it is removed, it is a plain finite decimal — optional sign, digits,
+# optional point and fraction, optional exponent, underscores between digits.
+# ASCII digits only: float() alone reads "١٢" and "１２" as 12, and "NaN",
+# "Infinity" and "1e400" as non-finite floats.
+_DIGITS = r"[0-9](?:_?[0-9])*"
+_NUMBER_TEXT_RE = re.compile(
+    rf"[+-]?(?:{_DIGITS}(?:\.(?:{_DIGITS})?)?|\.{_DIGITS})(?:[eE][+-]?{_DIGITS})?"
+)
+
+
 def _num(value) -> float:
-    """The one number reader (3.0.5, both engines). A JSON boolean is not a
-    number (``float(True)`` is 1.0), nor is a list or object; an integer
-    beyond float64 is no number (``float()`` raises OverflowError); NaN and
-    infinity are not finite. A string parses with ``float()``, which ignores
-    the white space around it. Raises ValueError for anything else."""
+    """The one number reader (3.0.5, both engines) for every numeric rule. A
+    JSON boolean is not a number (``float(True)`` is 1.0), nor is a list or
+    object; an integer beyond float64 is no number (``float()`` raises
+    OverflowError); NaN and infinity are not finite. Text must match
+    _NUMBER_TEXT_RE once the white space around it is removed (3.0.6).
+    Raises ValueError for anything else."""
     if value is None or isinstance(value, (bool, list, dict)):
         raise ValueError("not a number")
+    if isinstance(value, str):
+        value = _ws_strip(value)
+        if not _NUMBER_TEXT_RE.fullmatch(value):
+            raise ValueError("not a number")
     try:
         f = float(value)
     except (TypeError, ValueError, OverflowError):
@@ -1070,14 +1132,11 @@ def _num(value) -> float:
 
 
 def _unreadable_number(value) -> bool:
-    """A number the engine cannot read (3.0.5): a JSON number or numeric
-    string that is NaN, infinite, or beyond float64. Never compared as text."""
-    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+    """A JSON number the engine cannot read (3.0.5): NaN, infinite, or an
+    integer beyond float64. Never compared as text. 3.0.6: text is not a JSON
+    number — "NaN", "Infinity" and "1e400" are text that is not a number."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False
-    try:
-        float(value)
-    except (ValueError, OverflowError):
-        return isinstance(value, int)   # an int beyond float64 raises OverflowError
     try:
         _num(value)
     except ValueError:
@@ -1249,6 +1308,16 @@ def _warn_unknown_compare_op(rule_name: str, op) -> None:
     logger.warning("compare rule '%s' has unknown compare_op '%s'", rule_name, op)
 
 
+_ORDERING_OPS = frozenset({"gt", "lt", "gte", "lte", ">", "<", ">=", "<="})
+
+
+def _num_or_none(value) -> Optional[float]:
+    try:
+        return _num(value)
+    except ValueError:
+        return None
+
+
 def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional[str]:
     if not rule.compare_to or not rule.compare_op:
         logger.warning("compare rule '%s' missing compare_to or compare_op", rule.name)
@@ -1312,9 +1381,9 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
             return rule.error_message
         return None if op_fn(a, b) else rule.error_message
 
-    # 3.0.5: `algorithm: semver` compares the numeric major.minor.patch
-    # triple (pre-release and build parts ignored); a value that is not a
-    # version fails.
+    # `algorithm: semver` orders SemVer 2.0.0 versions by SemVer precedence
+    # (3.0.6; 3.0.5 compared the numeric triple only). A value that is not a
+    # version fails — never a number or text comparison.
     if getattr(rule, "algorithm", None) == "semver":
         try:
             a, b = _semver_tuple(value), _semver_tuple(other)
@@ -1324,22 +1393,28 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
 
     # Two numbers compare as numbers, two ISO dates as instants; anything
     # else compares as text — the one rendering (3.0.5), and a list or an
-    # object is not text. A JSON boolean is not a number (sweep §4: compare
-    # on true fails the rule; it never reads as 1 or as the text "true").
-    if isinstance(value, bool) or isinstance(other, bool):
+    # object is not text. 3.0.6: a boolean has no order — gt/lt/gte/lte with
+    # a boolean on either side fails; eq/neq compare its text (true / false),
+    # and _num never reads it as 1.
+    ordering = op in _ORDERING_OPS
+    if ordering and (isinstance(value, bool) or isinstance(other, bool)):
         return rule.error_message
     if _unreadable_number(value) or _unreadable_number(other):
         return rule.error_message   # NaN, infinity, an integer beyond float64: never compared as text
+    num_a, num_b = _num_or_none(value), _num_or_none(other)
+    if num_a is not None and num_b is not None:
+        return None if op_fn(num_a, num_b) else rule.error_message
     try:
-        a, b = _num(value), _num(other)
+        a, b = _read_iso(value), _read_iso(other)
     except ValueError:
-        try:
-            a, b = _read_iso(value), _read_iso(other)
-        except ValueError:
-            for v in (value, other):
-                if isinstance(v, (list, dict)):
-                    return _collection_message(rule, v)
-            a, b = _render_value(value), _render_value(other)
+        for v in (value, other):
+            if isinstance(v, (list, dict)):
+                return _collection_message(rule, v)
+        # 3.0.6 §4(b): a number is never ordered against a non-number ("abc"
+        # gt 5 passed by character order). eq/neq keep the text reading.
+        if ordering and (num_a is None) != (num_b is None):
+            return rule.error_message
+        a, b = _render_value(value), _render_value(other)
     return None if op_fn(a, b) else rule.error_message
 
 

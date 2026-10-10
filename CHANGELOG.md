@@ -2,6 +2,78 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [3.0.6] - 2026-10-10
+
+### Numbers, versions and booleans (aligned with the managed engine)
+
+The managed engine's follow-up to 3.0.5. There are no users of either engine
+yet, so where the managed engine's 3.0.5 behaviour was an accident rather than
+a design, the managed engine was fixed and Core follows. The managed engine
+passes all 210 rows of its fixture; on Core 3.0.5 exactly 16 were red. The
+rows are mirrored byte-identical in `frozen/engine_semantics.jsonl` (125 →
+180: managed rows 28, 37, 50 and 159–210 added, row 152 replaced). All 180
+hold on the single path, on batch, and on batch beside a `None`, string or
+blank sibling.
+
+**Behaviour changes.** Replaying the v3.0.5 corpus shows 0 flips; the corpus
+(324 records, messages included) is unchanged, and no bundled contract or
+shipped example is affected.
+
+- **A boolean in `compare` is its text, and has no order.** `gt` / `lt` /
+  `gte` / `lte` with a boolean on either side fails; `eq` / `neq` compare
+  `true` / `false` — `true eq true`, `true eq "true"` and `true neq 1` pass,
+  `true eq 1` fails. This replaces 3.0.5's "every compare on a boolean fails".
+- **`algorithm: semver` is SemVer 2.0.0.** semver.org's own grammar (after an
+  optional lower-case `v`, ASCII digits only, white space around the value
+  removed) and SemVer §11 precedence: a pre-release is below its release
+  (`1.2.3-rc1` eq `1.2.3` now **fails**), pre-release identifiers compare
+  numerically or in ASCII order, a longer set is higher, build metadata is
+  ignored. `01.2.3`, `1.0.0-01`, `1.0.0-alpha_1`, `V1.2.3`, `1.2`, `1.2.3.4`
+  and non-ASCII digits are not versions. This replaces 3.0.5's "pre-release
+  and build parts are ignored". **`builtin:semver` is the same pattern** — it
+  used `\d` and `\w`, which also accepted non-ASCII digits and `_`.
+- **One number reader.** Text is a number only when, trimmed, it is a plain
+  finite decimal — sign, digits, point and fraction, exponent, underscores
+  between digits. `NaN`, `Infinity`, hexadecimal, `1e400`, thousands
+  separators, currency symbols, inner spaces and non-ASCII digits (`float()`
+  reads `١٢` and `１２` as 12) are not numbers: `min` / `max` / `range` give
+  `OPENDQV_TYPE_MISMATCH`, the other numeric rules fail under their own code.
+  `compare` now reads the text `"NaN"` / `"Infinity"` as text, like any other
+  non-number (a JSON NaN or infinity still fails it).
+- **`compare` never orders a number against a non-number.** `"abc" gt 5` and
+  `5 lt "abc"` passed by character order; with `gt` / `lt` / `gte` / `lte`
+  they now fail. `eq` / `neq` are unchanged; a declared date layout or
+  `algorithm: semver` is decided first.
+- **CSV cells are text; a blank cell is absent.** `opendqv validate-file` and
+  the REST upload reader (`/validate/batch/file`, and the profiler upload,
+  which shares it) read with `dtype=str, keep_default_na=False`. The REST
+  reader parsed `0012345678905` as the integer 12345678905, so every GTIN with
+  a leading zero failed its check digit; a blank cell was NaN and reported
+  twice, and is now `""`, which is absent. **`NA`, `null` and `NaN` cells are
+  now the text they spell**, not missing values. The profiler sees the same
+  text cells (numeric text is still profiled as numeric); its blank cells are
+  null, so `null_count` is now right and `top_values` leaves them out.
+- **Checksums read ASCII only**, with no Unicode case expansion (`ß` is not
+  `SS`). Already true on 3.0.5; managed rows 192–210 now guard it, and the
+  "pending" note in 3.0.5's conformance doc is settled.
+
+**Refused when a contract is submitted** (the 3.0.5 path: MCP draft, REST rule
+add/update, `/import/*`, `opendqv fork`; `opendqv lint` reports
+`CONTRACT_RULE_INVALID`; stored content loads with a warning and keeps its old
+reading):
+
+- a date `format` that reads one field twice — `%S%S`, `%Y-%m-%d%d`, `%Y %y`
+  (both read the year), `YYYY YY`, `DD/MM/YYYY DD`. `MM/DD/YYYY HH:MM` is two
+  fields (month, minutes) and is accepted. A stored one needs every occurrence
+  to be a valid value; the last one decides.
+- a `%`-format whose literal text has a letter run made wholly of human
+  spellings, in any case — `%Y-MM-DD`, `%d/%m/yyyy`, `%YMMDD`. `strptime`
+  reads those as the letters themselves, so the rule matches no date. A word
+  such as `added` is a literal and stays accepted.
+- `algorithm` other than `semver`; `algorithm` on any type but `compare`;
+  `algorithm: semver` with `compare_to: today` / `now` or with
+  `compare_op: same_date`.
+
 ## [3.0.5] - 2026-10-10
 
 ### The conformance sweep (aligned with the managed engine)

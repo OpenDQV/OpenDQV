@@ -25,7 +25,34 @@ from opendqv.core.validator import (
 # word forms and the symbol aliases the model normalises; no other spellings
 COMPARE_OPS = frozenset({"gt", "lt", "gte", "lte", "eq", "neq", "same_date",
                          ">", "<", ">=", "<=", "=", "!="})
+# the field each directive reads (3.0.6): %Y and %y both read the year
+_DIRECTIVE_FIELD = {"Y": "year", "y": "year", "m": "month", "d": "day", "H": "hour",
+                    "M": "minute", "S": "second", "f": "fraction of a second"}
+_HUMAN_PAIRS = frozenset({"yy", "mm", "dd", "hh", "ss"})
 _NUMERIC_BOUND_KEYS = ("min", "max", "min_value", "max_value", "min_length", "max_length", "min_age", "max_age")
+
+
+def _human_runs(fmt: str) -> list[str]:
+    """Letter runs in a %-format's literal text made wholly of human
+    spellings (YYYY YY MM DD HH SS, any case) — strptime reads them as the
+    letters themselves, so the rule can match no date (3.0.6). A word such as
+    "added" is a literal and is not one."""
+    runs, run, i = [], "", 0
+    while i < len(fmt):
+        if fmt[i] == "%":
+            runs.append(run)
+            run = ""
+            i += 2
+            continue
+        if fmt[i].isascii() and fmt[i].isalpha():
+            run += fmt[i]
+        else:
+            runs.append(run)
+            run = ""
+        i += 1
+    runs.append(run)
+    return [r for r in runs if r and len(r) % 2 == 0
+            and all(r[j:j + 2].lower() in _HUMAN_PAIRS for j in range(0, len(r), 2))]
 
 
 def _format_problems(fmt) -> list[str]:
@@ -39,8 +66,15 @@ def _format_problems(fmt) -> list[str]:
     if fmt != _ws_strip(fmt):
         return ["format has white space around it — a layout character is matched exactly, so remove it"]
     out: list[str] = []
+    runs = _human_runs(fmt) if "%" in fmt else []
+    if runs:
+        spelt = ", ".join(f'"{r}"' for r in runs)
+        out.append(f"format mixes human spelling ({spelt}) into a %-format — read as the letters "
+                   f"themselves, so no date matches; write the whole format one way "
+                   f"(%Y-%m-%d or YYYY-MM-DD)")
     spelled = _human_to_strptime(fmt)
     directives = 0
+    seen: dict[str, str] = {}
     i = 0
     while i < len(spelled):
         if spelled[i] != "%":
@@ -56,6 +90,14 @@ def _format_problems(fmt) -> list[str]:
             out.append('format directive "%f" must follow "." or "," (e.g. %S.%f)')
         else:
             directives += 1
+            field = _DIRECTIVE_FIELD[d]
+            if field in seen:
+                hint = (" (MM after HH reads the minutes — write the date before the time)"
+                        if field == "minute" and "%" not in fmt else "")
+                out.append(f'format reads the {field} twice (%{seen[field]} and %{d}) — a value has one '
+                           f"{field}; write each field once{hint}")
+            else:
+                seen[field] = d
         i += 2
     if directives == 0 and not out:
         out.append(f'format "{fmt}" has no date directive (directives are case-sensitive: '
@@ -120,6 +162,17 @@ def rule_submission_problems(raw: dict) -> list[str]:
         out.append("allowed_values needs at least one value")
     if rtype == "lookup" and not raw.get("lookup_file"):
         out.append("lookup needs a lookup_file")
+    alg = raw.get("algorithm")
+    if alg is not None:
+        if alg != "semver":
+            out.append(f'algorithm "{alg}" is not supported — the one algorithm is semver')
+        elif rtype != "compare":
+            out.append("algorithm: semver is for compare only")
+        else:
+            if raw.get("compare_to") in ("today", "now"):
+                out.append(f'algorithm: semver compares two versions — compare_to: {raw["compare_to"]} is a date')
+            if raw.get("compare_op") == "same_date":
+                out.append("algorithm: semver compares versions — compare_op: same_date compares dates")
     if rtype == "checksum":
         alg = raw.get("checksum_algorithm")
         if not alg:

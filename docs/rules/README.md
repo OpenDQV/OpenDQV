@@ -38,7 +38,7 @@
 - [builtin: pattern shorthands](builtin_patterns.md) — 11 built-in validated patterns
 - [group_by on unique](../../README.md#rules) — uniqueness within groups
 - [all_of on lookup](../../README.md#rules) — validate each element in a list field
-- [algorithm: semver on compare](core_rules.md#11-compare) — compares the numeric `major.minor.patch` triple; pre-release/build ignored; a non-version fails
+- [algorithm: semver on compare](core_rules.md#11-compare) — SemVer 2.0.0 precedence (pre-releases below their release, build ignored); a non-version fails
 
 ## Contract features (v1.0.0)
 - [sensitive_fields](sensitive_fields.md) — privacy-safe field suppression from logs and responses
