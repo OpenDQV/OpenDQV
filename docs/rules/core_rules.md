@@ -688,8 +688,10 @@ is not "not applicable".
    reader above) → numeric comparison.
 3. Both read as ISO 8601 dates (compared as instants).
 4. Fallback: text comparison through the one text rendering (a boolean is
-   `true` / `false`); a non-empty list or object fails with the typed "compares
-   a single value" message. With `gt` / `lt` / `gte` / `lte`, a number is never
+   `true` / `false`); a non-empty list or object in the rule's own field fails
+   with the typed "compares a single value" message, and one in the
+   `compare_to` field fails with the rule's own `error_message` (3.0.7 — the
+   typed message names the rule's field, not the counterpart). With `gt` / `lt` / `gte` / `lte`, a number is never
    ordered against a non-number: `"abc" gt 5` fails (3.0.6; it passed by
    character order). `eq` / `neq` compare the text.
 
