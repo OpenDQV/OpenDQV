@@ -257,3 +257,44 @@ def test_validate_file_reads_cells_as_text(tmp_path, monkeypatch):
                                                  output_failures=None, observe_only=False))
     assert exc.value.code in (0, None)
     assert seen == [{"gtin": "0012345678905", "qty": ""}, {"gtin": "4006381333931", "qty": "NA"}]
+
+
+# ── blind-review findings (3.0.6 pre-merge) ─────────────────────────────
+
+@pytest.mark.parametrize("fmt,value,year", [("%Y %y", "2024 25", 2025), ("%y %Y", "25 2024", 2024),
+                                            ("YYYY YY", "2024 25", 2025)])
+def test_stored_year_read_twice_the_last_occurrence_decides(fmt, value, year):
+    from opendqv.core.validator import _human_to_strptime
+    assert _read_layout(value, _human_to_strptime(fmt)).year == year
+
+
+def test_stored_year_read_twice_every_occurrence_must_be_valid():
+    # last decides 2025, which has no 29 February
+    rule = Rule(name="d", type="date_format", field="d", format="%d/%m/%Y %y", error_message="bad")
+    for out in _both({"d": "29/02/2024 25"}, [rule]):
+        assert out["valid"] is False
+    with pytest.raises(ValueError):
+        _read_layout("0000 99", "%Y %y")
+
+
+def test_semver_parts_of_any_length():
+    big = "9" * 5000
+    assert _semver_tuple(big + ".0.0") == _semver_tuple(big + ".0.0")
+    assert _semver_tuple(big + ".0.0") > _semver_tuple("9" * 4999 + ".0.0")
+    assert _semver_tuple("1.0.0-" + big) > _semver_tuple("1.0.0-1")
+    assert _semver_tuple("10.0.0") > _semver_tuple("9.0.0")
+
+
+def test_human_minutes_twice_says_why():
+    [msg] = rule_submission_problems({**_BASE, "type": "date_format", "format": "HH:MM DD/MM/YYYY"})
+    assert "MM after HH reads the minutes" in msg
+
+
+def test_profiler_top_values_skip_blank_cells():
+    from opendqv.api.deps import _parse_upload
+    from opendqv.core.profiler import profile_records
+    lines = [b"id,colour"] + [f"{i},{c}".encode() for i, c in enumerate(["red"] * 4 + ["blue"] * 3 + [""] * 3)]
+    rows = _parse_upload(b"\n".join(lines) + b"\n", "c.csv").to_dict(orient="records")
+    prof = profile_records(rows, contract_name="c")["profile"]["fields"]["colour"]
+    assert prof["null_count"] == 3
+    assert prof["top_values"] == {"red": 4, "blue": 3}

@@ -92,8 +92,10 @@ def _format_problems(fmt) -> list[str]:
             directives += 1
             field = _DIRECTIVE_FIELD[d]
             if field in seen:
+                hint = (" (MM after HH reads the minutes — write the date before the time)"
+                        if field == "minute" and "%" not in fmt else "")
                 out.append(f'format reads the {field} twice (%{seen[field]} and %{d}) — a value has one '
-                           f"{field}; write each field once")
+                           f"{field}; write each field once{hint}")
             else:
                 seen[field] = d
         i += 2

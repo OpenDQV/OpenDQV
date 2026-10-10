@@ -406,6 +406,8 @@ def profile_records(records: list[dict], contract_name: str = "profiled") -> dic
                         rows = con.execute(
                             f"SELECT CAST({fq} AS VARCHAR), COUNT(*) cnt "
                             f"FROM data WHERE {fq} IS NOT NULL "
+                            # a blank is null to the profile (3.0.6: CSV blanks read as "")
+                            f"AND TRIM(CAST({fq} AS VARCHAR)) <> '' "
                             f"GROUP BY 1 ORDER BY 2 DESC LIMIT 10"
                         ).fetchall()
                         profile["top_values"] = {str(r[0]): int(r[1]) for r in rows}

@@ -51,7 +51,8 @@ shipped example is affected.
   a leading zero failed its check digit; a blank cell was NaN and reported
   twice, and is now `""`, which is absent. **`NA`, `null` and `NaN` cells are
   now the text they spell**, not missing values. The profiler sees the same
-  text cells (numeric text is still profiled as numeric).
+  text cells (numeric text is still profiled as numeric); its blank cells are
+  null, so `null_count` is now right and `top_values` leaves them out.
 - **Checksums read ASCII only**, with no Unicode case expansion (`ß` is not
   `SS`). Already true on 3.0.5; managed rows 192–210 now guard it, and the
   "pending" note in 3.0.5's conformance doc is settled.

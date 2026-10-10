@@ -218,14 +218,31 @@ def _read_layout(s: str, fmt: str) -> datetime:
     m = shape.fullmatch(s)
     if not m:
         raise ValueError("not in the declared layout")
-    got = dict(zip(keys, m.groups()))   # a repeated directive: the last occurrence decides
+    pairs = list(zip(keys, m.groups()))
+    fields = [_YEAR_KEYS.get(k, k) for k in keys]   # %Y and %y both read the year
+    got = _layout_fields(pairs)   # a field read twice: the last occurrence decides
     result = _layout_datetime(got)
-    if len(set(keys)) != len(keys):
+    if len(set(fields)) != len(fields):
         # refused when a contract is submitted (3.0.6); stored content: every
         # occurrence must also be a valid value (raises ValueError if not)
-        for key, text in zip(keys, m.groups()):
-            _layout_datetime({**got, key: text})
+        for i in range(len(pairs)):
+            _layout_datetime(_layout_fields(pairs[:i] + pairs[i + 1:] + [pairs[i]]))
     return result
+
+
+_YEAR_KEYS = {"year": "year", "year2": "year"}
+
+
+def _layout_fields(pairs) -> dict:
+    """{directive key: text}, later pairs winning; a later %Y / %y replaces an
+    earlier %y / %Y (one field, the year)."""
+    got: dict = {}
+    for key, text in pairs:
+        if key in _YEAR_KEYS:
+            got.pop("year", None)
+            got.pop("year2", None)
+        got[key] = text
+    return got
 
 
 def _layout_datetime(got: dict) -> datetime:
@@ -894,10 +911,13 @@ def _semver_tuple(v):
     if not m:
         raise ValueError("not a version")
     major, minor, patch, pre, _build = m.groups()
+    # a numeric part has no leading zero, so (length, digits) orders it as a
+    # number at any size — int() refuses more than 4300 digits
+    core = tuple((len(p), p) for p in (major, minor, patch))
     if pre is None:
-        return (int(major), int(minor), int(patch), 1, ())
-    ids = tuple((0, int(i), "") if i.isdigit() else (1, 0, i) for i in pre.split("."))
-    return (int(major), int(minor), int(patch), 0, ids)
+        return (*core, 1, ())
+    ids = tuple((0, len(i), i) if i.isdigit() else (1, 0, i) for i in pre.split("."))
+    return (*core, 0, ids)
 
 
 # ── Single-record rule handlers ─────────────────────────────────────────
