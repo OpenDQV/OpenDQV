@@ -1407,9 +1407,10 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
     try:
         a, b = _read_iso(value), _read_iso(other)
     except ValueError:
-        for v in (value, other):
-            if isinstance(v, (list, dict)):
-                return _collection_message(rule, v)
+        if isinstance(value, (list, dict)):
+            return _collection_message(rule, value)
+        if isinstance(other, (list, dict)):
+            return rule.error_message   # 3.0.7: the collection message names rule.field — a list in the counterpart gets the rule's own message
         # 3.0.6 §4(b): a number is never ordered against a non-number ("abc"
         # gt 5 passed by character order). eq/neq keep the text reading.
         if ordering and (num_a is None) != (num_b is None):

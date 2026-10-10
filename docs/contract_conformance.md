@@ -657,7 +657,8 @@ holds 180 rows: line 119 is managed row 152 (replaced), lines 126–128 are
 managed rows 28, 37 and 50, and lines 129–180 are managed rows 159–210. Line
 *n* of lines 1–125 is managed row *n* + 33 from line 67 on. The three
 field_sum / ratio_check rows (managed 110–112) are live rows; the
-"WITHDRAWN" label is gone from their claims.
+"WITHDRAWN" label is gone from their claims (3.0.7: row 112 also drops
+"(guard)", byte-identical with the managed fixture).
 
 - **A boolean in `compare` is its text, and a boolean has no order.** `gt` /
   `lt` / `gte` / `lte` with a boolean on either side fails; `eq` / `neq`

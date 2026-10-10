@@ -2,6 +2,22 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [3.0.7] - 2026-10-10
+
+Two follow-ups from the managed engine's replay of 3.0.6 (all five layers
+green on v3.0.6; the managed fixture holds 210/210 on Core).
+
+### Fixed
+- **`compare`: a list or object in the counterpart fails with the rule's own
+  message.** The typed "compares a single value" message names the rule's own
+  field, so with the collection in `compare_to` it pointed at the wrong field
+  (`"x" eq [1]`, array in `b`, said `compare rule on field "a" … got array`). A
+  collection in the rule's own field keeps the typed message; verdicts and
+  codes are unchanged. Matches the managed engine.
+- **Shared fixture:** managed row 112's claim drops "(guard)" so the line is
+  byte-identical with the managed fixture (claim text only; the probe does not
+  read it).
+
 ## [3.0.6] - 2026-10-10
 
 ### Numbers, versions and booleans (aligned with the managed engine)
