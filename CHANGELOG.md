@@ -2,6 +2,29 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [3.0.8] - 2026-10-11
+
+Messages only — verdicts and codes already agree with the managed engine,
+which has made its two 3.0.7 changes (own-field collection message, `1e400`
+fails `compare`); its fixture is 213 rows, all passing on Core.
+
+### Fixed
+- **`compare` with `today` / `now` or `same_date`: a list or object in the
+  rule's own field gets the typed "compares a single value" message.** These
+  branches tried to read a date first, so `[1] gt today` and
+  `[1] same_date "2026-01-01"` got the plain rule message, unlike every other
+  operator. A collection in the counterpart keeps the rule's own message.
+- **The type-mismatch message for a JSON number the engine cannot read.**
+  `{"a": 1e400}` under `min` said "expected a finite numeric value, got
+  infinity" — `1e400` is not infinity; the JSON parser made it so. It, and an
+  integer beyond float64, now say `min rule on field 'a' expected a number it
+  can read, got a number beyond the readable range` (both engines). A NaN says
+  `… expected a number it can read, got NaN`.
+
+### Conformance
+- Shared fixture: managed rows 211–213 at lines 181–183 (183 rows) —
+  `1e400 eq 1e400` and `1e400 neq 5` fail; `"1e400"` as text is text.
+
 ## [3.0.7] - 2026-10-10
 
 Two follow-ups from the managed engine's replay of 3.0.6 (all five layers

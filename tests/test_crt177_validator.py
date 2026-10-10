@@ -36,7 +36,7 @@ class TestNonFiniteNumericRejected:
 
     def test_nan_message_is_accurate(self):
         r = validate_record({"p": float("nan")}, [Rule(name="min", field="p", type="min", min_value=0)])
-        assert "finite" in r["errors"][0]["message"].lower()
+        assert r["errors"][0]["message"] == "min rule on field 'p' expected a number it can read, got NaN"  # 3.0.8 wording
         assert r["errors"][0]["error_code"] == "OPENDQV_TYPE_MISMATCH"
 
     @pytest.mark.parametrize("good", [0, 50, 100, 0.0, "50", "28.50"])

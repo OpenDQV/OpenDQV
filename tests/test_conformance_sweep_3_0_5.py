@@ -116,7 +116,7 @@ def test_a_nan_operand_no_longer_passes_field_sum():
 
 def test_huge_integer_message_names_the_range():
     out = validate_record({"x": 10 ** 400}, [Rule(name="m", type="min", field="x", min=0, error_message="x")], "t")
-    assert "floating-point range" in out["errors"][0]["message"]
+    assert "got a number beyond the readable range" in out["errors"][0]["message"]  # 3.0.8 wording (both engines)
 
 
 def test_integer_column_with_a_gap_keeps_its_digits_in_batch():

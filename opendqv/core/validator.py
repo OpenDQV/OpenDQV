@@ -1072,24 +1072,20 @@ _RULE_ERROR_MESSAGE = "Rule could not be evaluated; record rejected (fail-closed
 
 
 def _type_mismatch_msg(rule: Rule, value) -> str:
-    # A NaN or infinity is not a valid finite measurement — the canonical
-    # "corrupt number" a broken upstream pipeline emits. It parses as a float
-    # but must never satisfy a numeric bound (NaN compares False to every
-    # bound; ±inf slips single-sided min/max rules), so it surfaces here as a
-    # type/domain mismatch with an accurate, non-generic message.
-    if isinstance(value, float) and not math.isfinite(value):
-        got = "NaN" if math.isnan(value) else "infinity"
+    # A JSON number the engine cannot read (3.0.8, both engines): an infinity
+    # (1e400 — the JSON parser makes it one, so Core cannot tell it from a
+    # literal Infinity) or an integer beyond float64 is "beyond the readable
+    # range", never "infinity" and never "got number" (which contradicts
+    # "expected numeric"). NaN keeps its own name — the managed engine never
+    # receives one (JSON has none), Core can (Python floats, NaN literals).
+    # Any of them must never satisfy a numeric bound (NaN compares False to
+    # every bound; ±inf slips single-sided min/max rules).
+    if _unreadable_number(value):
+        got = "NaN" if isinstance(value, float) and math.isnan(value) else "a number beyond the readable range"
         return (
             f"{_TYPE_MISMATCH_PREFIX}"
-            f"{rule.type} rule on field '{rule.field}' expected a finite "
-            f"numeric value, got {got}"
-        )
-    if isinstance(value, int) and not isinstance(value, bool):
-        # only reached for an integer beyond float64 (3.0.5, B9)
-        return (
-            f"{_TYPE_MISMATCH_PREFIX}"
-            f"{rule.type} rule on field '{rule.field}' expected a numeric "
-            f"value within the floating-point range, got a number beyond it"
+            f"{rule.type} rule on field '{rule.field}' expected a number it "
+            f"can read, got {got}"
         )
     return (
         f"{_TYPE_MISMATCH_PREFIX}"
@@ -1335,6 +1331,8 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
         if op_fn is None and op != "same_date":
             _warn_unknown_compare_op(rule.name, op)
             return None
+        if isinstance(value, (list, dict)):
+            return _collection_message(rule, value)   # 3.0.8: before the date read, as in the text fallback
         try:
             a = _parse_date(value, la)
         except ValueError:
@@ -1362,6 +1360,8 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
     # (as written, in each value's own offset) must be equal. 3.0.5: an
     # operand that cannot be read as a date fails — it is not "not applicable".
     if op == "same_date":
+        if isinstance(value, (list, dict)):
+            return _collection_message(rule, value)   # 3.0.8; a collection in the counterpart keeps the rule's own message
         try:
             a = _parse_date(value, la)
             b = _parse_date(other, lb)
