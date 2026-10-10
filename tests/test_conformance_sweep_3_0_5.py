@@ -236,3 +236,11 @@ def test_a_raising_checker_fails_closed_per_record_in_batch(monkeypatch):
     single = validate_record({"f": "boom"}, [rule], "t")
     assert single["errors"][0]["error_code"] == "OPENDQV_RULE_ERROR"
     assert single["errors"][0]["message"] == res[1]["errors"][0]["message"]
+
+
+@pytest.mark.parametrize("a,b", [(True, 0), (1, True), (True, True), ("true", False)])
+def test_compare_with_a_boolean_operand_fails(a, b):
+    # Sweep §4: a JSON boolean is not a number on compare either.
+    rule = Rule(name="c", type="compare", field="a", compare_to="b", compare_op="gte", error_message="bad")
+    for out in _both({"a": a, "b": b}, [rule]):
+        assert _codes(out) == ["OPENDQV_COMPARE_C"]

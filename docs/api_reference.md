@@ -9,7 +9,7 @@ Full interactive docs at `/docs` (Swagger) and `/redoc` (ReDoc) when the server 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | `POST` | `/api/v1/validate` | Yes | Validate a single record |
-| `POST` | `/api/v1/validate/batch` | Yes | Validate a batch of records (DuckDB-powered) |
+| `POST` | `/api/v1/validate/batch` | Yes | Validate a batch of records (per record, the verdict `/validate` gives; plus batch-only `unique`) |
 | `POST` | `/api/v1/validate/batch/file` | Yes | Validate a CSV or Parquet file (multipart upload) |
 | `GET` | `/api/v1/contracts` | No | List available contracts |
 | `GET` | `/api/v1/contracts/{name}` | No | Get contract detail + rules |

@@ -420,7 +420,8 @@ thing on both engines.
   variable — rule objects are never mutated, because a context's rule list
   shares objects with the base list. The `min_age`/`max_age` add-on skips a
   value it cannot read as a date on both paths (the format rule is the catcher
-  for shape). Pinned for
+  for shape) — *superseded in 3.0.4: absence skips, a present value it cannot
+  read fails under the carrying rule's code*. Pinned for
   every engine by `tests/fixtures/conformance/frozen/engine_semantics.jsonl`
   (self-contained rows: inline rules + record + verdict + codes — the first
   fixture of that shape, because no bundled contract declares a non-ISO
@@ -428,7 +429,8 @@ thing on both engines.
 - **Batch fallback (pattern-closer).** Any rule type without a native batch
   branch is now evaluated per record with the single-path handler, so
   single/batch parity holds by construction for every present and future
-  type — `age_match` had no branch and silently passed in batch.
+  type — `age_match` had no branch and silently passed in batch. (3.0.5: every
+  type but `unique` now takes this path; see the 3.0.5 section.)
 - **S1** negative control: a deliberately wrong expectation fails the suite.
 - **S3 — strict export with contexts is looser than the engine.** The union
   export accepts a field only a context declares while a no-context engine
@@ -548,6 +550,104 @@ and metrics; it never changes which rules run. No hash moved: `content_hash`,
 `entry_hash`, `contract_hash`, `effective_rule_hash` and the manifest's
 `rules_sha256` are the same for the bundled library before and after.
 Migration: [`contexts.md`](contexts.md).
+
+## 3.0.5 — the conformance sweep (2026-10-10)
+
+The managed engine and Core 3.0.4 were compared on 5,118 cases, each run on
+the managed engine, Core's single path, Core's batch path alone, and Core's
+batch path beside a sibling record. Every gap was ruled under the standing
+rule (the managed engine leads, Core follows); the managed engine shipped its
+half first. 59 self-contained rows were added to
+`tests/fixtures/conformance/frozen/engine_semantics.jsonl`; Core 3.0.4 was
+green on both paths for 23 of them, 3.0.5 for all 59. The normative readings,
+now on both engines:
+
+- **Declared date formats read exactly one shape.** Every directive is fixed
+  width — `%Y` four digits; `%y %m %d %H %M %S` two; `%f` one to six after the
+  format's own `.` or `,` — and every other character of the format is itself,
+  exactly once (one space is one space, a tab is not a space, case counts).
+  The supported set is `%Y %y %m %d %H %M %S %f` and the human spellings
+  `YYYY YY MM DD HH MM SS` (`MM` after `HH` is minutes). The calendar is
+  checked after the shape; years are 0001–9999; a layout without a year still
+  reads values. One reader serves both validate paths (the batch path no
+  longer uses DuckDB `TRY_STRPTIME`, which read `10/01/90` under `%d/%m/%Y` as
+  the year 0090 — #203).
+- **The ISO surface** (no `format`): two-digit hour 00–23, offset hour 00–23,
+  offset minute 00–59, years 0001–9999. Both engines use the same expression.
+- **Fractions** are read to microseconds on Core and to nanoseconds on the
+  managed engine — a known Core limit, not changed.
+- **`[]` and `{}` are absent**, like `null`, missing and blank: no rule but a
+  presence rule runs on them, `required_if` reports them, `not_empty` fails
+  them.
+- **A non-empty list or object is not text.** `regex`, `allowed_values`,
+  `forbidden_values`, `lookup` without `all_of`, `conditional_lookup`,
+  `conditional_value` and `compare`'s text fallback fail it with
+  `<type> rule on field "<field>" compares a single value, got array|object —
+  send a string, number or boolean`. Thirteen corpus messages changed to this
+  wording (verdict and code unchanged). `lookup` with `all_of` reads a list.
+- **Conditions compare text as written.** A missing or `null` field, or a
+  list/object, matches no `value` and differs from every `not_value`; `""`
+  matches `value: ""` only; no trimming; `present:` alone reads absence. A
+  list never triggers `required_if` / `forbidden_if`.
+- **One text rendering** on every text surface (regex, allowed/forbidden
+  values, lookup, `must_equal`, conditions, trigger maps, `compare`'s text
+  fallback): booleans `true`/`false`, an integral float as digits (`12.0` →
+  `12`, `1e21` → `1000000000000000000000`), integers with every digit. In a
+  batch, an integer column with a `None` gap no longer reads `12` as `12.0`.
+- **A JSON boolean is not a number.** `min`/`max`/`range` give
+  `OPENDQV_TYPE_MISMATCH`; `cross_field_range`, `field_sum`, `ratio_check`,
+  `geospatial_bounds` and `age_match` fail. An integer beyond float64 is a
+  type mismatch on both paths (it used to raise `OverflowError` in batch).
+- **White space is Unicode White_Space**; U+001C–U+001F are not white space.
+- **`field_sum` / `ratio_check`**: the own `field` is attribution only, never
+  read, and its absence does not skip the rule; an absent operand fails.
+  `conditional_value` fires on an absent own field.
+- **`same_date`** on an operand that cannot be read as a date fails.
+  **`compare_to: today`** compares calendar dates (both sides truncated to
+  year/month/day); **`now`** is the instant.
+- **`algorithm: semver`** compares the numeric `major.minor.patch` triple on
+  both paths; pre-release and build parts are ignored; a value that is not a
+  version fails.
+- **Checksums**: eleven algorithms (`luhn`, `figi_luhn`, `verhoeff` added);
+  a value under two characters fails; `isrc_luhn` is a structural check (an
+  ISRC carries no check digit).
+- **`max_length: 0` means zero** on both paths, and **a lookup whose file
+  cannot be read fails closed** on both paths.
+- **Batch evaluates every rule type except `unique` per record with the
+  single-path handler**, on the raw record — verdicts identical by
+  construction. `unique` alone is judged on the whole column.
+
+**Refused when a contract is submitted.** Each of these used to load and then
+fail every record or never fire. The managed engine refuses them at create
+(422 `contract_rule_invalid`); Core refuses them on every way a contract is
+submitted — the MCP draft tool, the REST rule add/update routes, `/import/*`
+and `opendqv fork` — and `opendqv lint` reports each as a
+`CONTRACT_RULE_INVALID` error. One source: `opendqv/core/submission.py`.
+
+| Shape | Write instead |
+|---|---|
+| `compare_op` outside `gt lt gte lte eq neq same_date` / `> < >= <= = !=` | one of those |
+| a `condition` with both `value` and `not_value` | one of them |
+| `condition` `value: null` / `not_value: null` | `present: false` / `present: true` |
+| `negate: true` on any type but `regex` | `forbidden_values` |
+| `equals:` in a `required_if` / `forbidden_if` map, a map without `value`, or `value: null` | `value: <trigger>` |
+| a date `format` with an unsupported directive (`%b`, `%z`, `%j`, `%p`, `%T`, `%-d`, …) | the supported set |
+| a `format` with no directive (`dd/mm/yyyy`), `%f` not after `.`/`,`, or white space around it | `DD/MM/YYYY`, `%S.%f`, a trimmed format |
+| the Go layouts `2006-01-02` / `2006-01-02T15:04:05Z07:00` | `%Y-%m-%d`, or omit `format` for ISO 8601 |
+| `range` missing a bound | `min` or `max` |
+| `regex` without `pattern`; empty `allowed_values`; `lookup` without `lookup_file` | — |
+| `checksum` without an algorithm, or one outside the eleven (case counts: `LUHN`) | a listed lower-case name |
+| a numeric bound written as a string or boolean (`min: "10"`) | a number |
+
+Content already **stored** still loads, with a logged warning per problem,
+and keeps its old reading: a refusal at load would delist a contract at boot.
+That is deliberately the opposite of 2.8.0's unknown-rule-type decision —
+these shapes have a defined, if useless, old reading; an unknown type has
+none. The two Go layouts read as aliases in stored content: `2006-01-02` is
+`%Y-%m-%d`, and `2006-01-02T15:04:05Z07:00` is an ISO datetime with a required
+`Z` or `±hh:mm` and no fraction.
+
+**Pending:** whether checksums read non-ASCII digits (the managed engine reads ASCII only) waits on the held numbers hand-over. Meanwhile a value with a non-ASCII digit gives the same code on both of Core's paths — a VIN with a superscript digit fails the checksum rather than raising `OPENDQV_RULE_ERROR`.
 
 ## Known issues
 

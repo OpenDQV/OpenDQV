@@ -1300,7 +1300,10 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
 
     # Two numbers compare as numbers, two ISO dates as instants; anything
     # else compares as text — the one rendering (3.0.5), and a list or an
-    # object is not text.
+    # object is not text. A JSON boolean is not a number (sweep §4: compare
+    # on true fails the rule; it never reads as 1 or as the text "true").
+    if isinstance(value, bool) or isinstance(other, bool):
+        return rule.error_message
     try:
         a, b = _num(value), _num(other)
     except ValueError:

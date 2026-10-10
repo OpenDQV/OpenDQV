@@ -36,7 +36,7 @@ be reviewed and activated before it can be used for production validation.
 |----------------|-------------------|-------|
 | `expect_column_values_to_not_be_null` | `not_empty` | |
 | `expect_column_values_to_match_regex` | `regex` | |
-| `expect_column_values_to_be_between` | `range` | |
+| `expect_column_values_to_be_between` | `range` | Both bounds → `range`; one bound → `min` / `max` (3.0.5: a `range` needs both) |
 | `expect_column_value_lengths_to_be_between` | `min_length` / `max_length` | |
 | `expect_column_values_to_be_unique` | `unique` | |
 | `expect_column_min_to_be_between` | `min` | |
@@ -140,7 +140,7 @@ mistakes it for enforcement. Anything that must be validated belongs under `rule
 | `regex` / `min_length` / `max_length` (error, string field) | `logicalTypeOptions.pattern` / `minLength` / `maxLength`. Built-in pattern aliases are expanded. Patterns using lookahead, lookbehind, atomic groups or backreferences are **not** projected (RE2-based consumers abort on them) and travel custom-only |
 | `min` / `max` / `range` (error, numeric field) | `logicalTypeOptions.minimum` / `maximum`; `logicalType: number` |
 | `date_format` (error) | `logicalType: date` (or `timestamp` when the format has a time part), `logicalTypeOptions.format` as a JDK pattern (`yyyy-MM-dd`, literal text quoted: `yyyy-MM-dd'T'HH:mm:ss`); omitted when the format has no JDK equivalent |
-| `allowed_values` (error) | `quality: {type: library, metric: invalidValues, arguments.validValues, mustBe: 0}` — values emitted as strings (the engine compares `str(value)`; a bare `true`/`1.0` is a CAST error in the reference implementation) |
+| `allowed_values` (error) | `quality: {type: library, metric: invalidValues, arguments.validValues, mustBe: 0}` — values emitted as strings (the engine compares the one text rendering — `true`/`false`, `12.0` as `12`; a bare `true`/`1.0` is a CAST error in the reference implementation) |
 | `unique` with `group_by` (error) | object-level `quality: {type: library, metric: duplicateValues, arguments.properties: [field, …group_by]}` — at most one per object |
 
 Two deliberate choices:
@@ -242,7 +242,7 @@ metadata document and maps column definitions to OpenDQV rules.
 |-----------------|-------------------|-------|
 | `required: true` | `not_empty` | |
 | `datatype: string` + `pattern` | `regex` | |
-| `datatype: integer/number` + `minimum`/`maximum`/`minInclusive`/`maxInclusive` | `range` | |
+| `datatype: integer/number` + `minimum`/`maximum`/`minInclusive`/`maxInclusive` | `range` | One bound → `min` / `max` |
 | `minExclusive`/`maxExclusive` | `range` | Treated as inclusive (cannot express strict exclusion) |
 | `minLength`/`maxLength` | `min_length` / `max_length` | |
 | `enum` constraints | `regex` | Mapped to `^(val1\|val2)$` pattern; no native inline set support |
@@ -298,7 +298,7 @@ Query parameters:
 | `required` | `not_empty` (`error` severity) |
 | `recommended` | `not_empty` (`warning` severity) |
 | Known enum attributes | `regex` with allowed values pattern |
-| Numeric ranges (from convention docs) | `range` |
+| Numeric ranges (from convention docs) | `range` (one bound → `min` / `max`) |
 
 **Enum values:** The built-in enum table (`_KNOWN_ENUMS`) was current as of OTel semconv v1.25. Values for deprecated or new attributes will go stale as the spec evolves. Review generated rules before activating them.
 

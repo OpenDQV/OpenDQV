@@ -7,7 +7,7 @@
 
 The `checksum` rule validates that an identifier's check digit(s) are mathematically correct according to the standard algorithm for that identifier type.
 
-Supported algorithms:
+Supported algorithms — eleven, the same set on both engines (3.0.5 added `luhn`, `figi_luhn` and `verhoeff`):
 
 | Algorithm | Identifier | Industry |
 |-----------|-----------|----------|
@@ -18,7 +18,12 @@ Supported algorithms:
 | `nhs_mod11` | NHS Number (10-digit) | Healthcare |
 | `cpf_mod11` | Brazilian CPF (11-digit) | Financial Services (Brazil) |
 | `vin_mod11` | Vehicle Identification Number (17-character) | Automotive, Insurance |
-| `isrc_luhn` | ISRC (International Standard Recording Code) | Media & Entertainment |
+| `isrc_luhn` | ISRC (International Standard Recording Code) — structural check only, see below | Media & Entertainment |
+| `luhn` | Any Luhn mod-10 number (ISO/IEC 7812 — payment card numbers etc.) | Payments, Retail |
+| `figi_luhn` | FIGI (OpenFIGI, 12-character) | Financial Services |
+| `verhoeff` | Verhoeff dihedral-group check digit (e.g. Aadhaar) | Government, Identity |
+
+Algorithm names are lower case and the set is closed: a rule without `checksum_algorithm`, or with a name outside the table (`LUHN`, a typo), is refused when a contract is submitted (3.0.5); a stored rule with an unknown name fails closed on every record. A value shorter than two characters (e.g. `"0"`) fails under every algorithm — there is no check digit to check. White space around the value is ignored. The value must be a JSON string (a number is refused with a typed message, so leading zeros survive).
 
 > **Important:** Checksums validate that the check digit(s) are mathematically correct — NOT that the identifier is registered, active, or assigned. Combine with a `regex` rule for format validation and a `lookup` rule if you need to verify registration.
 
@@ -238,10 +243,10 @@ Pair with format rule:
 
 ### isrc_luhn
 
-**Standard:** ISO 3901 (ISRC format validation with Luhn check)
+**Standard:** ISO 3901 (ISRC structure)
 **Industries:** Media & Entertainment
 
-ISRC (International Standard Recording Code) is a 12-character identifier: 2-letter country code, 3-character registrant code, 2-digit year, 5-digit designation code. The `isrc_luhn` algorithm validates the structural integrity of the ISRC using a Luhn-style check on the numeric components.
+ISRC (International Standard Recording Code) is a 12-character identifier: 2-letter country code, 3-character registrant code, 2-digit year, 5-digit designation code. **An ISRC carries no check digit**, so despite its name `isrc_luhn` is a **structural check**, not a check-digit computation: with hyphens removed (case-insensitive), the value must be two letters, three letters or digits, then seven digits. The name is kept for contract compatibility.
 
 ```yaml
 - name: isrc_checksum_valid
@@ -260,6 +265,54 @@ Pair with format rule:
   field: isrc
   pattern: "^[A-Z]{2}-?[A-Z0-9]{3}-?\\d{2}-?\\d{5}$"
   error_message: "ISRC must match format: CC-XXX-YY-NNNNN"
+  severity: error
+```
+
+### luhn
+
+**Standard:** ISO/IEC 7812 Luhn mod-10
+**Identifiers:** payment card numbers (PAN), IMEI, and other plain Luhn-checked numbers
+
+The whole value must be ASCII digits (no spaces or hyphens inside it); the Luhn sum over every digit, check digit included, must be divisible by 10. `79927398713` passes; `79927398710` fails.
+
+```yaml
+- name: pan_check_digit
+  type: checksum
+  field: card_number
+  checksum_algorithm: luhn
+  error_message: "card_number has an invalid check digit"
+  severity: error
+```
+
+### figi_luhn
+
+**Standard:** OpenFIGI (Financial Instrument Global Identifier)
+**Industries:** Financial Services
+
+A FIGI is 12 ASCII letters or digits ending in a digit. Letters take the values A=10 … Z=35; every second of the first eleven values is doubled, the digits of each are summed, and the check digit is `(10 - sum % 10) % 10`. `BBG000BLNNH6` passes.
+
+```yaml
+- name: figi_check_digit
+  type: checksum
+  field: figi
+  checksum_algorithm: figi_luhn
+  error_message: "FIGI has an invalid check digit"
+  severity: error
+```
+
+### verhoeff
+
+**Standard:** Verhoeff dihedral-group (D5) check digit
+**Identifiers:** e.g. Aadhaar numbers
+
+The whole value must be ASCII digits; the last digit is the check digit. Verhoeff catches every single-digit error and every adjacent transposition. `2363` passes; `2364` fails.
+
+```yaml
+- name: aadhaar_check_digit
+  type: checksum
+  field: aadhaar_number
+  checksum_algorithm: verhoeff
+  error_message: "Aadhaar number has an invalid check digit"
   severity: error
 ```
 

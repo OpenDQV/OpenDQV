@@ -1,6 +1,6 @@
 # Adding a Custom Rule Type
 
-> **Last reviewed:** 2026-09-05 (engine 2.8.0).
+> **Last reviewed:** 2026-10-10 (engine 3.0.5).
 > Covers the two files you need to touch (three with push-down code generation), a complete worked example (`phone_e164`), and pointers to existing rule implementations you can copy from.
 
 OpenDQV's rule dispatch is a module-level table, `_RULE_HANDLERS` in `opendqv/core/validator.py`, mapping a type name to a `_check_<type>(value, rule, record)` function. There is no plugin registry. Adding a new rule type means editing source files — the tradeoff is that every rule type is trivially grep-able and auditable.
@@ -13,7 +13,7 @@ Adding a rule type requires changes to **two files** (`rule_parser.py` for the c
 
 1. `opendqv/core/rule_parser.py` — add optional config fields to the `Rule` Pydantic model.
 2. `opendqv/core/validator.py` — write `_check_<type>()` and register it in `_RULE_HANDLERS` and add the name to `RULE_TYPES` in `opendqv/core/rule_parser.py` (the closed set `Rule()` accepts; the validator asserts the two agree at import).
-3. `opendqv/core/validator.py` (`_batch_check_rule_inner`) — add a corresponding DuckDB branch for batch validation.
+3. Batch validation — nothing to add (3.0.5): `validate_batch` evaluates every rule type except `unique` per record with the same `_check_<type>` handler `validate_record` uses, so your rule works on both paths and gives one verdict by construction.
 4. `opendqv/core/linter.py` — nothing to add: the linter reads `RULE_TYPES` (2.8.0), so `opendqv lint` stops reporting `UNKNOWN_RULE_TYPE` the moment step 2 lands.
 5. `opendqv/core/code_generator.py` *(optional)* — add a branch to emit Apex / JS / Snowflake code.
 
@@ -83,24 +83,13 @@ _RULE_HANDLERS: dict[str, Callable] = {
 
 ---
 
-## Step 3: `opendqv/core/validator.py` — `_batch_check_rule_inner()`
+## Step 3: batch validation — nothing to add
 
-The batch SQL lives in `_batch_check_rule_inner()` (`_batch_check_rule()` is the wrapper that records timing and failure bookkeeping around it). It runs the same rule against a batch via DuckDB. Add a corresponding `elif` branch. Use parameterised queries where possible.
+Since 3.0.5, `_batch_check_rule_inner()` has a native branch for one rule type only: `unique`, which is set-based and judged on the whole column (DuckDB / Python grouping). Every other type — including yours — is evaluated per record with the single-path handler on the raw record (`_evaluate_per_record`), so the single-record and batch paths agree on every input by construction. Do **not** add an `elif` branch for a per-value rule: re-implementing a handler over DataFrame cells was the source of every single/batch split the conformance sweeps found (pandas turns an integer column with a `None` gap into floats, so `12` reads `12.0`, and booleans and lists lose their JSON type).
 
-For rules whose logic is too complex for SQL (multi-step lookups, external calls, complex regex), fall back to a Python loop — as the `regex` and `compare` rules do. Never use f-string interpolation for user-supplied values in SQL; use DuckDB's `$param` binding or Python pre-computation.
+Still add a test that runs the same records through `validate_record()` and `validate_batch()`.
 
-```python
-elif rule.type == "phone_e164":
-    # Fall back to Python — regex with optional extension suffix is simpler to maintain here.
-    pat = _E164_EXT if rule.allow_extensions else _E164
-    for idx, val in enumerate(df[field]):
-        if _is_field_absent(val):
-            continue  # D6 — missing/blank values pass; use not_empty to enforce presence
-        if not _safe_match(pat, str(val).strip()):
-            failing.add(idx)
-```
-
-Add this branch after the existing `elif rule.type == "max_length"` block and before the `elif rule.type == "date_format"` block to keep numeric/string/format rules grouped together. Single-record and batch paths must agree on every input — that is a conformance guarantee, so add a test that runs the same records through both.
+To stay consistent with the built-in rules, read values through the engine's shared helpers rather than `str()` / `float()`: `_render_value()` for text (booleans as `true`/`false`, `12.0` as `12`), `_num()` for numbers (a JSON boolean is not a number), `_collection_message(rule, value)` for a non-empty list or object, and `_ws_strip()` for trimming (Unicode White_Space).
 
 The linter needs no edit: it reads `RULE_TYPES`, so once `"phone_e164"` is in that set `opendqv lint` accepts it (until then it reports `UNKNOWN_RULE_TYPE`, a lint error, on every contract that uses it).
 
@@ -203,18 +192,6 @@ def _check_phone_e164(value, rule: Rule, record: dict | None = None) -> str | No
 _RULE_HANDLERS["phone_e164"] = _check_phone_e164   # i.e. add the entry to the dict literal
 ```
 
-### `opendqv/core/validator.py` — `_batch_check_rule_inner()`
-
-```python
-elif rule.type == "phone_e164":
-    pat = _E164_EXT if rule.allow_extensions else _E164
-    for idx, val in enumerate(df[field]):
-        if _is_field_absent(val):
-            continue
-        if not _safe_match(pat, str(val).strip()):
-            failing.add(idx)
-```
-
 ### `core/code_generator.py` (optional)
 
 ```python
@@ -239,18 +216,18 @@ When implementing a new rule, start by reading the nearest existing rule as a te
 
 | Pattern | Rule type | Location |
 |---|---|---|
-| Simple pattern match | `regex` | `_check_rule()` ~line 346; `_batch_check_rule()` ~line 1014 |
-| Numeric bounds | `range` | `_check_rule()` ~line 382; `_batch_check_rule()` ~line 1042 |
-| Cross-field access | `compare` | `_check_rule()` ~line 424; `_batch_check_rule()` ~line 1104 |
-| Complex domain logic | `checksum` | `_check_rule()` ~line 513; calls `_validate_checksum()` |
+| Simple pattern match | `regex` | `_check_regex()` |
+| Numeric bounds | `range` | `_check_range()` (reads through `_num()`) |
+| Cross-field access | `compare` | `_check_compare()` |
+| Complex domain logic | `checksum` | `_check_checksum()`; calls `_validate_checksum()` |
 
 **`regex`** is the simplest pattern to copy: validate the string value against a compiled pattern, return `None` on match, return `rule.error_message` otherwise. The `negate` flag inverts the test.
 
-**`range`** shows how to handle `min_value` / `max_value` with `float()` coercion and graceful handling of non-numeric values.
+**`range`** shows how to handle `min_value` / `max_value` through `_num()` and return a type mismatch for non-numeric values (including JSON booleans).
 
-**`compare`** shows how to read a second field from the `record` dict, handle the `today`/`now` sentinel values, and fall back through numeric → ISO date → string comparison.
+**`compare`** shows how to read a second field from the `record` dict, handle the `today`/`now` sentinel values, and fall back through declared date layouts → `semver` → numeric → ISO date → text comparison.
 
-**`checksum`** shows how to implement complex domain-specific validation (GS1 Mod-10 GTIN check digits, IBAN Mod-97, NHS Mod-11, ISIN Mod-11, LEI Mod-97, VIN Mod-11, ISRC Luhn, CPF Mod-11) without external libraries. Read `_validate_checksum()` in `core/validator.py` for the full implementation.
+**`checksum`** shows how to implement complex domain-specific validation (GS1 Mod-10 GTIN check digits, IBAN Mod-97, NHS Mod-11, ISIN Luhn, LEI Mod-97, VIN Mod-11, ISRC structure, CPF Mod-11, Luhn, FIGI, Verhoeff) without external libraries. Read `_validate_checksum()` in `core/validator.py` for the full implementation.
 
 ---
 

@@ -63,7 +63,7 @@ The `ContractHistory` diff shows:
   field: iban
   pattern: "^[A-Z]{2}[0-9]{2}..."
   deprecated: true
-  deprecation_message: "Replaced by iban_checksum (type: checksum, algorithm: iban_mod97)"
+  deprecation_message: "Replaced by iban_checksum (type: checksum, checksum_algorithm: iban_mod97)"
   replaces_with: iban_checksum
   severity: warning  # downgraded from error during deprecation window
 ```
@@ -90,7 +90,7 @@ Do not remove the deprecated rule immediately. Add the replacement rule to the c
 - name: iban_checksum
   type: checksum
   field: iban
-  algorithm: iban_mod97
+  checksum_algorithm: iban_mod97
   severity: error
 
 # Deprecated rule (inherited, kept during migration window)
@@ -99,7 +99,7 @@ Do not remove the deprecated rule immediately. Add the replacement rule to the c
   field: iban
   pattern: "^[A-Z]{2}[0-9]{2}..."
   deprecated: true
-  deprecation_message: "Replaced by iban_checksum (type: checksum, algorithm: iban_mod97)"
+  deprecation_message: "Replaced by iban_checksum (type: checksum, checksum_algorithm: iban_mod97)"
   replaces_with: iban_checksum
   severity: warning
 ```

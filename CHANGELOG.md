@@ -2,6 +2,135 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [3.0.5] - Unreleased
+
+### The conformance sweep (aligned with the managed engine)
+
+The managed engine and Core 3.0.4 were compared on 5,118 cases, each run four
+ways: managed engine, Core single path, Core batch, and Core batch beside a
+sibling record. Each gap was ruled under "the managed engine leads, Core
+follows" and the 2026-10-08/09 date rulings. The managed engine shipped its
+half first. 59 rows mirror its rows 100-158 byte-identical in
+`frozen/engine_semantics.jsonl` (66 → 125). On 3.0.4, 36 were red on at least
+one path (37 counting batch beside a `None` sibling); all 125 now hold on the single path, on batch, and on batch beside
+a `None`, string or blank sibling.
+
+**Behaviour changes.** These are deliberate. Replaying the v3.0.4 corpus shows
+0 flips, and no bundled contract is affected.
+
+- **Batch = single, by construction.** `validate_batch` now evaluates every
+  rule type except `unique` per record, with the single-path handler on the
+  raw record. Previously, native DuckDB/pandas branches re-implemented each
+  handler on DataFrame cells that pandas had coerced (an integer column with
+  a `None` gap became float, so `12` read `12.0`). That was the source of
+  every single/batch split found: #203, `semver`, a lookup that silently
+  skipped, condition text, the age add-on. Only the set-based `unique` stays
+  in DuckDB.
+  - The condition filter is now the single path's own test.
+  - A checker that raises fails only that record (`OPENDQV_RULE_ERROR`), as
+    on the single path. It used to fail every record in the batch.
+  - Batch is 3.6× faster on the conformance corpus (25,000 records across
+    five contracts: 4.4 s → 1.2 s): reading pandas cells one at a time was
+    the cost.
+- **A declared date format reads one exact shape (§1).**
+  - Every directive is fixed width: `%Y` four digits; `%y %m %d %H %M %S`
+    two; `%f` one to six, after the format's own `.` or `,`.
+  - Every other character is itself, exactly once: one space is one space,
+    a tab is not a space, and case counts.
+  - The calendar is checked after the shape, and years run 0001-9999.
+  - So `1/02/2026` is not `%d/%m/%Y`, `8:05` is not `%H:%M`, and `10/01/90`
+    is not `%d/%m/%Y`. Closes #203, where batch read `90` as the year 0090.
+  - A repeated directive (`%S%S`) is read at each occurrence; it used to
+    raise.
+  - The two legacy Go layouts (`2006-01-02` and
+    `2006-01-02T15:04:05Z07:00`) are read as aliases in stored contracts.
+  - Fractions are read to microseconds, a known Core limit; the managed
+    engine reads to nanoseconds.
+- **Absence, lists and objects (§3).**
+  - An empty `[]` or `{}` is absent: only a presence rule runs on it, and
+    `not_empty` and `required_if` report it.
+  - A non-empty list or object is not text. `regex`, `allowed_values`,
+    `forbidden_values`, `lookup` (without `all_of`), `conditional_lookup`,
+    `conditional_value` and `compare`'s text fallback fail it under the
+    rule's own code, with `<type> rule on field "<f>" compares a single
+    value, got array|object — send a string, number or boolean`. A
+    collection is never rendered as text. 13 messages in Core's corpus
+    changed this way; no verdict or code moved.
+  - Conditions and `required_if`/`forbidden_if` triggers compare text as
+    written. A missing or null field, or a list or object, matches no
+    `value` and differs from every `not_value`, and `""` matches only `""`.
+    The single path used to apply a `value: ""` condition to a record that
+    lacked the field.
+- **Numbers and text (§4).**
+  - A JSON boolean is not a number on any numeric rule (`OPENDQV_TYPE_MISMATCH`,
+    or the rule fails). It used to read as 1.
+  - An integer beyond float64 is a type mismatch on both paths. It used to
+    raise `OPENDQV_RULE_ERROR` on the single path and `OverflowError` on
+    batch.
+  - NaN and infinity fail every numeric cross-field rule. A NaN operand
+    used to pass `field_sum`.
+  - One text rendering on every text surface: `true`/`false`, `12.0` → `12`,
+    integers keep every digit.
+  - White space is Unicode White_Space: U+001C-U+001F are not white space,
+    so `"\u001c"` is present.
+- **Cross-field rules (§5).**
+  - `field_sum` and `ratio_check` judge their operands whenever the rule
+    applies. Their own `field` is attribution only, and its absence used to
+    skip the rule, a silent pass. An absent operand still fails.
+  - `same_date` fails on an operand it cannot read as a date ("unreadable
+    fails"). It used to treat that as not applicable.
+  - `compare_to: today` compares calendar dates, so a timestamp stamped
+    today is no longer "after today". `now` is the instant. A value that is
+    not a date fails either.
+  - `algorithm: semver` compares the numeric major.minor.patch triple, with
+    pre-release and build parts ignored, on both paths. A value that is not
+    a version fails.
+- **Checksums (§6).**
+  - New: `luhn`, `figi_luhn` and `verhoeff`, making the managed engine's
+    eleven.
+  - A value under two characters fails.
+  - `vin_mod11` reads ASCII digits: a superscript digit used to raise on
+    the single path.
+  - Non-ASCII digits elsewhere wait on the numbers hand-over.
+- **`max_length: 0` means zero** (§7). The single path used to read it as no
+  limit.
+- **A lookup whose file cannot be read fails closed** on both paths. Batch
+  used to skip it.
+
+### Refused when a contract is submitted (§2); stored contracts still load
+
+`core/submission.py` holds what the managed engine refuses at create (422
+`contract_rule_invalid`):
+
+- an unknown `compare_op`;
+- a condition with both `value` and `not_value`, or a null one;
+- `negate: true` on anything but `regex`;
+- an `equals:`, null or missing trigger value;
+- a date format with an unsupported directive (`%b %z %j %p %c %T %-d …`),
+  no directive, `%f` not after `.` or `,`, white space around it, or a
+  legacy Go layout;
+- `range` missing a bound;
+- `regex` without `pattern`;
+- an empty `allowed_values`;
+- `lookup` without `lookup_file`;
+- `checksum` without an algorithm, or with an unknown or odd-case one;
+- a string-typed numeric bound.
+
+These are refused on MCP `create_contract_draft`, the REST rule add/update
+routes, `/import/*` and `opendqv fork`. `opendqv lint` reports them as
+`CONTRACT_RULE_INVALID` errors.
+
+**Stored YAML still loads**, with a warning and its old reading: a refusal at
+load would delist a contract at boot. This is the opposite of 2.8.0's choice
+for unknown rule types (refused at load), on purpose: these shapes have a
+defined, if useless, old reading, while an unknown type has none. No bundled
+contract or example carries one.
+
+The GX, dbt, CSV and OTel importers emitted a one-bound `range`; they now
+emit `min` or `max`.
+
+---
+
 ## [3.0.4] - 2026-10-09
 
 ### The age add-on: absence skips, unreadable fails (aligned with the managed engine)

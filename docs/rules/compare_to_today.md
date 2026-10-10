@@ -8,8 +8,8 @@
 
 The `compare` rule supports two sentinel values for `compare_to`:
 
-- `today` — resolves to the current UTC date in `YYYY-MM-DD` format at validation time
-- `now` — resolves to the current UTC datetime in ISO 8601 format at validation time
+- `today` — the current UTC **calendar date**; the comparison is date against date
+- `now` — the current UTC **instant**; the comparison is instant against instant
 
 This allows rules to catch future-dated records, expired identifiers, and past-dated records without hardcoding a date.
 
@@ -20,7 +20,7 @@ This allows rules to catch future-dated records, expired identifiers, and past-d
   type: compare
   field: transaction_date
   compare_to: today
-  compare_op: lte          # gt | lt | gte | lte | eq | neq
+  compare_op: lte          # gt | lt | gte | lte | eq | neq | same_date
   error_message: "Transaction date must not be in the future"
   severity: error
 ```
@@ -35,8 +35,9 @@ This allows rules to catch future-dated records, expired identifiers, and past-d
 | `gt` | field must be in the future (strictly) |
 | `eq` | field must be exactly today |
 | `neq` | field must not be today |
+| `same_date` | field's calendar date must be today (same as `eq` with `today`) |
 
-Symbol aliases (`<=`, `<`, `>=`, `>`, `=`, `!=`) are also accepted and normalised at parse time.
+Symbol aliases (`<=`, `<`, `>=`, `>`, `=`, `!=`) are also accepted and normalised at parse time. No other spelling is accepted: an unknown `compare_op` is refused when a contract is submitted (3.0.5).
 
 ## Examples by industry
 
@@ -114,14 +115,14 @@ Symbol aliases (`<=`, `<`, `>=`, `>`, `=`, `!=`) are also accepted and normalise
 
 ## Timezone handling
 
-All datetime values are treated as UTC. If your datetime includes a timezone offset (e.g. `+01:00`, `Z`), OpenDQV normalises it to UTC before comparison. If your datetime is naive (no offset), it is assumed to be UTC. Use UTC throughout your source systems for predictable results. DST is not a factor when operating in UTC.
+With `now`, a datetime carrying an offset (e.g. `+01:00`, `Z`) is compared as the instant it names; a naive datetime (no offset) is assumed to be UTC. With `today`, the value's calendar date **as written** (in its own offset) is compared with the current UTC date — `2026-01-10T23:30:00-05:00` is 10 January. Use UTC throughout your source systems for predictable results. DST is not a factor when operating in UTC.
 
 ## Notes
 
-- `compare_to: today` compares date strings (`YYYY-MM-DD`). Both sides are resolved as ISO 8601 date strings.
-- `compare_to: now` compares datetime strings. Use this for timestamp fields that include a time component.
-- ISO 8601 string comparison is lexicographic and correct for dates in `YYYY-MM-DD` and `YYYY-MM-DDTHH:MM:SS` format.
-- The sentinel is resolved once at validation time — every record in a batch uses the same `now` value, ensuring consistency across a batch run.
+- `compare_to: today` compares calendar dates (3.0.5, both engines): both sides are truncated to year/month/day, so a timestamp stamped today is not "after today" and `lte today` passes it. (Before 3.0.5 Core compared the instant to midnight, so `lte today` failed every timestamp after 00:00.)
+- `compare_to: now` compares the instant. Use this for timestamp fields where the time of day matters.
+- The value is read as a date — with the field's declared `date_format` layout if it has one, else ISO 8601. A value that cannot be read as a date **fails** the rule; it is never compared as text.
+- The sentinel is read from the clock each time the rule is evaluated — in a batch, once per record (batch runs the single-record handler on each record), so a long batch near midnight or a `now` boundary can see the clock move between records.
 - Combine with a `date_format` rule on the same field to guarantee the field is parseable before the `compare` rule runs.
 - The `compare` rule also supports cross-field comparisons (e.g. `compare_to: impression_start`). The `today`/`now` sentinels are a special case of the same rule type.
 
