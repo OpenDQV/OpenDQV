@@ -204,9 +204,11 @@ def test_stored_go_layouts_read_as_aliases(fmt, value, valid):
 
 # ── semver ──────────────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("v,t", [("1.2.3", (1, 2, 3)), ("v1.2.3", (1, 2, 3)), ("1.2.3-rc.1+b5", (1, 2, 3))])
-def test_semver_triple(v, t):
-    assert _semver_tuple(v) == t
+@pytest.mark.parametrize("a,b", [("1.2.3", "v1.2.3"), ("1.2.3+b5", "1.2.3"), ("1.2.3-rc.1+b5", "1.2.3-rc.1")])
+def test_semver_key_ignores_the_v_and_build_metadata(a, b):
+    # 3.0.6: the key is SemVer 2.0.0 precedence (3.0.5 read the triple only,
+    # ignoring the pre-release; see test_conformance_sweep_3_0_6)
+    assert _semver_tuple(a) == _semver_tuple(b)
 
 
 def test_semver_value_that_is_not_a_version_fails_on_both_paths():
@@ -240,7 +242,8 @@ def test_a_raising_checker_fails_closed_per_record_in_batch(monkeypatch):
 
 @pytest.mark.parametrize("a,b", [(True, 0), (1, True), (True, True), ("true", False)])
 def test_compare_with_a_boolean_operand_fails(a, b):
-    # Sweep §4: a JSON boolean is not a number on compare either.
+    # Sweep §4: a JSON boolean is not a number on compare either. 3.0.6: and
+    # it has no order — gte fails; eq/neq compare its text (3.0.6 tests).
     rule = Rule(name="c", type="compare", field="a", compare_to="b", compare_op="gte", error_message="bad")
     for out in _both({"a": a, "b": b}, [rule]):
         assert _codes(out) == ["OPENDQV_COMPARE_C"]

@@ -605,9 +605,7 @@ now on both engines:
 - **`same_date`** on an operand that cannot be read as a date fails.
   **`compare_to: today`** compares calendar dates (both sides truncated to
   year/month/day); **`now`** is the instant.
-- **`algorithm: semver`** compares the numeric `major.minor.patch` triple on
-  both paths; pre-release and build parts are ignored; a value that is not a
-  version fails.
+- **`algorithm: semver`** (3.0.5; superseded in 3.0.6 — below).
 - **Checksums**: eleven algorithms (`luhn`, `figi_luhn`, `verhoeff` added);
   a value under two characters fails; `isrc_luhn` is a structural check (an
   ISRC carries no check digit).
@@ -647,7 +645,52 @@ none. The two Go layouts read as aliases in stored content: `2006-01-02` is
 `%Y-%m-%d`, and `2006-01-02T15:04:05Z07:00` is an ISO datetime with a required
 `Z` or `±hh:mm` and no fraction.
 
-**Pending:** whether checksums read non-ASCII digits (the managed engine reads ASCII only) waits on the held numbers hand-over. Meanwhile a value with a non-ASCII digit gives the same code on both of Core's paths — a VIN with a superscript digit fails the checksum rather than raising `OPENDQV_RULE_ERROR`.
+**Checksums read ASCII only** — settled in 3.0.6 (below).
+
+## 3.0.6 — numbers, versions and booleans (2026-10-10)
+
+There are no users of either engine yet, so where the managed engine's 3.0.5
+behaviour was an accident rather than a design, the managed engine was fixed
+and Core follows. The managed engine passes all 210 rows of its fixture; on
+Core 3.0.5 exactly 16 were red. Core's `frozen/engine_semantics.jsonl` now
+holds 180 rows: line 119 is managed row 152 (replaced), lines 126–128 are
+managed rows 28, 37 and 50, and lines 129–180 are managed rows 159–210. Line
+*n* of lines 1–125 is managed row *n* + 33 from line 67 on. The three
+field_sum / ratio_check rows (managed 110–112) are live rows; the
+"WITHDRAWN" label is gone from their claims.
+
+- **A boolean in `compare` is its text, and a boolean has no order.** `gt` /
+  `lt` / `gte` / `lte` with a boolean on either side fails; `eq` / `neq`
+  compare `true` / `false`, so `true eq true`, `true eq "true"`, `true neq
+  false` and `true neq 1` pass, and `true eq 1` fails. (3.0.5 failed every
+  compare on a boolean.)
+- **A format that reads one field twice is refused when a contract is
+  submitted**, and so is a `%`-format with a human spelling in its literal text
+  (`%Y-MM-DD`). Stored content keeps loading; a repeated directive then needs
+  every occurrence to be a valid value, and the last one decides.
+- **`algorithm: semver` is SemVer 2.0.0.** semver.org's own grammar after an
+  optional lower-case `v`, ASCII digits only, the white space around the value
+  removed; SemVer §11 precedence (a pre-release below its release, numeric
+  identifiers numerically and below alphanumeric ones, a longer set higher,
+  build metadata ignored). A value that is not a version fails. `builtin:semver`
+  is the same pattern. `algorithm` takes `semver` only, on `compare` only, and
+  not with `today`, `now` or `same_date` — refused when a contract is submitted.
+- **One number reader.** Text is a number only when, trimmed, it is a plain
+  finite decimal (sign, digits, point and fraction, exponent, underscores
+  between digits). `NaN`, `Infinity`, hexadecimal, `1e400`, separators,
+  currency symbols, inner spaces and non-ASCII digits are not numbers.
+- **`compare` never orders a number against a non-number** (`"abc" gt 5`
+  passed by character order). `eq` / `neq` are unchanged; declared date
+  layouts and `algorithm: semver` are decided first.
+- **CSV cells are text, and a blank cell is absent.** `opendqv validate-file`
+  and the REST upload (`/validate/batch/file`, and the profiler upload, which
+  shares the reader) read every cell as text with `keep_default_na=False`:
+  `0012345678905` keeps its leading zeros (read as an integer it failed every
+  GTIN check digit), a blank cell is `""` — absent, reported once — and `NA`,
+  `null` and `NaN` cells are the text they spell.
+- **Checksums read ASCII only**, with no Unicode case expansion (`ß` is not
+  `SS`), on every algorithm — the managed engine measured the same; rows
+  192–210 guard it.
 
 ## Known issues
 

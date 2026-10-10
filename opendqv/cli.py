@@ -544,8 +544,9 @@ def cmd_validate_file(args):
         elif suffix in (".csv", ".tsv", ""):
             import pandas as _pd
             sep = "\t" if suffix == ".tsv" else ","
-            df = _pd.read_csv(path, sep=sep, dtype=str)
-            df = df.where(df.notna(), None)
+            # cells are text, and a blank cell reads as "" (absent), never
+            # NaN (3.0.6, both engines)
+            df = _pd.read_csv(path, sep=sep, dtype=str, keep_default_na=False)
             records = df.to_dict(orient="records")
         else:
             print(f"Error: Unsupported file type '{suffix}'. Supported: .csv, .tsv, .parquet", file=sys.stderr)

@@ -6,7 +6,7 @@ Use `pattern: builtin:<name>` in any `regex` rule instead of writing the regular
 
 | Shorthand | Pattern validates | Example valid value |
 |---|---|---|
-| `builtin:semver` | Semantic version (SemVer 2.0) | `1.2.3`, `2.0.0-beta.1` |
+| `builtin:semver` | Semantic version — semver.org's own SemVer 2.0.0 grammar, optional lower-case `v`, ASCII digits; the grammar `compare`'s `algorithm: semver` reads (3.0.6) | `1.2.3`, `2.0.0-beta.1`, `1.0.0-alpha.1+build.5` |
 | `builtin:ipv4` | IPv4 address | `192.168.1.1`, `10.0.0.1` |
 | `builtin:ipv6` | IPv6 address (full form) | `2001:0db8:0000:0000:0000:0000:0000:0001` |
 | `builtin:cve_id` | CVE identifier | `CVE-2023-44228` |

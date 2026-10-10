@@ -73,9 +73,22 @@ and hold identically on the single-record and batch paths:
   **not a number**: `min` / `max` / `range` give `OPENDQV_TYPE_MISMATCH`, and the
   other numeric rules (`compare`, `cross_field_range`, `field_sum`,
   `ratio_check`, `geospatial_bounds`, `age_match`) fail; nothing reads `true` as
-  1. A `compare` with a boolean on either side fails, whatever the operator.
+  1. In `compare` a boolean is its text and has no order (3.0.6): `gt` / `lt` /
+  `gte` / `lte` with a boolean on either side fails; `eq` / `neq` compare
+  `true` / `false` (`true eq "true"` and `true neq 1` pass, `true eq 1` fails).
   An integer beyond the float64 range is a type mismatch on
   `min` / `max` / `range` and fails the other numeric rules.
+- **One number reader (3.0.6).** Every numeric rule (`min`, `max`, `range`,
+  `compare`, `field_sum`, `ratio_check`, `cross_field_range`,
+  `geospatial_bounds`, `age_match`) reads a value the same way. A JSON number
+  is a number when it is finite. Text is a number only when, after the white
+  space around it is removed, it is a plain finite decimal: an optional sign,
+  digits, an optional point and fraction, an optional exponent, underscores
+  between digits (`" 12 "`, `-1.5e3`, `1_000`). `NaN`, `Infinity` (any
+  spelling), hexadecimal, `1e400`, thousands separators, currency symbols,
+  inner spaces and non-ASCII digits (`１２`, `١٢`) are not numbers:
+  `min` / `max` / `range` give `OPENDQV_TYPE_MISMATCH`, the others fail under
+  their own code.
 - **`$` is the end of the value (2.10.4).** Python's `$` would also match just
   before a final newline; Core rewrites `$` to `\Z` at compile time so a
   `$`-anchored pattern gives the RE2 verdict — `"…\n"` fails. Escaped `\$`,
@@ -112,6 +125,12 @@ and hold identically on the single-record and batch paths:
     `%-d`, …), with no directive at all (`dd/mm/yyyy` in lower case), with `%f`
     not after `.` or `,`, with white space around it, or one of the two legacy
     Go layouts `2006-01-02` / `2006-01-02T15:04:05Z07:00` (see `date_format`);
+  - a date `format` that reads one field twice (`%S%S`, `%Y %y`, `YYYY YY`,
+    `DD/MM/YYYY DD`; 3.0.6) or a `%`-format whose literal text has a letter run
+    made wholly of human spellings in any case (`%Y-MM-DD`, `%d/%m/yyyy`;
+    3.0.6 — `strptime` reads those as the letters themselves);
+  - `algorithm` other than `semver`, on any type but `compare`, or with
+    `compare_to: today` / `now` or `compare_op: same_date` (3.0.6);
   - `range` missing a bound; `regex` without `pattern`; empty `allowed_values`;
     `lookup` without `lookup_file`; `checksum` without an algorithm or with one
     outside the eleven (names are lower case — `LUHN` is refused);
@@ -253,8 +272,9 @@ Numeric field must be >= a minimum value.
 `min` is a YAML alias for `min_value`. Both are accepted.
 
 **Behaviour:** fails if `value < min_value`. A numeric string (`"28.50"`) is
-read; a value that is not a number — a non-numeric string, a JSON boolean, a
-list or object, NaN/infinity, an integer beyond float64 — gives
+read; a value that is not a number (the one number reader, above) — a
+non-numeric string, `１２`, a JSON boolean, a list or object, NaN/infinity, an
+integer beyond float64 — gives
 `OPENDQV_TYPE_MISMATCH`. Absent/blank values pass (D6) — add `not_empty` for presence.
 
 ---
@@ -413,6 +433,14 @@ Field must be a parseable date or datetime string.
     (`dd/mm/yyyy` in lower case), `%f` not after `.`/`,`, and white space
     around the format. A stored contract with one still loads and keeps its old
     (`strptime`) reading.
+  - **Write each field once, and the whole format one way (3.0.6).** A format
+    that reads one field twice (`%S%S`, `%Y-%m-%d%d`, `%Y %y` — both are the
+    year — `YYYY YY`, `DD/MM/YYYY DD`) is refused when a contract is submitted;
+    `MM/DD/YYYY HH:MM` reads the month and the minutes, two fields. So is a
+    `%`-format with a human spelling in its literal text (`%Y-MM-DD`,
+    `%d/%m/yyyy`, `%YMMDD`) — a word such as `added` is a literal and is fine.
+    A stored format that reads a field twice needs every occurrence to be a
+    valid value, and the last one decides.
   - **The calendar is checked after the shape**: no 31 February, years
     0001–9999 (`01/01/0000` fails `%d/%m/%Y`). A layout with no year
     (`%H:%M:%S`, `%d/%m`) still reads values. `%y` pivots like `strptime`
@@ -624,7 +652,7 @@ Compare this field's value against another field or a sentinel (`today`, `now`).
 |--------------|-------------------|------|---------|
 | `compare_to` | `rule.compare_to` | str  | other field name, or `today` / `now` |
 | `compare_op` | `rule.compare_op` | str  | `gt`, `lt`, `gte`, `lte`, `eq`, `neq`, `same_date` |
-| `algorithm`  | `rule.algorithm`  | str  | `semver` for semantic version comparison |
+| `algorithm`  | `rule.algorithm`  | str  | `semver` (the only value) for SemVer 2.0.0 precedence |
 
 **Operators:** word form (`gt`) or symbol form (`>`, `<`, `>=`, `<=`, `=`, `!=`) --
 symbols are normalised to word form at parse time. That is the whole set: any
@@ -643,16 +671,27 @@ is not "not applicable".
    the layout cannot read fails the rule (the format rule names the shape), so
    comparing a declared date field against a non-date field always fails. A
    `date_format` rule with a `condition:` declares no layout here.
-1. If `algorithm: semver`, both sides are read as the numeric
-   `major.minor.patch` triple (3.0.5, both paths): pre-release and build parts
-   are ignored (`1.2.3-rc1` eq `1.2.3`), ordering is numeric (`1.10.0` gt
-   `1.9.0`), and a value that is not a version fails the rule.
-2. A JSON boolean on either side fails the rule (it is not a number, and is
-   never compared as the text `true`). Otherwise, both values read as numbers
-   → numeric comparison.
+1. If `algorithm: semver`, both sides are SemVer 2.0.0 versions ordered by
+   SemVer precedence (3.0.6; `builtin:semver` is the same grammar). A lower-case
+   leading `v` and the white space around the value are allowed; digits are
+   ASCII. Major, minor and patch compare numerically at any size
+   (`1.10.0` gt `1.9.0`); a pre-release is lower than its release
+   (`1.2.3-rc1` eq `1.2.3` fails); pre-release identifiers compare left to
+   right — digit-only ones numerically and below alphanumeric ones, which
+   compare in ASCII order — and a longer set is higher when the rest are equal;
+   build metadata is ignored (`1.0.0+a` eq `1.0.0+b`). A value that is not a
+   version (`2`, `1.2`, `01.2.3`, `V1.2.3`, a number, a boolean) fails the
+   rule — never a number or text comparison. `algorithm` takes `semver` only,
+   on `compare` only, and not with `today`, `now` or `same_date`.
+2. A boolean has no order: `gt` / `lt` / `gte` / `lte` with a boolean on either
+   side fails (3.0.6). Otherwise, both values read as numbers (the one number
+   reader above) → numeric comparison.
 3. Both read as ISO 8601 dates (compared as instants).
-4. Fallback: text comparison through the one text rendering; a non-empty list
-   or object fails with the typed "compares a single value" message.
+4. Fallback: text comparison through the one text rendering (a boolean is
+   `true` / `false`); a non-empty list or object fails with the typed "compares
+   a single value" message. With `gt` / `lt` / `gte` / `lte`, a number is never
+   ordered against a non-number: `"abc" gt 5` fails (3.0.6; it passed by
+   character order). `eq` / `neq` compare the text.
 
 **Sentinels (3.0.5):** the value must read as a date (declared layout or ISO
 8601); a value that cannot be read fails the rule.

@@ -234,14 +234,19 @@ def _parse_upload(content: bytes, filename: str):
             detail=f"File exceeds {MAX_UPLOAD_MB}MB limit. "
                    f"Set OPENDQV_MAX_UPLOAD_MB to increase. Received: {len(content) // 1024}KB",
         )
+    # 3.0.6 (both engines): a CSV cell is text — 0012345678905 keeps its
+    # leading zeros (read as the integer 12345678905 it failed every GTIN
+    # check digit) — and a blank cell reads as "", which is absent, never NaN.
+    # "NA", "null" and "NaN" cells are text too.
+    csv_kwargs = {"dtype": str, "keep_default_na": False}
     try:
         if filename.endswith(".parquet"):
             return pd.read_parquet(io.BytesIO(content))
         elif filename.endswith(".csv"):
-            return pd.read_csv(io.BytesIO(content))
+            return pd.read_csv(io.BytesIO(content), **csv_kwargs)
         else:
             try:
-                return pd.read_csv(io.BytesIO(content))
+                return pd.read_csv(io.BytesIO(content), **csv_kwargs)
             except Exception:
                 raise HTTPException(status_code=400, detail="Unsupported file format. Use CSV or Parquet.")
     except HTTPException:

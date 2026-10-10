@@ -167,7 +167,13 @@ def compile_rule_pattern(expanded: str):
 
 
 _BUILTIN_PATTERNS = {
-    "builtin:semver": r"^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([\w.-]+))?(?:\+([\w.-]+))?$",
+    # SemVer 2.0.0's own grammar, ASCII digits only (3.0.6; compare's
+    # algorithm: semver reads the same pattern — validator.SEMVER_PATTERN)
+    "builtin:semver": (
+        r"^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+        r"(?:-((?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?"
+        r"(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
+    ),
     "builtin:ipv4": r"^((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?)$",
     "builtin:ipv6": r"^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$",
     "builtin:cve_id": r"^CVE-\d{4}-\d{4,}$",
