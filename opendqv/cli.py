@@ -662,6 +662,8 @@ def cmd_fork(args):
             check_removed_blocks(src_doc)
         else:
             check_contract_keys(src_doc)
+            from opendqv.core.submission import refuse_if_problems
+            refuse_if_problems(src_doc)   # 3.0.5: a fork is a new contract
     except (ValueError, _yaml_fork.YAMLError) as exc:
         print(f"Error: cannot fork '{args.src}': {exc}", file=sys.stderr)
         sys.exit(1)

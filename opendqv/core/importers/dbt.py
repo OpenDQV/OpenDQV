@@ -59,21 +59,24 @@ def _handle_accepted_values(cfg: dict, column: str) -> list[dict]:
 def _handle_accepted_range(cfg: dict, column: str) -> list[dict]:
     min_val = cfg.get("min_value")
     max_val = cfg.get("max_value")
-    parts = []
-    if min_val is not None:
-        parts.append(str(min_val))
-    if max_val is not None:
-        parts.append(str(max_val))
-    range_desc = " and ".join(parts) if parts else "valid range"
-    rule: dict[str, Any] = {
-        "type": "range",
-        "field": column,
-        "error_message": f"{column} must be between {range_desc}",
-    }
-    if min_val is not None:
-        rule["min_value"] = min_val
-    if max_val is not None:
-        rule["max_value"] = max_val
+    # 3.0.5: one bound is a min or max rule — a range needs both (the
+    # managed engine refuses a one-sided range at create).
+    if min_val is not None and max_val is not None:
+        rule: dict[str, Any] = {
+            "type": "range",
+            "field": column,
+            "error_message": f"{column} must be between {min_val} and {max_val}",
+            "min_value": min_val,
+            "max_value": max_val,
+        }
+    elif min_val is not None:
+        rule = {"type": "min", "field": column, "min_value": min_val,
+                "error_message": f"{column} must be at least {min_val}"}
+    elif max_val is not None:
+        rule = {"type": "max", "field": column, "max_value": max_val,
+                "error_message": f"{column} must be at most {max_val}"}
+    else:
+        return []
     return [rule]
 
 

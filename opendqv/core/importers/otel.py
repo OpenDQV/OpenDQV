@@ -128,18 +128,20 @@ def import_otel(source: Union[str, dict]) -> dict:
             # Known numeric ranges
             if attr_id in _KNOWN_RANGES:
                 lo, hi = _KNOWN_RANGES[attr_id]
+                # 3.0.5: one bound is a min or max rule (a range needs both)
                 range_rule = {
                     **rule_base,
                     "name": f"{field}_range",
-                    "type": "range" if hi else "min",
+                    "type": ("range" if lo is not None and hi is not None
+                             else "min" if lo is not None else "max"),
                     "error_message": f"{attr_id} out of valid range",
                 }
                 if lo is not None:
                     range_rule["min_value"] = float(lo)
                 if hi is not None:
                     range_rule["max_value"] = float(hi)
-                    range_rule["type"] = "range"
-                rules.append(range_rule)
+                if lo is not None or hi is not None:
+                    rules.append(range_rule)
 
     return {
         "rules": rules,

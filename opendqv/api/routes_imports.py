@@ -14,6 +14,7 @@ from opendqv.core.importers.csvw import import_csvw, csvw_to_yaml
 from opendqv.core.importers.otel import import_otel, otel_to_yaml
 from opendqv.core.importers.ndc import import_ndc, ndc_to_yaml
 from opendqv.core.contracts import check_contract_keys
+from opendqv.core.submission import refuse_if_problems
 from opendqv.security.auth import get_current_user, get_current_role
 
 sub_router = APIRouter()
@@ -39,6 +40,7 @@ def _apply_import_meta(doc: dict, created_by: str = "") -> None:
         raise HTTPException(status_code=422, detail="Import produced no contract document.")
     try:
         check_contract_keys(doc)
+        refuse_if_problems(doc)   # 3.0.5: the managed engine's create-time refusals
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
     doc["source"] = "import"
