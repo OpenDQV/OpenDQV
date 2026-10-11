@@ -670,6 +670,10 @@ typed "compares a single value" message; one in the counterpart, the rule's
 own message (3.0.8).
 
 **Type coercion order:**
+- First (3.0.9): a non-empty list or object in the rule's own field fails with
+  the typed "compares a single value" message, whichever reading below would
+  apply. One in the `compare_to` field fails with the rule's own
+  `error_message` in every step (the typed message names the rule's field).
 0. If either field carries a `date_format` rule with a `format:` (2.8.0), both
    sides are parsed as dates — each with its own field's declared layout, an
    undeclared side with ISO 8601 — and never reach the steps below. An operand
@@ -693,10 +697,7 @@ own message (3.0.8).
    reader above) → numeric comparison.
 3. Both read as ISO 8601 dates (compared as instants).
 4. Fallback: text comparison through the one text rendering (a boolean is
-   `true` / `false`); a non-empty list or object in the rule's own field fails
-   with the typed "compares a single value" message, and one in the
-   `compare_to` field fails with the rule's own `error_message` (3.0.7 — the
-   typed message names the rule's field, not the counterpart). With `gt` / `lt` / `gte` / `lte`, a number is never
+   `true` / `false`). With `gt` / `lt` / `gte` / `lte`, a number is never
    ordered against a non-number: `"abc" gt 5` fails (3.0.6; it passed by
    character order). `eq` / `neq` compare the text.
 

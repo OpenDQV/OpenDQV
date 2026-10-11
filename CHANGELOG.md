@@ -2,6 +2,22 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [3.0.9] - 2026-10-11
+
+Messages only — verdicts and codes unchanged. Closes the conformance round with
+the managed engine (Core 3.0.8 replayed green on all five layers; 213/213 on
+the managed fixture).
+
+### Fixed
+- **`compare`: one check for a list or object in the rule's own field, before
+  every branch.** It gets the typed "compares a single value" message whichever
+  reading would apply; on 3.0.8 a declared date layout, `algorithm: semver`,
+  the boolean guard (`[1] gt true`, which 3.0.7 kept on the plain message) and
+  the unreadable-number guard (`[1] eq 1e400`) gave the rule's own message. The
+  check sits straight after the counterpart-missing check, as on the managed
+  engine, and after Core's stored-content unknown-operator path, which still
+  does not judge. A collection in the counterpart keeps the rule's own message.
+
 ## [3.0.8] - 2026-10-11
 
 Messages only — verdicts and codes already agree with the managed engine,
