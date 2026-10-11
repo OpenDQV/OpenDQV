@@ -44,6 +44,7 @@ def test_collection_against_a_number_keeps_the_typed_message_before_the_number_g
     assert single == batch and "compares a single value" in single[0]
 
 
-def test_boolean_guard_runs_first():
+def test_own_field_collection_is_checked_before_the_boolean_guard():
+    # 3.0.9 reverses 3.0.7 here: one own-field check before every branch
     single, batch = _messages({"a": [1], "b": True}, "gt")
-    assert single == batch == ["a must match b"]
+    assert single == batch and "compares a single value, got array" in single[0]

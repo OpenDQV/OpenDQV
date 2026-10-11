@@ -693,10 +693,14 @@ field_sum / ratio_check rows (managed 110–112) are live rows; the
   `SS`), on every algorithm — the managed engine measured the same; rows
   192–210 guard it.
 
-**3.0.7 and 3.0.8 (messages).** A list or object in `compare`'s counterpart
-fails with the rule's own message (3.0.7); one in the rule's own field gets the
-typed "compares a single value" message under every operator, `today` / `now`
-and `same_date` included (3.0.8). A JSON number the engine cannot read —
+**3.0.7–3.0.9 (messages).** A list or object in `compare`'s counterpart
+fails with the rule's own message in every branch (3.0.7); one in the rule's
+own field gets the typed "compares a single value" message whichever reading
+would apply — `today` / `now` and `same_date` (3.0.8), and a declared date
+layout, `algorithm: semver`, the boolean guard and the unreadable-number guard
+(3.0.9: one check straight after the counterpart-missing check, both engines;
+in Core also after the stored-content unknown-operator path, which does not
+judge). A JSON number the engine cannot read —
 `1e400`, which the JSON parser makes infinity, or an integer beyond float64 —
 gives `<type> rule on field '<field>' expected a number it can read, got a
 number beyond the readable range` on `min` / `max` / `range` (3.0.8; Core
@@ -704,6 +708,10 @@ said "infinity", the managed engine "expected numeric value, got number"); a
 NaN, which only Core can receive, says `got NaN`. Lines 181–183 are managed
 rows 211–213: `1e400` fails `compare` under every operator and is never
 compared as its spelling; `"1e400"` written as text is text.
+
+**Round closed at 3.0.9.** From here a verdict or code difference is fixed
+straight away on whichever engine has it; a wording-only difference is noted
+and ships with that engine's next real change, not in a release of its own.
 
 ## Known issues
 

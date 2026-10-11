@@ -1332,7 +1332,7 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
             _warn_unknown_compare_op(rule.name, op)
             return None
         if isinstance(value, (list, dict)):
-            return _collection_message(rule, value)   # 3.0.8: before the date read, as in the text fallback
+            return _collection_message(rule, value)   # 3.0.8: before the date read (the sentinels have no counterpart, so the 3.0.9 check below does not reach them)
         try:
             a = _parse_date(value, la)
         except ValueError:
@@ -1354,14 +1354,18 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
         # its old reading — the rule does not judge.
         _warn_unknown_compare_op(rule.name, op)
         return None
+    # 3.0.9 (both engines): a list or object in the rule's own field is never a
+    # single value, whichever reading would apply — one check before every
+    # branch (date layout, semver, boolean and unreadable-number guards, text).
+    # A collection in the counterpart gets the rule's own message in each branch.
+    if isinstance(value, (list, dict)):
+        return _collection_message(rule, value)
 
     # same_date (v2.3.20, MiFIR RTS 22 T+0): both operands are dates, each
     # read with its declared layout or the ISO reader; their calendar dates
     # (as written, in each value's own offset) must be equal. 3.0.5: an
     # operand that cannot be read as a date fails — it is not "not applicable".
     if op == "same_date":
-        if isinstance(value, (list, dict)):
-            return _collection_message(rule, value)   # 3.0.8; a collection in the counterpart keeps the rule's own message
         try:
             a = _parse_date(value, la)
             b = _parse_date(other, lb)
@@ -1407,8 +1411,6 @@ def _check_compare(value, rule: Rule, record: Optional[dict] = None) -> Optional
     try:
         a, b = _read_iso(value), _read_iso(other)
     except ValueError:
-        if isinstance(value, (list, dict)):
-            return _collection_message(rule, value)
         if isinstance(other, (list, dict)):
             return rule.error_message   # 3.0.7: the collection message names rule.field — a list in the counterpart gets the rule's own message
         # 3.0.6 §4(b): a number is never ordered against a non-number ("abc"
