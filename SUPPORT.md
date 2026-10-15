@@ -10,13 +10,16 @@ OpenDQV Core is a community-supported open-source project. The primary support c
 
 We aim to respond to issues within a few days, but response times depend on maintainer availability — this is an honest, no-SLA community project.
 
-### Beta support commitment (2.0.0+)
+### Beta support commitment (3.x)
 
-As of 2.0.0, OpenDQV Core is Beta. The public API surface (REST endpoints,
-contract YAML schema, MCP tool names, Python SDK signatures) is stable.
-Breaking changes follow a deprecation cycle: one minor release with deprecation
-warnings before removal in the next minor. Security fixes are backported to
-the latest 2.x line on a best-effort basis.
+OpenDQV Core is Beta (since 2.0.0; currently 3.x). REST endpoints, MCP tool
+names and Python SDK signatures are stable within 3.x; removing a contract key
+or rule type needs a major version. Rule verdicts are being aligned with
+OpenDQV Cloud's managed engine (not yet publicly available): a verdict or error-code difference is fixed in
+the next release, patch releases included, with no deprecation period, and
+every such change is listed in the [CHANGELOG](CHANGELOG.md). Security fixes
+ship in the latest release; older lines get no backports. See
+[API Stability](README.md#api-stability).
 
 This is still a community OSS project with no paid SLA — see the section below.
 

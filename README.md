@@ -19,7 +19,7 @@
 > **"Trust is easier to build than to repair."**
 > That is why OpenDQV exists. A `422` at the point of write is cheaper than a data incident three weeks later.
 
-> **Beta (v2.x).** Public API surface (REST, contract YAML, MCP tools, Python SDK) is stable. Breaking changes follow a one-release deprecation cycle. Security fixes backported to the latest 2.x line. See [API Stability](#api-stability) for commitments.
+> **Beta (v3.x).** REST endpoints, MCP tool names and Python SDK signatures are stable. Rule verdicts are being aligned with OpenDQV Cloud's managed engine (not yet publicly available), so a release can change how a rule judges a record — every such change is listed in the [CHANGELOG](CHANGELOG.md). Security fixes ship in the latest release. See [API Stability](#api-stability) for the details.
 
 **OpenDQV is a write-time data validation service.** Source systems call it before writing data. Bad records return a `422` with per-field errors. Good records pass through. No payload is stored.
 
@@ -292,13 +292,14 @@ methodology, and monthly volume extrapolation.
 
 ## API Stability
 
-OpenDQV is in Beta as of 2.0.0. The following stability commitments apply to the v2.x series:
+OpenDQV Core is Beta (Beta since 2.0.0; currently 3.x). What that means today:
 
-- **REST API endpoints** — paths, request bodies, and response shapes are stable within `v2.x`. Backwards-incompatible changes require a major version bump and follow a deprecation cycle (one minor release of warnings before removal).
-- **YAML contract format** — the contract schema (rules, fields, types) is stable within `v2.x`. New rule types may be added; existing rules will not change semantics without a deprecation cycle.
-- **Python SDK** — `OpenDQVClient`, `AsyncOpenDQVClient`, and `LocalValidator` public method signatures are stable within `v2.x`. Internal helpers (prefixed `_`) are not covered.
-- **MCP tools** — tool names and parameters are stable within `v2.x`.
-- **Security fixes** — backported to the latest 2.x line on a best-effort basis.
+- **REST API endpoints** — paths, request bodies and response shapes are stable within `3.x`. Removing or reshaping one needs a major version.
+- **Python SDK** — `OpenDQVClient`, `AsyncOpenDQVClient` and `LocalValidator` public method signatures are stable within `3.x`. Internal helpers (prefixed `_`) are not covered.
+- **MCP tools** — tool names and parameters are stable within `3.x`.
+- **YAML contract format** — removing a top-level key or a rule type needs a major version (3.0.0 removed `contexts:` and the `contract:` wrapper). New rule types and keys may be added in any release.
+- **Rule verdicts** — Core and OpenDQV Cloud's managed engine (not yet publicly available) are being held to one set of semantics, checked against a shared conformance fixture ([`docs/contract_conformance.md`](docs/contract_conformance.md)). When the engines disagree on a verdict or an error code, the side that is wrong is fixed in its next release — patch releases included — with no deprecation period. Every such change is listed in the [CHANGELOG](CHANGELOG.md) with the records it affects; pin an exact version if you need verdicts to stay fixed, and read the CHANGELOG before upgrading.
+- **Security fixes** — ship in the latest release. There are no maintained older lines and no backports; upgrade to the latest `3.x`.
 
 ### Presence and null handling (v2.5+)
 
