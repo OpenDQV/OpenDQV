@@ -4,7 +4,7 @@
 
 If you are evaluating OpenDQV as a pilot or design partner, this section covers the questions your security team will ask.
 
-**Beta software — explicit disclosure.** OpenDQV Core is Beta as of 2.0.0. This means: the public API surface (REST, contract YAML schema, MCP tools, Python SDK) is stable and changes follow a one-release deprecation cycle; security fixes are backported to the latest 2.x line. It does **not** mean a production SLA, and the engine has not been through a formal third-party penetration test. Do not deploy in a regulated production environment without your own security assessment. See [Known Limitations and Mitigations](#known-limitations-and-mitigations) for full disclosure of current known issues.
+**Beta software — explicit disclosure.** OpenDQV Core is Beta (since 2.0.0; currently 3.x). This means: REST endpoints, MCP tool names and Python SDK signatures are stable within 3.x; rule verdicts are being aligned with OpenDQV Cloud's managed engine and can change in any release, always listed in the CHANGELOG (see [API Stability](README.md#api-stability)); security fixes ship in the latest release, with no backports. It does **not** mean a production SLA, and the engine has not been through a formal third-party penetration test. Do not deploy in a regulated production environment without your own security assessment. See [Known Limitations and Mitigations](#known-limitations-and-mitigations) for full disclosure of current known issues.
 
 **No external network calls during validation.** OpenDQV Core is fully self-contained. It makes no external network calls during validation. Your data does not leave your environment. The only outbound network activity is optional: webhook notifications to URLs you configure, and Prometheus metrics scraping if you enable it.
 
@@ -20,9 +20,9 @@ If you are evaluating OpenDQV as a pilot or design partner, this section covers 
 
 | Version | Supported |
 |---------|-----------|
-| 2.x (latest) | ✅ Security fixes backported |
-| 1.9.x | ⚠️ Best-effort, no backports |
-| < 1.9 | ❌ Unsupported |
+| 3.x (latest release) | ✅ Security fixes ship in the next release |
+| 2.x | ❌ No backports — upgrade to the latest 3.x (see the 3.0.0 entry in the CHANGELOG) |
+| < 2.0 | ❌ Unsupported |
 
 ## Reporting a Vulnerability
 
