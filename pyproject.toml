@@ -44,7 +44,7 @@ python = "^3.11"
 fastapi = ">=0.115,<0.144"
 # starlette 1.9.0 streams TestClient bodies; under it the suite corrupts its
 # shared SQLite DB mid-run (478 failures, "database disk image is malformed").
-# Hold <1.9 until that interaction is understood — see the tracking issue.
+# Hold <1.9 until that interaction is understood — issue #216.
 starlette = ">=0.46,<1.9"
 uvicorn = {version = ">=0.34,<0.55", extras = ["standard"]}
 pydantic = "^2.10"
