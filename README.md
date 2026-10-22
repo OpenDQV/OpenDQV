@@ -17,13 +17,13 @@
 |---|---|---|---|---|---|---|
 
 > **"Trust is easier to build than to repair."**
-> That is why OpenDQV exists. A `422` at the point of write is cheaper than a data incident three weeks later.
+> That is why OpenDQV exists. A rejection at the point of write is cheaper than a data incident three weeks later.
 
 > **Beta (v3.x).** REST endpoints, MCP tool names and Python SDK signatures are stable. Rule verdicts are being aligned with OpenDQV Cloud's managed engine (not yet publicly available), so a release can change how a rule judges a record — every such change is listed in the [CHANGELOG](CHANGELOG.md). Security fixes ship in the latest release. See [API Stability](#api-stability) for the details.
 
-**OpenDQV is a write-time data validation service.** Source systems call it before writing data. Bad records return a `422` with per-field errors. Good records pass through. No payload is stored.
+**OpenDQV is a write-time data validation service.** Source systems call it before writing data. Every answer is an HTTP `200`: a bad record comes back `valid: false` with per-field errors and the caller refuses the write; a good record comes back `valid: true` and the write goes ahead. No payload is stored.
 
-![OpenDQV demo — define a contract, send a bad record (get a 422), fix it (get a 200)](docs/demo_wizard.gif)
+![OpenDQV demo — define a contract, send a bad record (rejected with per-field errors), fix it (accepted)](docs/demo_wizard.gif)
 
 ```mermaid
 flowchart LR
@@ -85,7 +85,7 @@ flowchart LR
     style IMP fill:#1a8aad,stroke:#14708d,color:#fff
 ```
 
-A `422` at the point of write closes the feedback loop — producers see failures immediately and fix them at source. Rejection rates drop over time because the tool changes the incentive, not just the outcome.
+A rejection at the point of write closes the feedback loop — producers see failures immediately and fix them at source. Rejection rates drop over time because the tool changes the incentive, not just the outcome.
 
 For post-landing monitoring use [Great Expectations](https://greatexpectations.io), [Soda](https://www.soda.io), or [dbt tests](https://docs.getdbt.com/docs/build/tests) — they're complementary, not competing. OpenDQV owns layer one (write-time enforcement); those tools own layer three (post-ingestion observability).
 
