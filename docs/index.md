@@ -3,7 +3,7 @@
 OpenDQV Core is a centralised data quality validation API for the enterprise — validation is ephemeral, record values are never stored.
 
 **Bad data blocked at the door. Not discovered three weeks later.**
-A `422` at the point of write closes the feedback loop — producers see failures immediately and fix them upstream. This is why rejection rates drop over time.
+A rejection at the point of write closes the feedback loop — producers see failures immediately and fix them upstream. This is why rejection rates drop over time.
 
 The pattern: source systems call OpenDQV before writing. Bad records are blocked immediately.
 

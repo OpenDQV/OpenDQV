@@ -50,7 +50,7 @@ Under UK food information law (retained EU Regulation 1169/2011):
 | `contains_tree_nuts` | Tree nuts (with specific nut type required) |
 
 Each field accepts `"true"` or `"false"`. Every field is **mandatory**. A record with
-any allergen field missing is rejected with HTTP 422 before it enters the system.
+any allergen field missing comes back `valid: false` and the caller refuses the write, so it never enters the system.
 
 ---
 
@@ -62,14 +62,14 @@ The enforcement model is structural, not advisory:
 Operator enters menu item
           │
           ▼
-POST /api/v1/validate/ppds_menu_item
+POST /api/v1/validate  {"contract": "ppds_menu_item", ...}
           │
-          ├── contains_celery missing?       → 422 (not_empty)
-          ├── contains_peanuts missing?      → 422 (not_empty)
+          ├── contains_celery missing?       → valid: false (not_empty)
+          ├── contains_peanuts missing?      → valid: false (not_empty)
           ├── contains_tree_nuts = true
-          │   but tree_nut_types missing?    → 422 (required_if)
+          │   but tree_nut_types missing?    → valid: false (required_if)
           ├── contains_gluten = true
-          │   but gluten_cereal_types missing? → 422 (required_if)
+          │   but gluten_cereal_types missing? → valid: false (required_if)
           └── all 14 declarations present?  → valid: true
                     │
                     ▼
@@ -170,8 +170,8 @@ def validate_menu_item(record: dict) -> dict:
     Raises ValueError if the record fails validation.
     """
     resp = httpx.post(
-        f"{OPENDQV_URL}/api/v1/validate/ppds_menu_item",
-        json=record,
+        f"{OPENDQV_URL}/api/v1/validate",
+        json={"contract": "ppds_menu_item", "record": record},
         headers={"Authorization": f"Bearer {OPENDQV_TOKEN}"},
         timeout=5.0,
     )

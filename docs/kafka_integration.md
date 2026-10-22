@@ -416,7 +416,7 @@ def get_client_for_topic(topic: str) -> OpenDQVClient:
 | Limitation | Detail |
 |---|---|
 | `unique` rule in streaming | The `unique` rule requires the full batch to detect duplicates. It works in batch-poll mode (Approach 3) but not record-by-record. For cross-message uniqueness, use a stateful stream processor (Flink, Kafka Streams) or a Redis-backed deduplication layer |
-| Transient OpenDQV failures | A network timeout to OpenDQV should not drop or DLT a record. Add retry logic with exponential backoff; only route to DLT on persistent validation failure (HTTP 422), not on connectivity errors (5xx, timeout) |
+| Transient OpenDQV failures | A network timeout to OpenDQV should not drop or DLT a record. Add retry logic with exponential backoff; only route to DLT on a validation failure (`valid: false` in a 200 response), not on connectivity errors (5xx, timeout) |
 | Consumer lag under high rejection rates | If the rejection rate is high, the DLT producer can become a bottleneck. Monitor DLT lag independently and scale the DLT consumer |
 | Offset ordering | Manual commit after routing means that a crash between produce and commit will re-process the message. Ensure your downstream topic consumers are idempotent or use exactly-once semantics (Kafka transactions) |
 

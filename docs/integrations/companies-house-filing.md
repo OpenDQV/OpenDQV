@@ -43,13 +43,13 @@ the record enters the system.
 Filing system creates director/PSC record
               │
               ▼
-POST /api/v1/validate/companies_house_filing
+POST /api/v1/validate  {"contract": "companies_house_filing", ...}
               │
-              ├── individual_full_name / role missing?       → 422 (not_empty)
-              ├── date_of_birth missing or invalid?          → 422 (not_empty / date_format)
-              ├── id_verification_method missing?            → 422 (not_empty)
-              ├── id_verification_date missing?              → 422 (not_empty)
-              ├── id_verified_by missing?                    → 422 (not_empty)
+              ├── individual_full_name / role missing?       → valid: false (not_empty)
+              ├── date_of_birth missing or invalid?          → valid: false (not_empty / date_format)
+              ├── id_verification_method missing?            → valid: false (not_empty)
+              ├── id_verification_date missing?              → valid: false (not_empty)
+              ├── id_verified_by missing?                    → valid: false (not_empty)
               └── all fields present?                        → valid: true
                           │
                           ▼
@@ -107,8 +107,8 @@ OPENDQV_TOKEN = os.getenv("OPENDQV_TOKEN")
 def validate_filing(record: dict) -> dict:
     """Validate a Companies House filing record before submission."""
     resp = httpx.post(
-        f"{OPENDQV_URL}/api/v1/validate/companies_house_filing",
-        json=record,
+        f"{OPENDQV_URL}/api/v1/validate",
+        json={"contract": "companies_house_filing", "record": record},
         headers={"Authorization": f"Bearer {OPENDQV_TOKEN}"},
         timeout=5.0,
     )
