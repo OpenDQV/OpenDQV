@@ -39,7 +39,7 @@ Data Source                  Pipeline                     Warehouse / Lake
 
 | Moment | Tool | What it catches | When you find out |
 |--------|------|-----------------|-------------------|
-| **At write** | OpenDQV | Invalid records before they enter any system | Milliseconds — the `422` response blocks the write |
+| **At write** | OpenDQV | Invalid records before they enter any system | Milliseconds — the caller blocks the write on `valid: false` |
 | **At pipeline** | Soda / Great Expectations | Data that passed write-time validation but drifted during transformation | Minutes to hours — batch scan |
 | **At rest** | Monte Carlo / observability | Anomalies, schema drift, volume changes in live data | Continuous — alert-driven |
 

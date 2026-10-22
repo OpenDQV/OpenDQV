@@ -66,19 +66,19 @@ record that is missing a required field cannot enter the system.
 Building manager submits golden thread record
               │
               ▼
-POST /api/v1/validate/building_safety_golden_thread
+POST /api/v1/validate  {"contract": "building_safety_golden_thread", ...}
               │
-              ├── building_id / name / address missing?     → 422 (not_empty)
-              ├── height_metres missing?                     → 422 (not_empty)
-              ├── storeys_above_ground missing?              → 422 (not_empty)
-              ├── accountable_person_name missing?           → 422 (not_empty)
-              ├── building_safety_manager_name missing?      → 422 (not_empty)
-              ├── bsr_registration_number missing?           → 422 (not_empty)
-              ├── safety_case_documented missing?            → 422 (not_empty)
+              ├── building_id / name / address missing?     → valid: false (not_empty)
+              ├── height_metres missing?                     → valid: false (not_empty)
+              ├── storeys_above_ground missing?              → valid: false (not_empty)
+              ├── accountable_person_name missing?           → valid: false (not_empty)
+              ├── building_safety_manager_name missing?      → valid: false (not_empty)
+              ├── bsr_registration_number missing?           → valid: false (not_empty)
+              ├── safety_case_documented missing?            → valid: false (not_empty)
               ├── safety_case_documented = true
-              │   but safety_case_report_date missing?       → 422 (required_if)
-              ├── fire_and_emergency_file missing?           → 422 (not_empty)
-              ├── residents_engagement_strategy missing?     → 422 (not_empty)
+              │   but safety_case_report_date missing?       → valid: false (required_if)
+              ├── fire_and_emergency_file missing?           → valid: false (not_empty)
+              ├── residents_engagement_strategy missing?     → valid: false (not_empty)
               └── all fields present?                        → valid: true
                           │
                           ▼
@@ -132,8 +132,8 @@ OPENDQV_TOKEN = os.getenv("OPENDQV_TOKEN")
 def validate_golden_thread(record: dict) -> dict:
     """Validate a golden thread record against the Building Safety Act contract."""
     resp = httpx.post(
-        f"{OPENDQV_URL}/api/v1/validate/building_safety_golden_thread",
-        json=record,
+        f"{OPENDQV_URL}/api/v1/validate",
+        json={"contract": "building_safety_golden_thread", "record": record},
         headers={"Authorization": f"Bearer {OPENDQV_TOKEN}"},
         timeout=5.0,
     )

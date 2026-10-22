@@ -89,7 +89,7 @@ async def create_customer(data: dict):
     return {"status": "created"}
 ```
 
-If validation fails, the decorator returns a `422` with per-field errors before your handler is called.
+If validation fails, the decorator raises `ValidationError` (with `.errors` and `.warnings`) instead of calling your handler. Map it to whatever response your framework should return.
 
 ---
 

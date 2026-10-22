@@ -117,7 +117,7 @@ Use this to build the business case: "Over 14 days, 97.3% of records would have 
 
 ## Switching to enforcement
 
-Remove `observe_only` from the request (or set it to `false`). Violations now return HTTP 422. CLI exit code becomes 1 on failures.
+Remove `observe_only` from the request (or set it to `false`). The response is still HTTP 200 and `valid` still reports the real outcome, but `mode` becomes `enforcement` — your caller now refuses the write when `valid` is `false`. CLI exit code becomes 1 on failures.
 
 ## Exporting what would have been blocked
 

@@ -55,7 +55,7 @@ identity verification method tracking, and verification timestamp audit trail.
 
 The `ppds_menu_item` contract enforces explicit allergen declaration for Pre-Packed for Direct
 Sale (PPDS) food at the point of write. All 14 major allergens are mandatory fields — omission
-is structurally impossible and triggers a 422 before the record enters the system. See
+is structurally impossible: the record fails validation before it enters the system. See
 [docs/integrations/natasha-law-compliance.md](integrations/natasha-law-compliance.md).
 
 ### Martyn's Law (Royal Assent 3 April 2025)
@@ -66,7 +66,7 @@ compliance. Venues qualify at a capacity of 200 or more (two tiers: standard 200
 individual, SIA notification reference, and public protection measures. Qualifying *events* are
 those where 800 or more individuals may be present (s.3(1)(d)) — there is no 200-person tier for
 events, so the event contract has no `duty_tier` and every qualifying event carries the
-enhanced-level duties. Omission triggers a 422 before the record enters the system. Named
+enhanced-level duties. Omission fails validation before the record enters the system. Named
 after Martyn Hett (1987–2017), killed in the Manchester Arena attack. See
 [docs/integrations/martyns-law-compliance.md](integrations/martyns-law-compliance.md).
 
@@ -75,7 +75,7 @@ after Martyn Hett (1987–2017), killed in the Manchester Arena attack. See
 The `building_safety_golden_thread` contract enforces the Act's own obligation — "accurate and
 up-to-date information throughout the building lifecycle" — for higher-risk buildings (18m+ or
 7+ storeys). Accountable person, BSR registration number, and safety case documentation are
-mandatory fields; omission triggers a 422 before the record enters the system. See
+mandatory fields; omission fails validation before the record enters the system. See
 [docs/integrations/building-safety-golden-thread.md](integrations/building-safety-golden-thread.md).
 
 ### Economic Crime and Corporate Transparency Act 2023

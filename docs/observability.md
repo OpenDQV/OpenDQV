@@ -171,10 +171,10 @@ For full details on the trace log schema see [`docs/rules/trace_log.md`](rules/t
 Pass a `X-Trace-Id` header on any validate request to correlate validation outcomes with your upstream distributed trace:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/validate/customer \
+curl -X POST http://localhost:8000/api/v1/validate \
      -H "Content-Type: application/json" \
      -H "X-Trace-Id: abc123-your-trace-id" \
-     -d '{"name":"Alice","email":"alice@example.com","age":30}'
+     -d '{"contract":"customer","record":{"name":"Alice","email":"alice@example.com","age":30}}'
 ```
 
 OpenDQV echoes the header in the response and records it in the trace log entry. If no `X-Trace-Id` is supplied, OpenDQV generates a UUID for that request and uses it as the trace identifier.

@@ -24,7 +24,7 @@ preparedness gap the attack exposed. The Act received Royal Assent on 3 April 20
 The parallel with Natasha's Law is exact: both are UK named-victim laws, both address
 an **omission failure mode** (no allergen label / no evacuation plan), and both create
 a clear point-of-write data obligation. OpenDQV's contract for each law uses the same
-structural enforcement pattern — a missing field triggers a 422 before the record
+structural enforcement pattern — a missing field fails validation before the record
 enters the system.
 
 ---
@@ -92,21 +92,21 @@ The enforcement model is structural, not advisory. The operator declares their
 Operator submits venue compliance record
               │
               ▼
-POST /api/v1/validate/martyns_law_venue
+POST /api/v1/validate  {"contract": "martyns_law_venue", ...}
               │
-              ├── capacity < 200?                    → 422 (min)
-              ├── duty_tier missing?                  → 422 (not_empty)
-              ├── evacuation_procedure missing?        → 422 (not_empty)
-              ├── invacuation_procedure missing?       → 422 (not_empty)
-              ├── lockdown_procedure missing?          → 422 (not_empty)
-              ├── communication_procedure missing?     → 422 (not_empty)
-              ├── sia_registration_number missing?    → 422 (not_empty — all tiers, s.9)
+              ├── capacity < 200?                    → valid: false (min)
+              ├── duty_tier missing?                  → valid: false (not_empty)
+              ├── evacuation_procedure missing?        → valid: false (not_empty)
+              ├── invacuation_procedure missing?       → valid: false (not_empty)
+              ├── lockdown_procedure missing?          → valid: false (not_empty)
+              ├── communication_procedure missing?     → valid: false (not_empty)
+              ├── sia_registration_number missing?    → valid: false (not_empty — all tiers, s.9)
               ├── staff_training_completed = true
-              │   but staff_training_date missing?    → 422 (required_if)
+              │   but staff_training_date missing?    → valid: false (required_if)
               │
               │   [enhanced duty only]
-              ├── senior_responsible_person missing?  → 422 (required_if)
-              ├── terrorism_protection_plan missing?  → 422 (required_if)
+              ├── senior_responsible_person missing?  → valid: false (required_if)
+              ├── terrorism_protection_plan missing?  → valid: false (required_if)
               └── all required fields present?        → valid: true
                           │
                           ▼
@@ -167,12 +167,12 @@ Act treats them differently from premises:
   duties (s.3(1)(b)) — validate it against `martyns_law_venue`, not both.
 
 ```
-POST /api/v1/validate/martyns_law_event
-              ├── expected_attendance < 800?          → 422 (min — not a qualifying event)
-              ├── any of the four procedures missing? → 422 (not_empty)
-              ├── senior_responsible_person missing?  → 422 (not_empty)
-              ├── sia_notification_reference missing? → 422 (not_empty)
-              ├── terrorism_protection_plan missing?  → 422 (not_empty)
+POST /api/v1/validate  {"contract": "martyns_law_event", ...}
+              ├── expected_attendance < 800?          → valid: false (min — not a qualifying event)
+              ├── any of the four procedures missing? → valid: false (not_empty)
+              ├── senior_responsible_person missing?  → valid: false (not_empty)
+              ├── sia_notification_reference missing? → valid: false (not_empty)
+              ├── terrorism_protection_plan missing?  → valid: false (not_empty)
               └── all required fields present?        → valid: true
 ```
 
@@ -187,7 +187,7 @@ Assent — placing it in the 2026–2027 window.
 
 This gives venue operators a preparation window to build compliant records and
 processes before the statutory deadline — exactly when they should be adopting this
-contract. A 422 at write-time during the preparation window trains systems and
+contract. A rejection at write time during the preparation window trains systems and
 operators to declare every required field before the law comes into force.
 
 ---
@@ -233,8 +233,8 @@ def validate_venue_compliance(record: dict) -> dict:
     Raises ValueError if the record fails validation.
     """
     resp = httpx.post(
-        f"{OPENDQV_URL}/api/v1/validate/martyns_law_venue",
-        json=record,
+        f"{OPENDQV_URL}/api/v1/validate",
+        json={"contract": "martyns_law_venue", "record": record},
         headers={"Authorization": f"Bearer {OPENDQV_TOKEN}"},
         timeout=5.0,
     )

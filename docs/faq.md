@@ -14,7 +14,7 @@ What tends to happen next in real organisations:
 - No maker-checker workflow, no Prometheus rejection metrics, no importers from your existing GX or Soda suite
 - When a regulator asks "prove this rule was applied and approved before it went live" — there is no answer
 
-OpenDQV turns that one-off script into a **governed, versioned contract** that lives in one YAML file, generates code for any target (Apex, JavaScript, Postgres trigger, Snowflake UDF, or API call), and enforces the same rules everywhere — with immediate 422 feedback at write time.
+OpenDQV turns that one-off script into a **governed, versioned contract** that lives in one YAML file, generates code for any target (Apex, JavaScript, Postgres trigger, Snowflake UDF, or API call), and enforces the same rules everywhere — with immediate per-field feedback at write time.
 
 It is not "instead of prompting an LLM." It is **what you do with the good prompt result** so it survives the next re-org, the next outsourcing cycle, and the next compliance audit.
 
@@ -28,7 +28,7 @@ These are excellent tools — and they solve a different problem.
 |---|---|---|
 | **When it runs** | After data lands in your warehouse | Before data enters any system |
 | **What it checks** | Tables, datasets, historical distributions | Individual records at the point of write |
-| **Failure response** | Alert, report, pipeline failure | 422 returned to the caller with per-field errors |
+| **Failure response** | Alert, report, pipeline failure | `valid: false` returned to the caller with per-field errors; the caller refuses the write |
 | **Compute cost** | Full or sampled table scans inside the warehouse | Sub-second API call or UDF — no warehouse needed |
 | **Governance** | Test results | Versioned contracts with maker-checker approval and hash-chained audit trail |
 
