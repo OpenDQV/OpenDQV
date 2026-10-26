@@ -50,7 +50,7 @@ uvicorn = {version = ">=0.34,<0.55", extras = ["standard"]}
 pydantic = "^2.10"
 pyyaml = "^6.0"
 pandas = ">=2.2,<4.0"
-duckdb = "^1.0"
+duckdb = ">=1,<3"
 PyJWT = "^2.12"
 passlib = {version = "^1.7", extras = ["bcrypt"]}
 python-multipart = ">=0.0.26"
