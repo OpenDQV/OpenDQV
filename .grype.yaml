@@ -1,70 +1,7 @@
-# Grype ignore rules — CVEs acknowledged but not actionable
-# Each entry documents why and when to re-evaluate.
-ignore:
-  # Fix requires Python 3.15.0 (pre-release / alpha as of 2026-03-25).
-  # No stable Python release carries the patch. Re-evaluate when 3.15 GA ships.
-  - vulnerability: CVE-2026-4519
-    reason: "Fix in Python 3.15.0 only (pre-release). No stable fix available."
-
-  # CPython hash-flooding / insufficient-entropy in XML (expat) parsing.
-  # Real severity MEDIUM (NVD/Debian); grype over-scores as Critical. Verified
-  # 2026-06-08 that python:3.13-slim (3.13.13) AND python:3.14-slim (3.14.5)
-  # both still report it — grype recognises the fix only in 3.15.0b2 (beta), so
-  # a base-image bump cannot clear it. OpenDQV validates JSON/YAML, not
-  # attacker-controlled XML on the hot path, so exposure is low.
-  # Re-evaluate when python:3.13/3.14-slim ships the backport in a stable point
-  # release (re-run `grype <image> --fail-on high --only-fixed` to confirm).
-  - vulnerability: CVE-2026-7210
-    reason: "CPython expat hash-flooding (real: Medium). No stable Python fix; only 3.15.0b2. Low exposure — OpenDQV does not parse untrusted XML."
-
-  # CPython html.parser.HTMLParser CPU-DoS via repeated unterminated markup
-  # declarations (CVSS 7.5-8.7 High). Fixed in Python 3.15.0 only — grype lists
-  # no 3.13.x/3.14.x backport, so a base-image bump cannot clear it (same shape
-  # as CVE-2026-4519 / CVE-2026-7210). Exploitable ONLY by feeding untrusted
-  # HTML to HTMLParser; verified 2026-07-19 that OpenDQV never imports
-  # html.parser anywhere — the engine validates JSON/YAML records, not HTML —
-  # so the hot path has no exposure. Re-evaluate when python:3.13/3.14-slim
-  # ships the backport in a stable point release (re-run
-  # `grype <image> --fail-on high --only-fixed` to confirm).
-  - vulnerability: CVE-2026-15308
-    reason: "CPython html.parser DoS (High). Fix in Python 3.15.0 only; no stable base carries it. Zero exposure — OpenDQV does not import html.parser / parse untrusted HTML."
-
-  # CPython tarfile.extractall() path-traversal — a crafted archive can place a
-  # hardlink referencing a symlink stored deeper than the hardlink, so the
-  # extraction-filter fallback recreates the symlink at the shallower path and
-  # escapes the destination (incomplete fix of CVE-2025-4330). The patch has
-  # landed in the 3.13 git branch but NOT yet in a stable point release — the
-  # latest stable is python 3.13.14 (2026-06-10), which the CI base image runs,
-  # and grype maps the fix only to 3.15.0b4, so a base-image bump cannot satisfy
-  # `--only-fixed` (same shape as CVE-2026-4519 / -7210 / -15308). Zero exposure:
-  # verified 2026-08-04 that OpenDQV imports no `tarfile` and calls no
-  # `extractall`/`extract` anywhere in the repo — the engine validates JSON/YAML
-  # records, never extracts archives. Re-evaluate when python:3.13-slim ships
-  # 3.13.15 with the backport (re-run `grype <image> --fail-on high --only-fixed`).
-  - vulnerability: CVE-2026-11940
-    reason: "CPython tarfile extractall path-traversal (High). Fix in 3.13 branch but not yet in a stable release (latest 3.13.14); grype recognises only 3.15.0b4. Zero exposure — OpenDQV never imports tarfile / extracts archives."
-
-  # CPython tarfile streaming-mode (mode='r|') mishandles EOF — a crafted archive
-  # is parsed in an infinite loop (CPU DoS, CWE-252). Real severity MEDIUM per
-  # NVD; grype over-scores as High. Fix recognised by grype only in 3.15.0b4; no
-  # stable 3.13.x carries it (latest 3.13.14). Zero exposure — same verification
-  # as CVE-2026-11940: OpenDQV never opens tar archives. Re-evaluate on the
-  # 3.13.x backport (re-run `grype <image> --fail-on high --only-fixed`).
-  - vulnerability: CVE-2026-11972
-    reason: "CPython tarfile streaming-mode EOF infinite loop (real: Medium; grype over-scores High). No stable Python fix; only 3.15.0b4. Zero exposure — OpenDQV never opens tar archives."
-
-  # CPython tarfile data/tar extraction filters: a crafted archive holding a
-  # hard link to a symbolic link can modify permissions/mtime of, or disclose,
-  # a file outside the destination (CVSS High). The third member of the
-  # tarfile family already time-boxed above (CVE-2026-11940 / -11972). grype
-  # maps the fix only to 3.14.0b1; the CI base image runs the latest stable
-  # 3.13.15 and no 3.13.x point release carries the backport, so a base-image
-  # bump within 3.13 cannot satisfy `--only-fixed`. Zero exposure: re-verified
-  # 2026-09-28 that OpenDQV imports no `tarfile` and calls no
-  # `extractall`/`extract` anywhere in shipped code, the proxy, the UI or the
-  # scripts — the engine validates JSON/YAML records, never extracts archives.
-  # Re-evaluate when python:3.13-slim ships a point release with the backport,
-  # or when the base image moves to 3.14 (re-run
-  # `grype <image> --fail-on high --only-fixed` to confirm).
-  - vulnerability: CVE-2026-82049
-    reason: "CPython tarfile extraction-filter hardlink-to-symlink (High). Fix only in 3.14.0b1; no stable 3.13.x backport. Zero exposure — OpenDQV never imports tarfile / extracts archives."
+# Grype ignore rules — CVEs acknowledged but not actionable.
+# Each entry documents why and when to re-evaluate. CI rescans the image with
+# no ignores and fails on any entry that no longer matches a finding
+# (scripts/check_scanner_ignores.py), so an entry is deleted as soon as its
+# reason is gone. Last emptied 2026-11-03: python:3.13-slim 3.13.18 carries
+# the backports for every CPython CVE that was listed here.
+ignore: []

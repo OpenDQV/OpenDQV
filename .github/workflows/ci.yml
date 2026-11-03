@@ -189,6 +189,19 @@ jobs:
             --exit-code 1 \
             --severity CRITICAL,HIGH
 
+      # Every ignore entry must still match a finding. Rescan with NO ignores and
+      # no severity/fixed-only filter; an ignored ID neither scanner reports any
+      # more is stale and fails the job (delete it; for pip-vendored packages
+      # also raise the Dockerfile `pip>=` floor).
+      - name: Check scanner ignores are still needed
+        run: |
+          echo "ignore: []" > "$RUNNER_TEMP/no-ignores.yaml"
+          : > "$RUNNER_TEMP/no-ignores.trivyignore"
+          grype opendqv:ci -c "$RUNNER_TEMP/no-ignores.yaml" -o json -q > "$RUNNER_TEMP/grype-all.json"
+          trivy image opendqv:ci --ignorefile "$RUNNER_TEMP/no-ignores.trivyignore" --format json -q > "$RUNNER_TEMP/trivy-all.json"
+          python3 scripts/check_scanner_ignores.py \
+            --grype "$RUNNER_TEMP/grype-all.json" --trivy "$RUNNER_TEMP/trivy-all.json"
+
   integration:
     name: Integration tests (live stack)
     runs-on: ubuntu-latest
