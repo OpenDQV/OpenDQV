@@ -4,7 +4,7 @@
 
 **DORA Article 28 / FCA PS21/3 Operational Resilience Compliance Reference**
 
-Last updated: 2026-03-09 | Version 1.0 | Owner: Platform Engineering
+Last updated: 2026-11-26 | Version 1.1 | Owner: Platform Engineering
 
 ---
 
@@ -59,15 +59,15 @@ is not an exhaustive count of all deployments.
 
 ## Concentration Risk Assessment
 
-### Current assessment (as of 2026-03-09)
+### Current assessment (as of 2026-11-26)
 
 **Risk level: LOW — no concentration risk at this time.**
 
 Rationale:
 - No known production deployments in critical financial infrastructure (self-reported)
-- Apache 2.0 licence — organisations can self-maintain; no single vendor dependency
-- No SaaS / cloud-hosted model — each deployment is independently controlled
-- Switching cost assessed as LOW (Apache 2.0 licence; no proprietary data formats; standard REST API)
+- MIT licence — organisations can self-maintain; no single vendor dependency
+- Self-hosted — each deployment is independently controlled. A separate managed service, [OpenDQV Cloud](https://opendqv.com), exists; OpenDQV Core does not depend on it.
+- Switching cost assessed as LOW (MIT licence; no proprietary data formats; standard REST API)
 
 ### Triggers for escalation
 
