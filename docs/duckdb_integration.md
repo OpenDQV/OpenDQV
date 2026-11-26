@@ -3,11 +3,11 @@
 > **Last reviewed:** 2026-03-17.
 > Covers DuckDB ≥0.9 via the Python client.
 
-![OpenDQV + DuckDB — batch validation at scale, route clean vs quarantine](demo_duckdb.gif)
+![OpenDQV Core + DuckDB — batch validation at scale, route clean vs quarantine](demo_duckdb.gif)
 
 *Analytical-scale batch validation: load a DuckDB table, validate every row against a contract, route clean records to the target and rejects to quarantine — no row-by-row Python loops, no API server required.*
 
-OpenDQV's batch API is a natural fit for DuckDB's analytical workload: load a table, validate every row against a contract, write clean records to the target table, and route rejects to a quarantine table. No row-by-row Python loops required — feed the whole DataFrame to `/api/v1/validate/batch` and let DuckDB handle the splits.
+OpenDQV Core's batch API is a natural fit for DuckDB's analytical workload: load a table, validate every row against a contract, write clean records to the target table, and route rejects to a quarantine table. No row-by-row Python loops required — feed the whole DataFrame to `/api/v1/validate/batch` and let DuckDB handle the splits.
 
 ---
 

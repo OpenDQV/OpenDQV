@@ -7,7 +7,7 @@ Natasha's Law (The Food Information (Amendment) (England) Regulations 2019, in f
 to label **Pre-Packed for Direct Sale (PPDS)** food with a full ingredients list, with
 all 14 major allergens **explicitly highlighted** within it.
 
-OpenDQV enforces this obligation at the point of write — before a menu item record
+OpenDQV Core enforces this obligation at the point of write — before a menu item record
 reaches the labelling system, POS, or kitchen — making allergen omission structurally
 impossible rather than relying on human review.
 
@@ -54,7 +54,8 @@ any allergen field missing comes back `valid: false` and the caller refuses the 
 
 ---
 
-## How OpenDQV enforces Natasha's Law
+<a id="how-opendqv-enforces-natashas-law"></a>
+## How OpenDQV Core enforces Natasha's Law
 
 The enforcement model is structural, not advisory:
 
@@ -78,14 +79,14 @@ POST /api/v1/validate  {"contract": "ppds_menu_item", ...}
 
 This is the earliest possible intervention — the operator fixes the omission before the
 item is saved, printed, or served. The failure mode Natasha's Law was designed to prevent
-was **omission by oversight**, not malice. OpenDQV prevents omission structurally.
+was **omission by oversight**, not malice. OpenDQV Core prevents omission structurally.
 
 ---
 
 ## Why 14 boolean fields, not a single list
 
 A single `allergens_present` list field is compact but cannot detect dangerous omissions.
-If "peanuts" is absent from the list, OpenDQV cannot determine whether peanuts are
+If "peanuts" is absent from the list, OpenDQV Core cannot determine whether peanuts are
 genuinely absent or were accidentally forgotten. The only way to enforce the obligation
 to declare is to make each of the 14 allergens a mandatory field.
 
@@ -256,7 +257,7 @@ as well as Natasha's Law.
 
 ## Limitations
 
-OpenDQV validates the **declaration**, not the **accuracy** of the declaration. The
+OpenDQV Core validates the **declaration**, not the **accuracy** of the declaration. The
 contract enforces that an operator has answered every allergen question before saving
 the record. It cannot verify that the declared values accurately reflect the actual
 ingredients — that remains the responsibility of the chef, recipe owner, and supplier

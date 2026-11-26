@@ -3,13 +3,13 @@
 > **API last verified:** `anthropic` SDK (claude-opus-4-6), `langchain v1.2.12`, `aiokafka v0.13.0`, `mcp v1.26.0` — 2026-03-13.
 > Snippets are examples; pin your own versions in `requirements.txt`.
 
-How to call OpenDQV from AI agents, LLM coding assistants, and agentic frameworks.
+How to call OpenDQV Core from AI agents, LLM coding assistants, and agentic frameworks.
 
 ---
 
 ## Quick summary
 
-OpenDQV's REST API is LLM-native by design: structured JSON in, structured JSON out, field-level errors with `field` / `rule` / `message` / `severity` keys that any agent can parse and act on. No special SDK needed — `curl` and a JSON body is enough to get started.
+OpenDQV Core's REST API is LLM-native by design: structured JSON in, structured JSON out, field-level errors with `field` / `rule` / `message` / `severity` keys that any agent can parse and act on. No special SDK needed — `curl` and a JSON body is enough to get started.
 
 For richer integration, use the [MCP server](#3-mcp-server-claude-desktop--cursor).
 
@@ -17,7 +17,7 @@ For richer integration, use the [MCP server](#3-mcp-server-claude-desktop--curso
 
 ## 1. Claude Tool Use (Anthropic SDK)
 
-Add OpenDQV as a tool in any Claude API call. Claude will call it when it determines a record needs validating before writing.
+Add OpenDQV Core as a tool in any Claude API call. Claude will call it when it determines a record needs validating before writing.
 
 ```python
 import anthropic
@@ -132,7 +132,7 @@ while True:
 
 ## 2. LangChain / LlamaIndex Tool
 
-Wrap OpenDQV as a LangChain `@tool` function. The docstring is what the LLM reads when deciding whether to call the tool — write it to match the agent's intent.
+Wrap OpenDQV Core as a LangChain `@tool` function. The docstring is what the LLM reads when deciding whether to call the tool — write it to match the agent's intent.
 
 ```python
 from langchain.tools import tool
@@ -215,7 +215,7 @@ def list_contracts() -> list:
 
 ## 3. MCP Server (Claude Desktop / Cursor)
 
-The MCP server gives Claude Desktop and Cursor native access to all six OpenDQV tools.
+The MCP server gives Claude Desktop and Cursor native access to all six OpenDQV Core tools.
 
 **Start the server:**
 
@@ -319,7 +319,7 @@ def fix_with_claude(record: dict, hints: list[dict]) -> dict:
     Call Claude to correct a record that failed validation.
 
     hints — list of {field, message, explanation, valid_examples} dicts,
-    one per failing rule, sourced directly from OpenDQV's explain_error endpoint.
+    one per failing rule, sourced directly from OpenDQV Core's explain_error endpoint.
     Claude receives the exact constraint details and concrete valid examples,
     making self-correction reliable rather than guesswork.
     """
@@ -430,7 +430,7 @@ if __name__ == "__main__":
 
 **What this loop does:**
 
-1. `validate_record` — sends the record to OpenDQV; gets structured field-level errors
+1. `validate_record` — sends the record to OpenDQV Core; gets structured field-level errors
 2. `explain_error` — fetches constraint-aware remediation hints per failing rule (the `valid_examples` list tells Claude exactly what a passing value looks like)
 3. `fix_with_claude` — Claude receives the record + hints and returns a corrected JSON object; the prompt is deliberately constrained ("return ONLY the corrected JSON") to avoid hallucinated fields
 4. Re-validate — the corrected record goes back through step 1; if still failing, repeat up to `MAX_RETRIES`
@@ -532,13 +532,14 @@ The top-level keys are `summary` and `results`. Each item in `results` has `inde
 
 ---
 
-## 7. Using OpenDQV without MCP (pure HTTP)
+<a id="7-using-opendqv-without-mcp-pure-http"></a>
+## 7. Using OpenDQV Core without MCP (pure HTTP)
 
-The MCP server is optional. The core OpenDQV REST API has **no non-standard dependencies** — call it with `curl`, `httpx`, `requests`, or any HTTP client. No `mcp` package required.
+The MCP server is optional. The OpenDQV Core REST API has **no non-standard dependencies** — call it with `curl`, `httpx`, `requests`, or any HTTP client. No `mcp` package required.
 
 This is the recommended integration path for:
 - Environments with locked-down package mirrors or strict package governance
-- Server-side code that calls OpenDQV directly (not via an LLM agent)
+- Server-side code that calls Core directly (not via an LLM agent)
 - Situations where the MCP package cannot be installed
 
 ```python

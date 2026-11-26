@@ -1,4 +1,5 @@
-# OpenDQV Roadmap
+<a id="opendqv-roadmap"></a>
+# OpenDQV Core Roadmap
 
 > All items are planned based on community demand and feedback. None are committed delivery dates.
 
@@ -21,7 +22,7 @@ claim it before starting.
 
 | Area | Item |
 |------|------|
-| dbt | `trace_id` propagation from dbt job runs → OpenDQV trace log |
+| dbt | `trace_id` propagation from dbt job runs → OpenDQV Core trace log |
 | GX | Incremental hash-based contract sync in CI/CD |
 | Soda | `export-soda` CLI command — generate Soda `checks.yml` from OpenDQV contracts |
 | Orchestrators | `AsyncOpenDQVClient` recommended path for high-throughput Airflow / Prefect pipelines |
@@ -41,9 +42,9 @@ claim it before starting.
 | Orchestrators | `apache-airflow-providers-opendqv` — native `OpenDQVValidateOperator` |
 | Orchestrators | Prefect `OpenDQVCredentials` block |
 | Kafka | Webhook → Kafka alert topic for rejection cluster monitoring |
-| Monte Carlo | Quality-trend dashboard using OpenDQV pass-rate data |
+| Monte Carlo | Quality-trend dashboard using OpenDQV Core pass-rate data |
 | Collibra | Webhook → Collibra workflow trigger for `opendqv.validation.failed` events |
-| DataHub | Quality trend score — push OpenDQV pass-rate metrics to DataHub quality assertions |
+| DataHub | Quality trend score — push Core pass-rate metrics to DataHub quality assertions |
 | OpenMetadata | Native Test Suite integration — map OpenDQV contracts to OM Test Suites |
 | Atlan | Quality trend metrics — push pass-rate data to Atlan quality scores |
 | Atlan | Propagation policy configuration — configure Atlan lineage-based propagation for DQ scores |
@@ -52,7 +53,7 @@ claim it before starting.
 
 | Area | Item |
 |------|------|
-| Snowflake | External Function packaging — deploy OpenDQV validation as a Snowflake External Function with one-click setup |
+| Snowflake | External Function packaging — deploy OpenDQV Core validation as a Snowflake External Function with one-click setup |
 | Snowflake | Streams + Tasks template — Terraform module for serverless event-driven validation |
 | Databricks | Databricks Asset Bundle template — pre-built validation task for standard DAB workflow definitions |
 | Purview | Packaged Azure Function for scheduled contract sync with Managed Identity auth |
@@ -63,11 +64,11 @@ claim it before starting.
 |------|------|
 | dbt | Native dbt Cloud integration via webhook on dbt job failure |
 | GX | Native GX Data Context plugin — push contract changes via GX API |
-| GX | GX Checkpoint status back-channel → OpenDQV quality-trend endpoint |
+| GX | GX Checkpoint status back-channel → OpenDQV Core quality-trend endpoint |
 | Orchestrators | `dagster-opendqv` library — typed asset checks and quality score sensor |
 | Monte Carlo | Native Monte Carlo connector — table-level correlation, alert enrichment |
 | Soda | Soda Cloud native connector — push contract metadata to Soda dataset catalog |
-| Kafka | Native Kafka Connect sink connector with built-in OpenDQV validation |
+| Kafka | Native Kafka Connect sink connector with built-in Core validation |
 | Kafka | Kafka Streams transformer (stateful, `unique` rule support) |
 | Kafka | Schema Registry integration — Avro/Protobuf schemas → OpenDQV contracts |
 | Snowflake | Snowflake Native App packaging |

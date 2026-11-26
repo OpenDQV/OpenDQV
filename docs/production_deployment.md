@@ -1,8 +1,8 @@
 # Production Deployment Guide
 
-> ⚠️ **Alpha software.** OpenDQV is in Alpha. This guide documents the production hardening steps available today. Until OpenDQV reaches a stable release, review all configuration changes carefully and maintain your own security assessment before any regulated deployment.
+> ⚠️ **Alpha software.** OpenDQV Core is in Alpha. This guide documents the production hardening steps available today. Until Core reaches a stable release, review all configuration changes carefully and maintain your own security assessment before any regulated deployment.
 
-This guide covers hardening an OpenDQV deployment for production use.
+This guide covers hardening an OpenDQV Core deployment for production use.
 The default configuration (`AUTH_MODE=open`) is for local development only
 and must not be exposed to untrusted networks.
 
@@ -79,7 +79,7 @@ Store the returned `pat` value securely — it is shown only once and cannot be 
 
 ## 4. Role Assignment
 
-OpenDQV enforces a maker-checker model with six roles:
+OpenDQV Core enforces a maker-checker model with six roles:
 
 | Role | Intended for | Can validate | Can edit contracts | Can approve | Audit trail |
 |------|-------------|:---:|:---:|:---:|:---:|
@@ -143,7 +143,7 @@ A cluster of `rule_mutation_blocked` warnings on a single contract is an anomaly
 
 ## 5. Reverse Proxy / Port Exposure Checklist
 
-Before exposing OpenDQV to the internet:
+Before exposing OpenDQV Core to the internet:
 
 - [ ] Place behind a reverse proxy (nginx, Caddy, Traefik, or cloud load balancer)
 - [ ] Terminate TLS at the proxy — never expose the API on plain HTTP
@@ -277,7 +277,7 @@ Mount persistent volumes for contracts and the SQLite database so data survives 
 
 ## 8. SQLite Scaling Limits and Upgrade Path
 
-OpenDQV uses SQLite by default. SQLite is suitable for most deployments up to moderate
+OpenDQV Core uses SQLite by default. SQLite is suitable for most deployments up to moderate
 concurrent load, but has known limits that operators should be aware of before going to
 production at scale.
 

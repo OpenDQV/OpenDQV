@@ -1,6 +1,8 @@
-# OpenDQV Operational Runbook
+<a id="opendqv-operational-runbook"></a>
 
-This runbook covers three scenarios: first deployment, day-2 operations, and incident response. It assumes you are operating a containerised OpenDQV deployment managed with Docker Compose.
+# OpenDQV Core Operational Runbook
+
+This runbook covers three scenarios: first deployment, day-2 operations, and incident response. It assumes you are operating a containerised OpenDQV Core deployment managed with Docker Compose.
 
 ---
 
@@ -27,7 +29,7 @@ Never leave `SECRET_KEY` at the default value. The service will start but the se
 
 ### Air-Gapped and Offline Deployments
 
-OpenDQV has **no runtime internet dependencies**. Once the container image is pulled, it runs indefinitely without any network access — no telemetry, no external API calls, no license checks. This makes it suitable for:
+OpenDQV Core has **no runtime internet dependencies**. Once the container image is pulled, it runs indefinitely without any network access — no telemetry, no external API calls, no license checks. This makes it suitable for:
 
 - NHS and clinical secure zones
 - Defence, classified, and government air-gapped environments
@@ -278,7 +280,7 @@ curl -s http://localhost:8000/api/v1/contracts/<contract_name>/history \
 
 ### Contract Registry File Corrupted
 
-OpenDQV uses SQLite in WAL mode (`synchronous=NORMAL`). A hard crash will **not** corrupt the database — WAL guarantees atomicity at the page level. In the unlikely event you suspect corruption:
+OpenDQV Core uses SQLite in WAL mode (`synchronous=NORMAL`). A hard crash will **not** corrupt the database — WAL guarantees atomicity at the page level. In the unlikely event you suspect corruption:
 
 1. Run an integrity check (stop writes first if possible):
 
@@ -343,7 +345,7 @@ Look for an elevated `validation_errors` count or a specific contract with a hig
 
 ### Data Breach Concern
 
-OpenDQV does not persist validation payloads. The data passed in `POST /validate` and `POST /validate/batch` is processed in memory and discarded after the response is returned. What is persisted in `opendqv.db` is:
+OpenDQV Core does not persist validation payloads. The data passed in `POST /validate` and `POST /validate/batch` is processed in memory and discarded after the response is returned. What is persisted in `opendqv.db` is:
 
 - Token metadata (name, role, hashed token value — not the plaintext token)
 - Webhook registrations (URLs and event types)
@@ -355,11 +357,11 @@ If you suspect the `opendqv.db` file has been accessed by an unauthorised party,
 
 ## D. Fail-Open vs Fail-Closed
 
-When OpenDQV is unreachable (network partition, pod restart, container OOM), your calling pipeline must decide what to do with unvalidated data. There are two canonical patterns:
+When OpenDQV Core is unreachable (network partition, pod restart, container OOM), your calling pipeline must decide what to do with unvalidated data. There are two canonical patterns:
 
 ### Fail-Closed
 
-**Definition:** If OpenDQV is unreachable, reject the data — do not allow it into the downstream system.
+**Definition:** If OpenDQV Core is unreachable, reject the data — do not allow it into the downstream system.
 
 **Use when:**
 - Regulated pipelines (financial transactions, AML/KYC, consent records)
@@ -385,7 +387,7 @@ except (httpx.TimeoutException, httpx.ConnectError) as exc:
 
 ### Fail-Open
 
-**Definition:** If OpenDQV is unreachable, allow the data through with a warning log. Validation is best-effort.
+**Definition:** If OpenDQV Core is unreachable, allow the data through with a warning log. Validation is best-effort.
 
 **Use when:**
 - High-availability ingestion where a transient DQ service outage must not block data flow
@@ -413,11 +415,11 @@ async def validate_or_pass(client, record, contract):
 
 ### Recommended Timeout
 
-Set a **500 ms timeout** as the default for all OpenDQV calls. This is short enough to avoid blocking hot data paths but long enough to tolerate transient network jitter. Adjust down (250 ms) for real-time consumer paths or up (2 s) for low-frequency batch triggers.
+Set a **500 ms timeout** as the default for all OpenDQV Core calls. This is short enough to avoid blocking hot data paths but long enough to tolerate transient network jitter. Adjust down (250 ms) for real-time consumer paths or up (2 s) for low-frequency batch triggers.
 
 ### Circuit Breaker Recommendation
 
-Avoid hammering a down OpenDQV endpoint with retries on every record. Use one of:
+Avoid hammering a down OpenDQV Core endpoint with retries on every record. Use one of:
 
 - **`tenacity`** — exponential backoff with a circuit-breaker decorator:
 
@@ -430,9 +432,9 @@ def validated_write(record):
     ...
 ```
 
-- **Simple failure counter** — track consecutive failures and skip OpenDQV once a threshold is reached, resetting after a cool-down period (e.g., 30 seconds). This avoids adding a library dependency for simpler pipelines.
+- **Simple failure counter** — track consecutive failures and skip Core once a threshold is reached, resetting after a cool-down period (e.g., 30 seconds). This avoids adding a library dependency for simpler pipelines.
 
-For production Kafka pipelines, the `aiokafka` example in [kafka_integration.md](kafka_integration.md) shows the fail-open pattern with immediate commit on OpenDQV failure.
+For production Kafka pipelines, the `aiokafka` example in [kafka_integration.md](kafka_integration.md) shows the fail-open pattern with immediate commit on Core failure.
 
 ---
 
@@ -468,7 +470,7 @@ done && echo "Postgres ready"
 
 `PostgresContractHistoryBackend` auto-creates the `contract_history` table on first use via `_init_db()`. No manual DDL is required.
 
-**Migration note:** on every start the backend also runs `ALTER TABLE contract_history ADD COLUMN IF NOT EXISTS …` for columns added since the table was first created (`owner_email`, `owner_team`, `asset_id`, `downstream_consumers`, `content_hash`, `domain_version`, and the 2.5.0 `strict_schema` / `allowed_fields`). The database role OpenDQV connects with must therefore hold `ALTER` on that table; a locked-down role that only has DML will fail at startup after an upgrade.
+**Migration note:** on every start the backend also runs `ALTER TABLE contract_history ADD COLUMN IF NOT EXISTS …` for columns added since the table was first created (`owner_email`, `owner_team`, `asset_id`, `downstream_consumers`, `content_hash`, `domain_version`, and the 2.5.0 `strict_schema` / `allowed_fields`). The database role OpenDQV Core connects with must therefore hold `ALTER` on that table; a locked-down role that only has DML will fail at startup after an upgrade.
 
 ### SQLite → Postgres migration
 

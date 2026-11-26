@@ -8,7 +8,7 @@ protection procedures and to notify the Security Industry Authority (SIA), and �
 enhanced tier, and for every qualifying event — a named senior responsible person and a
 formal terrorism protection plan.
 
-OpenDQV enforces these obligations at the point of write — before a compliance record
+OpenDQV Core enforces these obligations at the point of write — before a compliance record
 reaches a safety management system, property management platform, or back-office tool —
 making omission structurally impossible rather than relying on human review.
 
@@ -83,7 +83,8 @@ Enhanced-duty venues must also:
 
 ---
 
-## How OpenDQV enforces Martyn's Law
+<a id="how-opendqv-enforces-martyns-law"></a>
+## How OpenDQV Core enforces Martyn's Law
 
 The enforcement model is structural, not advisory. The operator declares their
 `duty_tier`; the contract enforces tier-conditional completeness:
@@ -116,7 +117,7 @@ POST /api/v1/validate  {"contract": "martyns_law_venue", ...}
 This is the earliest possible intervention — the operator fixes the omission before
 the record is saved, before the venue opens, before an inspection occurs. The failure
 mode Martyn's Law was designed to prevent was **omission by oversight**: "we didn't
-fill that in." OpenDQV prevents omission structurally.
+fill that in." OpenDQV Core prevents omission structurally.
 
 ---
 
@@ -314,7 +315,7 @@ two-tier model and field requirements are anticipated to apply across all four n
 
 ## Limitations
 
-OpenDQV validates the **declaration**, not the **quality** of the actual plan.
+OpenDQV Core validates the **declaration**, not the **quality** of the actual plan.
 The contract enforces that an operator has answered every required question before
 saving the record. It cannot verify that:
 

@@ -4,7 +4,7 @@
 > Snippets are examples; pin your own version in `requirements.txt`.
 > [Check for updates](https://pypi.org/project/acryl-datahub/)
 
-OpenDQV and DataHub serve complementary roles: OpenDQV validates data at the source and governs contracts, while DataHub provides lineage, discovery, and observability across your entire data estate. This guide shows six approaches to connecting them, from a simple one-off sync to a real-time webhook-driven pipeline.
+OpenDQV Core and DataHub serve complementary roles: Core validates data at the source and governs contracts, while DataHub provides lineage, discovery, and observability across your entire data estate. This guide shows six approaches to connecting them, from a simple one-off sync to a real-time webhook-driven pipeline.
 
 ---
 
@@ -13,13 +13,14 @@ OpenDQV and DataHub serve complementary roles: OpenDQV validates data at the sou
 1. **Contract-first** — OpenDQV contracts are the source of truth; DataHub reflects their state, not the reverse
 2. **Incremental** — use `schema_hash` to skip unchanged contracts and avoid redundant API calls
 3. **Federation-aware** — check `/federation/status` before pulling contracts from a federated node
-4. **Non-invasive** — no changes to OpenDQV internals; integration lives entirely in a thin sync script or connector
+4. **Non-invasive** — no changes to OpenDQV Core internals; integration lives entirely in a thin sync script or connector
 
 ---
 
-## What OpenDQV Is NOT
+<a id="what-opendqv-is-not"></a>
+## What OpenDQV Core Is NOT
 
-| OpenDQV does | OpenDQV does NOT |
+| OpenDQV Core does | OpenDQV Core does NOT |
 |---|---|
 | Validate records against contract rules | Replace DataHub's lineage graph |
 | Publish contract metadata (owner, version, hash) | Crawl your warehouse schemas |
@@ -35,7 +36,7 @@ Push every active OpenDQV contract into DataHub as a dataset entity with `Datase
 
 ### Field mapping
 
-| OpenDQV field | DataHub aspect / field |
+| OpenDQV Core field | DataHub aspect / field |
 |---|---|
 | `name` | `DatasetProperties.name`; also used in `DatasetUrn` |
 | `description` | `DatasetProperties.description` |
@@ -132,7 +133,7 @@ Extend the Approach 1 loop to also push the 7-day average pass rate into `Datase
 
 ### Field mapping
 
-| OpenDQV source | DataHub field |
+| OpenDQV Core source | DataHub field |
 |---|---|
 | `quality-trend` avg pass rate × 100 | `DatasetProperties.customProperties["quality_score_7d"]` |
 | Top failing rule name | `DatasetProperties.customProperties["top_failing_rule"]` |
@@ -163,12 +164,12 @@ if trend_resp.status_code == 200:
 
 ## Approach 3 — Webhook-Driven `opendqv.validation.failed` → Real-Time Tagging
 
-Rather than polling, register an OpenDQV webhook and have DataHub updated the moment a validation failure is detected.
+Rather than polling, register an OpenDQV Core webhook and have DataHub updated the moment a validation failure is detected.
 
 ### Architecture
 
 ```
-OpenDQV engine
+OpenDQV Core engine
      │
      │  POST /webhooks/datahub (opendqv.validation.failed event)
      ▼
@@ -308,7 +309,7 @@ print(f"Synced {synced}, skipped {skipped} (hash unchanged)")
 
 ## Approach 6 — Federation-Aware Sync
 
-When OpenDQV runs in a federated topology, check node availability before pulling contracts.
+When OpenDQV Core runs in a federated topology, check node availability before pulling contracts.
 
 ```python
 # pip install acryl-datahub requests
@@ -341,11 +342,11 @@ for node in fed_status.get("nodes", []):
 
 | Limitation | Detail |
 |---|---|
-| No lineage graph | OpenDQV does not know upstream/downstream models; DataHub lineage must be populated separately |
+| No lineage graph | OpenDQV Core does not know upstream/downstream models; DataHub lineage must be populated separately |
 | Aggregated trend only | `/quality-trend` returns daily aggregates, not per-record results |
-| No deletion propagation | Deleting a contract in OpenDQV does not remove the DataHub entity |
+| No deletion propagation | Deleting a contract in Core does not remove the DataHub entity |
 | `DataQualityInfo` aspect | `DataQualityInfoClass` does not exist in `acryl-datahub`; quality score is always written into `DatasetProperties.customProperties` |
-| Webhook best-effort | OpenDQV webhooks are fire-and-forget; transient receiver downtime means missed events |
+| Webhook best-effort | Core webhooks are fire-and-forget; transient receiver downtime means missed events |
 | GMS vs Cloud endpoint | Self-hosted uses `http://datahub-gms:8080`; DataHub Cloud requires a tenant-specific URL and API token |
 | Assertion pre-registration | Approach 4 requires assertion URNs to be created in DataHub before results can be emitted |
 
@@ -353,7 +354,7 @@ for node in fed_status.get("nodes", []):
 
 ## `asset_id` Conventions for DataHub
 
-OpenDQV's `asset_id` field should be set to the DataHub `DatasetUrn` of the asset the contract governs.
+OpenDQV Core's `asset_id` field should be set to the DataHub `DatasetUrn` of the asset the contract governs.
 
 **DataHub URN format:**
 
@@ -406,8 +407,8 @@ When `asset_id` is a valid DataHub URN, Approach 1 uses it directly rather than 
 The following capabilities are **not yet implemented** and are planned for a future release.
 
 - **Native ingestion source recipe** — a DataHub `Source` plugin (`datahub ingest -c opendqv_recipe.yml`) so catalog admins can pull contracts without writing Python
-- **Auto assertion URN on publish** — when a contract is published, OpenDQV pre-registers assertion URNs in DataHub automatically
-- **DataHub → OpenDQV import** — bootstrap a contract from a DataHub `DatasetProperties` entity
+- **Auto assertion URN on publish** — when a contract is published, OpenDQV Core pre-registers assertion URNs in DataHub automatically
+- **DataHub → OpenDQV Core import** — bootstrap a contract from a DataHub `DatasetProperties` entity
 - **Kafka emitter** — replace REST emission with a Kafka-based MCE emitter for high-volume installations
 
 ---

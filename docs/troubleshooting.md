@@ -144,7 +144,7 @@ python -m opendqv.mcp_server
 ```
 It must be running as a separate process from the main API.
 
-**Check 2:** Is the API reachable from the MCP server? The MCP server calls the OpenDQV REST API internally. In remote mode, ensure `OPENDQV_MCP_API_URL` (and `OPENDQV_MCP_TOKEN` if the API runs in token mode) is set; without it the server runs self-contained against the local contracts directory.
+**Check 2:** Is the API reachable from the MCP server? The MCP server calls the OpenDQV Core REST API internally. In remote mode, ensure `OPENDQV_MCP_API_URL` (and `OPENDQV_MCP_TOKEN` if the API runs in token mode) is set; without it the server runs self-contained against the local contracts directory.
 
 **Check 3:** For write operations (`create_contract_draft`), the contract name must start with `MCP_` and `OPENDQV_AGENT_IDENTITY` (or `created_by`) must be set — otherwise the write is refused. Review the write guardrail documentation before enabling writes.
 

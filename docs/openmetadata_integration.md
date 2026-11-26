@@ -4,7 +4,7 @@
 > Snippets are examples; pin your own version in `requirements.txt`.
 > [Check for updates](https://pypi.org/project/openmetadata-ingestion/)
 
-OpenDQV and OpenMetadata serve complementary roles: OpenDQV validates data at the source and governs contracts, while OpenMetadata provides discovery, lineage, data quality dashboards, and governance visibility across the entire estate. This guide shows six approaches to connecting them, from a simple contract metadata push to a real-time webhook-driven pipeline with native Test Suite integration.
+OpenDQV Core and OpenMetadata serve complementary roles: Core validates data at the source and governs contracts, while OpenMetadata provides discovery, lineage, data quality dashboards, and governance visibility across the entire estate. This guide shows six approaches to connecting them, from a simple contract metadata push to a real-time webhook-driven pipeline with native Test Suite integration.
 
 ---
 
@@ -13,13 +13,14 @@ OpenDQV and OpenMetadata serve complementary roles: OpenDQV validates data at th
 1. **Contract-first** — OpenDQV contracts are the source of truth; OpenMetadata reflects their state, not the reverse
 2. **Native DQ** — use OpenMetadata's Test Case / Test Suite model for quality scores rather than custom properties, keeping quality data first-class in the catalog
 3. **Incremental** — read back `schema_hash` from OpenMetadata before writing to skip unchanged contracts and avoid redundant API calls
-4. **Non-invasive** — no changes to OpenDQV internals; integration lives entirely in a thin sync script or connector
+4. **Non-invasive** — no changes to OpenDQV Core internals; integration lives entirely in a thin sync script or connector
 
 ---
 
-## What OpenDQV Is NOT
+<a id="what-opendqv-is-not"></a>
+## What OpenDQV Core Is NOT
 
-| OpenDQV does | OpenDQV does NOT |
+| OpenDQV Core does | OpenDQV Core does NOT |
 |---|---|
 | Validate records against contract rules | Replace OpenMetadata's lineage graph |
 | Publish contract metadata (owner, version, hash) | Crawl your warehouse schemas |
@@ -52,7 +53,7 @@ Push every active OpenDQV contract into the OpenMetadata `Table` entity that the
 
 ### Field mapping
 
-| OpenDQV field | OpenMetadata `extension` key |
+| OpenDQV Core field | OpenMetadata `extension` key |
 |---|---|
 | `name` | `contract_name` |
 | `version` | `contract_version` |
@@ -153,7 +154,7 @@ Create one `TestSuite` per contract (if not already present), one `TestCase` (`o
 
 ### Field mapping
 
-| OpenDQV source | OpenMetadata field |
+| OpenDQV Core source | OpenMetadata field |
 |---|---|
 | `quality-trend` avg pass rate × 100 | `TestResultValue(name="pass_rate", value=str(score))` |
 | score ≥ 80 | `TestCaseStatus.Success` |
@@ -240,7 +241,7 @@ for contract in contracts:
 
 ## Approach 3 — Webhook-Driven `opendqv.validation.failed` → Real-Time Test Case Result
 
-Rather than polling, register an OpenDQV webhook and push a `TestCaseResult` the moment a validation failure is detected.
+Rather than polling, register an OpenDQV Core webhook and push a `TestCaseResult` the moment a validation failure is detected.
 
 ### Architecture
 
@@ -421,7 +422,7 @@ for rule in contract_detail.get("rules", []):
 
 ## Approach 5 — Incremental Sync via Read-Back
 
-Instead of a local state file, read the `schema_hash` currently stored in OpenMetadata's `extension` and skip the write if it matches the OpenDQV hash. OpenMetadata is the source of state.
+Instead of a local state file, read the `schema_hash` currently stored in OpenMetadata's `extension` and skip the write if it matches the OpenDQV Core hash. OpenMetadata is the source of state.
 
 ```python
 # pip install openmetadata-ingestion requests
@@ -455,7 +456,7 @@ print(f"Synced {synced}, skipped {skipped} (hash unchanged)")
 
 ## Approach 6 — Federation-Aware Sync
 
-When OpenDQV runs in a federated topology, check node availability before pulling contracts.
+When OpenDQV Core runs in a federated topology, check node availability before pulling contracts.
 
 ```python
 # pip install openmetadata-ingestion requests
@@ -488,11 +489,11 @@ for node in fed_status.get("nodes", []):
 
 | Limitation | Detail |
 |---|---|
-| No lineage graph | OpenDQV does not know upstream/downstream models; OpenMetadata lineage must be crawled from the warehouse separately |
+| No lineage graph | OpenDQV Core does not know upstream/downstream models; OpenMetadata lineage must be crawled from the warehouse separately |
 | Aggregated trend only | `/quality-trend` returns daily aggregates, not per-record failure detail |
 | Custom properties must be pre-created | The 8 `Table` custom properties must be created in OpenMetadata Admin before Approach 1 can run |
 | Column test definitions must pre-exist | Approach 4 requires standard test definitions (`columnValuesToBeNotNull`, etc.) to exist in OpenMetadata — they do by default for standard types |
-| Webhook best-effort | OpenDQV webhooks are fire-and-forget; transient receiver downtime means missed events |
+| Webhook best-effort | Core webhooks are fire-and-forget; transient receiver downtime means missed events |
 | FQN required (no fallback) | `asset_id` must be the exact OpenMetadata fully qualified name; there is no automatic fallback or search by name |
 | `TestSuite` pre-registration needed | Approach 3 and Approach 4 require the `TestSuite` to already exist (created via Approach 2) before pushing results |
 
@@ -554,7 +555,7 @@ rules:
 The following capabilities are **not yet implemented** and are planned for a future release.
 
 - **Native OM ingestion connector** — an `opendqv` Source plugin so catalog admins can pull contracts via a standard OpenMetadata ingestion recipe without writing Python
-- **Auto TestSuite creation on contract publish** — when a contract is published in OpenDQV, the corresponding OpenMetadata `TestSuite` and `TestCase` are registered automatically
+- **Auto TestSuite creation on contract publish** — when a contract is published in OpenDQV Core, the corresponding OpenMetadata `TestSuite` and `TestCase` are registered automatically
 - **OpenMetadata → OpenDQV contract bootstrap** — derive an OpenDQV contract skeleton from an existing OpenMetadata `Table` entity's schema and column metadata
 - **Kafka-based MCE emitter alternative** — replace REST-based result emission with a Kafka producer for high-volume installations
 

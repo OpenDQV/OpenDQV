@@ -3,7 +3,7 @@
 > **Last reviewed:** 2026-10-10 (engine 3.0.5).
 > Covers the two files you need to touch (three with push-down code generation), a complete worked example (`phone_e164`), and pointers to existing rule implementations you can copy from.
 
-OpenDQV's rule dispatch is a module-level table, `_RULE_HANDLERS` in `opendqv/core/validator.py`, mapping a type name to a `_check_<type>(value, rule, record)` function. There is no plugin registry. Adding a new rule type means editing source files — the tradeoff is that every rule type is trivially grep-able and auditable.
+OpenDQV Core's rule dispatch is a module-level table, `_RULE_HANDLERS` in `opendqv/core/validator.py`, mapping a type name to a `_check_<type>(value, rule, record)` function. There is no plugin registry. Adding a new rule type means editing source files — the tradeoff is that every rule type is trivially grep-able and auditable.
 
 ---
 

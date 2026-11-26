@@ -1,6 +1,6 @@
 # Starter Contracts
 
-Industry starter templates to help you get started with OpenDQV. Each file is a
+Industry starter templates to help you get started with OpenDQV Core. Each file is a
 complete, loadable contract in the current rule shape (`name` / `type` / `field` /
 `severity` / `error_message` on every rule) with regulatory context and adaptation
 notes in the comments.

@@ -8,7 +8,7 @@ company secretaries, and Persons with Significant Control (PSCs). Identity
 verification began rolling out from 2024 and is required for all new and existing
 registrations.
 
-OpenDQV enforces this obligation at the point of write — before a filing record
+OpenDQV Core enforces this obligation at the point of write — before a filing record
 is submitted to Companies House, a filing system, or an ACSP — making the
 omission of identity verification structurally impossible rather than discovered
 at submission time or investigation time.
@@ -35,7 +35,7 @@ registered individuals.
 
 Before the Act, individuals could be registered at Companies House without their
 identity ever being verified. The Act closes this gap. The omission failure mode
-OpenDQV prevents: a filing record created with `id_verification_completed` missing
+OpenDQV Core prevents: a filing record created with `id_verification_completed` missing
 or unrecorded — meaning the individual's identity has not been verified before
 the record enters the system.
 
@@ -152,7 +152,7 @@ obligations can record themselves as `id_verified_by`.
 
 ## Limitations
 
-OpenDQV validates the **declaration** of identity verification, not the outcome
+OpenDQV Core validates the **declaration** of identity verification, not the outcome
 of the verification itself. The contract enforces that:
 
 - A verification was completed (`id_verification_completed = true`)

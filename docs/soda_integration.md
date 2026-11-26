@@ -4,11 +4,12 @@
 > Snippets are examples; pin your own version in `requirements.txt`.
 > [soda-core on PyPI](https://pypi.org/project/soda-core/)
 
-OpenDQV blocks bad records before they reach the pipeline surface Soda scans. Soda then catches anything that changed or drifted after the data landed — schema drift, volume anomalies, referential integrity. The two tools are complementary: OpenDQV owns the write boundary; Soda owns the pipeline boundary.
+OpenDQV Core blocks bad records before they reach the pipeline surface Soda scans. Soda then catches anything that changed or drifted after the data landed — schema drift, volume anomalies, referential integrity. The two tools are complementary: OpenDQV Core owns the write boundary; Soda owns the pipeline boundary.
 
 ---
 
-## Approach 1 — Import Soda `checks.yml` into OpenDQV
+<a id="approach-1--import-soda-checksyml-into-opendqv"></a>
+## Approach 1 — Import Soda `checks.yml` into OpenDQV Core
 
 If your team already has Soda `checks.yml` definitions, use them to bootstrap OpenDQV contracts. Already implemented.
 
@@ -64,11 +65,12 @@ rules:
 
 ---
 
-## Approach 2 — Two-Layer Enforcement: OpenDQV at Source + Soda Post-Load
+<a id="approach-2--two-layer-enforcement-opendqv-at-source--soda-post-load"></a>
+## Approach 2 — Two-Layer Enforcement: OpenDQV Core at Source + Soda Post-Load
 
-OpenDQV operates per-record at write-time (milliseconds). Soda operates at the aggregate/dataset level post-load (minutes to hours). The same field constraints can be expressed in both — OpenDQV blocks individual bad records; Soda confirms the resulting table meets aggregate quality expectations.
+OpenDQV Core operates per-record at write-time (milliseconds). Soda operates at the aggregate/dataset level post-load (minutes to hours). The same field constraints can be expressed in both — OpenDQV Core blocks individual bad records; Soda confirms the resulting table meets aggregate quality expectations.
 
-> **Aggregate vs per-record:** Soda `missing_count = 0` checks that no row in the whole table has a null in that column. OpenDQV `not_empty` checks every record individually as it arrives. For records that sneak through (e.g. written via a path that bypasses OpenDQV), Soda provides the safety net. See [`importers.md`](importers.md) for the semantic mapping table.
+> **Aggregate vs per-record:** Soda `missing_count = 0` checks that no row in the whole table has a null in that column. OpenDQV Core `not_empty` checks every record individually as it arrives. For records that sneak through (e.g. written via a path that bypasses OpenDQV Core), Soda provides the safety net. See [`importers.md`](importers.md) for the semantic mapping table.
 
 ```
 contracts/orders.yaml
@@ -121,7 +123,7 @@ soda scan -d your_warehouse -c soda/configuration.yml soda/checks/orders.yml
 
 ## Approach 3 — Pre-Pipeline Gate: Only Clean Records Reach Soda's Scan Surface
 
-Use OpenDQV as a gate before data lands in the warehouse table Soda scans. Bad records are quarantined at the source; Soda's scan surface is clean by construction.
+Use OpenDQV Core as a gate before data lands in the warehouse table Soda scans. Bad records are quarantined at the source; Soda's scan surface is clean by construction.
 
 ```python
 import os
@@ -154,9 +156,10 @@ if quarantine:
 
 ## Approach 4 — Webhook-Driven: `opendqv.validation.failed` → Soda Cloud Notification
 
-When OpenDQV rejects a batch of records, push a notification to Soda Cloud to flag the affected dataset.
+When OpenDQV Core rejects a batch of records, push a notification to Soda Cloud to flag the affected dataset.
 
-### OpenDQV webhook payload
+<a id="opendqv-webhook-payload"></a>
+### OpenDQV Core webhook payload
 
 ```json
 {
@@ -200,7 +203,7 @@ async def handle_validation_failed(request: Request):
     return {"status": "forwarded"}
 ```
 
-Register in OpenDQV:
+Register in OpenDQV Core:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/webhooks \
@@ -258,7 +261,7 @@ HASH_STORE.write_text(json.dumps(known_hashes, indent=2))
 
 ## Approach 6 — Federation-Aware
 
-In a federated deployment, generate Soda checks per OpenDQV region instance:
+In a federated deployment, generate Soda checks per OpenDQV Core region instance:
 
 ```python
 INSTANCES = {
@@ -310,7 +313,7 @@ See [`index.md`](index.md) for the full cross-catalog URN table.
 |---|---|
 | **Now** | Use `import/soda` to bootstrap contracts from existing `checks.yml` files |
 | **Now** | Enforce per-record at write-time via `POST /api/v1/validate` |
-| **Now** | Use OpenDQV as a pre-pipeline gate to keep Soda's scan surface clean |
+| **Now** | Use OpenDQV Core as a pre-pipeline gate to keep Soda's scan surface clean |
 | **Planned — based on community demand** | Add incremental hash-based sync into your CI/CD pipeline |
 | **Planned — based on community demand** | Webhook-triggered Soda Cloud notifications on validation failure cluster |
 | **Planned — based on community demand** | `export-soda` CLI command — generate Soda `checks.yml` from OpenDQV contracts |

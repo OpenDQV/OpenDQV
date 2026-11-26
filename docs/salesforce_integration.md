@@ -12,7 +12,7 @@
 > for validating saves from any source after the fact, see
 > [Auditing saves from any source](#auditing-saves-from-any-source).
 
-OpenDQV integrates with Salesforce in three ways: rules compiled into an Apex class that runs inside
+OpenDQV Core integrates with Salesforce in three ways: rules compiled into an Apex class that runs inside
 the trigger (no callout), a Screen Flow or Lightning component that calls the validation endpoint
 before the record is created, and an after-save audit that validates every record from any source.
 
@@ -22,7 +22,7 @@ before the record is created, and an after-save audit that validates every recor
 
 ### 1. Use the built-in salesforce_contact contract
 
-OpenDQV ships `opendqv/contracts/salesforce_contact.yaml` (v0.1, 19 production-grade validation rules) out of the box — no setup required. To write your own:
+OpenDQV Core ships `opendqv/contracts/salesforce_contact.yaml` (v0.1, 19 production-grade validation rules) out of the box — no setup required. To write your own:
 
 ```yaml
 name: salesforce_contact
@@ -129,7 +129,7 @@ endpoint, read on.
 | Where validation runs | Inside the trigger, no callout | Before `Create Records`, in the UI path you control | `@future` after the save |
 | Blocks the save? | Yes, for every source | Yes, for saves through that flow or component only | No — the record is already saved |
 | Stays in sync with the contract? | No — a snapshot; regenerate on change | Yes | Yes |
-| Reaches OpenDQV's audit log? | No | Yes | Yes |
+| Reaches OpenDQV Core's audit log? | No | Yes | Yes |
 
 Approach 1 was tested end-to-end in a Salesforce Developer Edition org (2026-03-17): class deployed,
 FAIL and PASS cases confirmed in a Before Insert trigger. The trigger-callout pattern that used to
@@ -141,7 +141,7 @@ sit beside it does not run on the platform — see the correction at the top of 
 
 ### How it works
 
-OpenDQV generates an Apex class (`OpenDQVValidator`) that encodes your contract rules as native Salesforce logic. You deploy it once and wire it into a trigger. No callout, no API key, no latency overhead.
+OpenDQV Core generates an Apex class (`OpenDQVValidator`) that encodes your contract rules as native Salesforce logic. You deploy it once and wire it into a trigger. No callout, no API key, no latency overhead.
 
 The trade-off: it's a **snapshot**. If the contract changes, the deployed class doesn't update automatically — you have to re-generate and re-deploy.
 
@@ -207,7 +207,7 @@ trigger AccountDQVTrigger on Account (before insert, before update) {
 
 ### Governor limits note
 
-Regex rules consume CPU time in the Apex execution context. For contracts with many complex regex patterns, profile against Salesforce governor limits in a sandbox before deploying to production. For high-cardinality regex-heavy contracts, Approach 2 (HTTP callout) offloads the compute to OpenDQV's API.
+Regex rules consume CPU time in the Apex execution context. For contracts with many complex regex patterns, profile against Salesforce governor limits in a sandbox before deploying to production. For high-cardinality regex-heavy contracts, Approach 2 (HTTP callout) offloads the compute to OpenDQV Core's API.
 
 ---
 
@@ -223,8 +223,8 @@ Use this decision matrix to assess whether push-down Apex is still the right fit
 | Are your contracts simple (not regex-heavy)? | Yes | No — regex-heavy, governor limits are a concern |
 | Do you validate across multiple Salesforce orgs? | No | Yes |
 | Is audit traceability to the live contract version required? | Nice to have | Hard requirement |
-| Do you have a network path from Salesforce to OpenDQV? | Not yet | Yes (or willing to set it up) |
-| Are you already running OpenDQV in production with uptime SLAs? | No | Yes |
+| Do you have a network path from Salesforce to OpenDQV Core? | Not yet | Yes (or willing to set it up) |
+| Are you already running OpenDQV Core in production with uptime SLAs? | No | Yes |
 
 If you answered "Consider Approach 2" to three or more of these, read on.
 
@@ -272,8 +272,8 @@ control, in the user interface:
    after validation passed. Flow Builder renames request fields (every `_` shows as `x5f`), but the call
    still sends the contract's names.
 
-   **Use the spec OpenDQV ships for this, not the served one.** The API serves OpenAPI **3.1.0** at
-   `/openapi.json`; External Services registration accepts OpenAPI 2.0 and 3.0 documents. OpenDQV ships
+   **Use the spec OpenDQV Core ships for this, not the served one.** The API serves OpenAPI **3.1.0** at
+   `/openapi.json`; External Services registration accepts OpenAPI 2.0 and 3.0 documents. Core ships
    [`docs/salesforce/opendqv-validate-openapi-3.0.json`](salesforce/opendqv-validate-openapi-3.0.json) — an
    OpenAPI 3.0.3 description of `POST /api/v1/validate` alone, with the request fields (`contract`,
    `record`, `record_id`, `context`, `observe_only`) and the response fields the flow branches on (`valid`,
@@ -330,7 +330,7 @@ per transaction when large loads are expected.
   list in the same order and join on `index`. Every batch result also carries its own `event_id`, the
   audit primary key for that record.
 
-Each audited verdict lands in OpenDQV's audit trail with the contract version, hash and mode it ran
+Each audited verdict lands in OpenDQV Core's audit trail with the contract version, hash and mode it ran
 under — see the audit-events endpoints in the [API reference](api_reference.md).
 
 ---
@@ -339,7 +339,7 @@ under — see the audit-events endpoints in the [API reference](api_reference.md
 
 Approach 1 above — rules compiled from the contract into an Apex class with `opendqv generate
 <contract> salesforce` and run locally in the trigger — makes no callout and is therefore unaffected by
-the restriction. Its checks run inside Salesforce and never reach OpenDQV's audit log; regenerate the
+the restriction. Its checks run inside Salesforce and never reach OpenDQV Core's audit log; regenerate the
 class whenever the contract changes, or pair it with the after-save audit for a record of every verdict.
 
 ---

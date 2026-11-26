@@ -8,7 +8,7 @@ OpenDQV Core is the bouncer at the door — but observation mode makes it a boun
 
 ## When to use it
 
-1. **New data source onboarding.** Connect a Salesforce org, Kafka topic, or API integration to OpenDQV in observe mode. Run for 1-2 weeks against real production traffic. Use the workbench dashboard to see exactly what would have been blocked — and which rules need tuning before you flip to enforcement.
+1. **New data source onboarding.** Connect a Salesforce org, Kafka topic, or API integration to OpenDQV Core in observe mode. Run for 1-2 weeks against real production traffic. Use the workbench dashboard to see exactly what would have been blocked — and which rules need tuning before you flip to enforcement.
 
 2. **Design partner trial.** Give a prospect or internal team a working deployment against their own data. They see real violation rates, real field-level errors, real rejection percentages — without any risk of disrupting their pipeline.
 

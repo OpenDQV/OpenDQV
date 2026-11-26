@@ -1,6 +1,6 @@
 # Data Profiler — Auto-generate Contracts from Records
 
-The OpenDQV profiler analyses a sample of your data records and automatically generates a
+The OpenDQV Core profiler analyses a sample of your data records and automatically generates a
 contract with suggested validation rules. Use it to bootstrap a contract for a new data
 source without writing YAML by hand.
 

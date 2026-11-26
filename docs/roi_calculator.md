@@ -1,10 +1,12 @@
-# OpenDQV ROI Calculator
+<a id="opendqv-roi-calculator"></a>
+# OpenDQV Core ROI Calculator
 
-Use this worksheet to estimate the return on investment from deploying OpenDQV at your organisation. All figures are illustrative starting points — replace them with your actuals.
+Use this worksheet to estimate the return on investment from deploying OpenDQV Core at your organisation. All figures are illustrative starting points — replace them with your actuals.
 
 ---
 
-## Part 1: Cost of Poor Data Quality (Before OpenDQV)
+<a id="part-1-cost-of-poor-data-quality-before-opendqv"></a>
+## Part 1: Cost of Poor Data Quality (Before OpenDQV Core)
 
 ### 1.1 Rework and correction labour
 
@@ -58,7 +60,8 @@ A = 1.1 + 1.2 + 1.3 + 1.4 + 1.5
 
 ---
 
-## Part 2: OpenDQV Deployment Cost (After)
+<a id="part-2-opendqv-deployment-cost-after"></a>
+## Part 2: OpenDQV Core Deployment Cost (After)
 
 ### 2.1 Initial setup
 
@@ -84,7 +87,7 @@ A = 1.1 + 1.2 + 1.3 + 1.4 + 1.5
 
 ---
 
-**Total OpenDQV cost (B):**
+**Total OpenDQV Core cost (B):**
 ```
 B = 2.1 + 2.2 (year 1)
 ```
@@ -118,14 +121,14 @@ Payback period = B / (Savings / 12) months
 
 Consider non-financial benefits that are harder to quantify but often exceed the direct financial return:
 
-- **Regulatory trust:** A complete audit trail (engine_version, contract_version, record_id) is required for EMA, MiFIR, Basel III, and SOX submissions. The cost of a failed regulatory audit dwarfs OpenDQV's deployment cost.
+- **Regulatory trust:** A complete audit trail (engine_version, contract_version, record_id) is required for EMA, MiFIR, Basel III, and SOX submissions. The cost of a failed regulatory audit dwarfs OpenDQV Core's deployment cost.
 - **Engineering morale:** Data quality incidents are demotivating. Teams freed from fire-fighting report significantly higher satisfaction.
-- **Data product trustworthiness:** Self-service analytics only works when consumers trust the data. OpenDQV provides a verifiable quality signal that enables data mesh adoption.
+- **Data product trustworthiness:** Self-service analytics only works when consumers trust the data. Core provides a verifiable quality signal that enables data mesh adoption.
 - **Vendor negotiation strength:** Proving data quality at source gives you contractual advantage with data vendors and SaaS providers.
 
 ---
 
-> All figures in this section are illustrative. OpenDQV has not been deployed in production by any organisation.
+> All figures in this section are illustrative. OpenDQV Core has not been deployed in production by any organisation.
 
 ## Worked Example
 
@@ -137,7 +140,7 @@ A hypothetical mid-size engineering team with 50 engineers:
 
 **Total A = £502,600/year**
 
-OpenDQV deployment: 10 days setup (£6K) + £15K/year maintenance = **B = £21K year 1**
+OpenDQV Core deployment: 10 days setup (£6K) + £15K/year maintenance = **B = £21K year 1**
 
 At 70% average reduction:
 - **Savings = £351,820**

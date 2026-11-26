@@ -1,6 +1,6 @@
 # Multi-Parent Federation
 
-**Status: P3 — Architectural direction. Not yet implemented in OpenDQV.**
+**Status: P3 — Architectural direction. Not yet implemented in OpenDQV Core.**
 
 This document describes the planned multi-parent federation model, the conflict resolution approach, and the current workaround for organisations that need to comply with rules from more than one authority node.
 
@@ -8,7 +8,7 @@ This document describes the planned multi-parent federation model, the conflict 
 
 ## What It Means
 
-In OpenDQV's current single-parent model, a community node inherits rules from exactly one authority node. The authority owns the contract, propagates changes via federation sync, and is the single source of governance truth for the community node.
+In OpenDQV Core's current single-parent model, a community node inherits rules from exactly one authority node. The authority owns the contract, propagates changes via federation sync, and is the single source of governance truth for the community node.
 
 Multi-parent federation allows a community node to inherit rules from **two or more authority nodes simultaneously**. This reflects real-world compliance structures where a single organisation is subject to multiple regulatory regimes.
 
@@ -77,7 +77,7 @@ Resolution requires an explicit governance action — either a contract amendmen
 
 ## Current Limitation
 
-OpenDQV currently supports **single-parent federation only**. A community node can declare at most one `upstream` authority in its contract configuration. Attempting to declare multiple upstreams is not validated today and will produce undefined behaviour.
+OpenDQV Core currently supports **single-parent federation only**. A community node can declare at most one `upstream` authority in its contract configuration. Attempting to declare multiple upstreams is not validated today and will produce undefined behaviour.
 
 Multi-parent federation is on the roadmap but has no committed delivery date. It is tracked as a P3 architectural direction item.
 

@@ -84,7 +84,7 @@ computed from the contract's rules.
 ## Why this exists
 
 The same contract YAML has to mean the same thing on every engine that runs
-it. The managed OpenDQV Cloud engine has enforced `strict_schema` since
+it. The managed [OpenDQV Cloud](https://opendqv.com) engine has enforced `strict_schema` since
 mid-2026; until CRT180 a strict contract loaded into OpenDQV Core silently
 lost the flag (unknown keys are ignored on parse) and accepted the records
 Cloud rejects. See `docs/contract_conformance.md`.

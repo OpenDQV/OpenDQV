@@ -2,7 +2,7 @@
 
 > Last reviewed: 2026-03-17
 
-OpenDQV federation is a multi-node contract synchronisation mechanism. An **authority node** holds the canonical contract set; **child nodes** receive push notifications whenever contracts change and apply those changes locally under a two-phase commit protocol.
+OpenDQV Core federation is a multi-node contract synchronisation mechanism. An **authority node** holds the canonical contract set; **child nodes** receive push notifications whenever contracts change and apply those changes locally under a two-phase commit protocol.
 
 In standalone mode (the default) federation env vars are unset and all federation endpoints return local state — no upstream calls are made. A node switches to federated mode automatically when `OPENDQV_UPSTREAM` is set.
 
@@ -10,7 +10,7 @@ In standalone mode (the default) federation env vars are unset and all federatio
 
 ## What federation is
 
-A federated deployment consists of two or more OpenDQV nodes where one node acts as the authority. The authority node:
+A federated deployment consists of two or more OpenDQV Core nodes where one node acts as the authority. The authority node:
 
 - Owns the canonical version of each data contract
 - Initiates all contract change propagation
@@ -99,7 +99,7 @@ All federation endpoints are under `/api/v1/federation/`. They require authentic
 
 Register this node with an upstream authority node.
 
-> **OSS tier note:** This endpoint returns HTTP 501 in the OSS tier. Node registration — join token validation, topology recording, and contract bootstrapping — is part of the enterprise federation tier. In the OSS tier, set `OPENDQV_UPSTREAM` and `OPENDQV_JOIN_TOKEN` environment variables and restart; bootstrap happens automatically on startup.
+> **Note:** This endpoint returns HTTP 501 in OpenDQV Core: node registration through this endpoint (join token validation, topology recording, contract bootstrapping) is not implemented. Set the `OPENDQV_UPSTREAM` and `OPENDQV_JOIN_TOKEN` environment variables and restart; bootstrap happens automatically on startup.
 
 **Example response (501):**
 ```json
@@ -233,7 +233,7 @@ Use `GET /federation/log?since=N` after reconnect to replay any events missed du
 
 ## Setting up a federation pair
 
-The following steps assume you have two OpenDQV instances running: an authority node and a child node.
+The following steps assume you have two OpenDQV Core instances running: an authority node and a child node.
 
 **Step 1 — Configure the child node environment**
 

@@ -50,7 +50,7 @@ arithmetic.
 
 ## Variants
 
-One contract per use (OpenDQV 3.0.0 removed the `contexts:` block these used to live in —
+One contract per use (OpenDQV Core 3.0.0 removed the `contexts:` block these used to live in —
 see [docs/contexts.md](../../docs/contexts.md)):
 
 - **`bfsi_customer_retail_kyc.yaml`** (`bfsi_customer_retail_kyc`): all failures block onboarding

@@ -9,13 +9,14 @@
 OpenDQV uses practitioner terminology ("not_empty", "regex", "range", etc.) that is operationally clear but does not map explicitly to the formal Information Quality (IQ) vocabulary used in ISO 8000, ISO/IEC 25012, and the Wang & Strong (1996) framework.
 
 This document provides a **canonical mapping** so that:
-- Academic researchers can interpret OpenDQV results in IQ framework terms
+- Academic researchers can interpret OpenDQV Core results in IQ framework terms
 - Regulatory submissions (EMA, MiFIR, BCBS 239) can reference the correct IQ dimensions
 - Data governance teams can trace rule failures to specific quality objectives
 
 ---
 
-## ISO/IEC 25012 Dimensions Supported by OpenDQV
+<a id="isoiec-25012-dimensions-supported-by-opendqv"></a>
+## ISO/IEC 25012 Dimensions Supported by OpenDQV Core
 
 | ISO/IEC 25012 Dimension | Definition | OpenDQV Rule Types |
 |---|---|---|
@@ -39,11 +40,11 @@ This document provides a **canonical mapping** so that:
 
 ## Wang & Strong (1996) Framework Mapping
 
-Wang & Strong identify 15 IQ dimensions in 4 categories. Below is the mapping to OpenDQV:
+Wang & Strong identify 15 IQ dimensions in 4 categories. Below is the mapping to OpenDQV Core:
 
 ### Intrinsic IQ
 
-| Wang & Strong Dimension | OpenDQV Coverage |
+| Wang & Strong Dimension | OpenDQV Core Coverage |
 |---|---|
 | **Accuracy** | `regex`, `allowed_values`, `checksum`, `range` |
 | **Objectivity** | N/A — requires human judgment |
@@ -52,7 +53,7 @@ Wang & Strong identify 15 IQ dimensions in 4 categories. Below is the mapping to
 
 ### Contextual IQ
 
-| Wang & Strong Dimension | OpenDQV Coverage |
+| Wang & Strong Dimension | OpenDQV Core Coverage |
 |---|---|
 | **Relevancy** | One contract per use case (e.g. `salesforce_lead_web_form` alongside `salesforce_lead`) — rules active per use-case |
 | **Value-added** | ROI calculator (`docs/roi_calculator.md`) |
@@ -62,7 +63,7 @@ Wang & Strong identify 15 IQ dimensions in 4 categories. Below is the mapping to
 
 ### Representational IQ
 
-| Wang & Strong Dimension | OpenDQV Coverage |
+| Wang & Strong Dimension | OpenDQV Core Coverage |
 |---|---|
 | **Interpretability** | `error_message` on each rule |
 | **Ease of understanding** | Human-readable YAML contract format |
@@ -71,7 +72,7 @@ Wang & Strong identify 15 IQ dimensions in 4 categories. Below is the mapping to
 
 ### Accessibility IQ
 
-| Wang & Strong Dimension | OpenDQV Coverage |
+| Wang & Strong Dimension | OpenDQV Core Coverage |
 |---|---|
 | **Accessibility** | REST API, Python SDK, federation |
 | **Access security** | PAT auth, `sensitive_fields` masking |
@@ -80,7 +81,7 @@ Wang & Strong identify 15 IQ dimensions in 4 categories. Below is the mapping to
 
 ## DAMA-DMBOK2 Dimension Mapping
 
-| DAMA Dimension | OpenDQV Coverage |
+| DAMA Dimension | OpenDQV Core Coverage |
 |---|---|
 | **Completeness** | `not_empty`, `required_if` |
 | **Validity** | `regex`, `allowed_values`, `range`, `checksum` |

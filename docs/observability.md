@@ -3,7 +3,7 @@
 > **Last reviewed:** 2026-03-17.
 > Covers Prometheus metrics, the trace log, distributed tracing correlation, the in-memory stats dashboard, and Grafana starter panels.
 
-OpenDQV exposes observability through three complementary mechanisms: a Prometheus metrics endpoint, a tamper-evident per-record trace log, and an in-memory stats dashboard available via REST. All three can be used independently.
+OpenDQV Core exposes observability through three complementary mechanisms: a Prometheus metrics endpoint, a tamper-evident per-record trace log, and an in-memory stats dashboard available via REST. All three can be used independently.
 
 ---
 
@@ -146,7 +146,7 @@ For regulated deployments, set a cryptographically random secret to add HMAC sig
 export OPENDQV_TRACE_HMAC_KEY="$(openssl rand -hex 32)"
 ```
 
-Without an HMAC key, entries are hash-chained but an adversary with filesystem access could reconstruct a valid chain by rewriting all entries. HMAC signing prevents this. OpenDQV emits a startup warning if the trace log is enabled without an HMAC key.
+Without an HMAC key, entries are hash-chained but an adversary with filesystem access could reconstruct a valid chain by rewriting all entries. HMAC signing prevents this. OpenDQV Core emits a startup warning if the trace log is enabled without an HMAC key.
 
 ### Verifying the chain
 
@@ -177,9 +177,9 @@ curl -X POST http://localhost:8000/api/v1/validate \
      -d '{"contract":"customer","record":{"name":"Alice","email":"alice@example.com","age":30}}'
 ```
 
-OpenDQV echoes the header in the response and records it in the trace log entry. If no `X-Trace-Id` is supplied, OpenDQV generates a UUID for that request and uses it as the trace identifier.
+OpenDQV Core echoes the header in the response and records it in the trace log entry. If no `X-Trace-Id` is supplied, Core generates a UUID for that request and uses it as the trace identifier.
 
-This allows you to join OpenDQV validation outcomes with traces in Jaeger, Zipkin, Datadog, or any other distributed tracing backend.
+This allows you to join Core validation outcomes with traces in Jaeger, Zipkin, Datadog, or any other distributed tracing backend.
 
 ---
 
@@ -264,4 +264,4 @@ Recommended panel types: time series for the first three, bar gauge for the top 
 
 ## Rate Limiter Note
 
-OpenDQV's built-in rate limiter is configured via `RATE_LIMIT_VALIDATE`. When measuring throughput, be aware of a known 4× multiplication effect in the rate limit counter: see [`docs/benchmark_throughput.md`](benchmark_throughput.md) for the full explanation and recommended `RATE_LIMIT_VALIDATE=off` setting for benchmarking.
+OpenDQV Core's built-in rate limiter is configured via `RATE_LIMIT_VALIDATE`. When measuring throughput, be aware of a known 4× multiplication effect in the rate limit counter: see [`docs/benchmark_throughput.md`](benchmark_throughput.md) for the full explanation and recommended `RATE_LIMIT_VALIDATE=off` setting for benchmarking.

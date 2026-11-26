@@ -5,7 +5,7 @@
 > Works on any Spark deployment — EMR, GCP Dataproc, HDInsight.
 > For Databricks-specific approaches (Auto Loader, DLT, Jobs/Asset Bundles, Unity Catalog), see [`databricks_integration.md`](databricks_integration.md).
 
-OpenDQV validates records before they are written to Delta Lake or any Spark-managed table. Once data is committed to a Delta table it enters the transaction log and is immediately visible to downstream jobs, dashboards, and models. Blocking at the write boundary — before the commit — is the cheapest and most effective quality gate in the Spark stack.
+OpenDQV Core validates records before they are written to Delta Lake or any Spark-managed table. Once data is committed to a Delta table it enters the transaction log and is immediately visible to downstream jobs, dashboards, and models. Blocking at the write boundary — before the commit — is the cheapest and most effective quality gate in the Spark stack.
 
 ---
 
@@ -64,7 +64,7 @@ def validate_and_write(
 
     clean_rows, quarantine_rows = [], []
 
-    # Chunk to respect OpenDQV batch size limits
+    # Chunk to respect OpenDQV Core batch size limits
     for i in range(0, len(rows), chunk_size):
         chunk = rows[i : i + chunk_size]
         result = client.validate_batch(chunk, contract=contract)
@@ -194,7 +194,7 @@ query.awaitTermination()
 
 **Glue Catalog `asset_id`:** Use the format `spark://glue:{account_id}.{database}/{table}` to link contracts to Glue-managed tables.
 
-**EMR Serverless:** Deploy OpenDQV as a sidecar container in the same VPC subnet as the EMR Serverless job. Set `OPENDQV_URL` to the sidecar's internal endpoint. The `foreachBatch` pattern (Approach 2) works without modification on EMR Serverless.
+**EMR Serverless:** Deploy OpenDQV Core as a sidecar container in the same VPC subnet as the EMR Serverless job. Set `OPENDQV_URL` to the sidecar's internal endpoint. The `foreachBatch` pattern (Approach 2) works without modification on EMR Serverless.
 
 ```python
 # EMR Serverless — same foreachBatch pattern; adjust checkpoint to S3
@@ -213,7 +213,7 @@ query = (
 
 **GCS trigger:** Use `readStream.format("cloudFiles")` with a GCS path, or use a Pub/Sub subscription as the streaming source. The `foreachBatch` pattern (Approach 2) applies without modification.
 
-**Dataproc Serverless:** Deploy OpenDQV as a Cloud Run sidecar or in the same VPC as the Dataproc Serverless batch workload. Set `OPENDQV_URL` to the Cloud Run internal URL. The batch gate (Approach 1) is the simplest fit for Dataproc Serverless batch jobs.
+**Dataproc Serverless:** Deploy OpenDQV Core as a Cloud Run sidecar or in the same VPC as the Dataproc Serverless batch workload. Set `OPENDQV_URL` to the Cloud Run internal URL. The batch gate (Approach 1) is the simplest fit for Dataproc Serverless batch jobs.
 
 ```python
 # Dataproc — GCS streaming source example
@@ -233,7 +233,7 @@ raw_stream = (
 |---|---|
 | `.collect()` memory | Collecting a large DataFrame to the driver for batch validation is memory-bounded. Use `foreachPartition` or the streaming approach for DataFrames larger than ~10M rows |
 | `unique` rule in distributed mode | The `unique` rule requires the full dataset. In partitioned Spark jobs, per-partition validation cannot detect cross-partition duplicates — use a global deduplication step before validation |
-| Structured Streaming latency | `foreachBatch` adds one OpenDQV round-trip per micro-batch trigger interval. Keep trigger intervals ≥10s for small batches; tune down for high-volume streams |
+| Structured Streaming latency | `foreachBatch` adds one OpenDQV Core round-trip per micro-batch trigger interval. Keep trigger intervals ≥10s for small batches; tune down for high-volume streams |
 
 ---
 

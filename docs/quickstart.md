@@ -2,7 +2,7 @@
 
 Welcome. This guide will take you from a fresh install to validating your first data record — no engineering background required, no configuration files to wrestle with.
 
-By the end, you will have OpenDQV running locally and will have validated a record against a pre-built contract. The whole thing takes about 15 minutes.
+By the end, you will have OpenDQV Core running locally and will have validated a record against a pre-built contract. The whole thing takes about 15 minutes.
 
 ---
 
@@ -21,12 +21,13 @@ cp .env.example .env
 ```
 
 If you prefer not to use a terminal:
-👉 [Download the latest OpenDQV release](https://github.com/OpenDQV/OpenDQV/releases/latest) — click the "Source code (zip)" asset on the release page.
+👉 [Download the latest OpenDQV Core release](https://github.com/OpenDQV/OpenDQV/releases/latest) — click the "Source code (zip)" asset on the release page.
 Unzip it, then skip to Step 2. The install script handles the `.env` file automatically.
 
 ---
 
-## Step 2 — Start OpenDQV
+<a id="step-2--start-opendqv"></a>
+## Step 2 — Start OpenDQV Core
 
 **If you have Docker:** this is the fastest path.
 
@@ -152,13 +153,13 @@ You are up and running. Here are the natural next steps:
 - **Browse the industry templates** in the Contracts section to find ones relevant to your domain
 - **Read [`docs/naming_conventions.md`](naming_conventions.md)** to learn how to name and organise your own contracts
 - **Read [`docs/rules/README.md`](rules/README.md)** for the full rule reference — every rule type explained with examples
-- **Using Claude Desktop or Cursor?** Connect them directly to OpenDQV via the MCP server — read [`docs/llm_integration.md`](llm_integration.md) for setup instructions and available agent tools
+- **Using Claude Desktop or Cursor?** Connect them directly to OpenDQV Core via the MCP server — read [`docs/llm_integration.md`](llm_integration.md) for setup instructions and available agent tools
 - **GraphQL API** (`/graphql`) — introspection active; query or mutate contracts.
 - **Token roles** — use `POST /api/v1/tokens/generate?username=alice&role=auditor` to create audit-only tokens for compliance reviewers. Roles: `validator` (default), `reader`, `auditor`, `editor`, `approver`, `admin`. See [`docs/production_deployment.md`](production_deployment.md) for role permissions.
 - **Variants per source system or tenant** — publish one contract per variant (e.g. `salesforce_lead_web_form`); 3.0.0 removed context overrides: [`docs/contexts.md`](contexts.md)
 - **CLI reference** — local validation, contract lifecycle, code generation without a running server: [`docs/cli.md`](cli.md)
 - **Observability** — Prometheus metrics, alert rules, trace log, Grafana panels: [`docs/observability.md`](observability.md)
 - **LocalValidator** — validate without a running API server (Python-only, zero latency): [`docs/pandas_integration.md`](pandas_integration.md)
-- **Platform integrations** — connect OpenDQV to your database at the write layer: [Postgres](postgres_integration.md) · [Databricks](databricks_integration.md) · [Snowflake](snowflake_integration.md)
+- **Platform integrations** — connect OpenDQV Core to your database at the write layer: [Postgres](postgres_integration.md) · [Databricks](databricks_integration.md) · [Snowflake](snowflake_integration.md)
 
 If you get stuck at any point, the `docker compose logs` command is your friend — it shows exactly what each service is doing and usually points straight at the problem.

@@ -1,12 +1,13 @@
-# OpenDQV Deployment Hardening Guide
+<a id="opendqv-deployment-hardening-guide"></a>
+# OpenDQV Core Deployment Hardening Guide
 
-This guide covers production hardening for OpenDQV. Work through each section before exposing the service to external traffic or handling regulated data.
+This guide covers production hardening for OpenDQV Core. Work through each section before exposing the service to external traffic or handling regulated data.
 
 ---
 
 ## 1. Reverse Proxy Configuration
 
-OpenDQV should never be exposed directly to the internet. Deploy it behind a reverse proxy (nginx, Caddy, or a cloud load balancer).
+OpenDQV Core should never be exposed directly to the internet. Deploy it behind a reverse proxy (nginx, Caddy, or a cloud load balancer).
 
 ### Recommended nginx config
 
@@ -54,7 +55,7 @@ server {
 }
 ```
 
-If your proxy sets `X-Forwarded-For`, set `TRUST_PROXY_HEADERS=true` in the OpenDQV environment. **Do not set this without a trusted proxy in front.**
+If your proxy sets `X-Forwarded-For`, set `TRUST_PROXY_HEADERS=true` in the OpenDQV Core environment. **Do not set this without a trusted proxy in front.**
 
 ---
 
@@ -67,7 +68,7 @@ If your proxy sets `X-Forwarded-For`, set `TRUST_PROXY_HEADERS=true` in the Open
 
 ### Docker Compose (production profile)
 
-OpenDQV does not terminate TLS itself and has no public-URL setting — put the API
+OpenDQV Core does not terminate TLS itself and has no public-URL setting — put the API
 behind a TLS-terminating reverse proxy (nginx, Caddy, an ALB) and forward to port 8000.
 
 ---
@@ -91,7 +92,7 @@ Always confirm via `/health`:
 
 ## 4. NTP Clock Synchronisation
 
-OpenDQV records all audit timestamps as UTC and performs an NTP check at startup. Without NTP, `opendqv audit-verify` will report clock status as `unavailable` and auditors cannot trust timestamp accuracy.
+OpenDQV Core records all audit timestamps as UTC and performs an NTP check at startup. Without NTP, `opendqv audit-verify` will report clock status as `unavailable` and auditors cannot trust timestamp accuracy.
 
 **Configure NTP on the host before deploying to production.**
 
@@ -124,7 +125,7 @@ Use `--privileged` flag or ensure the host NTP is synchronised — containers in
 
 ### Verification
 
-After deploying with NTP active, restart OpenDQV and run:
+After deploying with NTP active, restart OpenDQV Core and run:
 
 ```bash
 opendqv audit-verify
@@ -188,7 +189,7 @@ kubectl create secret generic opendqv-hmac \
 
 1. Archive the existing trace log to long-term WORM storage with a label indicating the key version used.
 2. Update the `OPENDQV_TRACE_HMAC_KEY` secret in your secrets manager.
-3. Restart the OpenDQV pods/containers — new entries will use the new key.
+3. Restart the OpenDQV Core pods/containers — new entries will use the new key.
 4. Record the old key in an offline key archive (needed to verify historical log entries).
 
 **Do not reuse HMAC keys.** Each key rotation should use a freshly generated secret.
@@ -260,7 +261,7 @@ The in-process rate limiter (`slowapi`) maintains per-worker counters. With `WEB
 
 **Option A: Reverse proxy rate limiting (recommended)**
 
-Configure your nginx/Caddy to enforce rate limits before requests reach OpenDQV:
+Configure your nginx/Caddy to enforce rate limits before requests reach OpenDQV Core:
 
 ```nginx
 limit_req_zone $binary_remote_addr zone=opendqv_api:10m rate=100r/m;
@@ -306,7 +307,7 @@ services:
       - OPENDQV_TRACE_HMAC_KEY=${OPENDQV_TRACE_HMAC_KEY}   # inject from your secrets manager
 ```
 
-OpenDQV reads `OPENDQV_TRACE_HMAC_KEY` (and `SECRET_KEY`) from the environment only —
+OpenDQV Core reads `OPENDQV_TRACE_HMAC_KEY` (and `SECRET_KEY`) from the environment only —
 there is no `*_FILE` variant. Inject secrets via the orchestrator's environment
 mechanism (Compose `.env` with restricted permissions, Kubernetes `secretKeyRef`,
 ECS secrets) rather than baking them into the compose file.

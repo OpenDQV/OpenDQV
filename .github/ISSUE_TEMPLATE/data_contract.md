@@ -15,7 +15,7 @@ assignees: ''
 
 **What have you tried?**
 
-**OpenDQV version / docker image tag:**
+**OpenDQV Core version / docker image tag:**
 
 **Rule type(s) involved:**
 (e.g. regex, min_age, date_format, not_empty...)

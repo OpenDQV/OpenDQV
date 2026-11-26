@@ -220,7 +220,7 @@ rules:
 
 ## Downstream Consumer Lineage (`downstream_consumers`)
 
-For Marmot integrations, contracts can declare the downstream consumers of their validated asset. This completes the full lineage graph in Marmot — from source through the OpenDQV validation job to the consuming dashboards, models, or services.
+For Marmot integrations, contracts can declare the downstream consumers of their validated asset. This completes the full lineage graph in Marmot — from source through the OpenDQV Core validation job to the consuming dashboards, models, or services.
 
 ```yaml
 name: customer_master
@@ -265,7 +265,7 @@ Omitting the field (or setting `catalog_visible: true`) keeps the default visibl
 
 ## Catalog Integration Pattern
 
-Once your contracts carry `asset_id` fields, catalog tools can query OpenDQV quality signals:
+Once your contracts carry `asset_id` fields, catalog tools can query OpenDQV Core quality signals:
 
 ```python
 # Example: Collibra custom attribute population

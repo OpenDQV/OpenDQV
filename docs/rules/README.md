@@ -48,5 +48,5 @@
 - [federation_tier](../federation.md) — REGULATORY/COMMERCIAL/COMMUNITY classification
 
 ## Patterns
-- [distribution_check](../patterns/distribution_check.md) — out of scope; use OpenDQV + Evidently
+- [distribution_check](../patterns/distribution_check.md) — out of scope; use OpenDQV Core + Evidently
 - [Regulatory Federation Pattern](../patterns/federation_deprecation.md) — governance hierarchy model

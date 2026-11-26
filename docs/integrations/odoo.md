@@ -33,14 +33,14 @@ write. A ROPA entry can be saved with:
 - International transfer flagged but no safeguard mechanism recorded
 
 That is the structural gap UK GDPR Article 30 and ICO audit expectations require
-controllers to close. OpenDQV closes it before the record reaches the database.
+controllers to close. OpenDQV Core closes it before the record reaches the database.
 
 ---
 
 ## What the module adds
 
 A dedicated `gdpr.processing.record` model with all Article 30(1) fields, validated
-at the point of write by OpenDQV's `gdpr_processing_record` contract.
+at the point of write by OpenDQV Core's `gdpr_processing_record` contract.
 
 ### Fields
 
@@ -57,7 +57,7 @@ at the point of write by OpenDQV's `gdpr_processing_record` contract.
 ### Validation enforcement
 
 When `ENABLE_OPENDQV_VALIDATION=true`, saving any `gdpr.processing.record` calls
-OpenDQV's `LocalValidator` against the `gdpr_processing_record` contract. Any missing
+OpenDQV Core's `LocalValidator` against the `gdpr_processing_record` contract. Any missing
 or invalid field raises an Odoo `ValidationError` before the record is committed.
 
 ### Fully opt-in
@@ -141,7 +141,8 @@ if not result['valid']:
 
 ---
 
-## OpenDQV vs gdpr_processing_record
+<a id="opendqv-vs-gdpr_processing_record"></a>
+## OpenDQV Core vs gdpr_processing_record
 
 | Use case | Integration pattern |
 |----------|---------------------|
@@ -165,4 +166,4 @@ App Store listing: *(pending submission)*
 - Module: `odoo_modules/odoo_opendqv_gdpr/`
 - Contract: `contracts/gdpr_processing_record.yaml`
 - UK GDPR Article 30: [ico.org.uk — Documentation](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/documentation/what-do-we-need-to-document-under-article-30-of-the-gdpr/)
-- OpenDQV GDPR guide: [docs/integrations/gdpr-compliance.md](gdpr-compliance.md)
+- OpenDQV Core GDPR guide: [docs/integrations/gdpr-compliance.md](gdpr-compliance.md)

@@ -1,4 +1,5 @@
-# OpenDQV — Security Overview
+<a id="opendqv--security-overview"></a>
+# OpenDQV Core — Security Overview
 
 **Version:** 1.0.0 | **Last updated:** 2026-03-25
 
@@ -6,7 +7,7 @@
 
 ## Authentication modes
 
-OpenDQV supports two authentication modes, configured via the `AUTH_MODE` environment variable:
+OpenDQV Core supports two authentication modes, configured via the `AUTH_MODE` environment variable:
 
 | Mode | Use case | Notes |
 |------|----------|-------|
@@ -49,13 +50,13 @@ Roles are embedded in the JWT payload at token creation time. Elevation requires
 
 **Severity:** None (warning only, no functional impact)
 
-OpenDQV declares `passlib[bcrypt]` and constructs a `CryptContext(schemes=["bcrypt"])` in `security/auth.py`. Passlib 1.7.4 (the latest release) tries to import Python's built-in `crypt` module at load time; Python deprecated `crypt` in 3.11 and removed it in 3.13. Separately, passlib's bcrypt backend self-test breaks against `bcrypt` ≥ 5.0 (`ValueError: password cannot be longer than 72 bytes`) on the first `hash()` call.
+OpenDQV Core declares `passlib[bcrypt]` and constructs a `CryptContext(schemes=["bcrypt"])` in `security/auth.py`. Passlib 1.7.4 (the latest release) tries to import Python's built-in `crypt` module at load time; Python deprecated `crypt` in 3.11 and removed it in 3.13. Separately, passlib's bcrypt backend self-test breaks against `bcrypt` ≥ 5.0 (`ValueError: password cannot be longer than 72 bytes`) on the first `hash()` call.
 
 **Impact:** None in practice. A `DeprecationWarning` may appear in test output on Python 3.11/3.12. On Python 3.13 the `crypt` import is trapped and the module loads normally — the project is verified on 3.13 (Linux and Windows) and Python 3.11+ is supported for production. Authentication is JWT PAT based; `pwd_context.hash()` is never called on any request path, so the bcrypt 5.x self-test failure is never reached.
 
 **Root cause:** Passlib has been effectively unmaintained since 2020 and the fix has not been released. This is a known community issue.
 
-**Mitigation:** OpenDQV's `CryptContext` is configured with `schemes=["bcrypt"]` only and is not exercised at runtime. The warning is cosmetic. Removing the `passlib` dependency (or migrating to `bcrypt` directly) is planned for a future release.
+**Mitigation:** Core's `CryptContext` is configured with `schemes=["bcrypt"]` only and is not exercised at runtime. The warning is cosmetic. Removing the `passlib` dependency (or migrating to `bcrypt` directly) is planned for a future release.
 
 ---
 
@@ -104,9 +105,9 @@ Revokes all tokens for a given username. Requires the `admin` role. This endpoin
 
 ## Audit Log Timestamp Integrity
 
-OpenDQV's audit chain (`contract_history`) proves **sequence and immutability** — each entry's hash commits to the full history before it. It does **not** independently prove that the system clock was accurate when entries were written.
+OpenDQV Core's audit chain (`contract_history`) proves **sequence and immutability** — each entry's hash commits to the full history before it. It does **not** independently prove that the system clock was accurate when entries were written.
 
-To address this, OpenDQV performs an NTP check at service startup and records the result in the node health log. The `opendqv audit-verify` command surfaces this data alongside chain integrity output:
+To address this, Core performs an NTP check at service startup and records the result in the node health log. The `opendqv audit-verify` command surfaces this data alongside chain integrity output:
 
 ```
 Clock Synchronization
@@ -123,7 +124,7 @@ If the NTP check detects significant skew (> 5 seconds) or cannot reach an NTP s
 
 **For production deployments:** ensure the host is synchronised to a reliable NTP source. See [`hardening.md`](hardening.md) for configuration requirements.
 
-**Enterprise and regulated environments:** RFC 3161 trusted timestamp anchoring — cryptographic proof of timestamp accuracy from a trusted timestamp authority (TSA) — is the correct upgrade for environments with FCA, SOX, or GDPR audit obligations. This is available in the commercial offering.
+**Enterprise and regulated environments:** RFC 3161 trusted timestamp anchoring — cryptographic proof of timestamp accuracy from a trusted timestamp authority (TSA) — is the correct upgrade for environments with FCA, SOX, or GDPR audit obligations. OpenDQV Core does not implement it.
 
 ---
 
@@ -131,7 +132,7 @@ If the NTP check detects significant skew (> 5 seconds) or cannot reach an NTP s
 
 ### Dependency philosophy
 
-OpenDQV's dependency tree is kept deliberately small. Every production dependency was chosen to solve a specific, well-scoped problem. The project does not depend on AI/ML meta-frameworks, language model clients (no LiteLLM, no OpenAI SDK, no LangChain), or packages that make outbound network connections at import or startup time.
+OpenDQV Core's dependency tree is kept deliberately small. Every production dependency was chosen to solve a specific, well-scoped problem. The project does not depend on AI/ML meta-frameworks, language model clients (no LiteLLM, no OpenAI SDK, no LangChain), or packages that make outbound network connections at import or startup time.
 
 This is a conscious production-readiness decision. Packages with large transitive dependency trees or packages that operate in immature ecosystems increase the attack surface for supply chain compromise — the vector exploited in attacks such as the LiteLLM `.pth` file credential exfiltration incident (March 2026).
 
@@ -202,8 +203,8 @@ syft opendqv:latest -o json | grype --fail-on high
 
 If a package in the Python ecosystem you depend on has been reported as compromised:
 
-1. Check whether OpenDQV lists it as a dependency: `grep -i <package-name> requirements.txt requirements-dev.txt`
-2. If present, rotate any API keys or secrets that the OpenDQV process had access to on affected hosts
+1. Check whether OpenDQV Core lists it as a dependency: `grep -i <package-name> requirements.txt requirements-dev.txt`
+2. If present, rotate any API keys or secrets that the Core process had access to on affected hosts
 3. Rebuild the container image from scratch (`docker compose build --no-cache api`) — do not rely on layer caching
 4. Run `pip-audit` against the rebuilt image to confirm the compromised version is not present
 5. File an issue at the repository so the maintainers can assess and pin away from the affected version

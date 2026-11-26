@@ -1,4 +1,5 @@
-# OpenDQV Load Test Baseline — 2026-03-06
+<a id="opendqv-load-test-baseline--2026-03-06"></a>
+# OpenDQV Core Load Test Baseline — 2026-03-06
 
 ## Environment
 - Machine: Dell XPS 13 9360, Linux (Ubuntu)
@@ -191,7 +192,7 @@ Throughput returned to the 225 req/s baseline — the Sprint 2 hardening changes
 
 ## CANONICAL PERFORMANCE BASELINE — 2026-03-10
 
-> **This is the definitive performance baseline for OpenDQV.**
+> **This is the definitive performance baseline for OpenDQV Core.**
 > Rate limiting disabled (`RATE_LIMIT_VALIDATE=off`, `RATE_LIMIT_DEFAULT=off`) to measure
 > pure engine throughput. See "Rate-limiter overhead investigation" below for default-config figures.
 > Reproducible with one command: `docker compose -f docker-compose.yml -f docker-compose.perf.yml up -d --build api`
@@ -348,7 +349,7 @@ For deployments running at >150 req/s, the in-process rate limiter should be mov
 upstream. From SECURITY.md workaround #1:
 
 > Configure your nginx, Caddy, or cloud load balancer to enforce rate limits upstream
-> before requests reach OpenDQV workers.
+> before requests reach OpenDQV Core workers.
 
 This eliminates the per-request counter overhead entirely and makes the limit
 accurate across all workers (vs. the 4× effective-rate known limitation with the

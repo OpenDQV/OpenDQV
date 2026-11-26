@@ -103,7 +103,7 @@ for contract in contracts:
 
 ## Approach 2 — Quality Trend → Collibra Data Quality Dimension Score
 
-OpenDQV's `GET /api/v1/contracts/{name}/quality-trend` returns daily pass rates. Push these to a Collibra Data Quality Dimension score to populate governance dashboards.
+OpenDQV Core's `GET /api/v1/contracts/{name}/quality-trend` returns daily pass rates. Push these to a Collibra Data Quality Dimension score to populate governance dashboards.
 
 ```python
 import requests
@@ -156,7 +156,7 @@ for contract in contracts:
 
 ## Approach 3 — Webhook → Collibra Workflow Trigger on `opendqv.validation.failed`
 
-When OpenDQV rejects records, trigger a Collibra workflow (e.g. a data stewardship review task) via the Collibra workflow REST API.
+When OpenDQV Core rejects records, trigger a Collibra workflow (e.g. a data stewardship review task) via the Collibra workflow REST API.
 
 ```python
 from fastapi import FastAPI, Request
@@ -292,7 +292,7 @@ for contract in contracts:
 
 ## Approach 6 — Federation-Aware
 
-Route Collibra sync requests to the correct OpenDQV instance based on `asset_id` community prefix:
+Route Collibra sync requests to the correct OpenDQV Core instance based on `asset_id` community prefix:
 
 ```python
 INSTANCES = {
@@ -329,7 +329,7 @@ def get_instance_for_asset(asset_id: str) -> str:
 |---|---|
 | **Now** | Set `asset_id` on contracts using `{community}/{domain}/{asset_name}` format |
 | **Now** | Run the metadata sync script to push contract version, owner, and hash to Collibra |
-| **Planned — based on community demand** | Schedule daily quality score push from OpenDQV trend → Collibra DQ Dimension |
+| **Planned — based on community demand** | Schedule daily quality score push from OpenDQV Core trend → Collibra DQ Dimension |
 | **Planned — based on community demand** | Add webhook → Collibra workflow trigger for `opendqv.validation.failed` events |
 | **Planned — based on community demand** | Rule-level Data Rule sync for full stewardship visibility |
 
