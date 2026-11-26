@@ -1,6 +1,6 @@
 # Observation Mode
 
-> **Alpha feature.** Available since v1.8.8. API surface may change.
+> Available since v1.8.8.
 
 ## What it is
 
