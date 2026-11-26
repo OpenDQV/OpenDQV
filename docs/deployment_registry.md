@@ -1,4 +1,6 @@
-# OpenDQV — Deployment Concentration Risk Registry
+<a id="opendqv--deployment-concentration-risk-registry"></a>
+
+# OpenDQV Core — Deployment Concentration Risk Registry
 
 **DORA Article 28 / FCA PS21/3 Operational Resilience Compliance Reference**
 
@@ -11,7 +13,7 @@ Last updated: 2026-03-09 | Version 1.0 | Owner: Platform Engineering
 This registry supports ICT concentration risk assessment under DORA Article 28.
 
 Deploying organisations are invited to anonymously register their deployment so that:
-1. We can assess the **concentration of critical financial infrastructure** dependent on OpenDQV
+1. We can assess the **concentration of critical financial infrastructure** dependent on OpenDQV Core
 2. We can notify known deployers promptly when a P0/P1 security advisory is issued
 3. Deployers can demonstrate due diligence to their regulators (FCA, EBA, ECB)
 
@@ -93,13 +95,13 @@ from dependencies on ICT third-party service providers. This registry provides:
 ### FCA PS21/3 — Important Business Services
 
 For UK-regulated firms, this registry supports evidence requirements for Important Business
-Services mapping. Firms should document OpenDQV as a third-party ICT dependency and assess
+Services mapping. Firms should document OpenDQV Core as a third-party ICT dependency and assess
 whether it supports an Important Business Service.
 
 ### BCBS 239 — Risk Data Aggregation
 
 For banks subject to BCBS 239, the validation contracts and TRACE_LOG outputs produced by
-OpenDQV are risk data aggregation artefacts. This registry helps demonstrate that the
+OpenDQV Core are risk data aggregation artefacts. This registry helps demonstrate that the
 underlying platform has disclosed its operational risk profile.
 
 ---

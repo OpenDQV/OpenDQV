@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Report a bug in OpenDQV
+about: Report a bug in OpenDQV Core
 labels: bug
 ---
 
@@ -21,7 +21,7 @@ A clear description of what the bug is.
 What you expected to happen.
 
 ## Environment
-- OpenDQV version:
+- OpenDQV Core version:
 - Python version:
 - OS:
 - Docker version (if applicable):

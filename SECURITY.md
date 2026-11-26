@@ -2,9 +2,9 @@
 
 ## For CTOs and Procurement Teams
 
-If you are evaluating OpenDQV as a pilot or design partner, this section covers the questions your security team will ask.
+If you are evaluating OpenDQV Core as a pilot or design partner, this section covers the questions your security team will ask.
 
-**Beta software — explicit disclosure.** OpenDQV Core is Beta (since 2.0.0; currently 3.x). This means: REST endpoints, MCP tool names and Python SDK signatures are stable within 3.x; rule verdicts are being aligned with OpenDQV Cloud's managed engine (not yet publicly available) and can change in any release, always listed in the CHANGELOG (see [API Stability](README.md#api-stability)); security fixes ship in the latest release, with no backports. It does **not** mean a production SLA, and the engine has not been through a formal third-party penetration test. Do not deploy in a regulated production environment without your own security assessment. See [Known Limitations and Mitigations](#known-limitations-and-mitigations) for full disclosure of current known issues.
+**Beta software — explicit disclosure.** OpenDQV Core is Beta (since 2.0.0; currently 3.x). This means: REST endpoints, MCP tool names and Python SDK signatures are stable within 3.x; rule verdicts are being aligned with [OpenDQV Cloud](https://opendqv.com)'s managed engine and can change in any release, always listed in the CHANGELOG (see [API Stability](README.md#api-stability)); security fixes ship in the latest release, with no backports. It does **not** mean a production SLA, and the engine has not been through a formal third-party penetration test. Do not deploy in a regulated production environment without your own security assessment. See [Known Limitations and Mitigations](#known-limitations-and-mitigations) for full disclosure of current known issues.
 
 **No external network calls during validation.** OpenDQV Core is fully self-contained. It makes no external network calls during validation. Your data does not leave your environment. The only outbound network activity is optional: webhook notifications to URLs you configure, and Prometheus metrics scraping if you enable it.
 
@@ -60,7 +60,7 @@ The following limitations are known, disclosed proactively, and should be review
 
 **Workarounds (in order of preference for production):**
 
-1. **Reverse proxy rate limiting (recommended):** Configure your nginx, Caddy, or cloud load balancer to enforce rate limits upstream before requests reach OpenDQV workers. This is the most reliable approach and is independent of the number of workers.
+1. **Reverse proxy rate limiting (recommended):** Configure your nginx, Caddy, or cloud load balancer to enforce rate limits upstream before requests reach OpenDQV Core workers. This is the most reliable approach and is independent of the number of workers.
 2. **Redis-backed rate limiter:** Set `RATE_LIMIT_BACKEND=redis` and configure `REDIS_URL` — this shares counters across all workers via Redis, giving accurate per-IP limiting.
 3. **Single worker:** Set `WEB_CONCURRENCY=1` for strict single-process rate enforcement. This reduces throughput to roughly 1× but gives accurate rate limiting without external dependencies.
 
@@ -70,7 +70,7 @@ The following limitations are known, disclosed proactively, and should be review
 
 Webhook URL validation blocks RFC 1918 IP ranges (10.x, 172.16.x, 192.168.x), loopback (127.x), and link-local (169.254.x) addresses. Hostnames are **DNS-resolved at both registration time and dispatch time** via `socket.getaddrinfo()` and all returned IPs are checked against the blocked ranges. Registration **fails closed** on DNS resolution failure (NXDOMAIN). At dispatch time, `_check_resolved_ips()` is called again via `asyncio.to_thread()` before the HTTP connection is made, mitigating DNS rebinding (TTL-expiry) attacks.
 
-**Residual risk:** A narrow TOCTOU window exists between the dispatch-time DNS check and the actual TCP connection. For high-security deployments, also configure egress firewall rules on the host to block outbound connections to RFC 1918 ranges from the OpenDQV container — this is the definitive mitigation.
+**Residual risk:** A narrow TOCTOU window exists between the dispatch-time DNS check and the actual TCP connection. For high-security deployments, also configure egress firewall rules on the host to block outbound connections to RFC 1918 ranges from the OpenDQV Core container — this is the definitive mitigation.
 
 ### 3. Open Authentication Mode (Default)
 
@@ -103,7 +103,7 @@ OpenDQV Core's audit-event and metrics endpoints assume a **single-tenant trust 
 
 > ℹ️ **Impact: Informational**
 
-OpenDQV stores tokens, webhook registrations, contract history, and federation events in a SQLite file (`opendqv.db`). This file is not encrypted at rest. Access to the host filesystem is equivalent to access to all stored metadata.
+OpenDQV Core stores tokens, webhook registrations, contract history, and federation events in a SQLite file (`opendqv.db`). This file is not encrypted at rest. Access to the host filesystem is equivalent to access to all stored metadata.
 
 **Mitigation:** Use filesystem-level encryption (LUKS, dm-crypt) if the host stores sensitive metadata. The validation payloads themselves are never persisted.
 
@@ -171,7 +171,7 @@ Analogous CVE: Pydantic-AI GHSA-wjp5-868j-wqv7 (path traversal via CDN URL).
 
 ## Standards Compliance and Divergence
 
-OpenDQV explicitly follows some standards and intentionally diverges from others. This table documents both so operators can make informed decisions about where OpenDQV's behaviour may differ from what they expect.
+OpenDQV Core explicitly follows some standards and intentionally diverges from others. This table documents both so operators can make informed decisions about where Core's behaviour may differ from what they expect.
 
 ### Network and IP Standards
 
@@ -204,9 +204,9 @@ OpenDQV explicitly follows some standards and intentionally diverges from others
 |---|---|---|
 | **RFC 5321** — Simple Mail Transfer Protocol (email address format) | **Intentionally simplified** | The `builtin:email` regex (`^[^@\s]+@[^@\s]+\.[^@\s]+$`) accepts most practical email addresses but does not implement the full RFC 5321 local-part grammar (quoted strings, IP domain literals, comments). This is deliberate — RFC 5321-compliant email parsers accept addresses that most production systems reject.
 
-> **Salesforce overlap note:** Salesforce's native email validation is also an RFC 5321 approximation. When OpenDQV runs as a Salesforce Before trigger, Salesforce's check fires first for truly malformed addresses; our rule validates what Salesforce passes. |
+> **Salesforce overlap note:** Salesforce's native email validation is also an RFC 5321 approximation. When OpenDQV Core runs as a Salesforce Before trigger, Salesforce's check fires first for truly malformed addresses; our rule validates what Salesforce passes. |
 | **ISO 8601** — Date and time format | **Followed in spirit** | The `date_format` rule validates that values are parseable as dates, not that they conform to a specific ISO 8601 profile. Rules with `date_format` accept `YYYY-MM-DD` and most ISO 8601 variants. Strict ISO 8601 profile enforcement (e.g. time zones required) is done via `regex` rules in the contract. |
-| **ODCS 3.1** — Open Data Contract Standard | **Followed** | `import-odcs` and `export-odcs` implement ODCS 3.1 import/export. OpenDQV does not implement the full ODCS SLA or distribution fields — validation rules are the subset that maps to OpenDQV rule types. |
+| **ODCS 3.1** — Open Data Contract Standard | **Followed** | `import-odcs` and `export-odcs` implement ODCS 3.1 import/export. OpenDQV Core does not implement the full ODCS SLA or distribution fields — validation rules are the subset that maps to OpenDQV rule types. |
 
 ### Audit and Cryptography
 
@@ -214,7 +214,7 @@ OpenDQV explicitly follows some standards and intentionally diverges from others
 |---|---|---|
 | **FIPS 180-4** — SHA-256 | **Followed** | Contract hash chain uses SHA-256 throughout |
 | **RFC 2104** — HMAC | **Followed** | Optional TRACE_LOG HMAC signing uses HMAC-SHA256 |
-| **21 CFR Part 11** — Electronic records / signatures (FDA) | **Partial** | Hash chain provides tamper detection; HMAC-SHA256 + WORM storage provides tamper-proofing. ECDSA signing (required for full Part 11 compliance) is planned for the enterprise tier. |
+| **21 CFR Part 11** — Electronic records / signatures (FDA) | **Partial** | Hash chain provides tamper detection; HMAC-SHA256 + WORM storage provides tamper-proofing. ECDSA signing (required for full Part 11 compliance) is not implemented in OpenDQV Core. |
 
 ---
 

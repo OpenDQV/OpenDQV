@@ -1,6 +1,6 @@
 # Beginner Setup Guide
 
-This guide walks you through getting OpenDQV running from scratch. No prior experience
+This guide walks you through getting OpenDQV Core running from scratch. No prior experience
 with Git or Docker is assumed.
 
 ---
@@ -20,7 +20,9 @@ You need Python 3.11 or higher. To check if you have it:
 
 ---
 
-## Step 2: Download OpenDQV
+<a id="step-2-download-opendqv"></a>
+
+## Step 2: Download OpenDQV Core
 
 👉 Go to [github.com/OpenDQV/OpenDQV/releases/latest](https://github.com/OpenDQV/OpenDQV/releases/latest)
 

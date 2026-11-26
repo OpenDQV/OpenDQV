@@ -13,7 +13,7 @@ basis, no retention period, or conditional fields silently blank.
 ## What this module adds
 
 - A dedicated `gdpr.processing.record` model covering all Article 30(1) fields
-- Write-time validation via OpenDQV's `LocalValidator` — missing or invalid fields
+- Write-time validation via OpenDQV Core's `LocalValidator` — missing or invalid fields
   raise a clear validation error before the record reaches the database
 - Odoo chatter / audit trail on every ROPA entry (who changed what and when)
 - Tree view with "Awaiting DPO Review" filter
@@ -62,7 +62,7 @@ export ENABLE_OPENDQV_VALIDATION=true
 
 `LocalValidator` looks for contracts in `./contracts/` relative to the working
 directory (or `OPENDQV_CONTRACTS_DIR` env var). Copy or symlink the
-`gdpr_processing_record.yaml` contract from the OpenDQV package:
+`gdpr_processing_record.yaml` contract from the OpenDQV Core package:
 
 ```bash
 mkdir -p contracts

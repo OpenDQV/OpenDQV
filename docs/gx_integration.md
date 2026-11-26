@@ -4,7 +4,7 @@
 > Snippets are examples; pin your own version in `requirements.txt`.
 > [great-expectations on PyPI](https://pypi.org/project/great-expectations/)
 
-OpenDQV blocks records at write-time; Great Expectations validates the same rules post-load. They operate at different moments in the data lifecycle but can share the same contract — one source of truth, two enforcement points.
+OpenDQV Core blocks records at write-time; Great Expectations validates the same rules post-load. They operate at different moments in the data lifecycle but can share the same contract — one source of truth, two enforcement points.
 
 ---
 
@@ -12,23 +12,25 @@ OpenDQV blocks records at write-time; Great Expectations validates the same rule
 
 1. **Contract-first** — OpenDQV YAML is the source of truth; GX expectation suites are derived
 2. **Bidirectional** — import GX suites into OpenDQV contracts; export OpenDQV contracts back to GX suites (both already implemented)
-3. **Record vs dataset semantics** — OpenDQV enforces per-record at write-time; GX validates dataset-level expectations post-load; both approaches are documented here
-4. **Non-invasive** — no changes required to your existing GX setup; OpenDQV is additive
+3. **Record vs dataset semantics** — OpenDQV Core enforces per-record at write-time; GX validates dataset-level expectations post-load; both approaches are documented here
+4. **Non-invasive** — no changes required to your existing GX setup; OpenDQV Core is additive
 
 ---
 
-## What OpenDQV Is NOT
+<a id="what-opendqv-is-not"></a>
+## What OpenDQV Core Is NOT
 
 | Claim | Reality |
 |-------|---------|
-| A replacement for Great Expectations | No — GX covers batch, profiling, and aggregate expectations OpenDQV does not |
-| A GX plugin or extension | No — OpenDQV is a standalone API; integration is via import/export |
-| A data store | No — OpenDQV never stores record values; it validates records and returns results |
-| Required for GX to work | No — you can adopt OpenDQV incrementally without changing your GX setup |
+| A replacement for Great Expectations | No — GX covers batch, profiling, and aggregate expectations OpenDQV Core does not |
+| A GX plugin or extension | No — OpenDQV Core is a standalone API; integration is via import/export |
+| A data store | No — OpenDQV Core never stores record values; it validates records and returns results |
+| Required for GX to work | No — you can adopt OpenDQV Core incrementally without changing your GX setup |
 
 ---
 
-## Approach 1 — Import a GX Expectation Suite into OpenDQV
+<a id="approach-1--import-a-gx-expectation-suite-into-opendqv"></a>
+## Approach 1 — Import a GX Expectation Suite into OpenDQV Core
 
 If your team already has GX expectation suites, use them to bootstrap OpenDQV contracts. The importer is already implemented.
 
@@ -88,7 +90,7 @@ rules:
 
 ## Approach 2 — Export an OpenDQV Contract as a GX Expectation Suite
 
-If you author contracts in OpenDQV and want to push them into GX for batch validation, use the `export-gx` command. Already implemented.
+If you author contracts in OpenDQV Core and want to push them into GX for batch validation, use the `export-gx` command. Already implemented.
 
 ### Usage
 
@@ -129,7 +131,8 @@ The exporter produces a GX v1 expectation suite JSON. Each OpenDQV rule becomes 
 
 ---
 
-## Approach 3 — Two-Layer Enforcement: OpenDQV at Write + GX Post-Load
+<a id="approach-3--two-layer-enforcement-opendqv-at-write--gx-post-load"></a>
+## Approach 3 — Two-Layer Enforcement: OpenDQV Core at Write + GX Post-Load
 
 The "one contract, two enforcement points" pattern — the same OpenDQV YAML drives both write-time blocking and post-load batch validation.
 
@@ -164,7 +167,7 @@ rules:
     severity: error
 ```
 
-**Step 2:** Enforce at write time via OpenDQV:
+**Step 2:** Enforce at write time via OpenDQV Core:
 
 ```python
 from opendqv.sdk import OpenDQVClient
@@ -192,21 +195,22 @@ context = gx.get_context()
 result = context.run_checkpoint(checkpoint_name="customer_checkpoint")
 ```
 
-**Result:** The same business rules enforced at two points — write-time (OpenDQV) and post-load (GX) — from a single YAML source of truth. No rule duplication. No drift.
+**Result:** The same business rules enforced at two points — write-time (OpenDQV Core) and post-load (GX) — from a single YAML source of truth. No rule duplication. No drift.
 
 ### Key semantic difference: `mostly` vs per-record
 
-GX expectations support a `mostly` parameter (e.g. `mostly: 0.95` = 95% of rows must pass). OpenDQV enforces per-record — every record is evaluated independently, with no pass-rate threshold.
+GX expectations support a `mostly` parameter (e.g. `mostly: 0.95` = 95% of rows must pass). OpenDQV Core enforces per-record — every record is evaluated independently, with no pass-rate threshold.
 
-When exporting to GX, OpenDQV does **not** set `mostly` — expectations default to 100% pass rate. If you need a tolerance, set `mostly` manually in the exported GX suite.
+When exporting to GX, Core does **not** set `mostly` — expectations default to 100% pass rate. If you need a tolerance, set `mostly` manually in the exported GX suite.
 
 ---
 
 ## Approach 4 — Webhook-Driven: Trigger a GX Checkpoint on Validation Failure
 
-Use OpenDQV webhooks to trigger a GX Checkpoint run when `opendqv.validation.failed` fires — letting GX scan the affected dataset immediately after a write-time rejection cluster is detected.
+Use OpenDQV Core webhooks to trigger a GX Checkpoint run when `opendqv.validation.failed` fires — letting GX scan the affected dataset immediately after a write-time rejection cluster is detected.
 
-### Webhook payload (OpenDQV → your service)
+<a id="webhook-payload-opendqv--your-service"></a>
+### Webhook payload (OpenDQV Core → your service)
 
 ```json
 {
@@ -244,7 +248,7 @@ async def handle_validation_failed(request: Request):
     }
 ```
 
-Register the webhook in OpenDQV:
+Register the webhook in OpenDQV Core:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/webhooks \
@@ -298,7 +302,7 @@ HASH_STORE.write_text(json.dumps(known_hashes, indent=2))
 
 ## Approach 6 — Federation-Aware Sync
 
-In a federated deployment (multiple OpenDQV instances per region or domain), export GX suites per instance and namespace by `asset_id` prefix:
+In a federated deployment (multiple OpenDQV Core instances per region or domain), export GX suites per instance and namespace by `asset_id` prefix:
 
 ```python
 INSTANCES = {
@@ -327,8 +331,8 @@ for region, base_url in INSTANCES.items():
 
 | Limitation | Detail |
 |---|---|
-| Aggregate expectations | GX table-level expectations (row count, column existence) have no OpenDQV equivalent — maintain these in GX directly |
-| `mostly` threshold | OpenDQV enforces per-record; GX `mostly` is not set on export — add manually if needed |
+| Aggregate expectations | GX table-level expectations (row count, column existence) have no OpenDQV Core equivalent — maintain these in GX directly |
+| `mostly` threshold | Core enforces per-record; GX `mostly` is not set on export — add manually if needed |
 | Cross-expectation dependencies | GX has no cross-expectation ordering; OpenDQV `compare` and `required_if` rules export as independent expectations |
 | GX v0.x vs v1.x | The exporter targets GX v1.x suite format; v0.x uses a different JSON schema |
 

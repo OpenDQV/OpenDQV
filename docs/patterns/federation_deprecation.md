@@ -2,7 +2,7 @@
 
 ## Overview
 
-In OpenDQV's federation model, an **authority node** owns a contract and propagates its rules to **community nodes** that inherit from it. When a rule must be retired — because a standard changes, a format is superseded, or a check has been folded into a better algorithm — it cannot simply be deleted. Community nodes depend on inherited rules for compliance, and regulated industries require documented, auditable migration paths.
+In OpenDQV Core's federation model, an **authority node** owns a contract and propagates its rules to **community nodes** that inherit from it. When a rule must be retired — because a standard changes, a format is superseded, or a check has been folded into a better algorithm — it cannot simply be deleted. Community nodes depend on inherited rules for compliance, and regulated industries require documented, auditable migration paths.
 
 Federation deprecation is the mechanism that lets an authority node retire a rule gracefully, giving community nodes a defined window to migrate.
 

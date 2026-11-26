@@ -2,13 +2,13 @@
 
 > **Last reviewed:** 2026-03-17.
 
-![OpenDQV + Pandas — validate before writing, route clean vs quarantine rows](demo_pandas.gif)
+![OpenDQV Core + Pandas — validate before writing, route clean vs quarantine rows](demo_pandas.gif)
 
 *Validate a DataFrame before it touches your database: clean rows written, invalid rows quarantined — one call to `validate_batch()`, no row-by-row loops, no extra dependencies.*
 
 > Covers pandas v2.x. Pandas is a core dependency — no extra install required.
 
-OpenDQV's `LocalValidator.validate_batch()` takes a list of dicts, which is exactly what `df.to_dict('records')` produces. This makes DataFrame validation a single-line pattern with zero additional dependencies.
+OpenDQV Core's `LocalValidator.validate_batch()` takes a list of dicts, which is exactly what `df.to_dict('records')` produces. This makes DataFrame validation a single-line pattern with zero additional dependencies.
 
 ---
 
@@ -106,7 +106,8 @@ if not result["valid"]:
 
 ---
 
-## With the API Client (when OpenDQV API is running)
+<a id="with-the-api-client-when-opendqv-api-is-running"></a>
+## With the API Client (when OpenDQV Core API is running)
 
 Swap `LocalValidator` for `OpenDQVClient` — the pattern is identical:
 

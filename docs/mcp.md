@@ -1,6 +1,6 @@
 # MCP Integration
 
-OpenDQV exposes a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that allows AI agents to interact with data contracts programmatically.
+OpenDQV Core exposes a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that allows AI agents to interact with data contracts programmatically.
 
 ## What is MCP?
 
@@ -8,11 +8,12 @@ MCP (Model Context Protocol) is an open standard that defines how AI agents disc
 
 Think of MCP as a structured handshake between an AI and a service: the service says "here is what I can do and what inputs I need," and the agent decides when and how to use those capabilities.
 
-## Why does OpenDQV use MCP?
+<a id="why-does-opendqv-use-mcp"></a>
+## Why does OpenDQV Core use MCP?
 
 Data contracts are the source of truth for data quality expectations. AI agents working with data pipelines — whether checking data quality, generating validation code, or proposing new rules — need a reliable, structured way to read those contracts and understand validation outcomes.
 
-OpenDQV's MCP server gives agents:
+OpenDQV Core's MCP server gives agents:
 
 - **Contract discovery** — list all contracts and their status (DRAFT / REVIEW / ACTIVE)
 - **Contract detail** — retrieve the full rule set for any contract
@@ -21,7 +22,7 @@ OpenDQV's MCP server gives agents:
 
 ## Deployment models
 
-OpenDQV's MCP server and FastAPI are **not** the same thing — they are two separate interfaces to the same core validation logic:
+OpenDQV Core's MCP server and FastAPI are **not** the same thing — they are two separate interfaces to the same core validation logic:
 
 ```
 FastAPI  :  HTTP client  →  FastAPI (:8000)  →  core/  →  contracts DB
@@ -40,7 +41,7 @@ No env var set. MCP reads contracts from the local filesystem and validates in-p
 
 ### Remote / enterprise mode
 
-Set `OPENDQV_MCP_API_URL` to point the MCP server at your central OpenDQV API. All tool calls are proxied to the API over HTTP:
+Set `OPENDQV_MCP_API_URL` to point the MCP server at your central OpenDQV Core API. All tool calls are proxied to the API over HTTP:
 
 ```
 Claude Desktop  →  (stdio)  →  opendqv.mcp_server (laptop)  →  (HTTP)  →  FastAPI (central server)
@@ -79,7 +80,7 @@ The MCP transport (stdio) does not change — only the backend. Claude Desktop c
 
 ### 1. Start the MCP server
 
-The MCP server is self-contained — it reads contracts directly from disk and does not require the OpenDQV HTTP API or Docker stack to be running:
+The MCP server is self-contained — it reads contracts directly from disk and does not require the OpenDQV Core HTTP API or Docker stack to be running:
 
 ```bash
 pip install "opendqv[mcp]"     # pulls in the mcp 2.x SDK
@@ -145,7 +146,7 @@ Write tools:
 
 Write access is disabled by default. This is intentional.
 
-When write access is enabled, OpenDQV enforces strict guardrails to prevent agents from silently corrupting data contracts:
+When write access is enabled, OpenDQV Core enforces strict guardrails to prevent agents from silently corrupting data contracts:
 
 - **Agent-created contracts are always DRAFT.** They cannot be activated without a human review cycle (submit → approve).
 - **ACTIVE and REVIEW contracts are immutable.** No agent can add, update, or delete rules on an ACTIVE or REVIEW contract — rule mutations return 409 (a REVIEW contract must be rejected back to DRAFT to edit). To modify an ACTIVE contract, create a new version with `POST /contracts/{name}/version` — this writes a new DRAFT as `{name}_v{version}.yaml` and rejects an existing version with 400.
@@ -328,9 +329,10 @@ A human submits the contract for review (`POST /api/v1/contracts/{name}/{version
 
 ---
 
-## MCP composition — chaining OpenDQV with a catalog
+<a id="mcp-composition--chaining-opendqv-with-a-catalog"></a>
+## MCP composition — chaining OpenDQV Core with a catalog
 
-Because both OpenDQV and catalog tools like [Marmot](https://github.com/marmotdata/marmot) expose MCP servers, an agent can compose them natively. The `get_quality_metrics` tool includes a `catalog_hint` field that tells agents which asset to look up next.
+Because both OpenDQV Core and catalog tools like [Marmot](https://github.com/marmotdata/marmot) expose MCP servers, an agent can compose them natively. The `get_quality_metrics` tool includes a `catalog_hint` field that tells agents which asset to look up next.
 
 ### How it works
 
@@ -364,7 +366,7 @@ You have access to two MCP servers: OpenDQV and Marmot.
 | Layer 1 — write-time | `OpenDQV:get_quality_metrics` | Pass rate, failing rules, rejection counts |
 | Layer 2 — catalog | `Marmot:get_asset` (or DataHub / Atlan equivalent) | Owner, lineage, downstream assets |
 
-OpenDQV stays pure enforcement. The catalog stays pure governance. The agent composes them at runtime.
+OpenDQV Core stays pure enforcement. The catalog stays pure governance. The agent composes them at runtime.
 
 ### Marmot proxy (`marmot_proxy.py`)
 

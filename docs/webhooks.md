@@ -1,6 +1,6 @@
 # Webhooks
 
-OpenDQV can push real-time notifications to your services when validation events occur.
+OpenDQV Core can push real-time notifications to your services when validation events occur.
 Webhooks are useful for triggering downstream workflows — alerting, quarantine queues,
 data quality dashboards, or incident management integrations — without polling the API.
 
@@ -44,7 +44,7 @@ Webhooks are persisted in SQLite and survive server restarts.
 
 ### Webhook Secret
 
-Pass an optional `secret` string when registering a webhook. OpenDQV echoes it back in the `X-OpenDQV-Secret` header on every delivery so your receiver can verify the request came from OpenDQV:
+Pass an optional `secret` string when registering a webhook. OpenDQV Core echoes it back in the `X-OpenDQV-Secret` header on every delivery so your receiver can verify the request came from OpenDQV Core:
 
 ```bash
 curl -s -X POST http://localhost:8000/api/v1/webhooks \
@@ -133,7 +133,7 @@ curl -X DELETE "http://localhost:8000/api/v1/webhooks" \
 
 - Webhooks should target HTTPS endpoints only. Plain HTTP receivers are accepted for local
   development but are not recommended for production.
-- OpenDQV does not sign webhook payloads. If your receiver is public-facing, verify requests
+- OpenDQV Core does not sign webhook payloads. If your receiver is public-facing, verify requests
   by IP allowlist or add a shared secret to your endpoint URL as a query parameter
   (`?secret=<value>`) and validate it in your handler.
 - Webhook delivery is best-effort: if the endpoint returns a non-2xx status or times out,

@@ -4,9 +4,9 @@
 
 ## The Modern Data Quality Stack
 
-OpenDQV occupies a specific, well-defined position in the data quality ecosystem: **source-layer validation**. It is designed to complement — not replace — the tools that operate at other points in the data lifecycle.
+OpenDQV Core occupies a specific, well-defined position in the data quality ecosystem: **source-layer validation**. It is designed to complement — not replace — the tools that operate at other points in the data lifecycle.
 
-This reference stack describes a layered architecture for deploying OpenDQV alongside Soda, Great Expectations, and Monte Carlo to cover all three moments in the data lifecycle.
+This reference stack describes a layered architecture for deploying OpenDQV Core alongside Soda, Great Expectations, and Monte Carlo to cover all three moments in the data lifecycle.
 
 ---
 
@@ -39,11 +39,11 @@ Data Source                  Pipeline                     Warehouse / Lake
 
 | Moment | Tool | What it catches | When you find out |
 |--------|------|-----------------|-------------------|
-| **At write** | OpenDQV | Invalid records before they enter any system | Milliseconds — the caller blocks the write on `valid: false` |
+| **At write** | OpenDQV Core | Invalid records before they enter any system | Milliseconds — the caller blocks the write on `valid: false` |
 | **At pipeline** | Soda / Great Expectations | Data that passed write-time validation but drifted during transformation | Minutes to hours — batch scan |
 | **At rest** | Monte Carlo / observability | Anomalies, schema drift, volume changes in live data | Continuous — alert-driven |
 
-**None of these tools replaces the others.** A record that passes OpenDQV at the source can still be corrupted by a transformation. A clean warehouse table can still have anomalous distributions. All three layers are needed for a complete data quality posture.
+**None of these tools replaces the others.** A record that passes OpenDQV Core at the source can still be corrupted by a transformation. A clean warehouse table can still have anomalous distributions. All three layers are needed for a complete data quality posture.
 
 ---
 
@@ -84,7 +84,7 @@ rules:
     error_message: "Age must be between 0 and 120"
 ```
 
-**Step 2:** Enforce at write time via OpenDQV:
+**Step 2:** Enforce at write time via OpenDQV Core:
 
 ```bash
 curl -X POST http://opendqv.internal:8000/api/v1/validate \
@@ -100,7 +100,7 @@ curl -X POST http://opendqv.internal:8000/api/v1/validate \
 opendqv export-dbt --contract customer --out models/staging/schema.yml
 ```
 
-Or import your existing dbt schema into OpenDQV:
+Or import your existing dbt schema into OpenDQV Core:
 
 ```bash
 opendqv import-dbt models/staging/schema.yml
@@ -110,14 +110,15 @@ opendqv import-dbt models/staging/schema.yml
 
 ---
 
-## OpenDQV + Soda Core
+<a id="opendqv--soda-core"></a>
+## OpenDQV Core + Soda Core
 
-Soda operates inside your pipeline — after data lands in a staging area or warehouse. OpenDQV operates before data enters the pipeline.
+Soda operates inside your pipeline — after data lands in a staging area or warehouse. OpenDQV Core operates before data enters the pipeline.
 
 **Joint reference architecture:**
 
 ```python
-# Source system: call OpenDQV before writing
+# Source system: call OpenDQV Core before writing
 result = opendqv_client.validate(record, contract="orders")
 if not result["valid"]:
     raise ValueError(f"Record rejected: {result['errors']}")
@@ -125,19 +126,20 @@ write_to_database(record)
 
 # Pipeline: Soda checks after transformation
 # soda/checks/orders.yml references the same field names and constraints
-# Soda catches drift that OpenDQV couldn't — e.g. data corrupted during JOIN
+# Soda catches drift that OpenDQV Core couldn't — e.g. data corrupted during JOIN
 ```
 
 The `asset_id` field in OpenDQV contracts (`urn:opendqv:{org}:{contract}:{version}`) links the contract to a Soda dataset, enabling cross-tool traceability.
 
 ---
 
-## OpenDQV + Great Expectations
+<a id="opendqv--great-expectations"></a>
+## OpenDQV Core + Great Expectations
 
-Great Expectations and OpenDQV share a bidirectional import/export path:
+Great Expectations and OpenDQV Core share a bidirectional import/export path:
 
 ```bash
-# Import GX suite into OpenDQV
+# Import GX suite into OpenDQV Core
 curl -X POST http://localhost:8000/api/v1/import/gx \
   -H "Authorization: Bearer <token>" \
   -d '{"suite_json": "<GX expectation suite JSON>"}'
@@ -146,25 +148,27 @@ curl -X POST http://localhost:8000/api/v1/import/gx \
 opendqv export-gx customer
 ```
 
-For teams already using GX, OpenDQV can act as the runtime enforcement layer while GX handles batch expectation validation — using the same underlying rules.
+For teams already using GX, OpenDQV Core can act as the runtime enforcement layer while GX handles batch expectation validation — using the same underlying rules.
 
 ---
 
-## OpenDQV + Monte Carlo (Observability)
+<a id="opendqv--monte-carlo-observability"></a>
+## OpenDQV Core + Monte Carlo (Observability)
 
-Monte Carlo monitors data *after* it lands. OpenDQV blocks data *before* it lands. The HMAC trace log connects them:
+Monte Carlo monitors data *after* it lands. OpenDQV Core blocks data *before* it lands. The HMAC trace log connects them:
 
-- Every OpenDQV validation decision is logged with a timestamp, record ID, contract version, and outcome
+- Every OpenDQV Core validation decision is logged with a timestamp, record ID, contract version, and outcome
 - The trace log is JSONL — ship it to any log aggregator (Datadog, Splunk, CloudWatch)
 - Monte Carlo can ingest the trace log to correlate validation rejections with downstream anomalies
 
-**Signal:** If Monte Carlo detects an anomaly in your warehouse on Tuesday, the OpenDQV trace log tells you whether the affected records passed or failed validation at the source — and when.
+**Signal:** If Monte Carlo detects an anomaly in your warehouse on Tuesday, the OpenDQV Core trace log tells you whether the affected records passed or failed validation at the source — and when.
 
-A native Monte Carlo → OpenDQV connector is not yet available.
+A native Monte Carlo → OpenDQV Core connector is not yet available.
 
 ---
 
-## OpenDQV + Catalog Tools (Atlan, Microsoft Purview, Collibra)
+<a id="opendqv--catalog-tools-atlan-microsoft-purview-collibra"></a>
+## OpenDQV Core + Catalog Tools (Atlan, Microsoft Purview, Collibra)
 
 The `asset_id` field uses a standardised URI format:
 
@@ -190,7 +194,7 @@ Data catalog tools can pull contract definitions via `GET /api/v1/contracts/{nam
 
 ## Air-Gapped and Offline Deployments
 
-OpenDQV has **no runtime internet dependencies**. Once the container image is pulled:
+OpenDQV Core has **no runtime internet dependencies**. Once the container image is pulled:
 
 - No external API calls
 - No telemetry
@@ -210,7 +214,7 @@ See [docs/runbook.md](runbook.md) for the air-gapped deployment note.
 
 ## Profiling and Drift Monitoring
 
-OpenDQV validates records at the point of write — it does not monitor data distributions over time or detect schema drift. For those capabilities, use:
+OpenDQV Core validates records at the point of write — it does not monitor data distributions over time or detect schema drift. For those capabilities, use:
 
 | Tool | Purpose |
 |------|---------|
@@ -219,9 +223,9 @@ OpenDQV validates records at the point of write — it does not monitor data dis
 | [Evidently](https://evidentlyai.com) | ML model and dataset drift monitoring |
 | [Monte Carlo](https://www.montecarlodata.com) | Data observability, anomaly detection at warehouse scale |
 
-OpenDQV's built-in `profile_records()` function generates *suggested* validation rules from a sample of records — a one-time bootstrapping aid to help you write your first contract. Once those rules are reviewed and activated, OpenDQV enforces them at write time. GX or Soda then validates the results at the pipeline layer.
+OpenDQV Core's built-in `profile_records()` function generates *suggested* validation rules from a sample of records — a one-time bootstrapping aid to help you write your first contract. Once those rules are reviewed and activated, OpenDQV Core enforces them at write time. GX or Soda then validates the results at the pipeline layer.
 
-**The pattern:** OpenDQV (write boundary) + Soda/GX (pipeline layer) + Monte Carlo (warehouse observability) covers the full data quality lifecycle without duplication.
+**The pattern:** OpenDQV Core (write boundary) + Soda/GX (pipeline layer) + Monte Carlo (warehouse observability) covers the full data quality lifecycle without duplication.
 
 ---
 

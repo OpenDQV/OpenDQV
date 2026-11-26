@@ -4,7 +4,7 @@
 > Covers Databricks Runtime ≥14.x, Delta Lake ≥3.x, Databricks Asset Bundles.
 > For generic Spark deployments (EMR, Dataproc, HDInsight), see [`spark_integration.md`](spark_integration.md).
 
-OpenDQV integrates natively with the Databricks platform — Auto Loader ingestion, Delta Live Tables pipelines, Jobs/Asset Bundle workflows, Unity Catalog lineage, and multi-workspace federation. All approaches share the same pre-write validation pattern: validate before the Delta commit, quarantine rejects.
+OpenDQV Core integrates natively with the Databricks platform — Auto Loader ingestion, Delta Live Tables pipelines, Jobs/Asset Bundle workflows, Unity Catalog lineage, and multi-workspace federation. All approaches share the same pre-write validation pattern: validate before the Delta commit, quarantine rejects.
 
 > **Migration note:** Databricks acquired Neon (a Postgres-compatible serverless database). If your migration path includes Neon, the [Postgres trigger pattern](postgres_integration.md#approach-4--native-db-trigger-enforce-at-the-database-layer) applies directly. For Delta Lake, the `foreachBatch` pattern below is the Layer 1 equivalent — validate before the Delta commit, regardless of which tool is writing.
 
@@ -16,7 +16,7 @@ OpenDQV integrates natively with the Databricks platform — Auto Loader ingesti
 | Scheduled Databricks Job | Approach 2 (Pre-task validation gate) | Fails the job before any data lands |
 | Continuous streaming pipeline | Approach 1 with `trigger(processingTime=...)` | Streaming validation with quarantine |
 | Delta Live Tables | Approach 3 (DLT + UDF expectation) | Native DLT integration |
-| **Governance-first — any writer validated** | **Approach 1 (foreachBatch)** | **Validates before Delta commit regardless of source** |\n| Multi-workspace governance | Approach 5 (Federation-aware) | Routes to nearest OpenDQV instance |
+| **Governance-first — any writer validated** | **Approach 1 (foreachBatch)** | **Validates before Delta commit regardless of source** |\n| Multi-workspace governance | Approach 5 (Federation-aware) | Routes to nearest OpenDQV Core instance |
 
 ---
 
@@ -103,7 +103,7 @@ query.awaitTermination()
 
 ## Approach 2 — Databricks Jobs: Pre-Task Validation Gate
 
-In a Databricks Workflow (Jobs UI or Asset Bundle), add an OpenDQV validation task before the Delta write task. Fail the task if validation rejects too many records.
+In a Databricks Workflow (Jobs UI or Asset Bundle), add an OpenDQV Core validation task before the Delta write task. Fail the task if validation rejects too many records.
 
 ```python
 # Task: validate_orders (runs before write_to_delta)
@@ -165,7 +165,7 @@ The `depends_on` ensures `write_to_delta` only runs if `validate_orders` succeed
 
 ## Approach 3 — Delta Live Tables: Quarantine Expectation
 
-In Delta Live Tables (DLT), use an OpenDQV-backed quarantine table alongside your main pipeline table. DLT handles the flow; OpenDQV provides the validation logic.
+In Delta Live Tables (DLT), use an OpenDQV Core-backed quarantine table alongside your main pipeline table. DLT handles the flow; Core provides the validation logic.
 
 ```python
 import dlt
@@ -212,7 +212,7 @@ def orders_clean():
     )
 ```
 
-> **DLT performance note:** The UDF makes one HTTP call per row. For high-volume DLT pipelines, use `foreachBatch` (Approach 1) instead — it batches calls to OpenDQV rather than calling once per record. A single batch validation call for 10,000 rows is dramatically faster than 10,000 individual HTTP calls.
+> **DLT performance note:** The UDF makes one HTTP call per row. For high-volume DLT pipelines, use `foreachBatch` (Approach 1) instead — it batches calls to Core rather than calling once per record. A single batch validation call for 10,000 rows is dramatically faster than 10,000 individual HTTP calls.
 
 ---
 
@@ -226,7 +226,7 @@ asset_id: "databricks://acme-prod.cloud.databricks.com/main/analytics/customers"
 ```
 
 ```python
-# Query the OpenDQV registry to find the contract for a Unity Catalog table
+# Query the OpenDQV Core registry to find the contract for a Unity Catalog table
 import requests, os
 
 def find_contract_for_table(workspace_host: str, catalog: str, schema: str, table: str):
@@ -242,7 +242,7 @@ def find_contract_for_table(workspace_host: str, catalog: str, schema: str, tabl
 
 ## Approach 5 — Federation-Aware: Multiple Databricks Workspaces
 
-Route validation requests to the OpenDQV instance closest to each Databricks workspace:
+Route validation requests to the OpenDQV Core instance closest to each Databricks workspace:
 
 ```python
 INSTANCES = {
@@ -336,7 +336,7 @@ clean_df = annotated_df.filter(col("_opendqv_valid") == True)
 | `.collect()` memory | Collecting a large DataFrame to the driver for batch validation is memory-bounded. Use `foreachPartition` or the streaming approach for DataFrames larger than ~10M rows |
 | UDF HTTP calls in DLT | One HTTP call per row in the DLT UDF (Approach 3) is slow at scale — use `foreachBatch` for production DLT pipelines above ~100k rows per trigger |
 | `unique` rule in distributed mode | The `unique` rule requires the full dataset. In partitioned Spark jobs, per-partition validation cannot detect cross-partition duplicates — use a global deduplication step before validation |
-| Structured Streaming latency | `foreachBatch` adds one OpenDQV round-trip per micro-batch trigger interval. Keep trigger intervals ≥10s for small batches; tune down for high-volume streams |
+| Structured Streaming latency | `foreachBatch` adds one OpenDQV Core round-trip per micro-batch trigger interval. Keep trigger intervals ≥10s for small batches; tune down for high-volume streams |
 
 ---
 

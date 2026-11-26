@@ -99,7 +99,7 @@ A single 4-worker process is appropriate for most deployments. Consider adding i
 - You have many simultaneous callers rather than one high-volume caller
 - You need geographic distribution or fault isolation
 
-Each OpenDQV instance shares no per-request state — horizontal scaling behind a load balancer requires no coordination between instances.
+Each OpenDQV Core instance shares no per-request state — horizontal scaling behind a load balancer requires no coordination between instances.
 
 ## Platform coverage
 
@@ -173,8 +173,8 @@ timeline is flat: every 10-second interval holds 78.8–81.0 req/s with zero err
 **Occasional p99 spikes** (~1700ms) appear at ~360s and ~510s — consistent with SD card
 I/O or GC pauses. These do not affect throughput or error rate.
 
-**Note:** The Pi 400 is a constrained ARM64 device at the lower end of what OpenDQV
-supports — not a production deployment target, but a confirmed proof that OpenDQV runs
+**Note:** The Pi 400 is a constrained ARM64 device at the lower end of what OpenDQV Core
+supports — not a production deployment target, but a confirmed proof that Core runs
 correctly on ARM64 with zero errors across 72,443 requests. For AWS Graviton deployments
 (Cortex-X1 class, 3GHz+), throughput will be significantly higher than the Pi 400 figure.
 For edge use cases (IoT, factory floor, low-power validation nodes), the Python path
@@ -210,7 +210,7 @@ A realistic production workload should be sized against the **mixed workload fig
 rate limiting raised to 100k/min, Apache Bench 10k requests × 20 concurrent).
 Linux/macOS/Windows/Pi figures measured 2026-03-12 to 2026-03-27 (`universal_benchmark` contract, same rule count).
 
-OpenDQV runs on all platforms with zero errors. For production capacity planning,
+OpenDQV Core runs on all platforms with zero errors. For production capacity planning,
 use the EC2 mixed-workload figure (~482 req/s, c6i.large, 2 workers) as the cloud baseline.
 The Pi 400 figure (79.1 req/s) is the ARM64 floor — AWS Graviton deployments will
 significantly exceed this.
@@ -240,12 +240,12 @@ or Soda Core, because:
 1. Fair comparison requires installing and configuring each tool correctly — a one-person
    task that is likely to produce a biased setup.
 2. These tools have different scopes: dbt tests run post-load in a warehouse, GE and Soda
-   run against DataFrames or warehouse connections. OpenDQV runs write-time at the API
+   run against DataFrames or warehouse connections. OpenDQV Core runs write-time at the API
    boundary. The comparison is architectural, not just speed.
 
 **If you run a comparison and want to contribute your results:**
 
-1. Use the five standard workloads above as the OpenDQV baseline
+1. Use the five standard workloads above as the OpenDQV Core baseline
 2. Run equivalent checks in dbt / GE / Soda against the same data using their recommended
    patterns (not naive Python loops)
 3. Record hardware, tool version, and configuration

@@ -1,6 +1,7 @@
-# OpenDQV Demo Environment
+<a id="opendqv-demo-environment"></a>
+# OpenDQV Core Demo Environment
 
-A pre-seeded Docker environment for evaluating OpenDQV without any manual setup.
+A pre-seeded Docker environment for evaluating OpenDQV Core without any manual setup.
 
 One command. Under 2 minutes. Real data. Full governance UI.
 

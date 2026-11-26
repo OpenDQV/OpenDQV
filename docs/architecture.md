@@ -116,7 +116,7 @@ resolution for many records).
 
 **5. Layer 1 only**
 
-OpenDQV validates well-formed structured records at the write boundary. It does not:
+OpenDQV Core validates well-formed structured records at the write boundary. It does not:
 - Sit in pipelines as an observer
 - Monitor data at rest
 - Store records or payloads

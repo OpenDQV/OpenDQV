@@ -1,6 +1,7 @@
-# OpenDQV Python SDK
+<a id="opendqv-python-sdk"></a>
+# OpenDQV Core Python SDK
 
-Python client for the OpenDQV data quality validation engine.
+Python client for the OpenDQV Core data quality validation engine.
 
 Supports synchronous and asynchronous usage, a `@guard()` decorator for
 function-level enforcement, and a local validator that runs in-process
@@ -152,7 +153,7 @@ print(result["passed"])  # True / False
 
 ## Auth
 
-Generate a PAT from the OpenDQV API or CLI:
+Generate a PAT from the OpenDQV Core API or CLI:
 
 ```bash
 # CLI

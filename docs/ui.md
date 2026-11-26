@@ -33,7 +33,7 @@ docker compose up -d
 | **Import Rules** | Import contracts from GX, dbt, Soda, Monte Carlo, or Data Contract CLI |
 | **Profiler** | Analyze a sample dataset and auto-generate a suggested contract |
 | **Webhooks** | Register and manage HTTP webhooks for validation events |
-| **Federation** | Node health, federation status, and event log for the OpenDQV network layer |
+| **Federation** | Node health, federation status, and event log for the OpenDQV Core network layer |
 | **CLI Guide** | Command-line reference and usage examples |
 
 ---

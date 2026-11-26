@@ -1,6 +1,7 @@
-# OpenDQV Postman Collection
+<a id="opendqv-postman-collection"></a>
+# OpenDQV Core Postman Collection
 
-Explore the full OpenDQV API in Postman — no curl commands, no manual header wiring.
+Explore the full OpenDQV Core API in Postman — no curl commands, no manual header wiring.
 
 The collection covers all 50 endpoints across 10 folders: health, contracts, validation, batch, lifecycle, code generation, tokens, import/export, monitoring, and GraphQL.
 
@@ -30,7 +31,7 @@ You should now see **OpenDQV API** in your Collections sidebar and **OpenDQV Loc
 
 ## 3. First five requests (new developer quickstart)
 
-Run these in order for the fastest path to understanding what OpenDQV does:
+Run these in order for the fastest path to understanding what OpenDQV Core does:
 
 | # | Request | Folder | What you learn |
 |---|---------|--------|----------------|
@@ -40,13 +41,13 @@ Run these in order for the fastest path to understanding what OpenDQV does:
 | 4 | **Valid customer record** | 3. Validate — Single Record | `{"valid": true, "errors": []}` — the happy path |
 | 5 | **Invalid customer record — the aha moment** | 3. Validate — Single Record | Multiple field failures returned simultaneously, with actionable error messages |
 
-The invalid record request is the **aha moment**: you see exactly what OpenDQV catches at write time that a post-load check would only surface hours later.
+The invalid record request is the **aha moment**: you see exactly what Core catches at write time that a post-load check would only surface hours later.
 
 ---
 
 ## 4. AUTH_MODE=open (dev/demo)
 
-By default OpenDQV runs with `AUTH_MODE=open` — all callers get admin access without a token.
+By default OpenDQV Core runs with `AUTH_MODE=open` — all callers get admin access without a token.
 
 - Leave `auth_token` blank in the environment
 - All requests will succeed without an `Authorization` header

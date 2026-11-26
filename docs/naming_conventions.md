@@ -14,7 +14,7 @@ contracts/hr_employee.yaml          →   name: hr_employee
 contracts/financial_trade.yaml      →   name: financial_trade
 ```
 
-OpenDQV uses the `name:` field as the canonical identifier across the registry, validation API, and workbench UI. A mismatch between the filename and `name:` is treated as a misconfiguration and will surface as a validation error.
+OpenDQV Core uses the `name:` field as the canonical identifier across the registry, validation API, and workbench UI. A mismatch between the filename and `name:` is treated as a misconfiguration and will surface as a validation error.
 
 ---
 
@@ -32,7 +32,7 @@ This is appropriate for standalone deployments where there is no risk of collisi
 
 ### Multi-brand deployments
 
-When multiple brands share an OpenDQV instance, prefix every brand-owned contract with the brand or domain slug:
+When multiple brands share an OpenDQV Core instance, prefix every brand-owned contract with the brand or domain slug:
 
 - `luminelle_order.yaml` → `name: luminelle_order`
 - `luminelle_customer.yaml` → `name: luminelle_customer`
@@ -52,7 +52,7 @@ The domain prefix signals that the contract is infrastructure-level, not brand-s
 
 ## 3. Domain Tagging
 
-OpenDQV does not enforce tags, but adding a `tags:` field to the contract header is strongly recommended. Tags drive search and filtering in the workbench and make contracts discoverable across teams.
+OpenDQV Core does not enforce tags, but adding a `tags:` field to the contract header is strongly recommended. Tags drive search and filtering in the workbench and make contracts discoverable across teams.
 
 ```yaml
 name: luminelle_order
@@ -75,7 +75,7 @@ Suggested tag categories:
 
 ## 4. Collision-Avoidance Rules for Shared Tenants
 
-When multiple brands or teams share a single OpenDQV instance, follow these rules to prevent naming collisions:
+When multiple brands or teams share a single OpenDQV Core instance, follow these rules to prevent naming collisions:
 
 1. **Never use bare generic names** (`order`, `product`, `customer`) if more than one brand is active on the instance. A bare `order` contract is ambiguous and will overwrite or shadow another brand's contract of the same name in the registry.
 

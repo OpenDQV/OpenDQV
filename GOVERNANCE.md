@@ -45,7 +45,7 @@ Security issues are handled under the coordinated disclosure process described i
 
 ## Versioning Policy
 
-OpenDQV follows [Semantic Versioning 2.0.0](https://semver.org/):
+OpenDQV Core follows [Semantic Versioning 2.0.0](https://semver.org/):
 
 - **Patch releases** (e.g. 2.1.1): bug fixes, security patches, documentation corrections. No breaking changes.
 - **Minor releases** (e.g. 2.2.0): new features, new rule types, new endpoints. Backwards-compatible. Deprecation notices may be introduced.
@@ -73,9 +73,9 @@ OpenDQV follows the [Contributor Covenant v2.1](https://www.contributor-covenant
 
 ## Funding and Sustainability
 
-OpenDQV is currently self-funded by the primary maintainer and sustained by volunteer contributor time. There is no venture capital, no foundation grant, and no commercial entity behind the community edition.
+OpenDQV is currently self-funded by the primary maintainer and sustained by volunteer contributor time. There is no venture capital and no foundation grant. OpenDQV Core is open source (MIT), maintained by BGMS Consultants Limited. OpenDQV Cloud is a managed service from BGMS Consultants Limited (https://opendqv.com).
 
-Long-term sustainability is intended to come from an enterprise tier (federation, Postgres backend, commercial support agreements) that funds continued development of the open source core. The community edition will remain MIT-licensed and fully functional without a commercial subscription.
+OpenDQV Core will remain MIT-licensed and fully functional without OpenDQV Cloud.
 
 If you are an organisation deriving value from OpenDQV, consider opening a GitHub Sponsorship or reaching out about a commercial pilot agreement.
 

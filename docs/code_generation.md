@@ -1,6 +1,6 @@
 # Code Generation (Push-Down Mode)
 
-For systems that can't make HTTP calls at runtime, OpenDQV can generate validation logic
+For systems that can't make HTTP calls at runtime, OpenDQV Core can generate validation logic
 to embed directly in the target system. The generated code mirrors the contract rules exactly —
 the same validation, no network dependency.
 

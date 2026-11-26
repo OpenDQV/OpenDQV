@@ -2,7 +2,7 @@
 
 Last reviewed: 2026-10-10 (engine 3.0.5)
 
-OpenDQV ships 24 rule types (the `_RULE_HANDLERS` table in
+OpenDQV Core ships 24 rule types (the `_RULE_HANDLERS` table in
 `opendqv/core/validator.py`). The 14 core ones are documented on this page;
 the rest have their own pages — see the [index](README.md). Each rule lives
 under `contract.rules[]` in a YAML data contract.

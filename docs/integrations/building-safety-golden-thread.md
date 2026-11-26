@@ -7,7 +7,7 @@ The Building Safety Act 2022 requires higher-risk buildings to maintain a
 building lifecycle. The law's own phrase is "accurate and up-to-date information"
 — it is explicitly a data quality obligation, not just a procedural one.
 
-OpenDQV enforces this obligation at the point of write — before a golden thread
+OpenDQV Core enforces this obligation at the point of write — before a golden thread
 record reaches a building management system, property management platform, or
 asset register — making incomplete or inaccurate records structurally impossible
 rather than discovered at inspection time.
@@ -45,7 +45,7 @@ life. It includes:
 - How residents are engaged on safety matters
 
 The Act requires this information to be **accurate, up-to-date, and accessible**.
-OpenDQV enforces the "accurate and up-to-date" part at the point of write — a
+OpenDQV Core enforces the "accurate and up-to-date" part at the point of write — a
 record that is missing a required field cannot enter the system.
 
 ---
@@ -60,7 +60,8 @@ record that is missing a required field cannot enter the system.
 
 ---
 
-## How OpenDQV enforces the golden thread
+<a id="how-opendqv-enforces-the-golden-thread"></a>
+## How OpenDQV Core enforces the golden thread
 
 ```
 Building manager submits golden thread record
@@ -184,7 +185,7 @@ of which criterion was met.
 
 ## Limitations
 
-OpenDQV validates the **declaration**, not the **adequacy** of the Safety Case
+OpenDQV Core validates the **declaration**, not the **adequacy** of the Safety Case
 or the competence of the Building Safety Manager. The contract enforces that
 a record is complete before it is saved. It cannot verify that:
 

@@ -3,7 +3,7 @@
 > **Last reviewed:** 2026-03-21.
 
 The UK General Data Protection Regulation (UK GDPR) and Data Protection Act 2018 impose
-two categories of point-of-write data obligations that OpenDQV enforces directly:
+two categories of point-of-write data obligations that OpenDQV Core enforces directly:
 
 1. **Records of Processing Activities (ROPA)** — Article 30 requires every data controller
    to maintain a written record of each processing activity, including its lawful basis,
@@ -15,7 +15,7 @@ two categories of point-of-write data obligations that OpenDQV enforces directly
    a recorded receipt date, requester identity, or response deadline cannot be managed
    to the statutory deadline.
 
-OpenDQV enforces both at the point of write — before the record enters your case management
+Core enforces both at the point of write — before the record enters your case management
 system, CRM, or ROPA register — making omission structurally impossible rather than relying
 on human review.
 
@@ -118,7 +118,7 @@ A controller must respond to a DSAR within **30 calendar days** of receipt. This
 extended by up to two further months for complex or numerous requests, but the extension
 must be communicated to the data subject within the original 30 days.
 
-OpenDQV enforces that the response deadline is recorded at the point the request is
+OpenDQV Core enforces that the response deadline is recorded at the point the request is
 logged — before it enters your case management workflow.
 
 ### What it validates

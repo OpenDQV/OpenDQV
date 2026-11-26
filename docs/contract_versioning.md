@@ -1,12 +1,12 @@
 # Contract Versioning
 
-How OpenDQV records, resolves, and evolves contract versions.
+How OpenDQV Core records, resolves, and evolves contract versions.
 
 ---
 
 ## Current Behaviour
 
-Version is an operator-managed string stored in the contract header (e.g. `"1.0"`, `"2024-Q1"`, `"prod-v3"`). OpenDQV records the full history of every contract version in the `ContractHistory` audit log — you can retrieve any past version and see exactly which rules were active at any point in time.
+Version is an operator-managed string stored in the contract header (e.g. `"1.0"`, `"2024-Q1"`, `"prod-v3"`). OpenDQV Core records the full history of every contract version in the `ContractHistory` audit log — you can retrieve any past version and see exactly which rules were active at any point in time.
 
 The system does **not** validate that version strings follow semver, and it does **not** automatically classify changes as breaking or non-breaking. That classification is left to the operator and their governance process. The `REVIEW` lifecycle (draft → review → active) is the mechanism for ensuring that version changes are deliberately approved before they affect live validation.
 
@@ -31,7 +31,7 @@ DRAFT (`/reject`). Activation archives the previously ACTIVE version of the same
 
 ## In-Flight Semantics
 
-Active version resolves at request time: when a validation request arrives, OpenDQV looks up the currently `ACTIVE` version of the named contract and applies its rules. The resolved version is recorded in the response (`"version"` field) and in the audit log entry for that request.
+Active version resolves at request time: when a validation request arrives, OpenDQV Core looks up the currently `ACTIVE` version of the named contract and applies its rules. The resolved version is recorded in the response (`"version"` field) and in the audit log entry for that request.
 
 In-flight requests are not interrupted by a version bump. A request that has already begun evaluation completes against the version that was active when evaluation started. Requests received after the bump use the new rules immediately — there is no grace window or draining period.
 

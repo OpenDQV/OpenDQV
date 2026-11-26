@@ -2,14 +2,14 @@
 
 > **Last reviewed:** 2026-03-13.
 
-![OpenDQV + Kafka — validate before committing the offset, route to dead-letter topic](demo_kafka.gif)
+![OpenDQV Core + Kafka — validate before committing the offset, route to dead-letter topic](demo_kafka.gif)
 
 *The Kafka pattern: validate each message before committing the offset — invalid records go to the dead-letter topic, valid records proceed. Consumers never process bad data and your warehouse stays clean at source.*
 
 > Covers `confluent-kafka-python v2.x`, `aiokafka v0.x`, Apache Kafka ≥3.x.
 > [confluent-kafka on PyPI](https://pypi.org/project/confluent-kafka/) · [aiokafka on PyPI](https://pypi.org/project/aiokafka/)
 
-OpenDQV's write-time model is a natural fit for Kafka consumers: validate every record before committing the offset. Bad records never advance the consumer position — they go to a dead-letter topic instead. Downstream consumers receive only records that passed the contract.
+OpenDQV Core's write-time model is a natural fit for Kafka consumers: validate every record before committing the offset. Bad records never advance the consumer position — they go to a dead-letter topic instead. Downstream consumers receive only records that passed the contract.
 
 ---
 
@@ -38,7 +38,7 @@ Bad records are routed to `dead-letter.orders` for review. Good records are forw
 
 ## Approach 1 — Confluent Kafka Consumer (Synchronous)
 
-The simplest integration: a Python consumer that calls OpenDQV before committing, routes rejects to a dead-letter topic.
+The simplest integration: a Python consumer that calls OpenDQV Core before committing, routes rejects to a dead-letter topic.
 
 ```python
 import json
@@ -115,7 +115,7 @@ finally:
 **Key points:**
 - `enable.auto.commit: False` is required — you must commit manually after validation, not before
 - Commit on rejection too (after routing to DLT), otherwise the consumer loops on the same bad record forever
-- `trace_id` encodes the Kafka coordinates — correlate with OpenDQV trace log by offset
+- `trace_id` encodes the Kafka coordinates — correlate with the OpenDQV Core trace log by offset
 
 ---
 
@@ -188,7 +188,7 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-**Concurrency note:** The semaphore limits simultaneous in-flight OpenDQV requests to `CONCURRENCY` (default 20). Tune based on your OpenDQV instance's throughput capacity — see [`benchmark_throughput.md`](benchmark_throughput.md) for measured limits.
+**Concurrency note:** The semaphore limits simultaneous in-flight OpenDQV Core requests to `CONCURRENCY` (default 20). Tune based on your Core instance's throughput capacity — see [`benchmark_throughput.md`](benchmark_throughput.md) for measured limits.
 
 ---
 
@@ -303,7 +303,7 @@ finally:
 
 ## Approach 5 — Webhook Back-Channel: `opendqv.validation.failed` → Kafka Alert Topic
 
-Publish a Kafka alert message when OpenDQV fires a `opendqv.validation.failed` webhook. Lets your existing Kafka-native alerting consumers pick up OpenDQV rejection events without polling.
+Publish a Kafka alert message when OpenDQV Core fires a `opendqv.validation.failed` webhook. Lets your existing Kafka-native alerting consumers pick up Core rejection events without polling.
 
 ```python
 from fastapi import FastAPI, Request
@@ -385,7 +385,7 @@ current_hash = get_contract_hash("orders")
 
 ## Approach 7 — Federation-Aware: Route by Topic Prefix
 
-In a federated deployment, select the OpenDQV instance based on the Kafka topic prefix (which typically encodes the domain or region).
+In a federated deployment, select the OpenDQV Core instance based on the Kafka topic prefix (which typically encodes the domain or region).
 
 ```python
 from opendqv.sdk import OpenDQVClient
@@ -416,7 +416,7 @@ def get_client_for_topic(topic: str) -> OpenDQVClient:
 | Limitation | Detail |
 |---|---|
 | `unique` rule in streaming | The `unique` rule requires the full batch to detect duplicates. It works in batch-poll mode (Approach 3) but not record-by-record. For cross-message uniqueness, use a stateful stream processor (Flink, Kafka Streams) or a Redis-backed deduplication layer |
-| Transient OpenDQV failures | A network timeout to OpenDQV should not drop or DLT a record. Add retry logic with exponential backoff; only route to DLT on a validation failure (`valid: false` in a 200 response), not on connectivity errors (5xx, timeout) |
+| Transient OpenDQV Core failures | A network timeout to Core should not drop or DLT a record. Add retry logic with exponential backoff; only route to DLT on a validation failure (`valid: false` in a 200 response), not on connectivity errors (5xx, timeout) |
 | Consumer lag under high rejection rates | If the rejection rate is high, the DLT producer can become a bottleneck. Monitor DLT lag independently and scale the DLT consumer |
 | Offset ordering | Manual commit after routing means that a crash between produce and commit will re-process the message. Ensure your downstream topic consumers are idempotent or use exactly-once semantics (Kafka transactions) |
 
@@ -454,7 +454,7 @@ Use `kafka://{cluster-id}/{topic}` as the convention. This allows catalog tools 
 ## Roadmap
 
 See [`roadmap.md`](roadmap.md) for planned Kafka-specific features, including:
-- Native Kafka Connect sink connector with built-in OpenDQV validation
+- Native Kafka Connect sink connector with built-in OpenDQV Core validation
 - Kafka Streams transformer (stateful, including `unique` rule support)
 - Schema Registry integration — map Avro/Protobuf schemas to OpenDQV contracts automatically
 

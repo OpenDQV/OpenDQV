@@ -2,17 +2,17 @@
 
 > **API last verified:** `dbt ≥1.0`, `dbt_expectations ≥0.10.0`, `dbt_utils ≥1.0.0` — 2026-03-13.
 
-![OpenDQV + dbt — import schema.yml as a validation contract](demo_dbt.gif)
+![OpenDQV Core + dbt — import schema.yml as a validation contract](demo_dbt.gif)
 
 *Import your existing dbt `schema.yml` column tests as an OpenDQV contract in one command — your dbt quality rules, now enforced at the write boundary before data ever reaches the warehouse.*
 
 > Snippets are examples; pin your own version in `requirements.txt`.
 > [Check for updates](https://pypi.org/project/dbt-core/)
 
-OpenDQV and dbt serve complementary roles in the modern data stack:
+OpenDQV Core and dbt serve complementary roles in the modern data stack:
 
 - **dbt** transforms raw data into clean, tested models inside the warehouse
-- **OpenDQV** validates data at source — before it enters the pipeline
+- **OpenDQV Core** validates data at source — before it enters the pipeline
 
 The integration described here enables dbt test results to reference OpenDQV validation contracts, and allows dbt model schemas to be imported as OpenDQV contracts.
 
@@ -29,7 +29,7 @@ The integration described here enables dbt test results to reference OpenDQV val
 
 ## Approach 1 — Import dbt `schema.yml` as an OpenDQV Contract
 
-OpenDQV already ships a dbt importer (`core/importers/dbt.py`). It converts dbt
+OpenDQV Core already ships a dbt importer (`core/importers/dbt.py`). It converts dbt
 `schema.yml` column tests into OpenDQV validation rules.
 
 ### Supported dbt test → OpenDQV rule mapping
@@ -73,7 +73,7 @@ rules:
 
 ## Approach 2 — Export an OpenDQV Contract as dbt `schema.yml`
 
-If you author contracts in OpenDQV and want to push column-level tests back into dbt,
+If you author contracts in OpenDQV Core and want to push column-level tests back into dbt,
 use the `export-dbt` command. It converts OpenDQV validation rules to native dbt test
 syntax that can be dropped straight into your dbt project.
 
@@ -150,7 +150,7 @@ packages:
 
 ## Approach 3 — Pre-ingestion validation before dbt source tables
 
-Source systems that write to dbt-managed tables can run OpenDQV before loading
+Source systems that write to dbt-managed tables can run OpenDQV Core before loading
 data into your staging table. This catches quality issues at the boundary rather
 than inside the warehouse.
 
@@ -175,13 +175,13 @@ if not result["summary"]["failed"] == 0:
 staging_table.insert(records)
 ```
 
-dbt then runs against a staging table that has already passed OpenDQV validation.
+dbt then runs against a staging table that has already passed OpenDQV Core validation.
 
 ---
 
 ## Approach 4 — Quality Trend as dbt Exposure Metadata
 
-OpenDQV's `GET /api/v1/contracts/{name}/quality-trend` endpoint returns daily
+OpenDQV Core's `GET /api/v1/contracts/{name}/quality-trend` endpoint returns daily
 pass rates. This data can be used to annotate dbt exposures:
 
 ```yaml
@@ -208,7 +208,7 @@ exposures:
 | **Now** | Use the dbt importer (`/api/v1/import/dbt`) to bootstrap contracts from existing `schema.yml` files |
 | **Now** | Use `export-dbt <contract>` to generate dbt column tests from OpenDQV contracts |
 | **Now** | Set `asset_id` on contracts to match dbt model refs for catalog linkage |
-| **Planned — based on community demand** | Add `trace_id` to dbt model runs; pass to OpenDQV for end-to-end lineage |
+| **Planned — based on community demand** | Add `trace_id` to dbt model runs; pass to OpenDQV Core for end-to-end lineage |
 | **Planned — based on community demand** | Publish `opendqv_dbt` macro package for singular tests |
 | **Planned — based on community demand** | Native dbt Cloud integration via webhook trigger on dbt job failure |
 

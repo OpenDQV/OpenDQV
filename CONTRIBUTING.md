@@ -178,7 +178,7 @@ Works in both single-record and batch (DuckDB) modes.
 
 ### Cross-Field Rules
 
-OpenDQV supports rules that compare two fields within the same record.
+OpenDQV Core supports rules that compare two fields within the same record.
 
 **`compare` — compare this field to another field**
 

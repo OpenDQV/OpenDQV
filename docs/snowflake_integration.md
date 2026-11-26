@@ -4,9 +4,9 @@
 > Covers `snowflake-connector-python v3.x`, `snowflake-sqlalchemy v1.x`, Snowpipe REST API, Snowflake External Functions.
 > [snowflake-connector-python on PyPI](https://pypi.org/project/snowflake-connector-python/)
 
-OpenDQV validates records before they reach Snowflake. Once a record lands in a Snowflake table it is part of your queryable data — bad records that slip through become query results, JOIN noise, and downstream model failures. Blocking at the write boundary is the cheapest fix point.
+OpenDQV Core validates records before they reach Snowflake. Once a record lands in a Snowflake table it is part of your queryable data — bad records that slip through become query results, JOIN noise, and downstream model failures. Blocking at the write boundary is the cheapest fix point.
 
-> **Migration note:** Snowflake External Functions (Approach 3) call the OpenDQV API directly from SQL — no application code changes required. This is the governance-first pattern for Snowflake: any INSERT path is validated, regardless of which tool writes the data. It directly replaces stored-procedure DQ logic and unblocks migrations from legacy warehouse environments.
+> **Migration note:** Snowflake External Functions (Approach 3) call the OpenDQV Core API directly from SQL — no application code changes required. This is the governance-first pattern for Snowflake: any INSERT path is validated, regardless of which tool writes the data. It directly replaces stored-procedure DQ logic and unblocks migrations from legacy warehouse environments.
 
 ## Which approach for your use case?
 
@@ -17,7 +17,7 @@ OpenDQV validates records before they reach Snowflake. Once a record lands in a 
 | Governance-owned SQL enforcement | Approach 3 (External Function) | Validates from inside Snowflake SQL — any writer covered |
 | Event-driven / serverless | Approach 4 (Streams + Tasks) | Fully serverless within Snowflake, no external process |
 | Incremental / contract-change aware | Approach 5 (contract version) | Skip re-validation when contract is unchanged |
-| Multi-account governance | Approach 6 (Federation-aware) | Routes to nearest OpenDQV instance |
+| Multi-account governance | Approach 6 (Federation-aware) | Routes to nearest OpenDQV Core instance |
 
 ---
 
@@ -145,14 +145,16 @@ def stage_and_ingest(records: list[dict], batch_id: str):
 
 ---
 
-## Approach 3 — External Function: Call OpenDQV from Within Snowflake SQL
+<a id="approach-3--external-function-call-opendqv-from-within-snowflake-sql"></a>
 
-Snowflake External Functions allow SQL to call an external REST API. This enables OpenDQV validation as a SQL expression — useful for validating records already in a Snowflake staging table before promoting them to production.
+## Approach 3 — External Function: Call OpenDQV Core from Within Snowflake SQL
+
+Snowflake External Functions allow SQL to call an external REST API. This enables OpenDQV Core validation as a SQL expression — useful for validating records already in a Snowflake staging table before promoting them to production.
 
 ### Create the External Function
 
 ```sql
--- 1. Create an API integration pointing at your OpenDQV instance
+-- 1. Create an API integration pointing at your OpenDQV Core instance
 -- AWS: API_PROVIDER = aws_api_gateway, API_AWS_ROLE_ARN = 'arn:aws:iam::...:role/snowflake-opendqv'
 -- Azure: API_PROVIDER = azure_api_management, AZURE_AD_APPLICATION_ID = '...'
 -- GCP: API_PROVIDER = google_api_gateway, GOOGLE_AUDIENCE = '...'
@@ -196,7 +198,7 @@ WHERE opendqv_validate('customer', OBJECT_CONSTRUCT(*)):valid::BOOLEAN = TRUE;
 
 ## Approach 4 — Snowflake Streams and Tasks: Event-Driven Validation
 
-Use a Snowflake Stream to detect new rows in a staging table, then a Task to call OpenDQV via a webhook — quarantining invalid rows before they accumulate.
+Use a Snowflake Stream to detect new rows in a staging table, then a Task to call OpenDQV Core via a webhook — quarantining invalid rows before they accumulate.
 
 ```sql
 -- 1. Create a stream on the staging table
@@ -273,7 +275,7 @@ for c in contracts:
 
 ## Approach 6 — Federation-Aware: Multiple Snowflake Accounts
 
-In multi-account deployments (e.g. EU and US Snowflake accounts), route validation to the OpenDQV instance co-located with the account to minimise latency:
+In multi-account deployments (e.g. EU and US Snowflake accounts), route validation to the OpenDQV Core instance co-located with the account to minimise latency:
 
 ```python
 INSTANCES = {
@@ -290,7 +292,7 @@ def get_client(snowflake_account: str) -> OpenDQVClient:
 
 ## Local Development with DuckDB
 
-DuckDB is already a core OpenDQV dependency. Use it to develop and test the Snowflake validation pattern locally — no Snowflake account or credits required.
+DuckDB is already a core dependency of OpenDQV Core. Use it to develop and test the Snowflake validation pattern locally — no Snowflake account or credits required.
 
 ### Validate records extracted from a DuckDB table
 
@@ -348,7 +350,7 @@ The DuckDB integration tests cover:
 - The quarantine pattern
 - DuckDB `fetchdf()` → `to_dict("records")` roundtrip
 
-> **DuckDB vs. Snowflake External Function:** The Snowflake External Function (Approach 3) calls the OpenDQV API for SQL-level validation. The local DuckDB path uses `LocalValidator` instead — same validation logic, no API server required for local development.
+> **DuckDB vs. Snowflake External Function:** The Snowflake External Function (Approach 3) calls the OpenDQV Core API for SQL-level validation. The local DuckDB path uses `LocalValidator` instead — same validation logic, no API server required for local development.
 
 ---
 
@@ -357,7 +359,7 @@ The DuckDB integration tests cover:
 | Limitation | Detail |
 |---|---|
 | External Function latency | One HTTP round-trip per row; avoid on tables > 100k rows — use Approach 1 or 2 |
-| External Function row limit | Snowflake sends rows in batches of up to 500 per call; ensure your OpenDQV instance handles concurrent batch calls |
+| External Function row limit | Snowflake sends rows in batches of up to 500 per call; ensure your OpenDQV Core instance handles concurrent batch calls |
 | Snowpipe and schema evolution | If the staging file schema changes, validate against the updated contract before staging — Snowpipe will reject files that don't match the pipe's COPY INTO column list |
 | Streams and Tasks compute cost | The Task (Approach 4) consumes Snowflake credits — size your warehouse appropriately for the expected stream volume |
 

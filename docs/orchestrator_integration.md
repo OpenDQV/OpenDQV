@@ -3,7 +3,7 @@
 > **Last reviewed:** 2026-03-13.
 > Covers Apache Airflow ≥2.x, Prefect ≥2.x, Dagster ≥1.x.
 
-OpenDQV as a pipeline gate — bad data blocked before it enters the DAG. Each of the three major Python orchestrators follows the same pattern: call `POST /api/v1/validate/batch` before the load step; fail the task if any records are rejected; let the orchestrator handle retry and alerting.
+OpenDQV Core as a pipeline gate — bad data blocked before it enters the DAG. Each of the three major Python orchestrators follows the same pattern: call `POST /api/v1/validate/batch` before the load step; fail the task if any records are rejected; let the orchestrator handle retry and alerting.
 
 ---
 
@@ -32,7 +32,7 @@ This means the warehouse table your downstream transforms read from is clean by 
 
 ## Approach 1 — Apache Airflow
 
-Use a Python callable task (`@task` or `PythonOperator`) that calls OpenDQV before the load step. Raise `AirflowException` on rejection to fail the task and trigger Airflow's retry/alert machinery.
+Use a Python callable task (`@task` or `PythonOperator`) that calls OpenDQV Core before the load step. Raise `AirflowException` on rejection to fail the task and trigger Airflow's retry/alert machinery.
 
 ```python
 from airflow.decorators import dag, task
@@ -82,15 +82,15 @@ orders_ingestion()
 ```
 
 **Tips:**
-- Set `retries=2` and `retry_delay=timedelta(minutes=5)` on the validate task to handle transient OpenDQV unavailability without failing the whole DAG
-- Use `trace_id=context["run_id"]` to correlate OpenDQV trace log entries with Airflow task instances
+- Set `retries=2` and `retry_delay=timedelta(minutes=5)` on the validate task to handle transient Core unavailability without failing the whole DAG
+- Use `trace_id=context["run_id"]` to correlate Core trace log entries with Airflow task instances
 - For large batches, chunk the records and call `validate/batch` in pages of 1000
 
 ---
 
 ## Approach 2 — Prefect
 
-Use a Prefect `@task` with OpenDQV pre-check. Raise `prefect.exceptions.FailedRun` (or simply `raise`) on rejection.
+Use a Prefect `@task` with OpenDQV Core pre-check. Raise `prefect.exceptions.FailedRun` (or simply `raise`) on rejection.
 
 ```python
 from prefect import flow, task, get_run_logger
@@ -144,7 +144,7 @@ if __name__ == "__main__":
 ```
 
 **Prefect-specific notes:**
-- `retries=2` on the task handles transient OpenDQV failures; genuine data rejections are not retriable — add `retry_condition_fn` if you want to distinguish the two
+- `retries=2` on the task handles transient Core failures; genuine data rejections are not retriable — add `retry_condition_fn` if you want to distinguish the two
 - Prefect Cloud surfaces the logger output directly in the flow run UI, giving operators instant visibility into which contract failed
 - Use `prefect.variables` or `prefect.blocks.system.Secret` for `OPENDQV_TOKEN`
 
@@ -212,7 +212,7 @@ orders_job = define_asset_job("orders_ingestion_job", selection=[raw_orders, cle
 
 ## Approach 4 — Webhook Back-Channel: Run ID Correlation
 
-Pass the orchestrator's run ID as `trace_id` to OpenDQV so that trace log entries can be correlated back to the specific DAG/flow/job run that triggered them.
+Pass the orchestrator's run ID as `trace_id` to OpenDQV Core so that trace log entries can be correlated back to the specific DAG/flow/job run that triggered them.
 
 | Orchestrator | Run ID source | How to pass |
 |---|---|---|
@@ -220,7 +220,7 @@ Pass the orchestrator's run ID as `trace_id` to OpenDQV so that trace log entrie
 | Prefect | `get_run_context().flow_run.id` | `trace_id=str(flow_run_id)` |
 | Dagster | `context.run_id` | `trace_id=context.run_id` |
 
-OpenDQV echoes `trace_id` in every validation response and logs it at `DEBUG` level. Configure your log aggregator to index on `trace_id` for cross-system joins.
+Core echoes `trace_id` in every validation response and logs it at `DEBUG` level. Configure your log aggregator to index on `trace_id` for cross-system joins.
 
 ---
 
@@ -250,7 +250,7 @@ contracts = get_contracts_for_dag("urn:opendqv:acme:orders")
 
 ## Approach 6 — Federation-Aware
 
-In a multi-region deployment, route validation requests to the OpenDQV instance closest to the data source:
+In a multi-region deployment, route validation requests to the OpenDQV Core instance closest to the data source:
 
 ```python
 INSTANCES = {
@@ -272,7 +272,7 @@ Pass `region` as a DAG/flow parameter, or infer from the source system's locatio
 | Limitation | Detail |
 |---|---|
 | Large batch performance | `validate/batch` is synchronous; for batches > 10,000 records consider chunking into pages of 1,000 and running in parallel using the async SDK (`AsyncOpenDQVClient`) |
-| Transient failures | OpenDQV unavailability should be retried; data rejections should not — add retry condition logic to distinguish the two |
+| Transient failures | OpenDQV Core unavailability should be retried; data rejections should not — add retry condition logic to distinguish the two |
 | Unique rule in batch mode | The `unique` rule type requires the full batch to be present; streaming record-by-record validation cannot enforce uniqueness |
 
 ---
@@ -281,11 +281,11 @@ Pass `region` as a DAG/flow parameter, or infer from the source system's locatio
 
 | Phase | Action |
 |---|---|
-| **Now** | Add an OpenDQV validation task/check before every warehouse load task |
+| **Now** | Add an OpenDQV Core validation task/check before every warehouse load task |
 | **Now** | Pass the orchestrator run ID as `trace_id` for end-to-end correlation |
 | **Now** | Use `asset_id` filtering to only check contracts relevant to each DAG |
 | **Planned — based on community demand** | Switch to `AsyncOpenDQVClient` for high-throughput pipelines |
-| **Planned — based on community demand** | Add webhook back-channel to push OpenDQV rejections to your alerting stack |
+| **Planned — based on community demand** | Add webhook back-channel to push Core rejections to your alerting stack |
 
 ---
 

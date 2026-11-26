@@ -129,7 +129,7 @@ for contract in contracts:
 
 ## Approach 2 — Quality Score → Purview Data Health
 
-OpenDQV's `GET /api/v1/contracts/{name}/quality-trend` returns daily pass rates. Push these to Purview's data health endpoint to populate quality metrics in the Purview governance portal.
+OpenDQV Core's `GET /api/v1/contracts/{name}/quality-trend` returns daily pass rates. Push these to Purview's data health endpoint to populate quality metrics in the Purview governance portal.
 
 ```python
 def push_quality_score(token: str, guid: str, score: float, measured_at: str):
@@ -182,7 +182,7 @@ for contract in contracts:
 
 ## Approach 3 — Webhook → Purview via Azure Event Hub
 
-When OpenDQV fires `opendqv.validation.failed`, route the event to an Azure Event Hub. Purview can subscribe to Event Hub topics for custom event ingestion.
+When OpenDQV Core fires `opendqv.validation.failed`, route the event to an Azure Event Hub. Purview can subscribe to Event Hub topics for custom event ingestion.
 
 ```python
 from fastapi import FastAPI, Request
@@ -219,7 +219,7 @@ async def handle_validation_failed(request: Request):
     return {"status": "published"}
 ```
 
-Register the webhook in OpenDQV:
+Register the webhook in OpenDQV Core:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/webhooks \
@@ -280,7 +280,7 @@ for contract in requests.get(
 |---|---|
 | **Now** | Set `asset_id` on contracts using the Purview FQN format |
 | **Now** | Create custom attributes in Purview; run the metadata sync script |
-| **Planned — based on community demand** | Schedule daily quality score push from OpenDQV trend → Purview health metrics |
+| **Planned — based on community demand** | Schedule daily quality score push from OpenDQV Core trend → Purview health metrics |
 | **Planned — based on community demand** | Add webhook → Event Hub pipeline for `opendqv.validation.failed` alerting |
 
 ---

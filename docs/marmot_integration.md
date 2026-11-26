@@ -3,9 +3,9 @@
 > **Marmot version:** This guide targets Marmot v0.x (MIT, https://github.com/marmotdata/marmot).
 > Verify all Marmot API endpoint paths and request payloads against your instance's Swagger UI
 > (`/swagger/index.html`) before deploying — Marmot is pre-1.0 and field names may differ.
-> OpenDQV webhook event names are verified against `core/webhooks.py`.
+> OpenDQV Core webhook event names are verified against `core/webhooks.py`.
 
-OpenDQV and Marmot serve complementary roles: OpenDQV validates data at the write boundary and governs contracts; Marmot provides data discovery, lineage visualisation, and asset cataloging across your estate. Neither replaces the other — together they close the governance loop from "what data do we have?" to "is it valid before it lands?"
+OpenDQV Core and Marmot serve complementary roles: Core validates data at the write boundary and governs contracts; Marmot provides data discovery, lineage visualisation, and asset cataloging across your estate. Neither replaces the other — together they close the governance loop from "what data do we have?" to "is it valid before it lands?"
 
 ---
 
@@ -13,14 +13,16 @@ OpenDQV and Marmot serve complementary roles: OpenDQV validates data at the writ
 
 1. **Contract-first** — OpenDQV contracts are the source of truth; Marmot reflects their state, not the reverse
 2. **Incremental** — use `schema_hash` to skip unchanged contracts and avoid redundant API calls
-3. **Non-invasive** — no changes to OpenDQV internals; integration lives in a thin sync script
+3. **Non-invasive** — no changes to OpenDQV Core internals; integration lives in a thin sync script
 4. **MCP-native** — both tools expose MCP servers; AI agents can query both in a single workflow
 
 ---
 
-## What OpenDQV Is NOT
+<a id="what-opendqv-is-not"></a>
 
-| OpenDQV does | OpenDQV does NOT |
+## What OpenDQV Core Is NOT
+
+| OpenDQV Core does | OpenDQV Core does NOT |
 |---|---|
 | Validate records against contract rules | Replace Marmot's lineage graph |
 | Publish contract metadata (owner, version, hash) | Crawl your warehouse schemas |
@@ -50,7 +52,7 @@ owner: "data-governance"
 
 ### Field mapping
 
-| OpenDQV field | Marmot field |
+| OpenDQV Core field | Marmot field |
 |---|---|
 | `name` | Asset name / `metadata.name` |
 | `description` | Asset description |
@@ -120,7 +122,7 @@ for contract in contracts:
 
 ## Approach 2 — Webhook-Driven Quality Tagging
 
-Register an OpenDQV webhook so Marmot assets are tagged in real time when a validation failure is detected — no polling required.
+Register an OpenDQV Core webhook so Marmot assets are tagged in real time when a validation failure is detected — no polling required.
 
 ### Architecture
 
@@ -268,7 +270,7 @@ def sync_rules_to_marmot(contract_name: str, marmot_asset_id: str):
 
 ## Approach 4 — MCP Bridge (AI-Native Governance)
 
-Both OpenDQV and Marmot expose MCP servers. An AI agent (Claude Desktop, Cursor, or any MCP-compatible tool) can call both in a single workflow — no custom integration code required.
+Both OpenDQV Core and Marmot expose MCP servers. An AI agent (Claude Desktop, Cursor, or any MCP-compatible tool) can call both in a single workflow — no custom integration code required.
 
 ### Example agentic workflow
 
@@ -320,13 +322,13 @@ validation failures in the last 24 hours. Top failing rule: email_format."
 > The full dual-MCP bridge is live and tested — see
 > `scripts/test_marmot_integration.py` for the smoke test (22 checks, all passing).
 >
-> See OpenDQV's MCP guide (`docs/mcp.md`) for full tool listing.
+> See OpenDQV Core's MCP guide (`docs/mcp.md`) for full tool listing.
 
 This is the **governance-first** integration pattern: no scheduled jobs, no ETL pipelines — AI agents compose both tools on demand.
 
 ### Remote access from another machine (e.g. MacBook Pro → Linux API)
 
-The OpenDQV MCP server runs in **remote mode** when `OPENDQV_MCP_API_URL` is set —
+The OpenDQV Core MCP server runs in **remote mode** when `OPENDQV_MCP_API_URL` is set —
 it proxies all tool calls to a central API instead of loading contracts locally.
 This means the MCP server can run on a laptop with no OpenDQV contracts installed.
 
@@ -363,7 +365,7 @@ Most data lineage tools draw the graph *after* data moves:
 Source system → dbt model → Warehouse table → Dashboard
 ```
 
-OpenDQV enforces at the **write boundary** — at every arrow in that graph. This approach makes OpenDQV contracts visible inside Marmot's lineage view, so governance teams can see not just where data flows but **what rules it had to satisfy to cross each boundary**.
+OpenDQV Core enforces at the **write boundary** — at every arrow in that graph. This approach makes OpenDQV contracts visible inside Marmot's lineage view, so governance teams can see not just where data flows but **what rules it had to satisfy to cross each boundary**.
 
 ### What it looks like
 
@@ -386,7 +388,7 @@ Each contract node carries: contract name, version, hash, status, rule count, an
 
 ### How it works
 
-No new OpenDQV internals are needed. The pattern uses `asset_id`, the Marmot assets API, and a `opendqv.validation.passed` webhook to keep the lineage node current.
+No new OpenDQV Core internals are needed. The pattern uses `asset_id`, the Marmot assets API, and a `opendqv.validation.passed` webhook to keep the lineage node current.
 
 **Step 1 — Register the contract as a Marmot lineage asset**
 
@@ -446,7 +448,7 @@ Refer to Marmot's lineage endpoint (`/api/v1/lineage`) in your instance's Swagge
 
 **Step 3 — Keep the node current with a webhook**
 
-Register an OpenDQV webhook for `opendqv.contract.approved` to refresh the Marmot lineage node whenever a contract is promoted to ACTIVE:
+Register an OpenDQV Core webhook for `opendqv.contract.approved` to refresh the Marmot lineage node whenever a contract is promoted to ACTIVE:
 
 ```bash
 curl -s -X POST http://localhost:8000/api/v1/webhooks \
@@ -468,7 +470,7 @@ curl -s -X POST http://localhost:8000/api/v1/webhooks \
 | Governance is implicit | Governance is **visible and auditable** in the lineage graph |
 | Contract version unknown at query time | Contract version pinned to every lineage edge |
 
-This is the pattern that closes the loop between write-time enforcement (OpenDQV) and discovery/lineage (Marmot) — making the bouncer visible at the door in every diagram your governance team draws.
+This is the pattern that closes the loop between write-time enforcement (OpenDQV Core) and discovery/lineage (Marmot) — making the bouncer visible at the door in every diagram your governance team draws.
 
 ---
 
@@ -518,10 +520,10 @@ print(f"Synced {synced}, skipped {skipped} (hash unchanged)")
 
 | Limitation | Detail |
 |---|---|
-| No lineage graph | OpenDQV does not track upstream/downstream models; Marmot lineage must be populated separately |
+| No lineage graph | OpenDQV Core does not track upstream/downstream models; Marmot lineage must be populated separately |
 | Aggregated trend only | `/quality-trend` returns daily aggregates, not per-record results |
-| No deletion propagation | Archiving a contract in OpenDQV does not remove the Marmot asset |
-| Webhook best-effort | OpenDQV webhooks are fire-and-forget; transient receiver downtime means missed events |
+| No deletion propagation | Archiving a contract in Core does not remove the Marmot asset |
+| Webhook best-effort | Core webhooks are fire-and-forget; transient receiver downtime means missed events |
 | Marmot API stability | Marmot is pre-1.0; verify endpoint paths against your instance's Swagger UI before deploying |
 | No Python SDK | Marmot has no official Python client; use `requests` against the REST API directly |
 
@@ -610,7 +612,7 @@ Use cases: internal test contracts, deprecated contracts pending archival, exper
 
 ## Approach 6 — MCP Composition (Agent-Native)
 
-Both OpenDQV and Marmot expose MCP servers. An AI agent can compose them without any integration code — just two MCP connections and a prompt.
+Both OpenDQV Core and Marmot expose MCP servers. An AI agent can compose them without any integration code — just two MCP connections and a prompt.
 
 ### What the agent does
 
@@ -671,7 +673,7 @@ The "banking_transaction" contract is showing elevated rejections.
 | Layer 2 — catalog | `marmot:get_asset` | Owner, description, lineage edges, downstream assets |
 | Layer 3 — observability | GX / Soda / Monte Carlo | Post-load trend anomalies |
 
-This is the primary integration path for teams using AI agents. No deployment step required — both servers are already available if you have OpenDQV and Marmot installed.
+This is the primary integration path for teams using AI agents. No deployment step required — both servers are already available if you have OpenDQV Core and Marmot installed.
 
 ---
 
@@ -691,6 +693,6 @@ This is the primary integration path for teams using AI agents. No deployment st
 
 - `docs/asset_id_uri_convention.md` — naming rules for `asset_id` URNs
 - `docs/catalog_integration.md` — catalog integration index
-- `docs/mcp.md` — OpenDQV MCP server tool listing
+- `docs/mcp.md` — OpenDQV Core MCP server tool listing
 - Marmot REST API: `{MARMOT_URL}/swagger/index.html`
 - Marmot GitHub: https://github.com/marmotdata/marmot

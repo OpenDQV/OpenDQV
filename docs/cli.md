@@ -3,7 +3,7 @@
 > **Last reviewed:** 2026-09-03 (engine 2.7.0).
 > Covers every subcommand in `opendqv/cli.py`. Run `opendqv --help` or `python -m opendqv.cli --help` for the same information inline.
 
-OpenDQV ships a standalone CLI for contract management, validation, imports, exports, lifecycle governance, and code generation. All commands operate on the local filesystem and SQLite database — no running API server is required.
+OpenDQV Core ships a standalone CLI for contract management, validation, imports, exports, lifecycle governance, and code generation. All commands operate on the local filesystem and SQLite database — no running API server is required.
 
 ---
 
@@ -75,7 +75,7 @@ opendqv --version
 
 ### `init`
 
-Bootstraps a `contracts/` directory with a starter contract. Designed for pip users who install OpenDQV without cloning the repo.
+Bootstraps a `contracts/` directory with a starter contract. Designed for pip users who install OpenDQV Core without cloning the repo.
 
 ```bash
 opendqv init
@@ -281,7 +281,7 @@ opendqv reject customer --version 1.0.0 --rejected-by bob --reason "missing PII 
 
 ### `token-generate <name>`
 
-Generates a Personal Access Token (PAT) for authenticating against the OpenDQV API. The token is displayed once — it is not stored in recoverable form.
+Generates a Personal Access Token (PAT) for authenticating against the OpenDQV Core API. The token is displayed once — it is not stored in recoverable form.
 
 ```bash
 opendqv token-generate salesforce-prod --role validator --expiry-days 90
@@ -364,7 +364,7 @@ The generated header embeds a sync reminder and the contract version so it is al
 // callouts there). See docs/salesforce_integration.md.
 ```
 
-For live, always-in-sync governance use the API integration rather than generated code. Generated code is appropriate for low-latency edge deployments or environments without outbound network access to the OpenDQV API.
+For live, always-in-sync governance use the API integration rather than generated code. Generated code is appropriate for low-latency edge deployments or environments without outbound network access to the OpenDQV Core API.
 
 ---
 

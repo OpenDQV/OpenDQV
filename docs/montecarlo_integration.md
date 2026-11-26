@@ -3,13 +3,13 @@
 > **API last verified:** Monte Carlo REST API — 2026-03-13.
 > [Monte Carlo documentation](https://docs.getmontecarlo.com/)
 
-Monte Carlo monitors data at-rest anomalies — schema drift, volume changes, distribution shifts — after data lands in your warehouse. OpenDQV operates at the other end: it blocks bad records before they are written. The OpenDQV HMAC trace log is the bridge that connects write-time decisions to Monte Carlo alerts.
+Monte Carlo monitors data at-rest anomalies — schema drift, volume changes, distribution shifts — after data lands in your warehouse. OpenDQV Core operates at the other end: it blocks bad records before they are written. The Core HMAC trace log is the bridge that connects write-time decisions to Monte Carlo alerts.
 
 ---
 
 ## Approach 1 — Trace Log Shipping
 
-Every OpenDQV validation decision is written to a JSONL trace log with a timestamp, record ID, contract version, trace ID, and outcome. Ship this log to your aggregator; Monte Carlo ingests it as a custom event source.
+Every OpenDQV Core validation decision is written to a JSONL trace log with a timestamp, record ID, contract version, trace ID, and outcome. Ship this log to your aggregator; Monte Carlo ingests it as a custom event source.
 
 ### JSONL trace log format
 
@@ -18,9 +18,10 @@ Every OpenDQV validation decision is written to a JSONL trace log with a timesta
 {"timestamp": "2026-03-13T10:00:01Z", "trace_id": "7c0c9e2b1f4a4d8e9b2c3d4e5f6a7b8c", "contract": "customer", "contract_version": "1.0", "asset_id": "urn:opendqv:acme:customer:1.0", "valid": true, "failed_rules": [], "record_id": "cust-9913"}
 ```
 
-### Field mapping: OpenDQV trace log → Monte Carlo custom event
+<a id="field-mapping-opendqv-trace-log--monte-carlo-custom-event"></a>
+### Field mapping: OpenDQV Core trace log → Monte Carlo custom event
 
-| OpenDQV field | Monte Carlo custom event field |
+| OpenDQV Core field | Monte Carlo custom event field |
 |---|---|
 | `timestamp` | `event_time` |
 | `trace_id` | `external_id` |
@@ -80,7 +81,7 @@ Fluent Bit tails the JSONL log, parses each line as JSON, and forwards to your a
 #     auto_create_group true
 ```
 
-Mount the trace log into the Fluent Bit container via a shared volume (same volume used by the OpenDQV container for `/var/log/opendqv`).
+Mount the trace log into the Fluent Bit container via a shared volume (same volume used by the OpenDQV Core container for `/var/log/opendqv`).
 
 From your aggregator, configure a Monte Carlo custom event ingest pipeline via the Monte Carlo UI under **Monitors > Custom Events**.
 
@@ -88,7 +89,7 @@ From your aggregator, configure a Monte Carlo custom event ingest pipeline via t
 
 ## Approach 2 — Webhook Correlation
 
-When OpenDQV rejects records (`opendqv.validation.failed`), push a custom event directly to Monte Carlo to flag the affected asset.
+When OpenDQV Core rejects records (`opendqv.validation.failed`), push a custom event directly to Monte Carlo to flag the affected asset.
 
 ### FastAPI webhook receiver
 
@@ -140,7 +141,7 @@ async def handle_validation_failed(request: Request):
     return {"status": "forwarded", "contract": payload["contract"]}
 ```
 
-Register in OpenDQV:
+Register in OpenDQV Core:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/webhooks \
@@ -159,7 +160,7 @@ See [`webhooks.md`](webhooks.md) for full webhook configuration and HMAC signing
 
 ## Approach 3 — `asset_id` Bridge
 
-The `asset_id` field on an OpenDQV contract can be set to match the Monte Carlo table identifier for the same asset. This enables cross-tool correlation: when Monte Carlo fires an alert on a table, you can query OpenDQV's quality-trend endpoint for the same asset to see write-time rejection history.
+The `asset_id` field on an OpenDQV contract can be set to match the Monte Carlo table identifier for the same asset. This enables cross-tool correlation: when Monte Carlo fires an alert on a table, you can query OpenDQV Core's quality-trend endpoint for the same asset to see write-time rejection history.
 
 ### Setting the bridge
 
@@ -203,7 +204,7 @@ if matching:
 
 ## Approach 4 — Federation-Aware
 
-In a federated deployment, each OpenDQV instance covers a region or domain. Correlate Monte Carlo alerts with the correct regional instance using `asset_id` prefix routing:
+In a federated deployment, each OpenDQV Core instance covers a region or domain. Correlate Monte Carlo alerts with the correct regional instance using `asset_id` prefix routing:
 
 ```python
 INSTANCES = {
@@ -229,7 +230,7 @@ def find_contract_for_asset(asset_id: str) -> dict | None:
 
 | Limitation | Detail |
 |---|---|
-| No native MC connector | Monte Carlo does not yet have an OpenDQV connector in its integration marketplace |
+| No native MC connector | Monte Carlo does not yet have an OpenDQV Core connector in its integration marketplace |
 | GraphQL API changes | Monte Carlo's mutation API evolves; pin the API version and test on MC upgrades |
 | JSONL log volume | High-throughput deployments produce large trace logs — use log sampling or a structured log shipper (Fluent Bit, Datadog agent) rather than the shell tail loop above |
 | Alert correlation latency | Trace log shipping is async; real-time correlation requires the webhook approach (Approach 2) |
@@ -243,7 +244,7 @@ def find_contract_for_asset(asset_id: str) -> dict | None:
 | **Now** | Set `asset_id` on contracts to match Monte Carlo table identifiers |
 | **Now** | Ship JSONL trace log to your log aggregator; configure MC custom event ingest |
 | **Planned — based on community demand** | Add `opendqv.validation.failed` webhook → MC custom event receiver |
-| **Planned — based on community demand** | Build quality-trend dashboard in MC using OpenDQV pass-rate data |
+| **Planned — based on community demand** | Build quality-trend dashboard in MC using OpenDQV Core pass-rate data |
 | **Planned — based on community demand** | Native MC connector (planned) |
 
 ---

@@ -2,7 +2,7 @@
 
 > Last reviewed: 2026-10-07
 
-OpenDQV 2.x let a contract declare a `contexts:` block: named sets of rule
+OpenDQV Core 2.x let a contract declare a `contexts:` block: named sets of rule
 overrides (for example `kids_app`, `salesforce_prod`) that a validate call
 selected with `context=`. **3.0.0 removes the feature.** In the same release
 the `contract:` wrapper around a contract document is removed: a contract is a

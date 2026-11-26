@@ -2,7 +2,7 @@
 
 > This page is a redirect index. Each catalog has its own dedicated integration guide below.
 
-OpenDQV exposes contract metadata via `GET /api/v1/registry` and `GET /api/v1/contracts/{name}`.
+OpenDQV Core exposes contract metadata via `GET /api/v1/registry` and `GET /api/v1/contracts/{name}`.
 The optional `asset_id` field links any contract to a catalog asset using that catalog's native URN
 convention — see [`docs/index.md`](index.md) for the cross-catalog URN table.
 

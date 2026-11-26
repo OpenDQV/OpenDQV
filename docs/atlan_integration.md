@@ -4,22 +4,23 @@
 > Snippets are examples; pin your own version in `requirements.txt`.
 > [Check for updates](https://pypi.org/project/pyatlan/)
 
-OpenDQV and Atlan serve complementary roles: OpenDQV Core is the validation and contract governance layer, while Atlan is the active metadata platform that surfaces data discovery, trust scores, and lineage to data consumers. This guide shows six approaches to connecting them, from a simple one-off metadata push to a real-time webhook-driven pipeline with column-level rule visibility.
+OpenDQV Core and Atlan serve complementary roles: OpenDQV Core is the validation and contract governance layer, while Atlan is the active metadata platform that surfaces data discovery, trust scores, and lineage to data consumers. This guide shows six approaches to connecting them, from a simple one-off metadata push to a real-time webhook-driven pipeline with column-level rule visibility.
 
 ---
 
 ## Design Goals
 
 1. **SDK-first** — use `pyatlan` for all writes; the raw REST API is a last resort
-2. **Custom metadata namespace** — all OpenDQV fields live under an `OpenDQV` namespace in Atlan, keeping them separate from native Atlan attributes
+2. **Custom metadata namespace** — all OpenDQV Core fields live under an `OpenDQV` namespace in Atlan, keeping them separate from native Atlan attributes
 3. **Incremental** — read back current values from Atlan before writing to skip unchanged contracts
-4. **Complementary roles** — OpenDQV owns contract authoring and validation; Atlan owns propagation, access control, and consumer-facing discoverability
+4. **Complementary roles** — OpenDQV Core owns contract authoring and validation; Atlan owns propagation, access control, and consumer-facing discoverability
 
 ---
 
-## What OpenDQV Is NOT
+<a id="what-opendqv-is-not"></a>
+## What OpenDQV Core Is NOT
 
-| OpenDQV does | OpenDQV does NOT |
+| OpenDQV Core does | OpenDQV Core does NOT |
 |---|---|
 | Validate records against contract rules | Replace Atlan's metadata propagation policies |
 | Publish contract metadata (owner, version, hash) | Manage Atlan access control or personas |
@@ -54,7 +55,7 @@ Push every active OpenDQV contract into the Atlan `Table` entity that the contra
 
 ### Field mapping
 
-| OpenDQV field | Atlan `OpenDQV` attribute |
+| OpenDQV Core field | Atlan `OpenDQV` attribute |
 |---|---|
 | `name` | `contract_name` |
 | `version` | `contract_version` |
@@ -158,9 +159,10 @@ if trend_resp.status_code == 200:
 
 ---
 
-## Approach 3 — OpenDQV Webhook → Atlan Asset Custom Metadata Update
+<a id="approach-3--opendqv-webhook--atlan-asset-custom-metadata-update"></a>
+## Approach 3 — OpenDQV Core Webhook → Atlan Asset Custom Metadata Update
 
-Register an OpenDQV webhook so Atlan is updated in real time when a validation failure occurs.
+Register an OpenDQV Core webhook so Atlan is updated in real time when a validation failure occurs.
 
 ### Webhook payload → Atlan update mapping
 
@@ -181,7 +183,7 @@ Register an OpenDQV webhook so Atlan is updated in real time when a validation f
 | `last_failure_at` | `String` | ISO-8601 timestamp of most recent failure |
 | `last_failure_rule` | `String` | Rule name that triggered the failure |
 | `last_failure_fields` | `String` | Comma-separated list of failing fields |
-| `last_failure_trace_id` | `String` | OpenDQV trace ID for the failed run |
+| `last_failure_trace_id` | `String` | OpenDQV Core trace ID for the failed run |
 
 ### FastAPI receiver snippet
 
@@ -320,7 +322,7 @@ for field_name, rules in rules_by_field.items():
 
 ## Approach 5 — Incremental Sync via Read-Back from Atlan
 
-Instead of a local state file, read the `schema_hash` currently stored in Atlan and skip the write if it matches the OpenDQV hash.
+Instead of a local state file, read the `schema_hash` currently stored in Atlan and skip the write if it matches the OpenDQV Core hash.
 
 ```python
 # pip install pyatlan requests
@@ -372,20 +374,20 @@ Atlan can automatically propagate the `quality_score_7d` attribute from a Table 
 
 | Limitation | Detail |
 |---|---|
-| No lineage graph | OpenDQV does not know upstream/downstream models; Atlan lineage must be crawled from the warehouse separately |
+| No lineage graph | OpenDQV Core does not know upstream/downstream models; Atlan lineage must be crawled from the warehouse separately |
 | `qualifiedName` required | Approach 1 silently skips contracts without a valid `asset_id`; there is no automatic fallback |
 | Aggregated trend only | `/quality-trend` returns daily aggregates; per-record failure detail is not pushed to Atlan |
 | Propagation needs lineage | Approach 6 propagation policies only fire if Atlan lineage is populated |
 | Namespace pre-creation | The `OpenDQV` (and `OpenDQV_Rules`) custom metadata namespace must be created in Atlan Admin before any sync runs |
 | Column assets must exist | Approach 4 requires columns to have been crawled and to exist as Atlan assets |
-| Webhook best-effort | OpenDQV webhooks are fire-and-forget; transient receiver downtime means missed events |
+| Webhook best-effort | Core webhooks are fire-and-forget; transient receiver downtime means missed events |
 | `pyatlan` version pinning | The `pyatlan` API evolves quickly; pin your version (e.g. `pyatlan>=0.5,<1.0`) in `requirements.txt` |
 
 ---
 
 ## `asset_id` Conventions for Atlan
 
-OpenDQV's `asset_id` field must be set to the Atlan `qualifiedName` of the asset the contract governs. The qualifiedName is the unique identifier Atlan uses to locate assets across all integrations.
+OpenDQV Core's `asset_id` field must be set to the Atlan `qualifiedName` of the asset the contract governs. The qualifiedName is the unique identifier Atlan uses to locate assets across all integrations.
 
 **Atlan qualifiedName format:**
 

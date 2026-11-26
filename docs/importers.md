@@ -4,7 +4,7 @@
 > Expectation and check names shown in the mapping tables are based on these versions.
 > [GX on PyPI](https://pypi.org/project/great-expectations/) · [Soda Core on PyPI](https://pypi.org/project/soda-core/)
 
-OpenDQV can generate contracts from existing schema definitions so you don't have to write
+OpenDQV Core can generate contracts from existing schema definitions so you don't have to write
 validation rules by hand. Each importer converts a source format into a DRAFT contract
 ready for review and activation.
 
@@ -45,7 +45,7 @@ be reviewed and activated before it can be used for production validation.
 | `expect_column_values_to_match_strftime_format` | `date_format` | Preserves format |
 | `expect_column_values_to_be_in_set` | `regex` | Mapped to `^(val1\|val2)$` pattern; no native inline set support |
 
-**`mostly` semantics:** GX's `mostly` parameter (allowing a fraction of rows to fail) has no equivalent in OpenDQV, which validates individual records. Expectations with `mostly < 1.0` are imported as `severity: warning`. When re-exported, all `warning` rules emit `mostly: 0.95` — the original `mostly` value is not preserved.
+**`mostly` semantics:** GX's `mostly` parameter (allowing a fraction of rows to fail) has no equivalent in OpenDQV Core, which validates individual records. Expectations with `mostly < 1.0` are imported as `severity: warning`. When re-exported, all `warning` rules emit `mostly: 0.95` — the original `mostly` value is not preserved.
 
 **Export format:** The exporter emits GX 1.x format (`"type"` key on expectations, `"name"` on the suite). The importer handles both GX 0.x and 1.x input.
 
@@ -79,29 +79,31 @@ be reviewed and activated before it can be used for production validation.
 | `avg_length(...)` | Dataset-level aggregate |
 | `valid format: <unknown>` | Format not yet in the mapping table |
 
-> **Aggregate vs. record semantics:** Soda checks run over a full dataset. `min(amount) >= 0` in Soda means "the dataset-level minimum is non-negative" — it passes even if one row has a negative value, as long as another row compensates. In OpenDQV, this becomes a per-record `min` rule that checks every individual record's value. This is a closer approximation for `missing_count` and `duplicate_count`, but is semantically different for `min`/`max` aggregate checks. Use Soda for dataset-level monitoring and OpenDQV for record-level write-time enforcement — they complement rather than duplicate each other.
+> **Aggregate vs. record semantics:** Soda checks run over a full dataset. `min(amount) >= 0` in Soda means "the dataset-level minimum is non-negative" — it passes even if one row has a negative value, as long as another row compensates. In OpenDQV Core, this becomes a per-record `min` rule that checks every individual record's value. This is a closer approximation for `missing_count` and `duplicate_count`, but is semantically different for `min`/`max` aggregate checks. Use Soda for dataset-level monitoring and OpenDQV Core for record-level write-time enforcement — they complement rather than duplicate each other.
 
 ---
 
 ## ODCS — Open Data Contract Standard (reads v3.0.x–v3.2.0, writes v3.1.0)
 
-OpenDQV imports ODCS v3.0.x, v3.1.0 and
+OpenDQV Core imports ODCS v3.0.x, v3.1.0 and
 [v3.2.0](https://bitol-io.github.io/open-data-contract-standard/latest/) documents, and
 exports v3.1.0. Every export validates against the official ODCS JSON schema — the 3.1.0
 one it targets and the 3.2.0 one — and passes `datacontract lint`
 ([datacontract-cli](https://github.com/datacontract/datacontract-cli)); this is enforced by
 the test suite on all bundled contracts. The export spelling stays v3.1.0 because every
-construct OpenDQV emits exists unchanged in 3.2.0 and `v3.1.0` is still in the standard's
+construct Core emits exists unchanged in 3.2.0 and `v3.1.0` is still in the standard's
 own `apiVersion` list, so a 3.2.0 reader accepts it.
 
-### What v3.2.0 adds, and what OpenDQV does with it (2.10.0)
+<a id="what-v320-adds-and-what-opendqv-does-with-it-2100"></a>
 
-| Construct | OpenDQV reads it as |
+### What v3.2.0 adds, and what OpenDQV Core does with it (2.10.0)
+
+| Construct | OpenDQV Core reads it as |
 |---|---|
 | property `enum` (list of `{value, id?, label?, description?, tags?}`) | `allowed_values` from each entry's `value`; labels, ids and descriptions are governance metadata, not values |
 | `logicalTypeOptions.enum` (Data Contract CLI extension, not schema-valid) | `allowed_values`, noted in `import_notes` as a pre-3.2.0 spelling |
 | `invalidValues.validValues` (the pre-3.2.0 library twin) | `allowed_values` |
-| `logicalType: map`, `logicalType: vector` | nothing — the property is named in `skipped_checks`; OpenDQV validates records field by field and cannot read either |
+| `logicalType: map`, `logicalType: vector` | nothing — the property is named in `skipped_checks`; Core validates records field by field and cannot read either |
 | `context`, `synonyms`, `deprecated`, `semanticType` | nothing, silently: documentation and modelling metadata with no record-level meaning. A `deprecated` element never moves contract status |
 | top-level `status` (optional since 3.2.0) | absent → `draft` |
 
@@ -114,7 +116,7 @@ vector arithmetic.
 
 ### The `odcs:` passthrough block
 
-A contract written by OpenDQV Cloud may carry a top-level `odcs:` block — opaque maps of
+A contract written by [OpenDQV Cloud](https://opendqv.com) may carry a top-level `odcs:` block — opaque maps of
 the ODCS sections that engine does not enforce. OpenDQV Core **carries it verbatim**: it
 loads, it is preserved verbatim on every write, it contributes no rules, and it sits
 outside the contract hash domain (it cannot change a verdict, so it must not change a
@@ -155,7 +157,7 @@ Two deliberate choices:
 
 ### What other tools see (the loss ledger)
 
-The `custom/opendqv` entry is lossless, but only OpenDQV reads it. A native-only consumer
+The `custom/opendqv` entry is lossless, but only OpenDQV Core reads it. A native-only consumer
 (datacontract-cli's SodaCL / JSON-schema / dbt exporters, OpenMetadata) sees exactly the
 projected fields and nothing else. Deliberately absent from the native projection:
 
@@ -168,7 +170,7 @@ projected fields and nothing else. Deliberately absent from the native projectio
 | `inherited`, `federation_tier`, `provenance`, `severity_floor`, `lookup_auth_header` | stripped from the `custom` entry too | node-local engine state; refused on import, meaningless elsewhere |
 | `regex` with lookaround / backreference | nothing | RE2 consumers abort on the whole object |
 | `regex` on a numeric/date field | nothing | `pattern` is only valid under `logicalType: string` |
-| `not_empty` | `required: true` | ODCS `required` allows empty strings; OpenDQV does not — no double-count with `missingValues` |
+| `not_empty` | `required: true` | ODCS `required` allows empty strings; Core does not — no double-count with `missingValues` |
 | `min_age` / `max_age` / `age_match` / `date_diff` | `logicalType: date` only | no ODCS calendar arithmetic |
 | `compare`, `required_if`, `forbidden_if`, `conditional_value`, `cross_field_range`, `field_sum`, `ratio_check`, `geospatial_bounds`, `checksum`, `lookup` (file / URL), `conditional_lookup` | nothing | cross-field / reference-data / algorithmic rules have no declarative ODCS form |
 
@@ -220,11 +222,11 @@ model. It may not set `inherited`, `federation_tier`, `provenance`, `severity_fl
 invalid rule fails the whole import with HTTP 422 rather than loading partially.
 
 Other ODCS sections (`servers`, `slaProperties`, `roles`, `support`, `price`, `tags`,
-`domain`, `tenant`) are outside OpenDQV's scope. They are returned as `_odcs_metadata` in
+`domain`, `tenant`) are outside OpenDQV Core's scope. They are returned as `_odcs_metadata` in
 the API response for the caller's use and are not persisted.
 
-> **Vocabulary note:** In ODCS and Data Mesh terminology, OpenDQV's "source system" is
-> the **data producer** and each calling service is a **data consumer**. OpenDQV enforces
+> **Vocabulary note:** In ODCS and Data Mesh terminology, OpenDQV Core's "source system" is
+> the **data producer** and each calling service is a **data consumer**. Core enforces
 > quality rules at the producer boundary — before data leaves the source.
 
 ---
@@ -432,7 +434,7 @@ For other formats, substitute `import-gx`, `import-soda`, `import-csv`, or `impo
 
 ## Export formats
 
-OpenDQV can also export contracts back to external schema formats:
+OpenDQV Core can also export contracts back to external schema formats:
 
 | Target format | CLI command | Notes |
 |---------------|-------------|-------|

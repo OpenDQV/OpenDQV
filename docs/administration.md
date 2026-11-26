@@ -20,7 +20,7 @@ Set in `.env` or as an environment variable. Default is `open`.
 
 ## Roles
 
-OpenDQV uses six roles. Assign the least-privileged role that covers the use case.
+OpenDQV Core uses six roles. Assign the least-privileged role that covers the use case.
 
 | Role | Intended for | Validate | Read contracts | Edit contracts | Approve | Audit chain | Manage tokens |
 |------|-------------|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -153,7 +153,7 @@ Every transition is recorded in the immutable hash-chained contract history (`GE
 
 ## Running behind a reverse proxy
 
-If OpenDQV runs behind nginx, Caddy, Traefik, or a cloud load balancer (AWS ALB, GCP GCLB),
+If OpenDQV Core runs behind nginx, Caddy, Traefik, or a cloud load balancer (AWS ALB, GCP GCLB),
 set `TRUST_PROXY_HEADERS=true` in `.env` to enable correct per-IP rate limiting using
 `X-Forwarded-For`.
 

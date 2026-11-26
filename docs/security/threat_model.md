@@ -1,4 +1,6 @@
-# OpenDQV Threat Model — STRIDE Analysis
+<a id="opendqv-threat-model--stride-analysis"></a>
+
+# OpenDQV Core Threat Model — STRIDE Analysis
 
 This document covers the seven primary attack surfaces identified during the initial security review. For each surface, the STRIDE category, current mitigation, residual risk, and recommended control are listed.
 
@@ -42,7 +44,7 @@ This document covers the seven primary attack surfaces identified during the ini
 
 ## 2. HTTP Lookup Fetching — SSRF
 
-**Threat:** A contract rule with `lookup_url` pointing to an internal service (e.g. `http://10.0.0.1/admin` or the AWS metadata endpoint `http://169.254.169.254/latest/meta-data/`) causes the OpenDQV server to make outbound HTTP requests to internal infrastructure during validation.
+**Threat:** A contract rule with `lookup_url` pointing to an internal service (e.g. `http://10.0.0.1/admin` or the AWS metadata endpoint `http://169.254.169.254/latest/meta-data/`) causes the OpenDQV Core server to make outbound HTTP requests to internal infrastructure during validation.
 
 **STRIDE categories:** Server-Side Request Forgery, Information Disclosure
 
@@ -53,7 +55,7 @@ This document covers the seven primary attack surfaces identified during the ini
 
 **Residual risk:** Low. An attacker would need authenticated webhook registration access. Time-of-check-time-of-use (TOCTOU) rebinding attacks are mitigated by resolving at registration. Egress firewall rules provide defense-in-depth.
 
-**Recommended control:** Configure host-level egress firewall rules to block outbound connections to RFC 1918 ranges from the OpenDQV container. This provides a network-layer backstop independent of the application check.
+**Recommended control:** Configure host-level egress firewall rules to block outbound connections to RFC 1918 ranges from the OpenDQV Core container. This provides a network-layer backstop independent of the application check.
 
 ---
 
@@ -108,7 +110,7 @@ This document covers the seven primary attack surfaces identified during the ini
 
 **Residual risk:** Low (with HMAC key set) to Medium (without). Without HMAC, an adversary with filesystem write access could reconstruct a valid chain after deleting entries. The field names and contract names visible in the log may assist reconnaissance.
 
-**Recommended control:** Set `OPENDQV_TRACE_HMAC_KEY` to a cryptographically random 32-byte secret. Write the trace log to WORM storage (S3 Object Lock, Azure Immutable Blob Storage). Restrict filesystem read access to the log directory to the OpenDQV process user only.
+**Recommended control:** Set `OPENDQV_TRACE_HMAC_KEY` to a cryptographically random 32-byte secret. Write the trace log to WORM storage (S3 Object Lock, Azure Immutable Blob Storage). Restrict filesystem read access to the log directory to the OpenDQV Core process user only.
 
 ---
 

@@ -1,8 +1,8 @@
 # Contributor Licence Agreement
 
-**OpenDQV Individual Contributor Licence Agreement v1.0**
+**OpenDQV Individual Contributor Licence Agreement v1.1**
 
-Thank you for your interest in contributing to OpenDQV, maintained by **BGMS Consultants Ltd** ("the Maintainer"), a company registered in England and Wales.
+Thank you for your interest in contributing to OpenDQV, maintained by **BGMS Consultants Limited** ("the Maintainer"), a company registered in England and Wales.
 
 This Contributor Licence Agreement ("Agreement") documents the rights you grant to the Maintainer in respect of your Contributions. This is a licence — you retain ownership of your Contributions.
 
@@ -22,7 +22,7 @@ By submitting a Contribution you agree to the terms of this Agreement. If you ar
 
 Subject to the terms of this Agreement, you hereby grant to the Maintainer and to recipients of software distributed by the Maintainer a **perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable licence** to reproduce, prepare derivative works of, publicly display, publicly perform, sublicense, and distribute your Contributions and such derivative works **under any licence terms the Maintainer chooses**, including proprietary licence terms.
 
-This grant allows the Maintainer to offer OpenDQV under both open-source licences (such as AGPL v3) and commercial licences without requiring further permission from you.
+This grant allows the Maintainer to offer OpenDQV under both open-source licences (such as the MIT licence, under which OpenDQV Core is published) and commercial licences without requiring further permission from you.
 
 ---
 
@@ -74,4 +74,6 @@ When you open your first pull request, a bot will comment asking you to sign thi
 
 ---
 
-*OpenDQV CLA v1.0 — BGMS Consultants Ltd — Last updated 2026-03-10*
+*OpenDQV CLA v1.1 — BGMS Consultants Limited — Last updated 2026-11-26*
+
+v1.1 (2026-11-26): clarified the example licence and wrote the company name in full; the scope of the grant is unchanged.

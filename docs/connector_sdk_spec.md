@@ -1,10 +1,10 @@
 # Connector SDK Specification
 
-> **Target audience:** integration engineers building connectors between OpenDQV and source systems (databases, message brokers, SaaS platforms).
+> **Target audience:** integration engineers building connectors between OpenDQV Core and source systems (databases, message brokers, SaaS platforms).
 
 ## Overview
 
-A connector is any process that calls OpenDQV's `/api/v1/validate` or `/api/v1/validate/batch` endpoint on behalf of a source system. This document specifies:
+A connector is any process that calls OpenDQV Core's `/api/v1/validate` or `/api/v1/validate/batch` endpoint on behalf of a source system. This document specifies:
 
 1. The **wire protocol** (request/response shapes)
 2. The **trace log schema** that connectors must emit
@@ -154,7 +154,7 @@ delay = min(base_delay * (backoff_multiplier ** attempt), max_delay)
 
 ### Degraded mode
 
-When the OpenDQV API is unreachable:
+When the OpenDQV Core API is unreachable:
 
 1. Log `outcome: "degraded"` in the trace log
 2. If `contract_cache_dir` is configured in the SDK, fall back to the cached contract
@@ -166,7 +166,9 @@ When the OpenDQV API is unreachable:
 
 ## 4. Reference Implementations
 
-### Python (using the OpenDQV SDK)
+<a id="python-using-the-opendqv-sdk"></a>
+
+### Python (using the OpenDQV Core SDK)
 
 ```python
 from opendqv.sdk.client import OpenDQVClient

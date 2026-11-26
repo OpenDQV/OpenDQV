@@ -1,19 +1,21 @@
-# OpenDQV Disaster Recovery and Business Continuity
+<a id="opendqv-disaster-recovery-and-business-continuity"></a>
 
-This document defines the recovery objectives, backup procedures, and continuity posture for OpenDQV deployments. It is intended for infrastructure operators and for risk assessors evaluating the service for use in data pipeline or integration contexts.
+# OpenDQV Core Disaster Recovery and Business Continuity
+
+This document defines the recovery objectives, backup procedures, and continuity posture for OpenDQV Core deployments. It is intended for infrastructure operators and for risk assessors evaluating the service for use in data pipeline or integration contexts.
 
 ---
 
 ## What Data is Persisted
 
-OpenDQV stores the following in `opendqv.db` (SQLite):
+OpenDQV Core stores the following in `opendqv.db` (SQLite):
 
 | Data type | Stored | Notes |
 |-----------|--------|-------|
 | API tokens (hashed) | Yes | Plaintext tokens are never stored |
 | Webhook registrations | Yes | URLs and event type subscriptions |
 | Contract version history | Yes | Full YAML snapshots per version |
-| Federation events | Yes | Enterprise edition only |
+| Federation events | Yes | Only when federation is enabled — see [federation.md](federation.md) |
 | **Validation payloads** | **No** | Processed in-memory, discarded after response |
 
 Contract YAML files are stored on the filesystem in the `contracts/` directory. These are the primary source of truth for validation behaviour and should be version-controlled in git.
@@ -29,7 +31,7 @@ Because validation payloads are never persisted, a compromise or loss of `opendq
 | RTO (Recovery Time Objective) | 15 minutes | Time to pull image, restore db file, and restart container on existing host infrastructure |
 | RPO (Recovery Point Objective) | 24 hours | Based on a daily backup cadence; tokens and webhook registrations created since the last backup must be re-issued |
 
-These targets assume a single-instance deployment where the host is available and a recent backup exists. They are not contractual SLAs for the community edition.
+These targets assume a single-instance deployment where the host is available and a recent backup exists. They are not contractual SLAs — OpenDQV Core is open source and has no SLA.
 
 ---
 
@@ -90,25 +92,25 @@ curl -s http://localhost:8000/health
 
 ## High Availability and Failover
 
-The community edition has no built-in high availability. The in-memory rate limiter state is not shared between processes or instances. This means:
+OpenDQV Core has no built-in high availability. The in-memory rate limiter state is not shared between processes or instances. This means:
 
 - **Single instance**: full service interruption if the host or container fails.
 - **Multiple instances behind a load balancer**: possible, but rate limit counters are not synchronised. Use a Redis-backed rate limiter or enforce rate limits at the load balancer. See `SECURITY.md` for the per-worker rate limit multiplication caveat.
 
-Horizontal scaling with a shared persistent state requires the enterprise Postgres backend. Contact the project maintainers for details.
+Core's optional Postgres backend (`OPENDQV_DB_BACKEND=postgres`) can hold contract history for several instances; API tokens, webhook registrations and the federation log stay in each instance's SQLite file.
 
-**Recommended mitigation for community edition users with high-availability requirements:** deploy behind a load balancer that performs health-check-based routing (`GET /health`). If the primary instance fails the health check, traffic routes to a warm standby. Both instances must share the same `contracts/` volume or git-sync their contract files.
+**Recommended mitigation for OpenDQV Core users with high-availability requirements:** deploy behind a load balancer that performs health-check-based routing (`GET /health`). If the primary instance fails the health check, traffic routes to a warm standby. Both instances must share the same `contracts/` volume or git-sync their contract files.
 
 ---
 
 ## Circuit Breaker Guidance for Source Systems
 
-During an OpenDQV outage, validation requests will fail with connection errors or timeouts. Source systems integrating OpenDQV should implement a circuit breaker pattern. The appropriate fail posture depends on the use case:
+During an OpenDQV Core outage, validation requests will fail with connection errors or timeouts. Source systems integrating Core should implement a circuit breaker pattern. The appropriate fail posture depends on the use case:
 
 - **Non-critical data paths** (analytics ingest, reporting feeds): fail-open — allow data through and flag for retrospective validation once the service recovers.
 - **Regulated data paths** (KYC, AML, sanctions screening): fail-closed — block the record and queue it for validation once the service recovers. Do not allow unvalidated data onto regulated systems.
 
-The OpenDQV Python SDK includes a `@validate_with` guard decorator that can be configured with a fallback behaviour.
+The OpenDQV Core Python SDK includes a `@validate_with` guard decorator that can be configured with a fallback behaviour.
 
 ---
 
