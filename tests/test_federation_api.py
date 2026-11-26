@@ -162,6 +162,28 @@ class TestFederationRegister:
         detail = r.json()["detail"]
         assert "OPENDQV_UPSTREAM" in detail["message"]
 
+    def test_body_says_not_implemented_and_the_doc_shows_it_exactly(self, client):
+        # The stub once promised a paid federation tier and linked a
+        # domain the project does not own. Registration is simply not
+        # implemented in OpenDQV Core; the body must say so, link the docs,
+        # and docs/federation.md must show this exact body. One request:
+        # the endpoint is limited to 5/minute.
+        import json
+        import re
+        from pathlib import Path
+
+        body = client.post("/api/v1/federation/register", json={}).json()
+        detail = body["detail"]
+        assert "not implemented in OpenDQV Core" in detail["message"]
+        for stale in ("enterprise", "tier", "bootstrap on startup"):
+            assert stale not in detail["message"].lower()
+        assert detail["docs"] == "https://github.com/OpenDQV/OpenDQV/blob/main/docs/federation.md"
+
+        doc = (Path(__file__).resolve().parent.parent / "docs" / "federation.md").read_text(encoding="utf-8")
+        block = re.search(r"\*\*Example response \(501\):\*\*\n```json\n(.*?)\n```", doc, re.S)
+        assert block, "docs/federation.md lost its 501 example"
+        assert json.loads(block.group(1)) == body
+
 
 class TestFederationSyncCompare:
     """GET /api/v1/federation/sync-status — peer comparison + diverged webhook paths."""

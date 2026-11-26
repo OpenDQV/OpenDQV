@@ -1,10 +1,22 @@
 # Federation
 
-> Last reviewed: 2026-03-17
+> Last reviewed: 2026-11-26
 
-OpenDQV Core federation is a multi-node contract synchronisation mechanism. An **authority node** holds the canonical contract set; **child nodes** receive push notifications whenever contracts change and apply those changes locally under a two-phase commit protocol.
+Federation is a design for multi-node contract synchronisation: an **authority node** holds the canonical contract set and **child nodes** apply its changes under a two-phase commit protocol. OpenDQV Core ships the record-keeping and read side of that design, not the synchronisation itself.
 
-In standalone mode (the default) federation env vars are unset and all federation endpoints return local state — no upstream calls are made. A node switches to federated mode automatically when `OPENDQV_UPSTREAM` is set.
+## What OpenDQV Core implements
+
+| Implemented in OpenDQV Core | Not implemented in OpenDQV Core |
+|---|---|
+| The federation log table and its read API: `GET /federation/log`, the `GET /federation/events` SSE stream | Node registration — `POST /federation/register` always returns 501 |
+| Node status and health: `GET /federation/status`, `GET /federation/health` (node state, state-transition log, isolation events) | Bootstrap from an upstream, or any call to `OPENDQV_UPSTREAM` |
+| Contract version comparison with a peer: `GET /federation/sync-status?peer=<url>` | Sending, acknowledging or committing `push` / `ack` / `commit` / `reject` events between nodes |
+| `is_federated: true` in `/federation/status` when `OPENDQV_UPSTREAM` is set | Detecting upstream loss: nothing in Core moves a node to `isolated` |
+| | Stopping validation after `OPENDQV_MAX_ISOLATION_HOURS` |
+
+All federation endpoints answer from local state only; the one outbound call is `sync-status` fetching `GET /api/v1/contracts` from the `peer` you pass. Setting `OPENDQV_UPSTREAM` marks the node as federated in `/federation/status` and nothing else.
+
+The sections below describe the protocol the federation log is designed to record. Core stores and serves these events; it does not generate the cross-node ones itself.
 
 ---
 
@@ -23,7 +35,7 @@ Child nodes:
 - Record every event in their local federation log
 - Continue operating (with a warning) if they lose upstream contact, up to `OPENDQV_MAX_ISOLATION_HOURS`
 
-The federation log (`core/federation.py`) is an append-only SQLite table — every event is recorded with a monotonically increasing log sequence number (LSN). Child nodes use the LSN as a replication cursor: "give me all events since `lsn=N`".
+The federation log (`opendqv/core/federation.py`) is an append-only SQLite table — every event is recorded with a monotonically increasing log sequence number (LSN). Child nodes use the LSN as a replication cursor: "give me all events since `lsn=N`".
 
 ---
 
@@ -99,15 +111,15 @@ All federation endpoints are under `/api/v1/federation/`. They require authentic
 
 Register this node with an upstream authority node.
 
-> **Note:** This endpoint returns HTTP 501 in OpenDQV Core: node registration through this endpoint (join token validation, topology recording, contract bootstrapping) is not implemented. Set the `OPENDQV_UPSTREAM` and `OPENDQV_JOIN_TOKEN` environment variables and restart; bootstrap happens automatically on startup.
+> **Note:** This endpoint always returns HTTP 501. Node registration (join token validation, topology recording, contract bootstrapping) is not implemented in OpenDQV Core, and there is no other way to register a node or bootstrap contracts from an upstream. Setting `OPENDQV_UPSTREAM` only marks the node as federated in `GET /federation/status`.
 
 **Example response (501):**
 ```json
 {
   "detail": {
     "error": "federation_not_enabled",
-    "message": "Node registration requires the enterprise federation tier. In the OSS tier, set OPENDQV_UPSTREAM and OPENDQV_JOIN_TOKEN environment variables for automatic bootstrap on startup.",
-    "docs": "https://opendqv.io/enterprise"
+    "message": "Node registration is not implemented in OpenDQV Core. Setting OPENDQV_UPSTREAM only marks this node as federated in GET /federation/status; no registration or contract sync is performed.",
+    "docs": "https://github.com/OpenDQV/OpenDQV/blob/main/docs/federation.md"
   }
 }
 ```
@@ -192,6 +204,8 @@ GET /api/v1/federation/log?since=42&contract=customer
 }
 ```
 
+The example shows the event shape. Nothing in OpenDQV Core writes to the federation log, so on a Core node this endpoint returns `"count": 0` unless another process writes to the table.
+
 Results are ordered by `lsn` ascending. A `target_node` of `null` means the event was a broadcast to all children.
 
 ---
@@ -219,7 +233,7 @@ Return detailed node health data for the federation control plane. Includes curr
 }
 ```
 
-The control plane dashboard polls this endpoint to surface stale or isolated nodes requiring governance review.
+The Federation page of the OpenDQV Workbench reads this endpoint.
 
 ---
 
@@ -231,43 +245,24 @@ Use `GET /federation/log?since=N` after reconnect to replay any events missed du
 
 ---
 
-## Setting up a federation pair
+<a id="setting-up-a-federation-pair"></a>
 
-The following steps assume you have two OpenDQV Core instances running: an authority node and a child node.
+## Comparing two OpenDQV Core instances
 
-**Step 1 — Configure the child node environment**
+OpenDQV Core cannot set up a federation pair: it does not register nodes, propagate contract changes or write `push` / `commit` events. What it can do is tell you whether two instances carry the same contract versions.
 
-```bash
-export OPENDQV_NODE_ID=child-node-1
-export OPENDQV_UPSTREAM=https://authority.example.com:8000
-export OPENDQV_JOIN_TOKEN=<token-issued-by-authority>
-```
-
-Restart the child node. Bootstrap happens automatically on startup when these variables are present.
-
-**Step 2 — Verify federation status on the child**
+**Step 1 — Compare contract versions with a peer**
 
 ```bash
-curl -s http://localhost:8000/api/v1/federation/status \
+curl -s "http://localhost:8000/api/v1/federation/sync-status?peer=https://peer.example.com:8000" \
   -H "Authorization: Bearer $TOKEN" | python -m json.tool
 ```
 
-Confirm `is_federated: true` and `opendqv_node_state: "online"`.
+`diverged` lists every contract whose version differs (or that exists on only one side). The peer URL must be a public address — the SSRF guard refuses private, loopback and link-local addresses with 400. A peer that cannot be reached sets `peer_error`.
 
-**Step 3 — Trigger a push from the authority**
+Run the call from CI on a schedule and fail the job when `diverged` is not empty to turn it into a drift check. (`sync-status` also emits a `sync_diverged` notification, but `sync_diverged` is not one of the webhook event types you can register for, so no webhook receives it.)
 
-Make a contract change on the authority node (e.g. add a rule via the API or the Streamlit UI). The authority records a `push` event in its federation log and propagates the change to registered children.
-
-**Step 4 — Verify the federation log on the child**
-
-```bash
-curl -s "http://localhost:8000/api/v1/federation/log?since=0" \
-  -H "Authorization: Bearer $TOKEN" | python -m json.tool
-```
-
-You should see `push` and `commit` events for the changed contract.
-
-**Step 5 — Check federation health**
+**Step 2 — Check node health**
 
 ```bash
 curl -s http://localhost:8000/api/v1/federation/health \
@@ -280,14 +275,15 @@ Confirm `opendqv_node_state: "online"` and `open_isolation_events: []`.
 
 ## Isolation handling
 
-A node enters isolation when it loses contact with its upstream authority. This is recorded as an `isolation_start` event in the federation log.
+> **In OpenDQV Core nothing detects upstream loss**, so a node never enters `isolated` on its own and no isolation events are written in normal running. This section describes what the isolation records mean when a transition is recorded.
+
+A node enters isolation when it loses contact with its upstream authority. The node health state machine records the transition, and the isolation log opens an isolation episode (shown under `open_isolation_events` in `/federation/health`).
 
 ### What `isolation_start` means operationally
 
 - The node detected that its upstream (`OPENDQV_UPSTREAM`) is unreachable
 - The node transitions to `isolated` state in the health state machine
 - `isolated_since` is set in `/federation/status` and `/federation/health`
-- A governance alert is raised
 - The node continues to serve validation requests using the last committed contract set
 
 ### What a node should do when it receives `isolation_start`
@@ -295,16 +291,15 @@ A node enters isolation when it loses contact with its upstream authority. This 
 1. Do not stop serving validation — the last committed contract version remains valid
 2. Monitor `GET /federation/health` for `open_isolation_events`
 3. Investigate upstream connectivity (network partition, authority node restart, DNS)
-4. Check `OPENDQV_MAX_ISOLATION_HOURS` — after this window, even fail-safe-open nodes stop accepting validation requests until they reconnect (default: 72 hours)
+4. Check `OPENDQV_MAX_ISOLATION_HOURS` (default: 72 hours) — an isolation episode longer than this is flagged `exceeded_threshold` in the isolation record. OpenDQV Core does not stop validating when it is exceeded.
 
 ### What `isolation_end` means operationally
 
 - The node has re-established contact with its upstream
 - The node transitions back to `online` (or `degraded` if there are pending unsynced changes)
-- The `isolation_end` event is written to the federation log, paired with the earlier `isolation_start`
-- The node re-syncs any contract changes that occurred while it was isolated
+- The isolation log closes the open episode
 
-The `isolation_start` / `isolation_end` pair forms the compliance record for the isolation period and is visible in `GET /federation/health` under `recent_isolation_events`.
+The closed episode forms the compliance record for the isolation period and is visible in `GET /federation/health` under `recent_isolation_events`.
 
 ---
 
@@ -313,9 +308,9 @@ The `isolation_start` / `isolation_end` pair forms the compliance record for the
 | Variable | Default | Description |
 |---|---|---|
 | `OPENDQV_NODE_ID` | hostname | Identity of this node. Set to a meaningful name (e.g. `eu-west-1`, `singapore-prod`) for readable federation logs. |
-| `OPENDQV_UPSTREAM` | *(unset)* | URL of the authority node. Setting this variable switches the node into federated mode. |
-| `OPENDQV_JOIN_TOKEN` | *(unset)* | Join token issued by the authority node. Required for authenticated bootstrap. |
-| `OPENDQV_MAX_ISOLATION_HOURS` | `72` | How long a node may operate without upstream contact before it stops accepting validation requests. |
+| `OPENDQV_UPSTREAM` | *(unset)* | URL of the authority node. Sets `is_federated: true` and `upstream_url` in `/federation/status`; Core makes no call to it. |
+| `OPENDQV_JOIN_TOKEN` | *(unset)* | Reported as `join_token_set` in `/config`; not otherwise used (registration and bootstrap are not implemented). |
+| `OPENDQV_MAX_ISOLATION_HOURS` | `72` | Stored on each isolation record (`max_allowed_seconds`) to flag long episodes. Core does not stop validating when it is exceeded. |
 | `OPENDQV_MAX_SSE_CONNECTIONS` | `50` | Maximum concurrent `/federation/events` SSE clients per worker. Prevents long-lived connections from starving the validation pool. |
 
 `OPENDQV_NODE_ID` is the only required configuration for a standalone node. All other federation variables are only relevant when `OPENDQV_UPSTREAM` is set.
@@ -324,11 +319,9 @@ The `isolation_start` / `isolation_end` pair forms the compliance record for the
 
 ## Current limitations
 
-**Multi-parent federation is not yet implemented.** In v1.0, a child node can declare at most one upstream authority. Attempting to configure multiple upstreams is not validated and will produce undefined behaviour. Multi-parent federation (allowing a node to inherit rules from two or more authority nodes simultaneously) is on the roadmap as a P3 architectural direction item. See [docs/patterns/multi_parent_federation.md](patterns/multi_parent_federation.md) for the planned design and current workaround.
+**Synchronisation is not implemented in OpenDQV Core.** See [What OpenDQV Core implements](#what-opendqv-core-implements): there is no registration, bootstrap, push propagation, acknowledgement, commit, conflict resolution, retry or isolation detection. Keep instances aligned by deploying the same contract files to each (for example from one Git repository) and use `GET /federation/sync-status` to check them.
 
-**No built-in conflict resolution — authority node wins.** When a push arrives, the authority's version of the contract replaces the child's local version. There is no merge or diff-based conflict resolution in v1.0.
-
-**No automatic retry on push rejection.** If a push is rejected (constraint violation or timeout), the authority records a `reject` event and raises a governance alert. It does not automatically retry. Operators must investigate the rejection reason and re-initiate the push manually.
+**Multi-parent federation is not implemented either.** See [docs/patterns/multi_parent_federation.md](patterns/multi_parent_federation.md) for the design and the current workaround.
 
 ---
 
