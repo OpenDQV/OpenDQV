@@ -22,7 +22,7 @@ For async support, `httpx` is included automatically.
 ## Quick start — sync client
 
 ```python
-from sdk.client import OpenDQVClient
+from opendqv.sdk.client import OpenDQVClient
 
 client = OpenDQVClient("http://localhost:8000", token="your-pat")
 
@@ -48,7 +48,7 @@ print(batch_result["summary"])  # {"total": 2, "passed": 2, "failed": 0}
 
 ```python
 import asyncio
-from sdk.client import AsyncOpenDQVClient
+from opendqv.sdk.client import AsyncOpenDQVClient
 
 async def main():
     async with AsyncOpenDQVClient("http://localhost:8000", token="your-pat") as client:
@@ -68,7 +68,7 @@ asyncio.run(main())
 Block a function from running when the record fails validation.
 
 ```python
-from sdk.client import OpenDQVClient, ValidationError
+from opendqv.sdk.client import OpenDQVClient, ValidationError
 
 client = OpenDQVClient("http://localhost:8000", token="your-pat")
 
@@ -100,7 +100,7 @@ Validates records in-process using YAML contracts from disk. Useful for
 unit tests, CLI tools, or environments without a running server.
 
 ```python
-from sdk.local import LocalValidator, ContractNotFoundError
+from opendqv.sdk.local import LocalValidator, ContractNotFoundError
 
 # Reads contracts from the OPENDQV_CONTRACTS_DIR env var,
 # or falls back to ./contracts/ in the current directory.
@@ -179,9 +179,9 @@ before enforcing a new contract:
 
 ```python
 result = client.validate(record, contract="customer", observe_only=True)
-# result["mode"] == "observe"
-# result["valid"] is always True — record is never rejected
-# result["would_have_failed"] == True if there were violations
+# result["mode"] == "observation_only"
+# result["valid"] reports the real outcome — False when a rule fails
+# result["would_have_failed"] == True if there were violations (== not valid)
 ```
 
 ---

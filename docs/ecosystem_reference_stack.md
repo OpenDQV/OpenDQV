@@ -59,7 +59,7 @@ contracts/customer.yaml
        ├──► OpenDQV  POST /validate  (write-time, milliseconds)
        │
        └──► dbt      schema.yml tests  (post-load, minutes)
-                via: opendqv import-dbt / CLI
+                via: opendqv export-dbt (CLI)
 ```
 
 ### How to set it up
@@ -97,7 +97,7 @@ curl -X POST http://opendqv.internal:8000/api/v1/validate \
 
 ```bash
 # Export as dbt schema.yml
-opendqv export-dbt --contract customer --out models/staging/schema.yml
+opendqv export-dbt customer --output models/staging/schema.yml
 ```
 
 Or import your existing dbt schema into OpenDQV Core:
@@ -129,7 +129,7 @@ write_to_database(record)
 # Soda catches drift that OpenDQV Core couldn't — e.g. data corrupted during JOIN
 ```
 
-The `asset_id` field in OpenDQV contracts (`urn:opendqv:{org}:{contract}:{version}`) links the contract to a Soda dataset, enabling cross-tool traceability.
+The `asset_id` field in OpenDQV contracts (the bundled contracts use `urn:opendqv:{contract}`) links the contract to a Soda dataset, enabling cross-tool traceability.
 
 ---
 
@@ -140,9 +140,11 @@ Great Expectations and OpenDQV Core share a bidirectional import/export path:
 
 ```bash
 # Import GX suite into OpenDQV Core
+# (the body is the suite JSON itself; editor/admin token)
 curl -X POST http://localhost:8000/api/v1/import/gx \
   -H "Authorization: Bearer <token>" \
-  -d '{"suite_json": "<GX expectation suite JSON>"}'
+  -H "Content-Type: application/json" \
+  -d @path/to/expectation_suite.json
 
 # Export OpenDQV contract as GX suite (via CLI)
 opendqv export-gx customer
@@ -170,7 +172,7 @@ A native Monte Carlo → OpenDQV Core connector is not yet available.
 <a id="opendqv--catalog-tools-atlan-microsoft-purview-collibra"></a>
 ## OpenDQV Core + Catalog Tools (Atlan, Microsoft Purview, Collibra)
 
-The `asset_id` field uses a standardised URI format:
+The `asset_id` field is a free-form string the engine stores and echoes but does not parse. The bundled contracts use `urn:opendqv:{contract_name}`; a richer convention such as this works too:
 
 ```
 urn:opendqv:{organisation}:{contract_name}:{version}

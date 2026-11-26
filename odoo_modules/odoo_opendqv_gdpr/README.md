@@ -96,6 +96,6 @@ GDPR Article 30 compliance check failed:
 ## Related
 
 - OpenDQV: https://github.com/OpenDQV/OpenDQV
-- Contract: `contracts/gdpr_processing_record.yaml` (ships with `pip install opendqv`)
+- Contract: `opendqv/contracts/gdpr_processing_record.yaml` (ships with `pip install opendqv`)
 - Integration guide: `docs/integrations/odoo.md`
 - UK GDPR Article 30: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/documentation/what-do-we-need-to-document-under-article-30-of-the-gdpr/

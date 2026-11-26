@@ -8,7 +8,7 @@ Thanks for your interest in contributing to OpenDQV! This document covers everyt
 
 This is handled automatically — when you open your first PR, a bot will post a comment with a single-click GitHub OAuth link. It takes 30 seconds. You only sign once.
 
-The CLA allows BGMS Consultants Ltd to offer OpenDQV under both open-source and commercial licences while you retain ownership of your contribution. See [CLA.md](CLA.md) for the full text.
+The CLA allows BGMS Consultants Limited to offer OpenDQV Core under both open-source and commercial licences while you retain ownership of your contribution. See [CLA.md](CLA.md) for the full text.
 
 Corporate contributors (contributing on behalf of an employer) should contact **opendqv@bgmsconsultants.com** before submitting.
 
@@ -385,4 +385,4 @@ By participating, you agree to uphold it. Please report unacceptable behaviour t
 
 ## Licence
 
-By contributing, you agree to the terms of the [Contributor Licence Agreement](CLA.md). BGMS Consultants Ltd may offer your contributions under open-source and/or commercial licence terms. You retain ownership of your contributions.
+By contributing, you agree to the terms of the [Contributor Licence Agreement](CLA.md). BGMS Consultants Limited may offer your contributions under open-source and/or commercial licence terms. You retain ownership of your contributions.

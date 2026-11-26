@@ -61,7 +61,7 @@ A merge step that takes N parent contract versions and produces a single merged 
 
 ### 2. Multi-cursor federation log
 
-The existing `FederationLog` in `core/federation.py` uses a single LSN cursor per `(contract_name, source_node)` pair. Multi-parent federation requires the community node to maintain an independent replication cursor for each parent authority, and to re-run the merge step whenever any parent's contract changes.
+The existing `FederationLog` in `opendqv/core/federation.py` uses a single LSN cursor per `(contract_name, source_node)` pair. Multi-parent federation requires the community node to maintain an independent replication cursor for each parent authority, and to re-run the merge step whenever any parent's contract changes.
 
 ### 3. Conflict governance workflow
 
@@ -130,5 +130,5 @@ These limitations are the reason multi-parent federation is on the roadmap.
 
 ## Related
 
-- `core/federation.py` — federation log implementation (append-only, LSN-based)
+- `opendqv/core/federation.py` — federation log implementation (append-only, LSN-based)
 - `docs/patterns/federation_deprecation.md` — how authority nodes deprecate inherited rules

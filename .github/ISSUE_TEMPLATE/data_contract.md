@@ -18,10 +18,9 @@ assignees: ''
 **OpenDQV Core version / docker image tag:**
 
 **Rule type(s) involved:**
-(e.g. regex, min_age, date_format, not_empty...)
+(e.g. regex, date_format, not_empty, lookup...)
 
 **Context:**
 - [ ] This is related to a BFSI / regulatory use case (tag: `origin:bfsi`)
 - [ ] This is a dbt / GX / Soda / ODCS import question
-- [ ] This is a context override question
 - [ ] Other

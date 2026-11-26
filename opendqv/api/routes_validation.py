@@ -49,7 +49,8 @@ async def validate_single(
     This is the primary endpoint — source systems call this before writing data.
     Returns pass/fail with per-field errors. Designed for low latency.
 
-    Only ACTIVE (and ARCHIVED) contracts can be validated against by default.
+    By default only ACTIVE contracts can be validated against (the contract's
+    validate_in_states, default ["active"]); other states return 422.
     Pass ?allow_draft=true to test DRAFT contracts during authoring.
     Pass ?as_of=<ISO8601> to validate against the contract version active at a historical point in time.
     """

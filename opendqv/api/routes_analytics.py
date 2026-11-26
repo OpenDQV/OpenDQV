@@ -24,7 +24,7 @@ async def get_stats(
     window_hours: Optional[int] = Query(None, ge=1, le=8760, description="If set, return stats for only the last N hours"),
     agent_id: Optional[str] = Query(None, description="Filter to a specific agent / source system identity"),
     contract: Optional[str] = Query(None, description="Filter to a specific contract. Scopes by_contract, top_failing_fields, dimensions.by_severity, recent_history, and totals to that contract only."),
-    include_system: bool = Query(False, description="If true, include OpenDQV system agents (agent_ids prefixed 'OpenDQV_SA_' — smoke probes, demos, MCP self-tests). Default false hides them from tenant-facing metrics."),
+    include_system: bool = Query(False, description="If true, include OpenDQV system agents (agent_ids prefixed 'OpenDQV_SA_' — smoke probes, demos, MCP self-tests). Default false hides them so the metrics show only your own traffic."),
     user=Depends(get_current_user),
 ):
     """Get validation statistics for the monitoring dashboard.
@@ -180,7 +180,7 @@ def _scope_summary_to_contract(summary: dict, contract_name: str) -> dict:
 async def list_agents_endpoint(
     request: Request,
     window_hours: int = Query(24, ge=1, le=8760, description="Look-back window in hours"),
-    include_system: bool = Query(False, description="If true, include OpenDQV system agents (OpenDQV_SA_* prefix). Default false suppresses them from customer-facing views."),
+    include_system: bool = Query(False, description="If true, include OpenDQV system agents (OpenDQV_SA_* prefix). Default false hides them so the results show only your own traffic."),
     user=Depends(get_current_user),
 ):
     """Return the agents (source systems) that emitted traffic in the window.

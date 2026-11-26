@@ -70,7 +70,7 @@ Think of OpenDQV Core as the enforcement layer that sits upstream of everything 
 
 ## Is this production-ready?
 
-Yes. OpenDQV Core is MIT-licensed, published to PyPI (`pip install opendqv`), ships a multi-arch Docker image, has 2,000+ passing tests, an OpenSSF Best Practices badge (100%), and an OpenSSF Scorecard of 6.5+. It has been validated on Linux (x86-64), macOS (Intel), Windows (Docker Desktop), and Raspberry Pi 400 (ARM64).
+Yes. OpenDQV Core is MIT-licensed, published to PyPI (`pip install opendqv`), ships a multi-arch Docker image, has a large automated test suite, an OpenSSF Best Practices badge (100%), and an OpenSSF Scorecard of 6.5+. It has been validated on Linux (x86-64), macOS (Intel), Windows (Docker Desktop), and Raspberry Pi 400 (ARM64).
 
 See the [benchmark results](benchmark_throughput.md) for throughput figures across all platforms.
 

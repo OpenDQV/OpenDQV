@@ -75,7 +75,7 @@ A = 1.1 + 1.2 + 1.3 + 1.4 + 1.5
 **Indicative benchmarks:**
 - Simple deployment (single service, 3–5 contracts): 1–3 engineer-days
 - Multi-service with per-source contract variants: 3–10 engineer-days
-- Enterprise with federation + audit trail: 2–4 weeks
+- Large organisation with many source systems and audit-trail review: 2–4 weeks
 
 ### 2.2 Ongoing maintenance
 
@@ -128,7 +128,7 @@ Consider non-financial benefits that are harder to quantify but often exceed the
 
 ---
 
-> All figures in this section are illustrative. OpenDQV Core has not been deployed in production by any organisation.
+> All figures in this section are illustrative.
 
 ## Worked Example
 

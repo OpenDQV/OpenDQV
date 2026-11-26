@@ -1,17 +1,17 @@
 """
 Clock synchronisation check for audit log integrity.
 
-At startup, OpenDQV queries an NTP server and records the result in the node
+At startup, OpenDQV Core queries an NTP server and records the result in the node
 health log. This gives auditors evidence about whether the system clock was
 accurate when audit timestamps were written.
 
 The check is best-effort: if the network is unavailable the service still starts
 and the result is recorded as 'unavailable'. It never raises.
 
-FUTURE (commercial/enterprise): Replace socket NTP check with RFC 3161 trusted
-timestamp anchoring — cryptographic proof of timestamp accuracy from a trusted
-timestamp authority (TSA). This is the correct upgrade path for regulated
-environments (FCA, SOX, GDPR audit obligations).
+Not implemented in OpenDQV Core: RFC 3161 trusted timestamp anchoring —
+cryptographic proof of timestamp accuracy from a trusted timestamp authority
+(TSA), the stronger evidence for regulated environments (FCA, SOX, GDPR audit
+obligations).
 """
 
 import socket

@@ -169,10 +169,10 @@ an accountability anchor.
 
 ## Related resources
 
-- Contract: `contracts/companies_house_filing.yaml`
+- Contract: `opendqv/contracts/companies_house_filing.yaml`
 - Starter contract: `examples/companies_house/companies_house_filing.yaml`
 - Sample records: `examples/companies_house/`
-- Reference files: `contracts/ref/companies_house_roles.txt`,
-  `contracts/ref/companies_house_id_verification_methods.txt`
+- Reference files: `opendqv/contracts/ref/companies_house_roles.txt`,
+  `opendqv/contracts/ref/companies_house_id_verification_methods.txt`
 - UK legislation: [legislation.gov.uk — Economic Crime and Corporate Transparency Act 2023](https://www.legislation.gov.uk/ukpga/2023/56)
 - Companies House identity verification: [companieshouse.gov.uk](https://www.gov.uk/guidance/verify-your-identity-for-companies-house)

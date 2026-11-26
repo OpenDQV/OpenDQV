@@ -81,8 +81,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="OpenDQV",
     description=(
-        "Open-source rule-based data quality validation service. "
-        "Centralized, validation API — record values are never stored — shift-left DQ for the enterprise. "
+        "OpenDQV Core: open-source (MIT), self-hosted, rule-based data quality validation service. "
+        "Validation is stateless — record values are never stored. "
         "Source systems call /api/v1/validate before writing data. "
         "Bad data is blocked at the door."
     ),

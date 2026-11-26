@@ -2,7 +2,7 @@
 
 # OpenDQV Core Documentation
 
-OpenDQV Core is a centralised data quality validation API for the enterprise — validation is ephemeral, record values are never stored.
+OpenDQV Core is an open-source (MIT), self-hosted, rule-based data quality validation service — validation is stateless, record values are never stored.
 
 **Bad data blocked at the door. Not discovered three weeks later.**
 A rejection at the point of write closes the feedback loop — producers see failures immediately and fix them upstream. This is why rejection rates drop over time.

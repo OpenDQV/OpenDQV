@@ -58,4 +58,4 @@ Any built-in pattern can be negated to assert the field does **not** match the p
 ## See also
 
 - [checksum](checksum.md) — validates identifier check digits (IBAN, GTIN, NHS, ISIN, LEI, VIN, ISRC, CPF)
-- [regex](../core/rules.md#regex) — full regex rule documentation including `negate`
+- [regex](core_rules.md#2-regex) — full regex rule documentation including `negate`

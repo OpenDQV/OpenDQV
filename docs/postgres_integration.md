@@ -431,7 +431,7 @@ SELECT net.http_post(
 | **Quick start** | Set `asset_id` to `postgres://{host}/{db}/{schema}/{table}` for catalog linkage |
 | **Governance-first** | Approach 4 — native DB trigger calling the OpenDQV Core API (enforcement at DB layer, any writer validated) |
 | **Platform migration** | Approach 4 trigger pattern unblocks Databricks/Snowflake migrations by removing the stored-procedure DQ dependency |
-| **Community** | Postgres enterprise storage backend (contract history + federation log in Postgres) — community PR welcome |
+| **Community** | Postgres federation log backend (contract history already supports Postgres) — community PR welcome |
 
 ---
 

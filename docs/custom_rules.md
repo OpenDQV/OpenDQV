@@ -192,7 +192,7 @@ def _check_phone_e164(value, rule: Rule, record: dict | None = None) -> str | No
 _RULE_HANDLERS["phone_e164"] = _check_phone_e164   # i.e. add the entry to the dict literal
 ```
 
-### `core/code_generator.py` (optional)
+### `opendqv/core/code_generator.py` (optional)
 
 ```python
 # In _js_rule_check():
@@ -227,7 +227,7 @@ When implementing a new rule, start by reading the nearest existing rule as a te
 
 **`compare`** shows how to read a second field from the `record` dict, handle the `today`/`now` sentinel values, and fall back through declared date layouts → `semver` → numeric → ISO date → text comparison.
 
-**`checksum`** shows how to implement complex domain-specific validation (GS1 Mod-10 GTIN check digits, IBAN Mod-97, NHS Mod-11, ISIN Luhn, LEI Mod-97, VIN Mod-11, ISRC structure, CPF Mod-11, Luhn, FIGI, Verhoeff) without external libraries. Read `_validate_checksum()` in `core/validator.py` for the full implementation.
+**`checksum`** shows how to implement complex domain-specific validation (GS1 Mod-10 GTIN check digits, IBAN Mod-97, NHS Mod-11, ISIN Luhn, LEI Mod-97, VIN Mod-11, ISRC structure, CPF Mod-11, Luhn, FIGI, Verhoeff) without external libraries. Read `_validate_checksum()` in `opendqv/core/validator.py` for the full implementation.
 
 ---
 
@@ -240,8 +240,8 @@ Tests live in `tests/test_core.py`. Follow the existing pattern: create `Rule` o
 The `tests/conftest.py` fixture pattern:
 
 ```python
-# conftest.py copies contracts/ to a temp dir at session start.
-# All file I/O by tests goes to the temp copy — never the live contracts/.
+# conftest.py copies opendqv/contracts/ to a temp dir at session start.
+# All file I/O by tests goes to the temp copy — never the live opendqv/contracts/.
 # AUTH_MODE=token is set; use the auth_headers / approver_headers fixtures
 # when testing API endpoints.
 ```
@@ -253,8 +253,8 @@ You do not need any special fixture for unit tests of `validate_record()` — it
 ```python
 # tests/test_core.py  (add to TestSingleRecordValidator)
 
-from core.rule_parser import Rule, Severity
-from core.validator import validate_record, validate_batch
+from opendqv.core.rule_parser import Rule, Severity
+from opendqv.core.validator import validate_record, validate_batch
 
 
 class TestPhoneE164Rule:

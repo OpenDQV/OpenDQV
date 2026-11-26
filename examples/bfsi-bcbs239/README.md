@@ -102,4 +102,4 @@ Add additional rules for your institution's specific requirements:
   error_message: "Operational event timestamp required for DORA incident reporting"
 ```
 
-See the [OpenDQV rule reference](../../README.md#rule-types) for all available rule types.
+See the [OpenDQV rule reference](../../README.md#rules) for all available rule types.

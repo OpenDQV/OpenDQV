@@ -25,8 +25,8 @@ OpenDQV Core's MCP server gives agents:
 OpenDQV Core's MCP server and FastAPI are **not** the same thing — they are two separate interfaces to the same core validation logic:
 
 ```
-FastAPI  :  HTTP client  →  FastAPI (:8000)  →  core/  →  contracts DB
-MCP      :  Claude Desktop  →  (stdio subprocess)  →  opendqv/mcp_server.py  →  core/  →  contracts
+FastAPI  :  HTTP client  →  FastAPI (:8000)  →  opendqv/core/  →  contracts DB
+MCP      :  Claude Desktop  →  (stdio subprocess)  →  opendqv/mcp_server.py  →  opendqv/core/  →  contracts
 ```
 
 The MCP server is spawned by Claude Desktop as a subprocess (stdio transport). It never listens on a port. MCP and FastAPI are peers, not a wrapper/wrappee relationship.
@@ -39,7 +39,9 @@ No env var set. MCP reads contracts from the local filesystem and validates in-p
 
 **Limitation:** MCP validation events are invisible to the monitoring UI. If you update contracts on a central server, the local copy may be stale.
 
-### Remote / enterprise mode
+<a id="remote--enterprise-mode"></a>
+
+### Remote mode
 
 Set `OPENDQV_MCP_API_URL` to point the MCP server at your central OpenDQV Core API. All tool calls are proxied to the API over HTTP:
 

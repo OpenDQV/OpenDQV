@@ -569,7 +569,7 @@ Field value must appear in an external reference list (file or HTTP endpoint).
 - name: country_code_valid
   field: country_code
   type: lookup
-  lookup_file: contracts/ref/iso_3166_alpha2.txt
+  lookup_file: ref/iso_3166_alpha2.txt
   severity: error
   error_message: "invalid country code"
 
@@ -577,7 +577,7 @@ Field value must appear in an external reference list (file or HTTP endpoint).
 - name: airport_code_valid
   field: airport
   type: lookup
-  lookup_file: contracts/ref/airports.csv
+  lookup_file: ref/airports.csv
   lookup_field: iata_code
   severity: error
   error_message: "invalid airport code"
@@ -609,7 +609,7 @@ Field value must appear in an external reference list (file or HTTP endpoint).
 - name: all_tags_valid
   field: tags
   type: lookup
-  lookup_file: contracts/ref/valid_tags.txt
+  lookup_file: ref/valid_tags.txt
   all_of: true
   severity: error
   error_message: "one or more tags are invalid"

@@ -46,7 +46,8 @@ DB_PATH = os.environ.get("OPENDQV_DB_PATH", str(BASE_DIR / "opendqv.db"))
 # Auth mode: "open" (no auth, for dev/POC) or "token" (PAT required, for production)
 AUTH_MODE = os.environ.get("AUTH_MODE", "open")
 
-# Storage backend: "sqlite" (default, zero dependencies) or "postgres" (enterprise tier).
+# Storage backend: "sqlite" (default, zero dependencies) or "postgres" (contract history
+# in PostgreSQL; the federation log is SQLite only).
 # When set to "postgres", OPENDQV_DB_URL must also be provided.
 DB_BACKEND = os.environ.get("OPENDQV_DB_BACKEND", "sqlite")
 DB_URL = os.environ.get("OPENDQV_DB_URL", "")
@@ -124,15 +125,13 @@ _RATE_LIMIT_OFF_VALUES: frozenset = frozenset({"off", "0", "disabled"})
 
 # Audit log mode.
 # "basic"  — SHA-256 forward-linked hash chain, no cryptographic signing.
-#            Safe for community use. AUDIT_MODE=basic is the only supported mode
-#            until KMS infrastructure is configured.
-# "signed" — ECDSA P-256 KMS-backed signing on top of the hash chain.
-#            Enterprise/production only. Requires KMS configuration.
+#            AUDIT_MODE=basic is the only implemented mode.
+# "signed" — reserved name; ECDSA P-256 signing is not implemented in OpenDQV Core.
+#            The value is only echoed by /config and /federation/status.
 AUDIT_MODE = os.environ.get("AUDIT_MODE", "basic")
 
-# Isolation policy — how long a node may operate without upstream contact before
-# it must re-sync. After this window even fail-safe-open nodes stop accepting
-# validation requests until they reconnect.
+# Isolation window — recorded on each isolation episode (max_allowed_seconds) and
+# reported by /config. OpenDQV Core does not stop validating when it is exceeded.
 MAX_ISOLATION_HOURS = int(os.environ.get("OPENDQV_MAX_ISOLATION_HOURS", "72"))
 
 # Draft validation behaviour.
@@ -141,12 +140,12 @@ MAX_ISOLATION_HOURS = int(os.environ.get("OPENDQV_MAX_ISOLATION_HOURS", "72"))
 #       If no snapshot exists the request is served normally (safe default).
 STRICT_DRAFT_VALIDATION = os.environ.get("OPENDQV_STRICT_DRAFT_VALIDATION", "false").lower() == "true"
 
-# Contract edit mode — hook for future enterprise maker-checker governance.
-# "auto" (default): rule edits take effect immediately on the live contract.
-#   No status transition is performed. The flag exists as a code anchor for
-#   future enterprise governance mode — do NOT implement auto-draft transitions.
-# "maker_checker": reserved for enterprise tier (opendqv-enterprise package).
-#   In OSS, behaves identically to "auto".
+# Contract edit mode — a reserved setting with no effect on behaviour.
+# "auto" (default): rule edits follow the contract lifecycle (DRAFT contracts are
+#   editable; ACTIVE and REVIEW contracts refuse rule mutations with 409).
+#   Do NOT implement auto-draft transitions on this flag.
+# "maker_checker": reserved name; not implemented in OpenDQV Core. Behaves
+#   identically to "auto" (any value other than "auto" is only logged).
 CONTRACT_EDIT_MODE = os.environ.get("OPENDQV_CONTRACT_EDIT_MODE", "auto")
 
 # Batch validation — maximum records per batch call.

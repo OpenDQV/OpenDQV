@@ -4,7 +4,7 @@
 - For contract creation: Propose via create_contract_draft (MCP_ prefix required); drafts are read-only until human-approved.
 - Always include contract_hash in any persisted validation results for auditability.
 - When generating or proposing YAML contracts, strictly follow the structure and rule types shown in the "Contract authoring (YAML)" section—do not invent new rule types.
-- Credits: Accelerated with Anthropic Claude Sonnet/Opus and xAI Grok for drafting, scaffolding, and ideation; core architecture, rules engine, tests, governance flows, and final reviews are fully human-designed and led by Sunny Sharma (BGMS Consultants Ltd).
+- Credits: Accelerated with Anthropic Claude Sonnet/Opus and xAI Grok for drafting, scaffolding, and ideation; core architecture, rules engine, tests, governance flows, and final reviews are fully human-designed and led by Sunny Sharma (BGMS Consultants Limited).
 
 # OpenDQV Core
 
@@ -98,7 +98,7 @@ MCP tools exposed: `validate_record`, `validate_batch`, `list_contracts`, `get_c
 
 Agents can bootstrap new contracts via `create_contract_draft` when no matching contract exists. Names must start with `MCP_`. Drafts are testable immediately and require human approval before going ACTIVE.
 
-**Enterprise / remote mode:** Set `OPENDQV_MCP_API_URL=https://opendqv.internal.company.com` (and optionally `OPENDQV_MCP_TOKEN`) in the Claude Desktop env config to proxy all MCP tool calls through the central API. All validation events become visible in the monitoring UI. Without this, MCP operates self-contained (local filesystem only) and events are not visible in the UI.
+**Remote mode:** Set `OPENDQV_MCP_API_URL=https://opendqv.internal.company.com` (and optionally `OPENDQV_MCP_TOKEN`) in the Claude Desktop env config to proxy all MCP tool calls through the central API. All validation events become visible in the monitoring UI. Without this, MCP operates self-contained (local filesystem only) and events are not visible in the UI.
 
 Full guide: `docs/llm_integration.md`
 

@@ -1,6 +1,6 @@
 # Production Deployment Guide
 
-> ⚠️ **Alpha software.** OpenDQV Core is in Alpha. This guide documents the production hardening steps available today. Until Core reaches a stable release, review all configuration changes carefully and maintain your own security assessment before any regulated deployment.
+> ⚠️ **Beta software.** OpenDQV Core is in Beta. This guide documents the production hardening steps available today. Until Core reaches a stable release, review all configuration changes carefully and maintain your own security assessment before any regulated deployment.
 
 This guide covers hardening an OpenDQV Core deployment for production use.
 The default configuration (`AUTH_MODE=open`) is for local development only

@@ -110,29 +110,24 @@ async def federation_register(
     body: dict = Body({}, description="Node registration payload"),
 ):
     """
-    Register this node with an upstream authority node.
+    Register this node with an upstream authority node — not implemented.
 
-    This endpoint is a stub in the OSS tier. Node registration — including
-    join token validation, topology recording, and contract bootstrapping —
-    is part of the enterprise federation tier.
-
-    To enable federation:
-    1. Set OPENDQV_UPSTREAM=https://your-authority-node:8000
-    2. Set OPENDQV_JOIN_TOKEN=<token-issued-by-authority>
-    3. Restart the node — bootstrap happens automatically on startup
-
-    See https://opendqv.io/enterprise for access to the federation tier.
+    Node registration (join token validation, topology recording, contract
+    bootstrapping) is not implemented in OpenDQV Core, so this endpoint
+    always returns 501. Setting OPENDQV_UPSTREAM only marks the node as
+    federated in GET /federation/status; Core does not contact the upstream,
+    register the node or pull contracts from it.
     """
     raise HTTPException(
         status_code=501,
         detail={
             "error": "federation_not_enabled",
             "message": (
-                "Node registration requires the enterprise federation tier. "
-                "In the OSS tier, set OPENDQV_UPSTREAM and OPENDQV_JOIN_TOKEN "
-                "environment variables for automatic bootstrap on startup."
+                "Node registration is not implemented in OpenDQV Core. "
+                "Setting OPENDQV_UPSTREAM only marks this node as federated in "
+                "GET /federation/status; no registration or contract sync is performed."
             ),
-            "docs": "https://opendqv.io/enterprise",
+            "docs": "https://github.com/OpenDQV/OpenDQV/blob/main/docs/federation.md",
         },
     )
 
@@ -159,7 +154,8 @@ async def federation_sync_status(
     - Manual federation health checks from CI/CD pipelines
 
     If peer is specified, fetches peer's /api/v1/contracts and diffs with local versions.
-    Fires a `sync_diverged` webhook if any contracts have diverged.
+    Emits a `sync_diverged` notification if any contracts have diverged; it is
+    not in webhooks.VALID_EVENTS, so no registered webhook can receive it.
     """
     local_contracts = _d.registry.list_contracts()
     local_index = {c["name"]: c["version"] for c in local_contracts}
@@ -250,8 +246,7 @@ async def federation_events(
         data: <JSON payload>
 
     The stream is backed by SQLite polling — compatible with all deployment
-    modes. On PostgreSQL backends the commercial tier replaces polling with
-    LISTEN/NOTIFY for sub-second latency.
+    modes.
 
     Clients should track the `lsn` field of `federation_log` events as their
     replication cursor, passing it back via `GET /federation/log?since=<lsn>`

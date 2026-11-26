@@ -40,17 +40,17 @@ The response will always be HTTP 200, regardless of violations.
 ### CLI: `--observe-only` flag
 
 ```bash
-opendqv validate-file data.csv --contract customer --observe-only
+opendqv validate-file customer data.csv --observe-only
 ```
 
-Exit code is always 0 in observation mode. Violations are printed to stdout.
+Exit code is always 0 in observation mode. A summary (passed / would have failed) and failure counts per rule are printed to stdout. The CLI runs locally; if the trace log is enabled, its entries are tagged `enforcement`, not `observation_only` — the `mode=observation_only` audit tag comes from the API.
 
 ### SDK: `observe_only=True` kwarg
 
 ```python
 from opendqv.sdk import OpenDQVClient
 
-client = OpenDQVClient(base_url="http://localhost:8000")
+client = OpenDQVClient(base_url="http://localhost:8000", token="odqv_...")
 
 result = client.validate(
     contract="customer",
@@ -60,7 +60,7 @@ result = client.validate(
 
 print(result["mode"])              # "observation_only"
 print(result["would_have_failed"]) # True
-print(result["valid"])             # True (always, in observation mode)
+print(result["valid"])             # False — `valid` reports the real outcome in both modes
 print(result["errors"])            # [...] (violations are still listed)
 ```
 
@@ -72,23 +72,25 @@ print(result["errors"])            # [...] (violations are still listed)
   "mode": "observation_only",
   "would_have_failed": true,
   "contract": "customer",
-  "version": "1",
+  "version": "0.1",
   "errors": [
-    {
-      "field": "name",
-      "rule": "name_required",
-      "message": "Field 'name' must not be empty",
-      "severity": "error",
-      "error_code": "OPENDQV_NOT_EMPTY_NAME_REQUIRED",
-      "suggested_fix": "Provide a non-empty value for 'name'"
-    },
     {
       "field": "email",
       "rule": "valid_email",
-      "message": "Field 'email' does not match expected pattern",
+      "message": "Invalid email format",
       "severity": "error",
       "error_code": "OPENDQV_REGEX_VALID_EMAIL",
-      "suggested_fix": "Provide a valid email address"
+      "suggested_fix": "Check the expected format in the error message and match it exactly.",
+      "counterpart_missing": null
+    },
+    {
+      "field": "name",
+      "rule": "name_required",
+      "message": "Customer name is required",
+      "severity": "error",
+      "error_code": "OPENDQV_NOT_EMPTY_NAME_REQUIRED",
+      "suggested_fix": "Provide a non-empty value.",
+      "counterpart_missing": null
     }
   ],
   "warnings": [],
@@ -100,9 +102,9 @@ print(result["errors"])            # [...] (violations are still listed)
 
 Key fields:
 
-- `valid` is always `true` in observation mode — the record is accepted regardless.
+- `valid` reports the real outcome, as in enforcement mode — `false` when an error-severity rule fails. Observation mode does not change `valid`; it changes what your caller does with it (log, don't block).
 - `mode` is `"observation_only"` (vs `"enforcement"` in normal mode).
-- `would_have_failed` is `true` if the record would have been rejected under enforcement.
+- `would_have_failed` is `true` if the record would have been rejected under enforcement (it equals `not valid`; on `/validate/batch` it is `true` when any record failed).
 - `errors` still contains all violations — same structure as enforcement mode.
 
 ## The workbench dashboard
@@ -124,8 +126,7 @@ Remove `observe_only` from the request (or set it to `false`). The response is s
 Use `--output-failures` with observation mode to write rejected records to a file:
 
 ```bash
-opendqv validate-file data.csv \
-  --contract customer \
+opendqv validate-file customer data.csv \
   --observe-only \
   --output-failures rejected.csv
 ```

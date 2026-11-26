@@ -23,7 +23,7 @@ Anyone can contribute by opening a pull request on GitHub. There are no membersh
 3. Write tests. All new features require tests. Bug fixes require a regression test. The test suite must pass in full (`pytest tests/ -v`).
 4. Open a pull request with a clear description of what changed and why.
 5. The primary maintainer (or a designated reviewer) will review the PR. Reviews aim to complete within 5 business days for substantial changes.
-6. A PR requires approval from at least one reviewer before merge. For changes to `core/`, `security/`, or `api/`, the primary maintainer reviews personally.
+6. A PR requires approval from at least one reviewer before merge. For changes to `opendqv/core/`, `opendqv/security/`, or `opendqv/api/`, the primary maintainer reviews personally.
 
 There is no formal committer ladder at this stage. Contributors who demonstrate sustained, quality engagement may be granted write access to the repository on request.
 

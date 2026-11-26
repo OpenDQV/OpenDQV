@@ -20,12 +20,11 @@ Transitions
 Self-transitions (same → same) are silently ignored — callers may call
 `transition()` repeatedly without concern for duplicates.
 
-Commercial hook
----------------
+Isolation window
+----------------
 `time_in_current_state()` returns the seconds since the last transition.
-The enterprise tier gates validation when this exceeds MAX_ISOLATION_HOURS
-and the current state is `isolated`. The OSS layer provides the measurement;
-the policy is enterprise-only.
+OpenDQV Core provides the measurement only: it does not gate validation when
+this exceeds MAX_ISOLATION_HOURS.
 """
 
 import logging
@@ -69,7 +68,7 @@ class NodeHealthStateMachine:
         self.db_path = db_path
         self._mem_conn = sqlite3.connect(":memory:") if db_path == ":memory:" else None
         # observers: list of callables(old_state, new_state, reason) — called after each
-        # recorded transition. Used by IsolationLog and future commercial hooks.
+        # recorded transition. Used by IsolationLog.
         # Errors in observers are swallowed so they never block a state change.
         self._observers: list = []
         self._obs_lock = threading.Lock()
@@ -196,7 +195,7 @@ class NodeHealthStateMachine:
         """
         Return the number of seconds since the last state transition.
 
-        Commercial hook: enterprise tier uses this to enforce MAX_ISOLATION_HOURS.
+        A measurement only: OpenDQV Core does not enforce MAX_ISOLATION_HOURS.
         Returns 0.0 if no log entries exist (should never happen post-init).
         """
         conn = self._connect()
@@ -249,7 +248,7 @@ class NodeHealthStateMachine:
         """
         Return the ISO 8601 timestamp when the node entered isolation, or None.
 
-        Used by the health endpoint and the commercial enforcement layer.
+        Used by the health endpoint.
         """
         if self.current_state() != NodeState.ISOLATED:
             return None

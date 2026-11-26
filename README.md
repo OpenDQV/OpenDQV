@@ -101,7 +101,7 @@ OpenDQV Core ships a built-in [Model Context Protocol](https://modelcontextproto
 
 *4-minute demo: Claude Desktop uses two MCP servers — OpenDQV Core for validation, Marmot for catalog lineage — to check a menu item against `ppds_menu_item` for Natasha's Law allergen compliance, stating which tool calls it makes and why. ([Backup: download the MP4 from the repo](https://github.com/OpenDQV/OpenDQV/raw/main/docs/demo_mcp.mp4))*
 
-For tool reference, write guardrails, remote/enterprise mode, and the Marmot composition pattern, see **[docs/mcp.md](docs/mcp.md)**.
+For tool reference, write guardrails, remote mode, and the Marmot composition pattern, see **[docs/mcp.md](docs/mcp.md)**.
 
 **Reserved `agent_id` prefix.** The prefix `OpenDQV_SA_` is reserved for OpenDQV-owned system traffic — smoke probes, demos, MCP self-tests, perf harnesses. The pattern is `OpenDQV_SA_[Category]_[Scope]` (e.g. `OpenDQV_SA_smoke_v240`, `OpenDQV_SA_probe_persona_b`). Core's metrics endpoints (`/api/v1/stats`, `/api/v1/agents`, MCP `get_quality_metrics`, MCP `list_agents`) suppress these by default so your quality metrics stay clean of dev/test traffic. Pass `include_system=true` to surface them for diagnostics — each row carries an `is_system_agent` flag.
 
@@ -336,7 +336,7 @@ MIT — see [LICENSE](LICENSE).
 
 ## Acknowledgements
 
-**Led by [Sunny Sharma](https://uk.linkedin.com/in/sunny-sharma-3927632), [BGMS Consultants Ltd](https://www.bgmsconsultants.com).** The vision, the architecture, every contract, and every design decision in this repository are directed by a human who believes data quality is a write-time responsibility.
+**Led by [Sunny Sharma](https://uk.linkedin.com/in/sunny-sharma-3927632), [BGMS Consultants Limited](https://www.bgmsconsultants.com).** The vision, the architecture, every contract, and every design decision in this repository are directed by a human who believes data quality is a write-time responsibility.
 
 OpenDQV is built with a hybrid team. Sunny leads — carbon and silicon. Three AI collaborators execute: Claude Sonnet 4.6 (primary developer), Claude Opus 4.6 (strategic auditor), and Grok (market intelligence). All answer to the same ethos: *trust is easier to build than to repair.*
 

@@ -69,9 +69,9 @@ Full interactive docs at `/docs` (Swagger) and `/redoc` (ReDoc) when the server 
 | `GET` | `/api/v1/trace/verify` | Yes (auditor+) | Verify trace log hash-chain integrity |
 | `GET` | `/api/v1/registry` | No | Schema registry — list all contracts as versioned schemas |
 | `GET` | `/api/v1/registry/{name}` | No | Schema registry — get specific schema |
-| `GET` | `/api/v1/federation/events` | No | SSE stream of federation sync events |
-| `POST` | `/api/v1/federation/register` | Yes | Register a federated node |
-| `GET` | `/api/v1/federation/status` / `health` / `log` / `sync-status` | No | Federation node status, health, log, sync state |
+| `GET` | `/api/v1/federation/events` | Yes | SSE stream of federation log events, node-state changes and heartbeats |
+| `POST` | `/api/v1/federation/register` | No | Not implemented in OpenDQV Core — always returns 501 |
+| `GET` | `/api/v1/federation/status` / `health` / `log` / `sync-status` | Yes | Federation node status, health, log, peer version comparison |
 | `*` | `/graphql` | No | GraphQL endpoint (queries + mutations) |
 
 ---

@@ -29,7 +29,7 @@ The integration described here enables dbt test results to reference OpenDQV val
 
 ## Approach 1 — Import dbt `schema.yml` as an OpenDQV Contract
 
-OpenDQV Core already ships a dbt importer (`core/importers/dbt.py`). It converts dbt
+OpenDQV Core already ships a dbt importer (`opendqv/core/importers/dbt.py`). It converts dbt
 `schema.yml` column tests into OpenDQV validation rules.
 
 ### Supported dbt test → OpenDQV rule mapping
@@ -240,5 +240,5 @@ See [`roadmap.md`](roadmap.md) for planned dbt features including the `opendqv_d
 - [REST API reference](../README.md)
 - [Contract authoring guide](../CONTRIBUTING.md)
 - [Runbook](runbook.md)
-- dbt importer source: `core/importers/dbt.py`
-- SDK: `sdk.py` — `OpenDQVClient`, `AsyncOpenDQVClient`
+- dbt importer source: `opendqv/core/importers/dbt.py`
+- SDK: `opendqv/sdk/client.py` — `OpenDQVClient`, `AsyncOpenDQVClient`

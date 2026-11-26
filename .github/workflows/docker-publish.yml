@@ -68,5 +68,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # No layer cache: a cached `apt-get upgrade` layer would publish an
+          # image without the Debian security fixes released since it was
+          # cached. Every published image runs the upgrade fresh.
+          no-cache: true
+          pull: true
