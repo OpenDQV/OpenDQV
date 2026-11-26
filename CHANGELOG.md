@@ -2,7 +2,7 @@
 
 All notable changes to OpenDQV are documented here.
 
-## [Unreleased]
+## [3.0.10] - 2026-11-26
 
 ### Documentation: OpenDQV, OpenDQV Core and OpenDQV Cloud
 
@@ -78,6 +78,8 @@ message and some help text change; everything else is comments and docs.
 - **CI:** the container-scan and Docker-publish builds no longer use the GitHub
   Actions layer cache, so the `apt-get upgrade` layer always runs fresh (a
   cached layer had kept libzstd1 CVE-2026-124851 in the scanned image).
+
+---
 
 ## [3.0.9] - 2026-10-11
 
