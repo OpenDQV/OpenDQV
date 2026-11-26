@@ -27,6 +27,56 @@ Docs only; no code, contract or behaviour change.
 - CLA v1.1: the example licence is MIT (under which OpenDQV Core is published)
   and the company name is written in full; the scope of the grant is unchanged.
 
+### Changed: final pass before the OpenDQV Cloud launch
+
+No verdict, rule, error code, HTTP status or API field changes. One response
+message and some help text change; everything else is comments and docs.
+
+- **`POST /federation/register` 501 body.** Status 501 and error code
+  `federation_not_enabled` are unchanged. The message no longer promises an
+  "enterprise federation tier" or automatic bootstrap (neither exists), and
+  `docs` no longer links a domain the project does not own; it now points to
+  `docs/federation.md`. The message is now: "Node registration is not
+  implemented in OpenDQV Core. Setting OPENDQV_UPSTREAM only marks this node as
+  federated in GET /federation/status; no registration or contract sync is
+  performed." A test pins the body and checks that docs/federation.md shows it
+  exactly; another fails if any tracked file links the unowned domain.
+- **docs/federation.md says what Core ships:** the federation log and its read
+  API, node status and health, and peer version comparison
+  (`/federation/sync-status`). Registration, bootstrap, push/ack/commit
+  propagation, isolation detection and the `OPENDQV_MAX_ISOLATION_HOURS` stop
+  are not implemented; the "federation pair" walkthrough is replaced by a peer
+  comparison walkthrough. Also noted: `sync-status` emits `sync_diverged`, which
+  is not a webhook event you can register for, so no webhook receives it.
+- **"Enterprise tier", "opendqv-enterprise", "commercial tier" retired in code
+  comments and docstrings** (config, storage, node_health, worker_heartbeat,
+  isolation_log, federation, clock_sync, mcp_server). Where a feature is not in
+  Core they now say "not implemented in OpenDQV Core". The OpenAPI description
+  (main.py), the CLI description ("OpenDQV Core CLI"), two analytics parameter
+  descriptions and the `import-odcs --name` help (the default is the ODCS
+  `name`, else `id`, not `info.title`) are corrected. The FastAPI title and the
+  API's `service: "OpenDQV"` are unchanged.
+- **Docs corrected to match the code:** observation mode (`valid` reports the
+  real outcome; `would_have_failed` is `not valid`), iq_dimension_mapping (an
+  unknown rule key is refused at load, not dropped), the Soda guide (no
+  `export-soda` command; `/import/soda` request and response shapes), the
+  ecosystem guide (`export-dbt` flags), the runbook (four lifecycle states,
+  `POST .../status?status=`, token revoke body, `ghcr.io/opendqv/opendqv`),
+  webhooks (payload fields; no secret header is sent), the data_contract issue
+  template (no context-override checkbox), pre-namespace `core/`, `api/`,
+  `security/` paths, lookup_file examples (`ref/...`), SEC-010 location, the
+  federation rows in api_reference, and the FAQ test count.
+- **Launch fixes:** "BGMS Consultants Limited" in full (README, CONTRIBUTING,
+  llms.txt); production_deployment says Beta (as pyproject does);
+  deployment_registry says MIT, self-hosted, with OpenDQV Cloud as a separate
+  service Core does not depend on; roi_calculator drops a stale deployment
+  claim.
+- **Links:** three broken in-repo anchors and four broken links in the Arabic
+  quickstart fixed; the Arabic quickstart names the software OpenDQV Core.
+- **CI:** the container-scan and Docker-publish builds no longer use the GitHub
+  Actions layer cache, so the `apt-get upgrade` layer always runs fresh (a
+  cached layer had kept libzstd1 CVE-2026-124851 in the scanned image).
+
 ## [3.0.9] - 2026-10-11
 
 Messages only — verdicts and codes unchanged. Closes the conformance round with
