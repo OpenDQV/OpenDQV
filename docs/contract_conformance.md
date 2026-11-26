@@ -649,7 +649,7 @@ none. The two Go layouts read as aliases in stored content: `2006-01-02` is
 
 ## 3.0.6 — numbers, versions and booleans (2026-10-10)
 
-There are no users of either engine yet, so where the managed engine's 3.0.5
+Where the managed engine's 3.0.5
 behaviour was an accident rather than a design, the managed engine was fixed
 and Core follows. The managed engine passes all 210 rows of its fixture; on
 Core 3.0.5 exactly 16 were red. Core's `frozen/engine_semantics.jsonl` now

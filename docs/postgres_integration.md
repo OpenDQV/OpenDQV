@@ -2,14 +2,14 @@
 
 > **Last reviewed:** 2026-03-22.
 
-![OpenDQV + Postgres — validate before INSERT, route rejects to quarantine table](demo_postgres.gif)
+![OpenDQV Core + Postgres — validate before INSERT, route rejects to quarantine table](demo_postgres.gif)
 
 *The validate-before-INSERT pattern: bad records never enter the target table — clean rows are written, rejected rows land in the quarantine table with full error context for review and remediation.*
 
 > Covers psycopg2 v2.9+, Postgres 14+.
-> For the Postgres storage backend (enterprise tier), see `core/storage.py`.
+> For OpenDQV Core's optional Postgres storage backend (`OPENDQV_DB_BACKEND=postgres`), see `opendqv/core/storage.py`.
 
-OpenDQV validates records before they reach Postgres. The pattern is simple: validate at the application layer before every INSERT, route clean records to the target table, and route rejected records to a quarantine table. No Postgres extensions required.
+OpenDQV Core validates records before they reach Postgres. The pattern is simple: validate at the application layer before every INSERT, route clean records to the target table, and route rejected records to a quarantine table. No Postgres extensions required.
 
 ## Which approach for your use case?
 
@@ -17,7 +17,7 @@ OpenDQV validates records before they reach Postgres. The pattern is simple: val
 |----------|---------------------|-----|
 | Python app / ETL writes | Approach 1 (LocalValidator) | No network dependency, fastest, no DB changes |
 | Microservice / REST API | Approach 3 (FastAPI `@guard`) | Cleanest integration at the API boundary |
-| Running OpenDQV API server | Approach 2 (SDK client) | Centralised governance, one contract update applies everywhere |
+| Running OpenDQV Core API server | Approach 2 (SDK client) | Centralised governance, one contract update applies everywhere |
 | Governance-owned enforcement — any writer validated | Approach 4 (DB trigger) | Blocks writes from psycopg2, JDBC, dbt, migration scripts, manual psql — all of them |
 | Batch load with full audit trail | Approach 1 + quarantine table | Complete record of what passed and what was rejected |
 
@@ -116,9 +116,11 @@ def load_records(records: list[dict], contract: str, table: str):
 
 ---
 
-## Approach 2 — API-Mode: Validate Before INSERT (with running OpenDQV API)
+<a id="approach-2--api-mode-validate-before-insert-with-running-opendqv-api"></a>
 
-When you have an OpenDQV API server running, use `OpenDQVClient` instead of `LocalValidator`. The pattern is identical — swap the client.
+## Approach 2 — API-Mode: Validate Before INSERT (with running OpenDQV Core API)
+
+When you have an OpenDQV Core API server running, use `OpenDQVClient` instead of `LocalValidator`. The pattern is identical — swap the client.
 
 ```python
 from opendqv.sdk import OpenDQVClient
@@ -251,14 +253,14 @@ ORDER BY occurrences DESC;
 ## Approach 4 — Native DB Trigger: Enforce at the Database Layer
 
 This is the governance-first approach. A `BEFORE INSERT OR UPDATE` trigger calls the
-OpenDQV API directly from within Postgres. Bad records are blocked at the database
+OpenDQV Core API directly from within Postgres. Bad records are blocked at the database
 layer — regardless of which application, ETL tool, or migration script is doing the
 writing. The governance team owns the YAML contract; the trigger is a one-time setup.
 
 > **Why this matters for Databricks and Snowflake migrations:**
 > Both platforms have made significant investments in Postgres compatibility (Databricks
 > via Neon, Snowflake via Postgres-compatible features). A trigger-enforced OpenDQV
-> contract moves with the data — the validation contract is not tied to the application
+> contract (validated by OpenDQV Core) moves with the data — the validation contract is not tied to the application
 > layer or any specific ETL process. This is the pattern that unblocks platform
 > migrations: replace the stored-procedure DQ logic with an OpenDQV contract, attach a
 > trigger, and the enforcement survives the migration intact.
@@ -327,7 +329,7 @@ $$ LANGUAGE plpython3u SECURITY DEFINER;
 > In production use AWS Secrets Manager, HashiCorp Vault, or your cloud provider's
 > secret store, and inject at application startup.
 
-> **Fail-open vs fail-closed:** The example above is fail-closed — if OpenDQV is
+> **Fail-open vs fail-closed:** The example above is fail-closed — if OpenDQV Core is
 > unreachable, the INSERT is blocked. To fail-open (allow the INSERT and log the
 > error instead), replace `plpy.error(...)` in the `URLError` handler with
 > `plpy.warning(...)` and `return "OK"`. Choose based on your risk tolerance.
@@ -415,7 +417,7 @@ SELECT net.http_post(
 
 | Limitation | Detail |
 |---|---|
-| Postgres backend (`OPENDQV_DB_BACKEND=postgres`) | The contract history and federation log Postgres backend is part of the enterprise tier. The application-layer validate-before-INSERT pattern (this document) works with SQLite or any database. |
+| Postgres backend (`OPENDQV_DB_BACKEND=postgres`) | OpenDQV Core's Postgres backend stores contract history; the federation log has no Postgres implementation yet and needs SQLite. The application-layer validate-before-INSERT pattern (this document) works with SQLite or any database. |
 | `unique` rule in batch | The `unique` rule checks within the batch only, not against existing Postgres rows. Use a `UNIQUE` constraint on the column for database-level deduplication. |
 | `plpython3u` UDF | Requires `apk add python3` (Alpine) or `apt install postgresql-plpython3` (Debian). Not available on all managed Postgres providers — check your provider's extension allowlist before using Approach 4. |
 
@@ -427,7 +429,7 @@ SELECT net.http_post(
 |---|---|
 | **Quick start** | Approach 1 — `validate_batch` before every `executemany` / bulk INSERT |
 | **Quick start** | Set `asset_id` to `postgres://{host}/{db}/{schema}/{table}` for catalog linkage |
-| **Governance-first** | Approach 4 — native DB trigger calling the OpenDQV API (enforcement at DB layer, any writer validated) |
+| **Governance-first** | Approach 4 — native DB trigger calling the OpenDQV Core API (enforcement at DB layer, any writer validated) |
 | **Platform migration** | Approach 4 trigger pattern unblocks Databricks/Snowflake migrations by removing the stored-procedure DQ dependency |
 | **Community** | Postgres enterprise storage backend (contract history + federation log in Postgres) — community PR welcome |
 

@@ -58,7 +58,7 @@ Adding or removing a field from `sensitive_fields` is treated as a significant c
 
 This ensures that the designation of a field as sensitive cannot be silently reversed by a contract editor.
 
-For data retention obligations that apply to trace logs generated during governance reviews, see [What OpenDQV Retains](#what-opendqv-retains) and [Operator Retention Obligations](#operator-retention-obligations) below.
+For data retention obligations that apply to trace logs generated during governance reviews, see [What OpenDQV Core Retains](#what-opendqv-core-retains) and [Operator Retention Obligations](#operator-retention-obligations) below.
 
 ## Regulatory context
 
@@ -153,9 +153,11 @@ rules:
     severity: error
 ```
 
-## What OpenDQV Retains
+<a id="what-opendqv-retains"></a>
 
-Records submitted for validation are processed **in-memory** and discarded immediately after the validation response is returned. OpenDQV does **not** write record field values to disk under any default configuration.
+## What OpenDQV Core Retains
+
+Records submitted for validation are processed **in-memory** and discarded immediately after the validation response is returned. OpenDQV Core does **not** write record field values to disk under any default configuration.
 
 **Exception — TRACE_LOG:** When trace logging is enabled, the following are written to the trace log:
 
@@ -170,11 +172,11 @@ Records submitted for validation are processed **in-memory** and discarded immed
 - With `TRACE_LEVEL=full`, non-sensitive field values are included in the trace log. Sensitive fields remain suppressed as `[REDACTED]` regardless of `TRACE_LEVEL`.
 - The `contract_hash` in the audit chain is a SHA-256 hash of the **contract definition** (rules, metadata), not of any record data.
 
-OpenDQV is a validation service that never stores submitted record values. It has no internal database of submitted records. The contract registry is local to your deployment. Nothing is transmitted to OpenDQV or any third party.
+OpenDQV Core is a validation service that never stores submitted record values. It has no internal database of submitted records. The contract registry is local to your deployment. Nothing is transmitted to the OpenDQV project, BGMS Consultants Limited or any third party.
 
 ## Operator Retention Obligations
 
-OpenDQV generates trace logs as part of its audit chain. **Operators are responsible for applying their own retention and deletion policies to these logs.**
+OpenDQV Core generates trace logs as part of its audit chain. **Operators are responsible for applying their own retention and deletion policies to these logs.**
 
 Relevant obligations by regulation:
 
@@ -182,8 +184,8 @@ Relevant obligations by regulation:
 |------------|---------------------|
 | GDPR Article 5(1)(e) — storage limitation | Personal data must not be kept longer than necessary. Operators must define a retention period for trace logs and enforce it (e.g., a 90-day TTL on the log storage layer, or as specified in your Data Processing Agreement). |
 | UK GDPR / DPA 2018 | Same as above. Applies to UK deployments post-Brexit. |
-| HIPAA (US Healthcare) | HIPAA requires retention of security audit records for a minimum of 6 years. This is the **operator's obligation** — OpenDQV generates the log; the operator must ensure it is retained and protected for the required period. |
-| NHS DSP Toolkit | Information governance audit logs must be retained per NHS Data Security and Protection Toolkit requirements. Operators deploying OpenDQV for NHS data must configure log retention accordingly. |
+| HIPAA (US Healthcare) | HIPAA requires retention of security audit records for a minimum of 6 years. This is the **operator's obligation** — OpenDQV Core generates the log; the operator must ensure it is retained and protected for the required period. |
+| NHS DSP Toolkit | Information governance audit logs must be retained per NHS Data Security and Protection Toolkit requirements. Operators deploying OpenDQV Core for NHS data must configure log retention accordingly. |
 
 **Recommended baseline:** pipe trace logs to a structured log manager (e.g., Loki, CloudWatch Logs, Elasticsearch) and configure a retention policy appropriate to your DPA or regulatory context. A 90-day TTL is a reasonable default for most commercial deployments.
 
