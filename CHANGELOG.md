@@ -2,6 +2,19 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [Unreleased]
+
+### CLA signing
+
+- Contributor Licence Agreement signatures are now recorded by the CLA
+  Assistant Lite GitHub Action (`.github/workflows/cla.yml`). CLA.md described
+  a CLA Assistant bot that was never connected; "How to Sign" now describes the
+  action: the contributor comments the sign-off phrase on their pull request
+  and the signature is committed to `signatures/version1/cla.json` on the
+  `cla-signatures` branch. The terms of the CLA are unchanged (still v1.1).
+
+---
+
 ## [3.0.10] - 2026-11-26
 
 ### Documentation: OpenDQV, OpenDQV Core and OpenDQV Cloud

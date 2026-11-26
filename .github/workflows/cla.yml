@@ -1,0 +1,73 @@
+name: CLA Assistant
+
+# Records signatures of the Contributor Licence Agreement (CLA.md).
+#
+# On a pull request the bot asks every commit author who has not signed to
+# comment the sign-off phrase below; the signature is committed to
+# signatures/version1/cla.json on the `cla-signatures` branch.
+#
+# pull_request_target runs this workflow from the base branch with a write
+# token, as the CLA action documents. This job never checks out or runs code
+# from the pull request: it only reads the PR's commit metadata through the API.
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_target:
+    types: [opened, closed, synchronize]
+
+permissions: {}
+
+jobs:
+  CLAAssistant:
+    name: CLAAssistant
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write        # re-run the CLA check after a signature comment
+      contents: write       # commit signatures to the cla-signatures branch
+      pull-requests: write  # comment on the pull request
+      statuses: write       # report the CLA status
+    if: >-
+      github.event_name == 'pull_request_target' ||
+      (github.event.issue.pull_request &&
+       (github.event.comment.body == 'recheck' ||
+        github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA'))
+    steps:
+      # The CLA action identifies a commit author by their GitHub account, and
+      # falls back to the bare git author name when neither the author nor the
+      # committer email is linked to one. That name is then compared with the
+      # allowlist, so an unlinked commit named after an allowlisted account
+      # would pass unsigned. Refuse such commits before the action runs.
+      - name: Require commits linked to GitHub accounts
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
+        with:
+          script: |
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              per_page: 100,
+            });
+            const unlinked = commits.filter(c => !c.author && !c.committer);
+            if (unlinked.length) {
+              const list = unlinked.map(c => `${c.sha.slice(0, 7)} (${c.commit.author.email})`).join(', ');
+              core.setFailed(
+                `These commits are not linked to a GitHub account: ${list}. ` +
+                `Add the commit email to your GitHub account (Settings → Emails), ` +
+                `then comment "recheck" on the pull request.`
+              );
+            }
+
+      - name: CLA Assistant
+        uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08  # v2.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          path-to-document: 'https://github.com/OpenDQV/OpenDQV/blob/main/CLA.md'
+          path-to-signatures: 'signatures/version1/cla.json'
+          branch: 'cla-signatures'
+          # Exact names only: the action's `*` patterns are unanchored regexes.
+          allowlist: 'SunnySharmaBGMSConsultants,dependabot[bot],github-actions[bot]'
+          # The signature record is the JSON file on cla-signatures, so merged
+          # pull requests are not locked.
+          lock-pullrequest-aftermerge: false

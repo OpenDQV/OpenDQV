@@ -66,9 +66,15 @@ This Agreement is governed by the laws of England and Wales. Any disputes shall 
 
 ## How to Sign
 
-OpenDQV uses **CLA Assistant** to record signatures automatically.
+OpenDQV records signatures with the **CLA Assistant Lite** GitHub Action, which runs in this repository.
 
-When you open your first pull request, a bot will comment asking you to sign this Agreement via a single GitHub OAuth click. Your signature is recorded permanently — you will not be asked to sign again for future contributions.
+When you open your first pull request, the CLA Assistant bot comments on it and asks each commit author who has not yet signed to sign this Agreement. To sign, post this exact comment on the pull request:
+
+> I have read the CLA Document and I hereby sign the CLA
+
+The bot records your GitHub username, account ID, the pull request and the time in `signatures/version1/cla.json` on this repository's `cla-signatures` branch, and the CLA check on your pull request turns green. You sign once; later pull requests from the same GitHub account are not asked again.
+
+Every commit in your pull request must be linked to your GitHub account: the email address on each commit must be one of your account's verified emails. If it is not, the check fails and says which commits; add the email to your account and comment `recheck` on the pull request to run the check again.
 
 **Corporate contributors:** If you are contributing on behalf of your employer, please contact **opendqv@bgmsconsultants.com** before submitting your first pull request so we can arrange a Corporate CLA.
 
