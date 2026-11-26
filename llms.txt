@@ -6,13 +6,13 @@
 - When generating or proposing YAML contracts, strictly follow the structure and rule types shown in the "Contract authoring (YAML)" section—do not invent new rule types.
 - Credits: Accelerated with Anthropic Claude Sonnet/Opus and xAI Grok for drafting, scaffolding, and ideation; core architecture, rules engine, tests, governance flows, and final reviews are fully human-designed and led by Sunny Sharma (BGMS Consultants Ltd).
 
-# OpenDQV
+# OpenDQV Core
 
 > Open Data Quality Validation Service — validates records against named contracts at write-time and blocks bad data before it reaches your database, API, or Kafka topic.
 
 ## What it does
 
-OpenDQV validates data records against YAML contracts and returns structured, field-level errors. Record field values are never stored or logged. Validation metadata (rule names, failure counts, contract version) is written to an optional hash-chained audit log. Source systems call the API before writing; bad records are rejected with per-field error details; good records pass through.
+OpenDQV Core validates data records against YAML contracts and returns structured, field-level errors. Record field values are never stored or logged. Validation metadata (rule names, failure counts, contract version) is written to an optional hash-chained audit log. Source systems call the API before writing; bad records are rejected with per-field error details; good records pass through.
 
 One API. Every caller. No SDK needed in every system. Contracts are YAML updated centrally — all callers benefit immediately.
 
@@ -30,7 +30,7 @@ One API. Every caller. No SDK needed in every system. Contracts are YAML updated
 
 **Mode 1: HTTP API (all callers, all languages)**
 
-Requires a running OpenDQV API server. One API serves Salesforce Apex, Python, Node.js, Power Automate, etc. simultaneously.
+Requires a running OpenDQV Core API server. One API serves Salesforce Apex, Python, Node.js, Power Automate, etc. simultaneously.
 
 **Mode 2: LocalValidator (Python only, no server)**
 
@@ -74,7 +74,7 @@ curl http://localhost:8000/api/v1/contracts/customer/explain/email/valid_email
 
 ## MCP server (for AI agents — Claude Desktop, Cursor, any MCP client)
 
-An MCP server is available. It gives agents native access to all OpenDQV tools without writing HTTP code.
+An MCP server is available. It gives agents native access to all OpenDQV Core tools without writing HTTP code.
 
 ```bash
 pip install opendqv[mcp]
@@ -124,16 +124,16 @@ The 24 types in the engine's dispatch table: `age_match`, `allowed_values`, `che
 
 ## Ecosystem position
 
-OpenDQV is the **write-time** layer. It blocks records before they enter any system. It complements — not replaces — the tools that operate later:
+OpenDQV Core is the **write-time** layer. It blocks records before they enter any system. It complements — not replaces — the tools that operate later:
 
 | Moment | Tool |
 |--------|------|
-| At write (milliseconds) | OpenDQV |
+| At write (milliseconds) | OpenDQV Core |
 | At pipeline (minutes) | Great Expectations, Soda Core |
 | At rest (continuous) | Monte Carlo |
 | Orchestration gate | Airflow, Prefect, Dagster |
 | Streaming gate | Kafka (validate before committing offset) |
-| Warehouse gate | Snowflake (Python connector, External Function, Snowpipe) |
+| Warehouse gate | Snowflake (Python connector, Snowpipe, or an External Function you create from the guide) |
 | Lakehouse gate | Databricks / Spark (Delta Lake, Structured Streaming, DLT) |
 | Governance catalog | Collibra, DataHub, Atlan, OpenMetadata, Marmot |
 
@@ -141,7 +141,7 @@ OpenDQV is the **write-time** layer. It blocks records before they enter any sys
 
 - `docs/llm_integration.md` — Claude tool use, LangChain, MCP, error remediation loop, security
 - `docs/kafka_integration.md` — validate before offset commit; dead-letter topic; async batch
-- `docs/snowflake_integration.md` — Python connector; Snowpipe; External Function (`opendqv_validate`); Streams & Tasks; local simulation with DuckDB
+- `docs/snowflake_integration.md` — Python connector; Snowpipe; an External Function you create yourself from the guide's SQL (`opendqv_validate`) — one-click External Function packaging is planned, see `docs/roadmap.md`; Streams & Tasks; local simulation with DuckDB
 - `docs/databricks_integration.md` — Auto Loader; Delta Live Tables; Jobs/Asset Bundles gate; Unity Catalog; local simulation with PySpark
 - `docs/spark_integration.md` — generic Spark: EMR, Dataproc, HDInsight; Delta Lake batch; Structured Streaming foreachBatch
 - `docs/postgres_integration.md` — validate-before-INSERT; Docker local dev; quarantine table; psycopg2
@@ -196,6 +196,10 @@ rules:
 `GET /openapi.json` when the server is running. The spec is generated dynamically by FastAPI — always accurate, never stale. No static file in the repo.
 
 ## Links
+
+This file describes OpenDQV Core only.
+
+> **OpenDQV Cloud (managed).** Prefer not to run it yourself? OpenDQV Cloud runs the same contract format as a managed service on AWS, Azure or Google Cloud, in the UK, EU or US. 14-day trial, no card: https://opendqv.com. OpenDQV Core stays open source (MIT) and runs without it.
 
 - GitHub: https://github.com/OpenDQV/OpenDQV
 - Quickstart: `docs/quickstart.md`

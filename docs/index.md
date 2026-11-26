@@ -1,20 +1,24 @@
-# OpenDQV Documentation
+<a id="opendqv-documentation"></a>
+
+# OpenDQV Core Documentation
 
 OpenDQV Core is a centralised data quality validation API for the enterprise — validation is ephemeral, record values are never stored.
 
 **Bad data blocked at the door. Not discovered three weeks later.**
 A rejection at the point of write closes the feedback loop — producers see failures immediately and fix them upstream. This is why rejection rates drop over time.
 
-The pattern: source systems call OpenDQV before writing. Bad records are blocked immediately.
+The pattern: source systems call OpenDQV Core before writing. Bad records are blocked immediately.
+
+> **OpenDQV Cloud (managed).** Prefer not to run it yourself? OpenDQV Cloud runs the same contract format as a managed service on AWS, Azure or Google Cloud, in the UK, EU or US. 14-day trial, no card: https://opendqv.com. OpenDQV Core stays open source (MIT) and runs without it.
 
 ## Demos & Walkthroughs
 
-Short visual walkthroughs of OpenDQV in action across the integrations it supports. Every demo here is a real, runnable scenario from the repository.
+Short visual walkthroughs of OpenDQV Core in action across the integrations it supports. Every demo here is a real, runnable scenario from the repository.
 
 | Demo | What it shows |
 |---|---|
-| [![Watch the MCP demo](demo_mcp_poster.png)](https://github.com/user-attachments/assets/4d414ff1-b08c-4ff1-91e4-e421f0d5391d)<br>**[Claude Desktop + OpenDQV MCP + Marmot](mcp.md)** | Claude Desktop calls the OpenDQV MCP server to validate a menu item against `ppds_menu_item` (Natasha's Law allergen compliance), then composes with the Marmot catalog MCP server to surface ownership and lineage. ([Backup MP4](https://github.com/OpenDQV/OpenDQV/raw/main/docs/demo_mcp.mp4)) |
-| ![Marmot lineage](marmot_lineage.png)<br>**[Marmot lineage push](marmot_integration.md)** | OpenDQV pushes per-contract quality metrics into Marmot via OpenLineage facets — pass rate and failing rules show up directly on the catalog asset. |
+| [![Watch the MCP demo](demo_mcp_poster.png)](https://github.com/user-attachments/assets/4d414ff1-b08c-4ff1-91e4-e421f0d5391d)<br>**[Claude Desktop + OpenDQV Core MCP + Marmot](mcp.md)** | Claude Desktop calls the OpenDQV Core MCP server to validate a menu item against `ppds_menu_item` (Natasha's Law allergen compliance), then composes with the Marmot catalog MCP server to surface ownership and lineage. ([Backup MP4](https://github.com/OpenDQV/OpenDQV/raw/main/docs/demo_mcp.mp4)) |
+| ![Marmot lineage](marmot_lineage.png)<br>**[Marmot lineage push](marmot_integration.md)** | OpenDQV Core pushes per-contract quality metrics into Marmot via OpenLineage facets — pass rate and failing rules show up directly on the catalog asset. |
 | ![Ofcom demo](demo_ofcom.gif)<br>**[Ofcom Online Safety Act](compliance-contracts.md)** | Validating a moderation event against the Ofcom Online Safety Act contract — illegal-content category, reporter identity, takedown SLA. |
 | ![Postgres demo](demo_postgres.gif)<br>**[Postgres integration](postgres_integration.md)** | Validate before `INSERT` — quarantine table pattern with `psycopg2`. |
 | ![Salesforce demo](demo_salesforce.gif)<br>**[Salesforce integration](salesforce_integration.md)** | Push-down Apex in the trigger, a Screen Flow or Lightning component calling the endpoint before the record is created, and an after-save audit — bad records get field-level error feedback inside Salesforce. (A callout from a trigger itself does not run on the platform; see the correction in the guide.) |
@@ -162,7 +166,7 @@ The `asset_id` field is free-form — use whatever convention matches your catal
 ## Observability — `trace_id`
 
 Pass a `trace_id` header (or query param) on every validation call to correlate
-OpenDQV decisions with your application traces:
+OpenDQV Core decisions with your application traces:
 
 ```bash
 curl -s -X POST http://localhost:8000/api/v1/validate \
@@ -171,7 +175,7 @@ curl -s -X POST http://localhost:8000/api/v1/validate \
   -d '{"record": {...}, "contract": "customer"}'
 ```
 
-OpenDQV echoes the `X-Trace-Id` back in the response headers and logs it at
+Core echoes the `X-Trace-Id` back in the response headers and logs it at
 `DEBUG` level. Use this to correlate validation failures with upstream service
 traces in your observability platform (Jaeger, Zipkin, Datadog, etc.).
 
@@ -257,11 +261,11 @@ Trivy results are uploaded to the **GitHub Security tab** (SARIF format) after e
 
 ## Ecosystem
 
-OpenDQV Core is the source-layer anchor of the modern data quality stack — designed to complement Soda, Great Expectations, dbt, and observability tools, not replace them. For organizations using Data Mesh, OpenDQV serves as a write-time quality enforcement layer at the data product port — validating records before they leave the producer's boundary.
+OpenDQV Core is the source-layer anchor of the modern data quality stack — designed to complement Soda, Great Expectations, dbt, and observability tools, not replace them. For organizations using Data Mesh, Core serves as a write-time quality enforcement layer at the data product port — validating records before they leave the producer's boundary.
 
 | Document | Purpose |
 |----------|---------|
-| [Ecosystem Reference Stack](ecosystem_reference_stack.md) | One contract, two enforcement points — OpenDQV + dbt + Soda + Monte Carlo |
+| [Ecosystem Reference Stack](ecosystem_reference_stack.md) | One contract, two enforcement points — OpenDQV Core + dbt + Soda + Monte Carlo |
 | [dbt Integration](dbt_integration.md) | Bidirectional import/export with dbt schema.yml |
 | [Great Expectations Integration](gx_integration.md) | Import GX suites; export to GX; two-layer enforcement |
 | [Soda Core Integration](soda_integration.md) | Import Soda checks.yml; pre-pipeline gate; webhook correlation |

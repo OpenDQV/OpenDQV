@@ -19,11 +19,13 @@
 > **"Trust is easier to build than to repair."**
 > That is why OpenDQV exists. A rejection at the point of write is cheaper than a data incident three weeks later.
 
-> **Beta (v3.x).** REST endpoints, MCP tool names and Python SDK signatures are stable. Rule verdicts are being aligned with OpenDQV Cloud's managed engine (not yet publicly available), so a release can change how a rule judges a record — every such change is listed in the [CHANGELOG](CHANGELOG.md). Security fixes ship in the latest release. See [API Stability](#api-stability) for the details.
+> **Beta (v3.x).** REST endpoints, MCP tool names and Python SDK signatures are stable. Rule verdicts are being aligned with [OpenDQV Cloud](https://opendqv.com)'s managed engine, so a release can change how a rule judges a record — every such change is listed in the [CHANGELOG](CHANGELOG.md). Security fixes ship in the latest release. See [API Stability](#api-stability) for the details.
 
-**OpenDQV is a write-time data validation service.** Source systems call it before writing data. Every answer is an HTTP `200`: a bad record comes back `valid: false` with per-field errors and the caller refuses the write; a good record comes back `valid: true` and the write goes ahead. No payload is stored.
+**OpenDQV Core is an open-source, self-hosted write-time data validation service.** Source systems call it before writing data. Every answer is an HTTP `200`: a bad record comes back `valid: false` with per-field errors and the caller refuses the write; a good record comes back `valid: true` and the write goes ahead. No payload is stored.
 
-![OpenDQV demo — define a contract, send a bad record (rejected with per-field errors), fix it (accepted)](docs/demo_wizard.gif)
+Prefer a managed service? See [OpenDQV Cloud (managed)](#opendqv-cloud-managed).
+
+![OpenDQV Core demo — define a contract, send a bad record (rejected with per-field errors), fix it (accepted)](docs/demo_wizard.gif)
 
 ```mermaid
 flowchart LR
@@ -45,7 +47,7 @@ flowchart LR
         LLM[LLM agents]
     end
 
-    subgraph OpenDQV
+    subgraph CORE["OpenDQV Core"]
         direction TB
         API[Validation API\nREST / batch]
         SDK[LocalValidator\nin-process SDK]
@@ -87,21 +89,21 @@ flowchart LR
 
 A rejection at the point of write closes the feedback loop — producers see failures immediately and fix them at source. Rejection rates drop over time because the tool changes the incentive, not just the outcome.
 
-For post-landing monitoring use [Great Expectations](https://greatexpectations.io), [Soda](https://www.soda.io), or [dbt tests](https://docs.getdbt.com/docs/build/tests) — they're complementary, not competing. OpenDQV owns layer one (write-time enforcement); those tools own layer three (post-ingestion observability).
+For post-landing monitoring use [Great Expectations](https://greatexpectations.io), [Soda](https://www.soda.io), or [dbt tests](https://docs.getdbt.com/docs/build/tests) — they're complementary, not competing. OpenDQV Core owns layer one (write-time enforcement); those tools own layer three (post-ingestion observability).
 
 ---
 
 ## AI Agents — first-class via MCP
 
-OpenDQV ships a built-in [Model Context Protocol](https://modelcontextprotocol.io) server, so [Claude Desktop](https://claude.ai/download), [Cursor](https://www.cursor.com), and any other MCP-compatible agent can discover contracts, validate records, and explain failures through tool calls the agent **explicitly declares** — no hallucinated compliance, no invented rules.
+OpenDQV Core ships a built-in [Model Context Protocol](https://modelcontextprotocol.io) server, so [Claude Desktop](https://claude.ai/download), [Cursor](https://www.cursor.com), and any other MCP-compatible agent can discover contracts, validate records, and explain failures through tool calls the agent **explicitly declares** — no hallucinated compliance, no invented rules.
 
 [![Watch the 4-minute MCP demo](docs/demo_mcp_poster.png)](https://github.com/user-attachments/assets/4d414ff1-b08c-4ff1-91e4-e421f0d5391d)
 
-*4-minute demo: Claude Desktop uses two MCP servers — OpenDQV for validation, Marmot for catalog lineage — to check a menu item against `ppds_menu_item` for Natasha's Law allergen compliance, stating which tool calls it makes and why. ([Backup: download the MP4 from the repo](https://github.com/OpenDQV/OpenDQV/raw/main/docs/demo_mcp.mp4))*
+*4-minute demo: Claude Desktop uses two MCP servers — OpenDQV Core for validation, Marmot for catalog lineage — to check a menu item against `ppds_menu_item` for Natasha's Law allergen compliance, stating which tool calls it makes and why. ([Backup: download the MP4 from the repo](https://github.com/OpenDQV/OpenDQV/raw/main/docs/demo_mcp.mp4))*
 
 For tool reference, write guardrails, remote/enterprise mode, and the Marmot composition pattern, see **[docs/mcp.md](docs/mcp.md)**.
 
-**Reserved `agent_id` prefix.** The prefix `OpenDQV_SA_` is reserved for OpenDQV-owned system traffic — smoke probes, demos, MCP self-tests, perf harnesses. The pattern is `OpenDQV_SA_[Category]_[Scope]` (e.g. `OpenDQV_SA_smoke_v240`, `OpenDQV_SA_probe_persona_b`). Customer-facing metrics endpoints (`/api/v1/stats`, `/api/v1/agents`, MCP `get_quality_metrics`, MCP `list_agents`) suppress these by default so tenant views stay clean of dev/test traffic. Pass `include_system=true` to surface them for diagnostics — each row carries an `is_system_agent` flag.
+**Reserved `agent_id` prefix.** The prefix `OpenDQV_SA_` is reserved for OpenDQV-owned system traffic — smoke probes, demos, MCP self-tests, perf harnesses. The pattern is `OpenDQV_SA_[Category]_[Scope]` (e.g. `OpenDQV_SA_smoke_v240`, `OpenDQV_SA_probe_persona_b`). Core's metrics endpoints (`/api/v1/stats`, `/api/v1/agents`, MCP `get_quality_metrics`, MCP `list_agents`) suppress these by default so your quality metrics stay clean of dev/test traffic. Pass `include_system=true` to surface them for diagnostics — each row carries an `is_system_agent` flag.
 
 ---
 
@@ -117,6 +119,12 @@ For tool reference, write guardrails, remote/enterprise mode, and the Marmot com
 `install.sh` creates a virtual environment, installs dependencies, and launches the onboarding wizard. Docker pulls `ghcr.io/opendqv/opendqv:latest` — no build step required.
 
 > ⚠️ `AUTH_MODE=open` (the default) has **no authentication**. Set `AUTH_MODE=token` and a strong `SECRET_KEY` in `.env` before any non-local deployment. See [SECURITY.md](SECURITY.md).
+
+---
+
+## OpenDQV Cloud (managed)
+
+> **OpenDQV Cloud (managed).** Prefer not to run it yourself? OpenDQV Cloud runs the same contract format as a managed service on AWS, Azure or Google Cloud, in the UK, EU or US. 14-day trial, no card: https://opendqv.com. OpenDQV Core stays open source (MIT) and runs without it.
 
 ---
 
@@ -156,7 +164,7 @@ rules:
 curl -X POST http://localhost:8000/api/v1/contracts/reload
 ```
 
-**3. Send a bad record — OpenDQV rejects it:**
+**3. Send a bad record — OpenDQV Core rejects it:**
 
 ```bash
 curl -s -X POST http://localhost:8000/api/v1/validate \
@@ -234,13 +242,13 @@ A mature data governance programme operates across three layers, each with a dis
 
 | Layer | Purpose | Tools |
 |---|---|---|
-| **1. Write-time enforcement** | Prevent bad data from entering any system | **OpenDQV** |
+| **1. Write-time enforcement** | Prevent bad data from entering any system | **OpenDQV Core** |
 | **2. Catalog / governance / stewardship** | Ownership, glossary, lineage, policy, stewardship workflows | Alation, Atlan, Collibra, Purview, DataHub, Marmot |
 | **3. Pipeline testing / observability** | Detect drift, freshness issues, residual quality after ingestion | Great Expectations, Soda Core, dbt tests, Monte Carlo |
 
 OpenDQV Core owns layer one. Your catalog handles layer two, your pipeline tools handle layer three.
 
-| | Great Expectations / Soda / dbt | OpenDQV |
+| | Great Expectations / Soda / dbt | OpenDQV Core |
 |---|---|---|
 | **When** | After data lands (in warehouse/lake) | Before data is written (at the door) |
 | **Where** | Data pipelines, batch jobs | Source system integration points |
@@ -248,7 +256,7 @@ OpenDQV Core owns layer one. Your catalog handles layer two, your pipeline tools
 | **Latency** | Minutes to hours (batch) | Milliseconds (API call) |
 | **Who calls it** | Data engineers | Data engineers, developers, CRM admins |
 
-**They're complementary.** Use Great Expectations to monitor your warehouse. Use OpenDQV to stop bad data from getting there in the first place.
+**They're complementary.** Use Great Expectations to monitor your warehouse. Use OpenDQV Core to stop bad data from getting there in the first place.
 
 ---
 
@@ -285,7 +293,7 @@ methodology, and monthly volume extrapolation.
 | [API Reference](docs/index.md) | REST endpoints, SDK, GraphQL, webhooks |
 | [Security](SECURITY.md) | Deployment checklist, threat model, RBAC |
 | [Production Deployment](docs/production_deployment.md) | Token auth, TLS, Docker Compose, hardening |
-| [Integrations](docs/index.md) | Salesforce, Kafka, Snowflake, dbt, Databricks, MCP, and more |
+| [Integrations](docs/index.md) | Integration guides and examples — Salesforce, Kafka, Snowflake, dbt, Databricks, the MCP server, importers, code-generator targets, and more |
 | [All docs →](docs/) | The full documentation set |
 
 ---
@@ -298,7 +306,7 @@ OpenDQV Core is Beta (Beta since 2.0.0; currently 3.x). What that means today:
 - **Python SDK** — `OpenDQVClient`, `AsyncOpenDQVClient` and `LocalValidator` public method signatures are stable within `3.x`. Internal helpers (prefixed `_`) are not covered.
 - **MCP tools** — tool names and parameters are stable within `3.x`.
 - **YAML contract format** — removing a top-level key or a rule type needs a major version (3.0.0 removed `contexts:` and the `contract:` wrapper). New rule types and keys may be added in any release.
-- **Rule verdicts** — Core and OpenDQV Cloud's managed engine (not yet publicly available) are being held to one set of semantics, checked against a shared conformance fixture ([`docs/contract_conformance.md`](docs/contract_conformance.md)). When the engines disagree on a verdict or an error code, the side that is wrong is fixed in its next release — patch releases included — with no deprecation period. Every such change is listed in the [CHANGELOG](CHANGELOG.md) with the records it affects; pin an exact version if you need verdicts to stay fixed, and read the CHANGELOG before upgrading.
+- **Rule verdicts** — Core and OpenDQV Cloud's managed engine are being held to one set of semantics, checked against a shared conformance fixture ([`docs/contract_conformance.md`](docs/contract_conformance.md)). When the engines disagree on a verdict or an error code, the side that is wrong is fixed in its next release — patch releases included — with no deprecation period. Every such change is listed in the [CHANGELOG](CHANGELOG.md) with the records it affects; pin an exact version if you need verdicts to stay fixed, and read the CHANGELOG before upgrading.
 - **Security fixes** — ship in the latest release. There are no maintained older lines and no backports; upgrade to the latest `3.x`.
 
 ### Presence and null handling (v2.5+)
