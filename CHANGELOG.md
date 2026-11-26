@@ -71,6 +71,8 @@ message and some help text change; everything else is comments and docs.
   deployment_registry says MIT, self-hosted, with OpenDQV Cloud as a separate
   service Core does not depend on; roi_calculator drops a stale deployment
   claim.
+- **Workbench:** the Federation page no longer says contracts are replicated
+  across nodes; observation_mode.md drops its "Alpha feature" banner.
 - **Links:** three broken in-repo anchors and four broken links in the Arabic
   quickstart fixed; the Arabic quickstart names the software OpenDQV Core.
 - **CI:** the container-scan and Docker-publish builds no longer use the GitHub

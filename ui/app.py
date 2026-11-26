@@ -2694,7 +2694,7 @@ if section == "CLI Guide":
 
 if section == "Federation":
     st.header("Federation")
-    st.markdown("Monitor node health and federation status across OpenDQV instances. In standalone mode only node health and isolation events are active.")
+    st.markdown("Node health, isolation events and the federation log for this OpenDQV Core instance. OpenDQV Core does not synchronise contracts between instances (see docs/federation.md).")
 
     if st.button("Refresh", key="refresh_federation"):
         pass  # Streamlit reruns on button click
@@ -2804,7 +2804,7 @@ if section == "Federation":
             ]
             st.dataframe(event_rows, hide_index=True)
         else:
-            st.info("No federation events recorded. Events appear when contracts are replicated across nodes.")
+            st.info("No federation events recorded. OpenDQV Core does not write federation events itself, so this log stays empty unless another process writes to it.")
     elif log_r:
         st.error(f"Log failed: {log_r.status_code} — {log_r.text}")
 
