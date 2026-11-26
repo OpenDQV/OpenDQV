@@ -111,7 +111,7 @@ OpenDQV Core stores tokens, webhook registrations, contract history, and federat
 
 > ⚠️ **Impact: Medium** (defeats per-IP rate limiting)
 
-Setting `TRUST_PROXY_HEADERS=true` without a trusted reverse proxy allows clients to inject arbitrary `X-Forwarded-For` headers, defeating per-IP rate limiting. See [Running Behind a Reverse Proxy](#running-behind-a-reverse-proxy) in README.md.
+Setting `TRUST_PROXY_HEADERS=true` without a trusted reverse proxy allows clients to inject arbitrary `X-Forwarded-For` headers, defeating per-IP rate limiting. See [Running behind a reverse proxy](docs/administration.md#running-behind-a-reverse-proxy) in docs/administration.md.
 
 ---
 
@@ -158,7 +158,7 @@ Analogous CVE: Pydantic-AI GHSA-wjp5-868j-wqv7 (path traversal via CDN URL).
 
 - **ReDoS protection**: The `regex` library enforces a per-pattern timeout (`OPENDQV_REGEX_TIMEOUT`). Pathological patterns are interrupted, not queued indefinitely.
 - **Path traversal**: `lookup_file` local paths are canonicalized via `pathlib.resolve()` and restricted to `OPENDQV_CONTRACTS_DIR`.
-- **Webhook SSRF**: RFC 1918, loopback, and cloud metadata IP ranges are blocked at webhook registration (`_validate_webhook_url()` in `core/webhooks.py`)
+- **Webhook SSRF**: RFC 1918, loopback, and cloud metadata IP ranges are blocked at webhook registration (`_validate_webhook_url()` in `opendqv/core/webhooks.py`)
 - **Batch OOM**: `POST /validate/batch` rejects requests exceeding `MAX_BATCH_ROWS` (default: 10,000) with HTTP 400
 - **SSE connection exhaustion**: `GET /federation/events` enforces `MAX_SSE_CONNECTIONS` (default: 50 per worker) with HTTP 429
 - **Regex compilation**: Rules compile regex patterns once at load time (`compiled_pattern` on `Rule` model), not on every request
@@ -177,7 +177,7 @@ OpenDQV Core explicitly follows some standards and intentionally diverges from o
 
 | Standard | Status | Where applied |
 |---|---|---|
-| **RFC 1918** — Private Address Space (10/8, 172.16/12, 192.168/16) | **Followed** — blocked | Webhook SSRF protection (`_validate_webhook_url()` in `core/webhooks.py`) |
+| **RFC 1918** — Private Address Space (10/8, 172.16/12, 192.168/16) | **Followed** — blocked | Webhook SSRF protection (`_validate_webhook_url()` in `opendqv/core/webhooks.py`) |
 | **RFC 5735 / RFC 1122** — Loopback (127.0.0.0/8) | **Followed** — blocked | Same; also blocks `localhost` and `localhost.localdomain` by name |
 | **RFC 3927** — IPv4 Link-Local (169.254.0.0/16, cloud metadata endpoints) | **Followed** — blocked | Same; covers AWS/GCP/Azure instance metadata service |
 | **RFC 4193** — IPv6 Unique-Local (fc00::/7) | **Followed** — blocked | Same |
