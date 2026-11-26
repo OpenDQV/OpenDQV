@@ -6,9 +6,8 @@ Each row in `isolation_events` represents one isolation episode:
   opened when the node transitions to NodeState.ISOLATED
   closed when the node transitions back to NodeState.ONLINE or DEGRADED
 
-The `exceeded_threshold` flag is the OSS hook for the commercial compliance
-report: when True, the governance dashboard surfaces the event as a policy
-violation requiring review.
+The `exceeded_threshold` flag records whether an episode ran longer than
+MAX_ISOLATION_HOURS. It is recorded only; OpenDQV Core does not act on it.
 
 Wired into the node health state machine via the observer pattern:
   from opendqv.core.node_health import node_health

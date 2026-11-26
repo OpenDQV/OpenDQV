@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-OpenDQV CLI — standalone command-line interface for data contract operations.
+OpenDQV Core CLI — standalone command-line interface for data contract operations.
 
 Usage:
     python -m opendqv.cli <command> [options]
@@ -1056,7 +1056,7 @@ def cmd_token_generate(args):
 def main():
     parser = argparse.ArgumentParser(
         prog="opendqv",
-        description="OpenDQV CLI — Data quality contract management and validation",
+        description="OpenDQV Core CLI — Data quality contract management and validation",
     )
     try:
         from importlib.metadata import version as _pkg_version
@@ -1114,7 +1114,7 @@ def main():
     # import-odcs
     p_import_odcs = subparsers.add_parser("import-odcs", help="Import ODCS v3.x contract and save as OpenDQV contract")
     p_import_odcs.add_argument("file", help="Path to ODCS v3.x YAML or JSON file")
-    p_import_odcs.add_argument("--name", default=None, help="Contract name override (default: from info.title)")
+    p_import_odcs.add_argument("--name", default=None, help="Contract name override (default: the ODCS document's name, else its id)")
 
     # export-odcs
     p_export_odcs = subparsers.add_parser("export-odcs", help="Export contract as ODCS v3.1.0 YAML")

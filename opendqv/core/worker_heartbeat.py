@@ -7,9 +7,8 @@ and when it last ran a validation. The data feeds:
 
   - /health endpoint: visible proof that all workers are active
   - Prometheus: opendqv_worker_stale_count gauge (see monitoring.py)
-  - Commercial tier: isolation enforcement — a worker that hasn't resynced
-    within MAX_ISOLATION_HOURS is considered stale and can be blocked from
-    accepting new validation requests
+  - get_stale_workers(): which workers have not validated recently. OpenDQV
+    Core reports stale workers; it does not block them from validating.
 
 Design notes:
   - Writes are best-effort (try/except in record_validation) — a heartbeat
@@ -214,9 +213,8 @@ class WorkerHeartbeat:
         """
         Return heartbeat rows where last_validated_at is older than max_age_seconds.
 
-        OSS hook for the commercial isolation enforcement:
-        - Standalone use: visibility into idle workers
-        - Enterprise: gate validation if any worker exceeds MAX_ISOLATION_HOURS
+        Visibility into idle workers. OpenDQV Core does not gate validation on
+        this; nothing blocks a worker for exceeding MAX_ISOLATION_HOURS.
 
         A worker PID appears stale once per (pid, contract) pair — if it stops
         validating a contract, that row ages out and becomes stale.

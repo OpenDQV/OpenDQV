@@ -161,7 +161,7 @@ async def get_audit_event(event_id: str, role: str = Depends(get_current_role)):
 
     Returns the full audit row including JSON-decoded rule_failure_counts.
     Per-record validation errors are not stored on this row — they live
-    in the optional TRACE_LOG (AUDIT_MODE=signed). 404 if not found.
+    in the optional TRACE_LOG (OPENDQV_TRACE_LOG=true). 404 if not found.
 
     Auth-gated to admin and auditor.
     """

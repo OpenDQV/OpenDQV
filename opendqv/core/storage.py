@@ -2,8 +2,9 @@
 Storage backend abstraction for OpenDQV persistence.
 
 Defines abstract interfaces for contract history and federation log storage,
-with SQLite as the default implementation and a PostgreSQL stub that marks
-the interface boundary for the enterprise tier.
+with SQLite as the default implementation. PostgreSQL implements contract
+history; the PostgreSQL federation log is a stub that is not implemented in
+OpenDQV Core.
 
 Backend selection:
     OPENDQV_DB_BACKEND=sqlite  (default) — local SQLite, zero dependencies
@@ -15,10 +16,9 @@ Connection config:
 
 Why this abstraction exists:
     SQLite is perfect for single-node deployments (zero ops, embedded, fast).
-    PostgreSQL is required for multi-node federation with the 99.9% SLA tier —
-    shared state across Gunicorn workers and across nodes in the same datacenter.
-    The ABCs here make the interface contract explicit so the enterprise
-    PostgreSQL implementation can drop in without touching any caller code.
+    PostgreSQL lets several instances share contract history.
+    The ABCs here make the interface contract explicit so a backend can be
+    swapped without touching any caller code.
 """
 
 import abc
@@ -79,10 +79,9 @@ class FederationLogBackend(abc.ABC):
 
 
 # ---------------------------------------------------------------------------
-# PostgreSQL stubs — implement the interface, raise NotImplementedError.
-# These exist to make the interface boundary explicit and to fail fast with a
-# clear message if someone sets OPENDQV_DB_BACKEND=postgres before the
-# enterprise implementation is installed.
+# PostgreSQL backends. Contract history is implemented; the federation log is
+# a stub whose methods raise NotImplementedError, so a federation call on
+# OPENDQV_DB_BACKEND=postgres fails fast with a clear message.
 # ---------------------------------------------------------------------------
 
 class PostgresContractHistoryBackend(ContractHistoryBackend):
@@ -431,7 +430,7 @@ class PostgresFederationLogBackend(FederationLogBackend):
     """
     PostgreSQL implementation stub for FederationLogBackend.
 
-    Interface is wired; implementation ships in the enterprise tier.
+    Interface is wired; the methods are not implemented in OpenDQV Core.
     """
 
     def __init__(self, db_url: str):

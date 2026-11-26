@@ -223,9 +223,9 @@ _registry = ContractRegistry(config.CONTRACTS_DIR)
 _quality_stats = _QualityStats(config.DB_PATH)
 _quality_analytics = _QualityAnalytics(config.DB_PATH)
 
-# ── Remote mode (enterprise) ───────────────────────────────────────────
+# ── Remote mode (proxy to a running API) ───────────────────────────────
 # When OPENDQV_MCP_API_URL is set, all tool calls are proxied to the central
-# OpenDQV API over HTTP. Validation events become visible in the monitoring UI
+# OpenDQV Core API over HTTP. Validation events become visible in the monitoring UI
 # and agents always see the live contract version — not a stale local copy.
 # When unset (default), local mode is used: no network dependency.
 _remote_client = None  # httpx.Client | None

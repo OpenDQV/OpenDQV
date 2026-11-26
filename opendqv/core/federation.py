@@ -1,9 +1,9 @@
 """
 Federation log — append-only record of every sync event between nodes.
 
-This table is the OSS foundation for the commercial two-phase commit machinery.
-The schema is intentionally stable: commercial code will write new event_types
-and read this log without schema changes.
+OpenDQV Core provides the table and its read API (GET /federation/log and the
+SSE stream). Core itself does not push, acknowledge or commit contract changes
+between nodes: the lifecycle below is the event schema, not behaviour Core runs.
 
 Event lifecycle (two-phase propagation):
   authority node: INSERT event_type='push',  status='pending'
@@ -28,7 +28,7 @@ from opendqv.core.storage import FederationLogBackend
 
 logger = logging.getLogger(__name__)
 
-# Valid event types — OSS subset; commercial tier adds workflow events
+# Valid event types
 FEDERATION_EVENT_TYPES = frozenset({
     "push",           # authority pushes contract change to child
     "pull",           # child pulls from upstream
