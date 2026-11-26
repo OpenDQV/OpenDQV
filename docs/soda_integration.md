@@ -16,12 +16,13 @@ If your team already has Soda `checks.yml` definitions, use them to bootstrap Op
 ### Usage
 
 ```bash
-# Via REST API
+# Via REST API — the body is your checks.yml as a JSON object (editor/admin token);
+# add ?save=true to write the contract(s) to the contracts directory
 curl -s -X POST http://localhost:8000/api/v1/import/soda \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
-  -d '{"checks_yaml": "<contents of your checks.yml>"}' \
-  | jq .yaml
+  -d '{"checks for orders": ["missing_count(order_id) = 0", "duplicate_count(order_id) = 0", "min(amount) >= 0"]}' \
+  | jq .contracts
 
 # Via CLI
 opendqv import-soda path/to/checks.yml
@@ -42,13 +43,14 @@ opendqv import-soda path/to/checks.yml
 
 For full importer details see [`importers.md`](importers.md).
 
-### Example output
+### Example output (abbreviated — the importer also emits `description`, `owner`, `status`, `source` and an `error_message` per rule)
 
 ```yaml
 name: orders
+version: "1.0"
 asset_id: "soda::orders"
 rules:
-  - name: order_id_not_null
+  - name: order_id_not_empty
     type: not_empty
     field: order_id
     severity: error
@@ -59,7 +61,7 @@ rules:
   - name: amount_min
     type: min
     field: amount
-    min: 0
+    min_value: 0
     severity: error
 ```
 
@@ -154,21 +156,26 @@ if quarantine:
 
 ---
 
-## Approach 4 — Webhook-Driven: `opendqv.validation.failed` → Soda Cloud Notification
+## Approach 4 — Webhook-Driven: `opendqv.batch.failed` → Soda Cloud Notification
 
-When OpenDQV Core rejects a batch of records, push a notification to Soda Cloud to flag the affected dataset.
+When a `/validate/batch` call has failing records, OpenDQV Core fires `opendqv.batch.failed`; push a notification to Soda Cloud to flag the affected dataset.
 
 <a id="opendqv-webhook-payload"></a>
 ### OpenDQV Core webhook payload
 
 ```json
 {
-  "event": "opendqv.validation.failed",
+  "event": "opendqv.batch.failed",
+  "timestamp": "2026-03-13T10:00:00+00:00",
   "contract": "orders",
-  "asset_id": "urn:opendqv:acme:orders:1.0",
-  "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
-  "failed_count": 7,
-  "timestamp": "2026-03-13T10:00:00Z"
+  "contract_version": "1.0",
+  "opendqv_node_id": "eu-west-prod",
+  "context": null,
+  "total": 500,
+  "passed": 493,
+  "failed": 7,
+  "error_count": 9,
+  "violations": [{"field": "amount", "rule": "amount_min", "message": "amount must be at least 0", "severity": "error"}]
 }
 ```
 
@@ -185,7 +192,7 @@ SODA_API_KEY = os.getenv("SODA_API_KEY")
 @app.post("/webhooks/opendqv")
 async def handle_validation_failed(request: Request):
     payload = await request.json()
-    if payload.get("event") != "opendqv.validation.failed":
+    if payload.get("event") != "opendqv.batch.failed":
         return {"status": "ignored"}
 
     # Push custom event to Soda Cloud
@@ -195,8 +202,8 @@ async def handle_validation_failed(request: Request):
         json={
             "type": "opendqv_rejection",
             "dataset": payload["contract"],
-            "message": f"OpenDQV blocked {payload['failed_count']} records",
-            "trace_id": payload["trace_id"],
+            "message": f"OpenDQV Core rejected {payload['failed']} of {payload['total']} records",
+            "node": payload["opendqv_node_id"],
             "timestamp": payload["timestamp"],
         },
     )
@@ -211,78 +218,11 @@ curl -X POST http://localhost:8000/api/v1/webhooks \
   -H "Content-Type: application/json" \
   -d '{
     "url": "https://your-service.internal/webhooks/opendqv",
-    "events": ["opendqv.validation.failed"],
-    "secret": "<HMAC_SECRET>"
+    "events": ["opendqv.batch.failed"]
   }'
 ```
 
 See [`webhooks.md`](webhooks.md) for full webhook configuration.
-
----
-
-## Approach 5 — Incremental via `contract_hash`
-
-Skip Soda check generation for contracts that have not changed:
-
-```python
-import requests, json
-from pathlib import Path
-
-REGISTRY_URL = "http://localhost:8000/api/v1/registry"
-HASH_STORE = Path(".soda_export_hashes.json")
-
-known_hashes = json.loads(HASH_STORE.read_text()) if HASH_STORE.exists() else {}
-contracts = requests.get(
-    REGISTRY_URL,
-    headers={"Authorization": "Bearer <token>"},
-).json()
-
-for contract in contracts:
-    name = contract["name"]
-    current_hash = contract["contract_hash"]
-
-    if known_hashes.get(name) == current_hash:
-        continue  # unchanged — skip
-
-    # Re-generate Soda checks from updated contract
-    import subprocess
-    subprocess.run(
-        ["opendqv", "export-soda", name,
-         "--output", f"soda/checks/{name}.yml"],
-        check=True,
-    )
-    known_hashes[name] = current_hash
-    print(f"Updated Soda checks for: {name}")
-
-HASH_STORE.write_text(json.dumps(known_hashes, indent=2))
-```
-
----
-
-## Approach 6 — Federation-Aware
-
-In a federated deployment, generate Soda checks per OpenDQV Core region instance:
-
-```python
-INSTANCES = {
-    "eu-west": "http://opendqv-eu.internal:8000",
-    "us-east": "http://opendqv-us.internal:8000",
-}
-
-for region, base_url in INSTANCES.items():
-    contracts = requests.get(
-        f"{base_url}/api/v1/registry",
-        headers={"Authorization": "Bearer <token>"},
-    ).json()
-    for contract in contracts:
-        import subprocess
-        subprocess.run(
-            ["opendqv", "--url", base_url,
-             "export-soda", contract["name"],
-             "--output", f"soda/checks/{region}/{contract['name']}.yml"],
-            check=True,
-        )
-```
 
 ---
 
@@ -292,6 +232,7 @@ for region, base_url in INSTANCES.items():
 |---|---|
 | Aggregate checks | Soda `row_count`, `freshness`, `avg`, `schema` checks have no per-record OpenDQV equivalent — maintain these in Soda directly |
 | Soda Cloud vs Soda Core | The webhook approach targets Soda Cloud; Soda Core (open source) has no push notification endpoint |
+| No export to Soda | The importer is one-way (Soda → OpenDQV). OpenDQV Core has no `export-soda` command; it is on the [roadmap](roadmap.md) |
 
 ---
 
@@ -300,7 +241,7 @@ for region, base_url in INSTANCES.items():
 | Source | Format |
 |---|---|
 | Soda import | `soda::{dataset_name}` |
-| OpenDQV native | `urn:opendqv:{org}:{contract}:{version}` |
+| OpenDQV native | `urn:opendqv:{contract}` (bundled contracts and `opendqv fork`) |
 | Snowflake (via Soda) | `snowflake://{account}/{database}/{schema}/{table}` |
 
 See [`index.md`](index.md) for the full cross-catalog URN table.
@@ -329,7 +270,7 @@ See [`roadmap.md`](roadmap.md) for planned Soda features including `export-soda`
 ## See Also
 
 - [`importers.md`](importers.md) — Soda importer implementation details
-- [`webhooks.md`](webhooks.md) — webhook configuration and HMAC signing
+- [`webhooks.md`](webhooks.md) — webhook configuration
 - [`ecosystem_reference_stack.md`](ecosystem_reference_stack.md) — layered architecture overview
 - [`gx_integration.md`](gx_integration.md) — Great Expectations integration (same two-layer pattern)
 - [`dbt_integration.md`](dbt_integration.md) — dbt integration

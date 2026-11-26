@@ -40,8 +40,8 @@ Pull the image once on a connected machine, export it, and load it in the air-ga
 
 ```bash
 # On connected machine:
-docker pull opendqv/opendqv:latest
-docker save opendqv/opendqv:latest | gzip > opendqv.tar.gz
+docker pull ghcr.io/opendqv/opendqv:latest
+docker save ghcr.io/opendqv/opendqv:latest | gzip > opendqv.tar.gz
 
 # On air-gapped machine:
 docker load < opendqv.tar.gz
@@ -123,22 +123,21 @@ curl -s http://localhost:8000/api/v1/contracts \
 
 ### Changing a Contract's Lifecycle Status
 
-Contracts move through three states: `draft` → `active` → `archived`.
+Contracts move through four states: `draft` → `review` → `active` | `archived`.
 
-- `draft`: validation requests against this contract return a 422 (blocked by lifecycle guard).
-- `active`: normal operation.
-- `archived`: contract is excluded from listings but remains in history.
+- `draft`: being authored; rules can be edited. Validation requests against this contract return a 422 (blocked by lifecycle guard) unless the contract's `validate_in_states` lists `draft` (default: `[active]`) or the caller passes `?allow_draft=true`.
+- `review`: submitted for approval (`opendqv submit-review`, or `POST /api/v1/contracts/<contract_name>/<version>/submit-review`). Frozen — rule mutations return 409. Approving (`opendqv approve`) moves it to `active`; rejecting (`opendqv reject`) moves it back to `draft`. Validation is blocked as for `draft`.
+- `active`: normal operation. Rules are immutable (409); create a new version to change them.
+- `archived`: contract is excluded from listings but remains in history. Validation is blocked as for `draft`. An archived contract can only return to `draft`.
 
 To change status:
 
 ```bash
-curl -s -X PATCH http://localhost:8000/api/v1/contracts/<contract_name>/status \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"status": "active"}'
+curl -s -X POST "http://localhost:8000/api/v1/contracts/<contract_name>/status?status=active" \
+  -H "Authorization: Bearer <token>"
 ```
 
-Replace `<contract_name>` with the value of the `contract.name` field in the YAML (e.g. `salesforce_contact`).
+Replace `<contract_name>` with the value of the top-level `name` field in the YAML (e.g. `salesforce_contact`). Promoting to `active`, or moving a contract out of `active`, requires the `approver` or `admin` role.
 
 ### Rotating the SECRET_KEY
 
@@ -258,10 +257,8 @@ docker compose restart api
 2. Set the contract to `archived` to remove it from active validation:
 
 ```bash
-curl -s -X PATCH http://localhost:8000/api/v1/contracts/<contract_name>/status \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"status": "archived"}'
+curl -s -X POST "http://localhost:8000/api/v1/contracts/<contract_name>/status?status=archived" \
+  -H "Authorization: Bearer <token>"
 ```
 
 3. Reload:
@@ -324,10 +321,15 @@ See the quickstart troubleshooting section (`docs/quickstart.md`) for more first
 Revoke the specific token immediately:
 
 ```bash
+# The body is the compromised token value itself, as plain text
 curl -s -X POST http://localhost:8000/api/v1/tokens/revoke \
   -H "Authorization: Bearer <admin_token>" \
-  -H "Content-Type: application/json" \
-  -d '{"token_id": "<id_of_compromised_token>"}'
+  -H "Content-Type: text/plain" \
+  --data-raw '<compromised_token_value>'
+
+# Or revoke every token issued to one username:
+curl -s -X POST http://localhost:8000/api/v1/tokens/revoke/<username> \
+  -H "Authorization: Bearer <admin_token>"
 ```
 
 Issue a replacement token. If the admin token itself is compromised, rotate `SECRET_KEY` (see above), which invalidates all tokens.

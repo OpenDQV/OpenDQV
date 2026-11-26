@@ -50,7 +50,7 @@ Roles are embedded in the JWT payload at token creation time. Elevation requires
 
 **Severity:** None (warning only, no functional impact)
 
-OpenDQV Core declares `passlib[bcrypt]` and constructs a `CryptContext(schemes=["bcrypt"])` in `security/auth.py`. Passlib 1.7.4 (the latest release) tries to import Python's built-in `crypt` module at load time; Python deprecated `crypt` in 3.11 and removed it in 3.13. Separately, passlib's bcrypt backend self-test breaks against `bcrypt` ≥ 5.0 (`ValueError: password cannot be longer than 72 bytes`) on the first `hash()` call.
+OpenDQV Core declares `passlib[bcrypt]` and constructs a `CryptContext(schemes=["bcrypt"])` in `opendqv/security/auth.py`. Passlib 1.7.4 (the latest release) tries to import Python's built-in `crypt` module at load time; Python deprecated `crypt` in 3.11 and removed it in 3.13. Separately, passlib's bcrypt backend self-test breaks against `bcrypt` ≥ 5.0 (`ValueError: password cannot be longer than 72 bytes`) on the first `hash()` call.
 
 **Impact:** None in practice. A `DeprecationWarning` may appear in test output on Python 3.11/3.12. On Python 3.13 the `crypt` import is trapped and the module loads normally — the project is verified on 3.13 (Linux and Windows) and Python 3.11+ is supported for production. Authentication is JWT PAT based; `pwd_context.hash()` is never called on any request path, so the bcrypt 5.x self-test failure is never reached.
 
@@ -96,9 +96,9 @@ Revokes all tokens for a given username. Requires the `admin` role. This endpoin
 | SEC-007 | Input size limits | Request body size is capped. Batch validation payloads are bounded by `OPENDQV_MAX_BATCH_SIZE`. |
 | SEC-008 | Webhook SSRF protection | Outbound webhook URLs are validated against a blocklist: RFC 1918 private ranges, loopback (`127.0.0.0/8`, `::1`), and link-local (`169.254.0.0/16`, `fe80::/10`) are all rejected. |
 | SEC-009 | Token role whitelist | `/tokens/generate` validates the `role` parameter against an enumerated set (`validator`, `reader`, `auditor`, `editor`, `approver`, `admin`). Unknown roles return HTTP 422. Prevents phantom roles from appearing in the audit log. |
-| SEC-010 | Role guards | `POST /import/*`, `POST /webhooks`, `DELETE /webhooks` require `editor` or `admin`; `POST /contracts/reload` and `GET/POST /tokens/*` require `admin`. Enforced in `api/deps.py` helpers shared by every sub-router. |
+| SEC-010 | Role guards | `POST /import/*`, `POST /webhooks`, `DELETE /webhooks` require `editor` or `admin`; `POST /contracts/reload` and `GET/POST /tokens/*` require `admin`. Enforced by an inline role check in each route handler (`opendqv/api/routes_imports.py`, `routes_webhooks.py`, `routes_contracts.py`, `routes_tokens.py`), using the role from `get_current_role` in `opendqv/security/auth.py`. |
 | SEC-011 | `lookup_auth_header` secret exfiltration | `${VAR}` substitution in a lookup rule's auth header is gated by three fail-closed controls: only `OPENDQV_LOOKUP_`-prefixed env vars are substitutable; substitution is disabled entirely under `AUTH_MODE=open` unless `OPENDQV_ALLOW_LOOKUP_SECRETS` is set; a secret-bearing lookup may only target a host on `OPENDQV_LOOKUP_EGRESS_ALLOWLIST` (empty ⇒ none permitted). Redirects on credential-bearing lookups are refused. |
-| — | Contract name charset | `CONTRACT_NAME_RE` in `core/contracts.py` is the single contract-name charset (`[A-Za-z0-9_-]{1,100}`). Every core write path that takes a caller-supplied name — REST, GraphQL, MCP `create_contract_draft`, CLI — checks it before touching the filesystem. |
+| — | Contract name charset | `CONTRACT_NAME_RE` in `opendqv/core/contracts.py` is the single contract-name charset (`[A-Za-z0-9_-]{1,100}`). Every core write path that takes a caller-supplied name — REST, GraphQL, MCP `create_contract_draft`, CLI — checks it before touching the filesystem. |
 | — | ACTIVE / REVIEW immutability | Rule mutations on an ACTIVE or REVIEW contract return `409 Conflict` at the registry level (`ContractImmutableError`), so every surface is covered. To edit a REVIEW contract, reject it back to DRAFT. |
 
 ---
@@ -164,7 +164,7 @@ The following categories of packages are explicitly absent:
 
 ### The `mcp` package
 
-`mcp` is the newest package in the dependency tree and operates in a smaller ecosystem than the others. It is optional — required only if you run `mcp_server.py`. For production deployments that do not use the MCP integration, install without it:
+`mcp` is the newest package in the dependency tree and operates in a smaller ecosystem than the others. It is optional — required only if you run `opendqv/mcp_server.py`. For production deployments that do not use the MCP integration, install without it:
 
 ```bash
 pip install opendqv        # no MCP

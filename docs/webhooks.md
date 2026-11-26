@@ -42,18 +42,9 @@ curl -X POST "http://localhost:8000/api/v1/webhooks" \
 
 Webhooks are persisted in SQLite and survive server restarts.
 
-### Webhook Secret
+### Verifying deliveries
 
-Pass an optional `secret` string when registering a webhook. OpenDQV Core echoes it back in the `X-OpenDQV-Secret` header on every delivery so your receiver can verify the request came from OpenDQV Core:
-
-```bash
-curl -s -X POST http://localhost:8000/api/v1/webhooks \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://hooks.example.com/opendqv", "events": ["opendqv.validation.failed"], "secret": "my-shared-secret"}'
-```
-
-Your receiver should compare the `X-OpenDQV-Secret` header value to your expected secret. For stronger security, use a randomly generated 32+ character string and validate it server-side before processing the event.
+OpenDQV Core does not sign deliveries and sends no secret header; `POST /webhooks` accepts only `url`, `events` and `contracts` and ignores any other key. To verify that a request came from your OpenDQV Core instance, put a shared secret in the webhook URL as a query parameter (`?secret=<value>`) and check it in your receiver, or restrict the receiver by IP allowlist. See [Security](#security).
 
 ---
 
@@ -78,38 +69,49 @@ All webhook events are delivered as HTTP POST with `Content-Type: application/js
 ```json
 {
   "event": "opendqv.validation.failed",
+  "timestamp": "2026-11-26T10:15:00.123456+00:00",
   "contract": "customer",
-  "version": "0.1",
+  "contract_version": "0.1",
+  "opendqv_node_id": "eu-west-prod",
+  "context": null,
+  "record_id": null,
   "valid": false,
-  "errors": [
+  "error_count": 1,
+  "warning_count": 0,
+  "violations": [
     {
       "field": "email",
       "rule": "email_format",
       "message": "email must match ^[^@]+@[^@]+\\.[^@]+$",
       "severity": "error"
     }
-  ],
-  "warnings": [],
-  "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736"
+  ]
 }
 ```
+
+`violations` holds the same error objects `/validate` returns (on `opendqv.validation.warning`, the warnings; `valid` is `true` and `error_count` is `0`).
 
 **`opendqv.batch.failed`:**
 
 ```json
 {
   "event": "opendqv.batch.failed",
+  "timestamp": "2026-11-26T10:15:00.123456+00:00",
   "contract": "banking_transaction",
-  "version": "0.1",
-  "summary": {
-    "total": 100,
-    "passed": 97,
-    "failed": 3,
-    "error_count": 3,
-    "warning_count": 0
-  }
+  "contract_version": "0.1",
+  "opendqv_node_id": "eu-west-prod",
+  "context": null,
+  "total": 100,
+  "passed": 97,
+  "failed": 3,
+  "error_count": 3,
+  "violations": [
+    {"field": "amount", "rule": "amount_positive", "message": "amount must be greater than 0", "severity": "error"}
+  ]
 }
 ```
+
+`violations` is the error objects of the failed records, capped at 50; `error_count` is the uncapped total.
 
 ---
 
@@ -145,7 +147,6 @@ curl -X DELETE "http://localhost:8000/api/v1/webhooks" \
 ## Example: Slack alert on validation failure
 
 ```python
-import hmac
 from fastapi import FastAPI, Request
 
 app = FastAPI()
@@ -155,9 +156,9 @@ async def receive_hook(request: Request):
     body = await request.json()
     if body.get("event") == "opendqv.validation.failed":
         contract = body["contract"]
-        errors = body.get("errors", [])
+        violations = body.get("violations", [])
         msg = f":x: Validation failed on *{contract}*\n"
-        for e in errors[:3]:
+        for e in violations[:3]:
             msg += f"  • `{e['field']}`: {e['message']}\n"
         # post msg to Slack webhook URL
     return {"ok": True}

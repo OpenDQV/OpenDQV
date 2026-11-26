@@ -272,10 +272,10 @@ declarations at the time of review.
 
 ## Related resources
 
-- Contract: `contracts/ppds_menu_item.yaml` — 14 boolean allergen fields (REST API / bulk validation)
+- Contract: `opendqv/contracts/ppds_menu_item.yaml` — 14 boolean allergen fields (REST API / bulk validation)
 - Starter contract: `examples/ppds/ppds_menu_item.yaml`
 - Sample records: `examples/ppds/`
-- Reference files: `contracts/ref/allergen_boolean.txt`, `allergen_gluten_cereals.txt`,
+- Reference files: `opendqv/contracts/ref/allergen_boolean.txt`, `allergen_gluten_cereals.txt`,
   `allergen_tree_nut_types.txt`, `qsr_item_categories.txt`
 - UK legislation: [food.gov.uk/business-guidance/natashas-law](https://www.food.gov.uk/business-guidance/introduction-to-allergen-labelling-changes-ppds)
 - EU FIC: Regulation (EU) No 1169/2011

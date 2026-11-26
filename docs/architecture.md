@@ -101,7 +101,7 @@ atomically on every mutation. The in-memory registry is rebuilt from disk on rel
 
 **3. Config via environment variables**
 
-All settings come from environment variables via `config.py`. No runtime config files,
+All settings come from environment variables via `opendqv/config.py`. No runtime config files,
 no config DB. `.env` is the deployment artifact.
 
 **4. One handler per rule type, on both paths**
@@ -162,16 +162,16 @@ Response: {valid, errors, warnings, contract, version, owner}
 
 | Control | Where | Description |
 |---------|-------|-------------|
-| SEC-001 | `core/validator.py` | ReDoS timeout via `regex` library (0.5s default, `OPENDQV_REGEX_TIMEOUT`) |
-| SEC-002 | `core/contracts.py` | Path traversal prevention (`pathlib.resolve()` + containment) |
-| SEC-004 | `core/validator.py`, `core/rule_parser.py` | SQL injection protection — every field reference a rule carries (`field`, trigger fields, `compare_to`, cross-field names) is parameterised; `date_format.format` is a bound SQL parameter |
-| SEC-006 | `core/importers/` | Path traversal prevention on importer `lookup_file` paths |
-| SEC-008 | `core/webhooks.py` | Webhook SSRF protection (RFC 1918 + loopback + link-local blocked) |
-| SEC-009 | `security/auth.py` | Token role whitelist — unknown roles rejected with 422 |
-| SEC-010 | `api/deps.py` + every sub-router | Role guards — `POST /import/*`, `POST/DELETE /webhooks` require `editor`/`admin`; `POST /contracts/reload` and `/tokens/*` require `admin` |
-| SEC-011 | `core/validator.py`, `config.py` | `lookup_auth_header` secret substitution — `OPENDQV_LOOKUP_` prefix allowlist, disabled under `AUTH_MODE=open`, egress host allowlist (`OPENDQV_LOOKUP_EGRESS_ALLOWLIST`) |
-| — | `core/contracts.py` | `CONTRACT_NAME_RE` — the single contract-name charset; every core write path taking a caller-supplied name checks it |
-| — | `core/contracts.py` | ACTIVE and REVIEW contracts are immutable — rule mutations return 409 (registry-level gate); reject REVIEW → DRAFT to edit |
+| SEC-001 | `opendqv/core/validator.py` | ReDoS timeout via `regex` library (0.5s default, `OPENDQV_REGEX_TIMEOUT`) |
+| SEC-002 | `opendqv/core/contracts.py` | Path traversal prevention (`pathlib.resolve()` + containment) |
+| SEC-004 | `opendqv/core/validator.py`, `opendqv/core/rule_parser.py` | SQL injection protection — every field reference a rule carries (`field`, trigger fields, `compare_to`, cross-field names) is parameterised; `date_format.format` is a bound SQL parameter |
+| SEC-006 | `opendqv/core/importers/` | Path traversal prevention on importer `lookup_file` paths |
+| SEC-008 | `opendqv/core/webhooks.py` | Webhook SSRF protection (RFC 1918 + loopback + link-local blocked) |
+| SEC-009 | `opendqv/security/auth.py` | Token role whitelist — unknown roles rejected with 422 |
+| SEC-010 | `opendqv/api/routes_imports.py`, `routes_webhooks.py`, `routes_contracts.py`, `routes_tokens.py` | Role guards — `POST /import/*`, `POST/DELETE /webhooks` require `editor`/`admin`; `POST /contracts/reload` and `/tokens/*` require `admin` |
+| SEC-011 | `opendqv/core/validator.py`, `opendqv/config.py` | `lookup_auth_header` secret substitution — `OPENDQV_LOOKUP_` prefix allowlist, disabled under `AUTH_MODE=open`, egress host allowlist (`OPENDQV_LOOKUP_EGRESS_ALLOWLIST`) |
+| — | `opendqv/core/contracts.py` | `CONTRACT_NAME_RE` — the single contract-name charset; every core write path taking a caller-supplied name checks it |
+| — | `opendqv/core/contracts.py` | ACTIVE and REVIEW contracts are immutable — rule mutations return 409 (registry-level gate); reject REVIEW → DRAFT to edit |
 
 ---
 

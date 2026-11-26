@@ -200,9 +200,9 @@ Those verifications require BSR inspection or a human review step.
 
 ## Related resources
 
-- Contract: `contracts/building_safety_golden_thread.yaml`
+- Contract: `opendqv/contracts/building_safety_golden_thread.yaml`
 - Starter contract: `examples/building_safety/building_safety_golden_thread.yaml`
 - Sample records: `examples/building_safety/`
-- Reference files: `contracts/ref/building_safety_primary_uses.txt`
+- Reference files: `opendqv/contracts/ref/building_safety_primary_uses.txt`
 - UK legislation: [legislation.gov.uk — Building Safety Act 2022](https://www.legislation.gov.uk/ukpga/2022/30)
 - BSR: [hse.gov.uk/building-safety](https://www.hse.gov.uk/building-safety/)

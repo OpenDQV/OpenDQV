@@ -66,7 +66,7 @@ This document covers the seven primary attack surfaces identified during the ini
 **STRIDE category:** Elevation of Privilege
 
 **Current mitigation:**
-- `_check_lookup_path_safe()` in `core/validator.py` resolves the path via `pathlib.Path.resolve()` and verifies it lies within `OPENDQV_CONTRACTS_DIR`.
+- `_check_lookup_path_safe()` in `opendqv/core/validator.py` resolves the path via `pathlib.Path.resolve()` and verifies it lies within `OPENDQV_CONTRACTS_DIR`.
 - Traversal attempts raise `ValueError` and the rule fails closed.
 - Importers (CSVW, OTel, NDC) scan generated rules for `lookup_file` paths and apply the same check (SEC-006).
 
@@ -153,7 +153,7 @@ This document covers the seven primary attack surfaces identified during the ini
 
 *Identified and fixed: 2026-03-10 post-conference code review.*
 
-**Threat:** The batch validation engine (`validate_batch` in `core/validator.py`) generates DuckDB SQL queries by interpolating field names from contract rules directly into f-strings. A contract rule with a field name containing a double-quote character (e.g. `email"--`) would break out of SQL identifier quoting and allow injection of arbitrary SQL into an in-memory DuckDB instance.
+**Threat:** The batch validation engine (`validate_batch` in `opendqv/core/validator.py`) generates DuckDB SQL queries by interpolating field names from contract rules directly into f-strings. A contract rule with a field name containing a double-quote character (e.g. `email"--`) would break out of SQL identifier quoting and allow injection of arbitrary SQL into an in-memory DuckDB instance.
 
 **STRIDE category:** Tampering, Elevation of Privilege
 
@@ -163,7 +163,7 @@ This document covers the seven primary attack surfaces identified during the ini
 3. The double-quote terminates the identifier; `--` comments out the remainder, altering query semantics.
 
 **Current mitigation (fixed 2026-03-10; widened 2026-09-02, v2.4.1 — SEC-004):**
-- `Rule._post_parse()` in `core/rule_parser.py` validates every field reference a rule carries — `field`, `required_if`/`condition` trigger fields, `compare_to`, and cross-field names — at contract parse time. `date_format.format` is passed as a bound SQL parameter, never interpolated.
+- `Rule._post_parse()` in `opendqv/core/rule_parser.py` validates every field reference a rule carries — `field`, `required_if`/`condition` trigger fields, `compare_to`, and cross-field names — at contract parse time. `date_format.format` is passed as a bound SQL parameter, never interpolated.
 - Field names containing `"`, `\`, `;`, null bytes (`\x00`), or other control characters raise a `ValueError` and prevent the contract from loading.
 - Allowed characters: letters, digits, underscore, hyphen, space, dot — all safe when double-quoted as SQL identifiers.
 - 7 regression tests added in `TestFieldNameSQLInjection` in `tests/test_security.py`.

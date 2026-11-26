@@ -115,7 +115,7 @@ rules:
     field: email
     pattern: "^[^@]+@[^@]+\\.[^@]+$"
     error_message: Invalid email format
-    # Proposed metadata for IQ dimension reporting (not an engine key — see note below):
+    # Proposed metadata for IQ dimension reporting (not an engine key; refused at load today — see note below):
     iq_dimensions: [accuracy, validity]
 
   - name: date_not_future
@@ -127,7 +127,7 @@ rules:
     iq_dimensions: [timeliness, accuracy]
 ```
 
-**Honest note:** `iq_dimensions` is a proposal, not an engine feature. The `Rule` model has no such field; an unknown key is silently dropped at load and never appears in validation responses. Until it is implemented, keep IQ dimension tags in the rule's `description` (which `/explain` surfaces) or in your own mapping table keyed on rule `name`, and aggregate by rule name downstream.
+**Honest note:** `iq_dimensions` is a proposal, not an engine feature. The `Rule` model has no such field, and since 2.9.0 an unknown rule key is refused: the whole contract fails to load with `unknown key "iq_dimensions" — this engine does not read it, so it would change nothing; remove it or fix the spelling` (the file is listed under `failed` by `POST /contracts/reload`, and `opendqv lint` reports it as an ERROR). The YAML above is the proposed shape, not something you can load today. Until it is implemented, keep IQ dimension tags in the rule's `description` (which `/explain` surfaces) or in your own mapping table keyed on rule `name`, and aggregate by rule name downstream.
 
 ---
 

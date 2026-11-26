@@ -15,7 +15,7 @@ In financial services and healthcare, validation rules are often required by reg
 - A timestamped record in the `ContractHistory` diff of when a rule was deprecated at the authority level
 - A propagated notice to all community nodes via the federation sync (`event_type='push'` with `deprecated: true` in the payload)
 - A configurable migration window before the rule is removed, enforced at the governance layer
-- Entries in the federation log (`core/federation.py`) for every stage of the transition
+- Entries in the federation log (`opendqv/core/federation.py`) for every stage of the transition
 
 ---
 
@@ -150,7 +150,7 @@ Federation deprecation status — authority: nhs-national-standards
 Until this command is implemented, query the federation log directly:
 
 ```python
-from core.federation import FederationLog
+from opendqv.core.federation import FederationLog
 log = FederationLog()
 events = log.get_since(0, contract_name="nhs-iban-contract")
 deprecated_pushes = [e for e in events if e["payload"].get("deprecated_rules")]
@@ -160,6 +160,6 @@ deprecated_pushes = [e for e in events if e["payload"].get("deprecated_rules")]
 
 ## Related
 
-- `core/federation.py` — federation log implementation (append-only, LSN-based)
+- `opendqv/core/federation.py` — federation log implementation (append-only, LSN-based)
 - `docs/patterns/multi_parent_federation.md` — multi-parent federation architecture
 - `docs/patterns/distribution_check.md` — statistical distribution rules

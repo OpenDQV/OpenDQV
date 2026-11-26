@@ -105,7 +105,7 @@ Or copy `gdpr_processing_record.yaml` to `./contracts/` in your Odoo working dir
 
 ## How it works
 
-The `gdpr_processing_record` contract (`contracts/gdpr_processing_record.yaml`)
+The `gdpr_processing_record` contract (`opendqv/contracts/gdpr_processing_record.yaml`)
 defines what Article 30 completeness means:
 
 ```yaml
@@ -164,6 +164,6 @@ App Store listing: *(pending submission)*
 ## Related resources
 
 - Module: `odoo_modules/odoo_opendqv_gdpr/`
-- Contract: `contracts/gdpr_processing_record.yaml`
+- Contract: `opendqv/contracts/gdpr_processing_record.yaml`
 - UK GDPR Article 30: [ico.org.uk — Documentation](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/documentation/what-do-we-need-to-document-under-article-30-of-the-gdpr/)
 - OpenDQV Core GDPR guide: [docs/integrations/gdpr-compliance.md](gdpr-compliance.md)

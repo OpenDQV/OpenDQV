@@ -3,7 +3,7 @@
 > **Marmot version:** This guide targets Marmot v0.x (MIT, https://github.com/marmotdata/marmot).
 > Verify all Marmot API endpoint paths and request payloads against your instance's Swagger UI
 > (`/swagger/index.html`) before deploying — Marmot is pre-1.0 and field names may differ.
-> OpenDQV Core webhook event names are verified against `core/webhooks.py`.
+> OpenDQV Core webhook event names are verified against `opendqv/core/webhooks.py`.
 
 OpenDQV Core and Marmot serve complementary roles: Core validates data at the write boundary and governs contracts; Marmot provides data discovery, lineage visualisation, and asset cataloging across your estate. Neither replaces the other — together they close the governance loop from "what data do we have?" to "is it valid before it lands?"
 
