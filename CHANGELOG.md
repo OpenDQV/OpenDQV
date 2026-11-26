@@ -2,6 +2,31 @@
 
 All notable changes to OpenDQV are documented here.
 
+## [Unreleased]
+
+### Documentation: OpenDQV, OpenDQV Core and OpenDQV Cloud
+
+Docs only; no code, contract or behaviour change.
+
+- The docs now name two products under one name. **OpenDQV** is the project,
+  the GitHub organisation, the community, governance, the CLA, the logo and the
+  contract family (OpenDQV contracts, contract format, rule types, error codes).
+  **OpenDQV Core** is the open-source software in this repository (MIT,
+  self-hosted). **OpenDQV Cloud** is the separate managed service at
+  https://opendqv.com. Software-sense mentions of "OpenDQV" now say "OpenDQV
+  Core"; renamed headings keep their old anchors. Code, identifiers, the
+  `opendqv` package and the API's `service: "OpenDQV"` are unchanged.
+- README, docs/index.md and llms.txt point to OpenDQV Cloud as the managed
+  option; "(not yet publicly available)" is gone.
+- "Community edition", "enterprise tier" and "Enterprise edition" are retired:
+  OpenDQV Core is open source (MIT), maintained by BGMS Consultants Limited;
+  OpenDQV Cloud is a managed service from BGMS Consultants Limited. The
+  Postgres backend and federation pages now say what Core actually ships.
+- llms.txt no longer presents Snowflake External Function packaging as
+  available; it is planned (docs/roadmap.md).
+- CLA v1.1: the example licence is MIT (under which OpenDQV Core is published)
+  and the company name is written in full; the scope of the grant is unchanged.
+
 ## [3.0.9] - 2026-10-11
 
 Messages only — verdicts and codes unchanged. Closes the conformance round with
@@ -61,8 +86,8 @@ green on v3.0.6; the managed fixture holds 210/210 on Core).
 
 ### Numbers, versions and booleans (aligned with the managed engine)
 
-The managed engine's follow-up to 3.0.5. There are no users of either engine
-yet, so where the managed engine's 3.0.5 behaviour was an accident rather than
+The managed engine's follow-up to 3.0.5. Where the managed engine's 3.0.5
+behaviour was an accident rather than
 a design, the managed engine was fixed and Core follows. The managed engine
 passes all 210 rows of its fixture; on Core 3.0.5 exactly 16 were red. The
 rows are mirrored byte-identical in `frozen/engine_semantics.jsonl` (125 →
