@@ -161,7 +161,11 @@ jobs:
           platforms: linux/amd64
           load: true
           tags: opendqv:ci
-          cache-from: type=gha
+          # No layer cache: the Dockerfile's `apt-get upgrade` layer must run
+          # fresh, or a cached copy hides Debian security fixes released since
+          # (2026-11-26: libzstd1 CVE-2026-124851 stayed in the scanned image).
+          no-cache: true
+          pull: true
 
       # --- Grype (primary scanner — Anchore) ---
       - name: Install Grype
