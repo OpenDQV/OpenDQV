@@ -6,7 +6,7 @@ Thanks for your interest in contributing to OpenDQV! This document covers everyt
 
 **Before your first pull request can be merged, you must sign the [Contributor Licence Agreement](CLA.md).**
 
-This is handled automatically — when you open your first PR, a bot will post a comment with a single-click GitHub OAuth link. It takes 30 seconds. You only sign once.
+When you open your first PR, the CLA Assistant bot comments on it. To sign, post this exact comment on the PR: `I have read the CLA Document and I hereby sign the CLA`. The bot records your signature and the CLA check turns green. You only sign once. See [How to Sign](CLA.md#how-to-sign).
 
 The CLA allows BGMS Consultants Limited to offer OpenDQV Core under both open-source and commercial licences while you retain ownership of your contribution. See [CLA.md](CLA.md) for the full text.
 

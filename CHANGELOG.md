@@ -13,6 +13,10 @@ All notable changes to OpenDQV are documented here.
   and the signature is committed to `signatures/version1/cla.json` on the
   `cla-signatures` branch. The terms of the CLA are unchanged (still v1.1).
 
+### Trademark policy
+
+- Added `TRADEMARKS.md`: the code is MIT-licensed; the OpenDQV name and logo are covered by the trademark policy.
+
 ---
 
 ## [3.0.10] - 2026-11-26
