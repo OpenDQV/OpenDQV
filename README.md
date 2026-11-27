@@ -334,6 +334,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, coding guidelines
 
 MIT — see [LICENSE](LICENSE).
 
+The code is MIT-licensed. The OpenDQV name and logo are covered by our [trademark policy](TRADEMARKS.md).
+
 ## Acknowledgements
 
 **Led by [Sunny Sharma](https://uk.linkedin.com/in/sunny-sharma-3927632), [BGMS Consultants Limited](https://www.bgmsconsultants.com).** The vision, the architecture, every contract, and every design decision in this repository are directed by a human who believes data quality is a write-time responsibility.
