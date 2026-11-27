@@ -10,6 +10,8 @@ This is handled automatically — when you open your first PR, a bot will post a
 
 The CLA allows BGMS Consultants Limited to offer OpenDQV Core under both open-source and commercial licences while you retain ownership of your contribution. See [CLA.md](CLA.md) for the full text.
 
+The CLA covers your code, not the OpenDQV name or logo: those are covered by the [trademark policy](TRADEMARKS.md).
+
 Corporate contributors (contributing on behalf of an employer) should contact **opendqv@bgmsconsultants.com** before submitting.
 
 ## Development Setup
